@@ -20,35 +20,20 @@ mod ffi {
     }
 }
 
-#[derive(Clone)]
-#[allow(missing_debug_implementations)]
-pub struct FfiRealisation {
-    inner: cxx::SharedPtr<ffi::InternalRealisation>,
+pub trait RealisationOperations {
+    fn query_realisation(&self, id: &DrvOutput) -> Result<Realisation, crate::Error>;
 }
-unsafe impl Send for FfiRealisation {}
-unsafe impl Sync for FfiRealisation {}
 
-impl FfiRealisation {
-    pub fn as_rust(&self) -> Result<Realisation, crate::Error> {
-        let json = self.inner.as_json();
+impl RealisationOperations for crate::BaseStoreImpl {
+    fn query_realisation(&self, id: &DrvOutput) -> Result<Realisation, crate::Error> {
+        let raw = ffi::query_raw_realisation(self.wrapper.as_raw(), &id.to_string())?;
+        let json = raw.as_json();
         Ok(serde_json::from_str(&json)?)
     }
 }
 
-pub trait RealisationOperations {
-    fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error>;
-}
-
-impl RealisationOperations for crate::BaseStoreImpl {
-    fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error> {
-        Ok(FfiRealisation {
-            inner: ffi::query_raw_realisation(self.wrapper.as_raw(), &id.to_string())?,
-        })
-    }
-}
-
 impl RealisationOperations for crate::LocalStore {
-    fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error> {
-        self.base.query_raw_realisation(id)
+    fn query_realisation(&self, id: &DrvOutput) -> Result<Realisation, crate::Error> {
+        self.base.query_realisation(id)
     }
 }

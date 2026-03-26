@@ -47,7 +47,7 @@ pub enum Error {
 }
 
 pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
+pub use realisation::{DrvOutput, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
     StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName, parse_store_path,
