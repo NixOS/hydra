@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use tokio::io::{AsyncBufReadExt as _, BufReader};
 use tokio_stream::wrappers::LinesStream;
 
 use crate::BaseStore as _;
-use crate::StorePath;
+use crate::{DerivedPath, OutputSpec, SingleDerivedPath, StorePath};
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildOptions {
@@ -73,20 +75,22 @@ pub async fn realise_drvs(
 ) -> Result<
     (
         tokio::process::Child,
-        tokio_stream::adapters::Merge<
-            LinesStream<BufReader<tokio::process::ChildStdout>>,
-            LinesStream<BufReader<tokio::process::ChildStderr>>,
-        >,
+        LinesStream<BufReader<tokio::process::ChildStdout>>,
+        LinesStream<BufReader<tokio::process::ChildStderr>>,
     ),
     crate::Error,
 > {
-    use tokio_stream::StreamExt;
-
-    let mut child = tokio::process::Command::new("nix-store")
+    let mut child = tokio::process::Command::new("nix")
         .args([
-            "-r",
-            "--quiet",         // we want to always set this
-            "--no-gc-warning", // we want to always set this
+            "--extra-experimental-features",
+            "nix-command",
+            "build",
+            "--json",
+            "--no-pretty",
+            "--print-build-logs",
+            "--log-format",
+            "raw-with-logs",
+            "--no-link",
             "--max-silent-time",
             &opts.max_silent_time.to_string(),
             "--timeout",
@@ -105,7 +109,15 @@ pub async fn realise_drvs(
             "",
         ])
         .args(if opts.check { vec!["--check"] } else { vec![] })
-        .args(drvs.iter().map(|v| store.print_store_path(v)))
+        .args(drvs.iter().map(|v| {
+            store
+                .store_dir()
+                .display(&DerivedPath::Built {
+                    drv_path: Arc::new(SingleDerivedPath::Opaque((*v).clone())),
+                    outputs: OutputSpec::All,
+                })
+                .to_string()
+        }))
         .kill_on_drop(kill_on_drop)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -117,7 +129,7 @@ pub async fn realise_drvs(
     let stdout = LinesStream::new(BufReader::new(stdout).lines());
     let stderr = LinesStream::new(BufReader::new(stderr).lines());
 
-    Ok((child, StreamExt::merge(stdout, stderr)))
+    Ok((child, stdout, stderr))
 }
 
 #[allow(clippy::type_complexity)]
@@ -130,10 +142,8 @@ pub async fn realise_drv(
 ) -> Result<
     (
         tokio::process::Child,
-        tokio_stream::adapters::Merge<
-            LinesStream<BufReader<tokio::process::ChildStdout>>,
-            LinesStream<BufReader<tokio::process::ChildStderr>>,
-        >,
+        LinesStream<BufReader<tokio::process::ChildStdout>>,
+        LinesStream<BufReader<tokio::process::ChildStderr>>,
     ),
     crate::Error,
 > {

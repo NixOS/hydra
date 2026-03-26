@@ -50,11 +50,12 @@ pub enum Error {
 
 pub use drv::{Derivation, output_paths, query_drv};
 pub use harmonia_store_core::derivation::{DerivationOutput, DerivationOutputs};
-pub use harmonia_store_core::derived_path::OutputName;
+pub use harmonia_store_core::derived_path::{DerivedPath, OutputName, OutputSpec, SingleDerivedPath};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
-    StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName, parse_store_path,
+    ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
+    parse_store_path,
 };
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {

@@ -18,7 +18,6 @@ prom_cpp_core_dep = dependency('prometheus-cpp-core', required: true)
 prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
 
 # Native code
-subdir('libhydra')
 subdir('hydra-evaluator')
 
 # Make executables available to sibling subprojects (e.g. hydra-tests)
