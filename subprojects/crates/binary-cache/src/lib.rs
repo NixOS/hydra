@@ -689,8 +689,7 @@ impl S3BinaryCacheClient {
             return Ok(());
         }
 
-        let raw_realisation = store.query_raw_realisation(id)?;
-        let mut realisation = raw_realisation.as_rust()?;
+        let mut realisation = store.query_realisation(id)?;
         let keys = self
             .signing_keys
             .iter()

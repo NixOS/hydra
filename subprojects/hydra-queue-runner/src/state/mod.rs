@@ -88,7 +88,7 @@ impl State {
     pub async fn new(tracing_guard: &hydra_tracing::TracingGuard) -> anyhow::Result<Arc<Self>> {
         let store = nix_utils::LocalStore::init();
         nix_utils::set_verbosity(1);
-        tracing::info!("LocalStore dir={}", nix_utils::get_store_dir());
+        tracing::info!("LocalStore dir={}", store.store_dir());
 
         let cli = Cli::new();
         if cli.status {

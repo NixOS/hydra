@@ -52,10 +52,6 @@ std::unique_ptr<StoreWrapper> init(rust::Str uri) {
   }
 }
 
-rust::String get_store_dir() {
-  init_nix();
-  return nix::openStore()->storeDir;
-}
 rust::String get_store_dir_for(const StoreWrapper &wrapper) {
   return wrapper._store->storeDir;
 }
@@ -68,48 +64,7 @@ rust::String get_build_dir() {
 }
 rust::String get_log_dir() { return nix::settings.getLogFileSettings().nixLogDir.string(); }
 rust::String get_state_dir() { return nix::settings.nixStateDir.string(); }
-rust::String get_nix_version() { return nix::nixVersion; }
-rust::String get_this_system() { return nix::settings.thisSystem.get(); }
-rust::Vec<rust::String> get_extra_platforms() {
-  auto set = nix::settings.extraPlatforms.get();
-  rust::Vec<rust::String> data;
-  data.reserve(set.size());
-  for (const auto &val : set) {
-    data.emplace_back(val);
-  }
-  return data;
-}
-rust::Vec<rust::String> get_system_features() {
-  auto set = nix::settings.systemFeatures.get();
-  rust::Vec<rust::String> data;
-  data.reserve(set.size());
-  for (const auto &val : set) {
-    data.emplace_back(val);
-  }
-  return data;
-}
-rust::Vec<rust::String> get_substituters() {
-  auto refs = nix::settings.getWorkerSettings().substituters.get();
-  rust::Vec<rust::String> data;
-  data.reserve(refs.size());
-  for (const auto &val : refs) {
-    data.emplace_back(val.render());
-  }
-  return data;
-}
 
-bool get_use_cgroups() {
-#ifdef __linux__
-  return nix::settings.getLocalSettings().useCgroups;
-#endif
-  return false;
-}
-void set_verbosity(int32_t level) { nix::verbosity = (nix::Verbosity)level; }
-
-bool is_valid_path(const StoreWrapper &wrapper, rust::Str path) {
-  auto store = wrapper._store;
-  return store->isValidPath(store->parseStorePath(AS_VIEW(path)));
-}
 
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
@@ -153,37 +108,6 @@ uint64_t compute_closure_size(const StoreWrapper &wrapper, rust::Str path) {
 void clear_path_info_cache(const StoreWrapper &wrapper) {
   auto store = wrapper._store;
   store->clearPathInfoCache();
-}
-
-rust::Vec<rust::String> compute_fs_closure(const StoreWrapper &wrapper,
-                                           rust::Str path, bool flip_direction,
-                                           bool include_outputs,
-                                           bool include_derivers) {
-  auto store = wrapper._store;
-  nix::StorePathSet path_set;
-  store->computeFSClosure(store->parseStorePath(AS_VIEW(path)), path_set,
-                          flip_direction, include_outputs, include_derivers);
-  return extract_path_set(*store, path_set);
-}
-
-rust::Vec<rust::String> compute_fs_closures(const StoreWrapper &wrapper,
-                                            rust::Slice<const rust::Str> paths,
-                                            bool flip_direction,
-                                            bool include_outputs,
-                                            bool include_derivers,
-                                            bool toposort) {
-  auto store = wrapper._store;
-  nix::StorePathSet path_set;
-  for (auto &path : paths) {
-    store->computeFSClosure(store->parseStorePath(AS_VIEW(path)), path_set,
-                            flip_direction, include_outputs, include_derivers);
-  }
-  if (toposort) {
-    auto sorted = store->topoSortPaths(path_set);
-    return extract_paths(*store, sorted);
-  } else {
-    return extract_path_set(*store, path_set);
-  }
 }
 
 void upsert_file(const StoreWrapper &wrapper, rust::Str path, rust::Str data,

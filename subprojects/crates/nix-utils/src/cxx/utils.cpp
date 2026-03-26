@@ -18,12 +18,3 @@ rust::Vec<rust::String> extract_path_set(const nix::Store &store,
   return data;
 }
 
-rust::Vec<rust::String> extract_paths(const nix::Store &store,
-                                      const nix::StorePaths &set) {
-  rust::Vec<rust::String> data;
-  data.reserve(set.size());
-  for (const nix::StorePath &path : set) {
-    data.emplace_back(store.printStorePath(path));
-  }
-  return data;
-}
