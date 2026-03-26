@@ -7,12 +7,10 @@ fs = import('fs')
 
 perl = find_program('perl', native: true)
 nix = find_program('nix')
-hydra_evaluator = find_program('hydra-evaluator')
 curl = find_program('curl')
 
 exe_path = [
   fs.parent(nix.full_path()),
-  fs.parent(hydra_evaluator.full_path()),
   fs.parent(curl.full_path()),
   meson.current_source_dir() / 'scripts',
 ]
@@ -33,7 +31,8 @@ if meson.is_subproject()
   exe_path += hydra_source_root / 'target' / cargo_profile
 else
   hydra_queue_runner = find_program('hydra-queue-runner')
-  hydra_queue_runner = find_program('hydra-builder')
+  hydra_builder = find_program('hydra-builder')
+  hydra_evaluator = find_program('hydra-evaluator')
   hydra_init = find_program('hydra-init')
   hydra_notify = find_program('hydra-notify')
 
@@ -41,6 +40,8 @@ else
   hydra_perl5lib = hydra_home / 'lib'
 
   exe_path += fs.parent(hydra_queue_runner.full_path())
+  exe_path += fs.parent(hydra_builder.full_path())
+  exe_path += fs.parent(hydra_evaluator.full_path())
   exe_path += fs.parent(hydra_init.full_path())
   exe_path += fs.parent(hydra_notify.full_path())
 endif
