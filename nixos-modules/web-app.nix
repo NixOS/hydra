@@ -193,7 +193,7 @@ in
     systemd.tmpfiles.rules = [
       "d ${baseDir} 0750 hydra hydra"
       "d ${baseDir}/www 0700 hydra-www hydra"
-      "d ${baseDir}/notify 0700 hydra-notify hydra"
+      "d ${baseDir}/notify 0700 hydra-queue-runner hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
       "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
@@ -206,18 +206,9 @@ in
         home = "${baseDir}/www";
       };
 
-    users.users.hydra-notify =
-      { description = "Hydra notify";
-        group = "hydra";
-        isSystemUser = true;
-        useDefaultShell = true;
-        home = "${baseDir}/notify";
-      };
-
     services.postgresql.identMap = optionalString haveLocalDB
       ''
         hydra-users hydra-www hydra
-        hydra-users hydra-notify hydra
       '';
 
     services.hydra-dev.extraConfig =
@@ -320,7 +311,10 @@ in
         };
         serviceConfig =
           { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
-            User = "hydra-notify";
+            # FIXME: hydra-notify should not need to write to build-logs.
+            # Move log compression into the queue-runner, then give
+            # hydra-notify its own user again.
+            User = "hydra-queue-runner";
             Restart = "always";
             RestartSec = 5;
           };
