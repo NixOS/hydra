@@ -17,6 +17,8 @@ mod realisation;
 mod realise;
 mod store_path;
 
+use std::collections::BTreeMap;
+
 use hashbrown::HashMap;
 
 #[derive(thiserror::Error, Debug)]
@@ -46,7 +48,9 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 }
 
-pub use drv::{Derivation, DerivationEnv, Output as DerivationOutput, query_drv};
+pub use drv::{Derivation, output_paths, query_drv};
+pub use harmonia_store_core::derivation::{DerivationOutput, DerivationOutputs};
+pub use harmonia_store_core::derived_path::OutputName;
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
@@ -814,19 +818,15 @@ impl LocalStore {
     #[tracing::instrument(skip(self, outputs))]
     pub async fn query_missing_outputs(
         &self,
-        outputs: Vec<DerivationOutput>,
-    ) -> Vec<DerivationOutput> {
+        outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> BTreeMap<OutputName, Option<StorePath>> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|o| async move {
-                let Some(path) = &o.path else {
-                    return None;
-                };
-                if self.is_valid_path(path).await {
-                    None
-                } else {
-                    Some(o)
+            .map(|(name, path)| async move {
+                match path {
+                    Some(p) if self.is_valid_path(&p).await => None,
+                    other => Some((name, other)),
                 }
             })
             .buffered(50)
@@ -1050,19 +1050,15 @@ impl RemoteStore {
     #[tracing::instrument(skip(self, outputs))]
     pub async fn query_missing_remote_outputs(
         &self,
-        outputs: Vec<DerivationOutput>,
-    ) -> Vec<DerivationOutput> {
+        outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> BTreeMap<OutputName, Option<StorePath>> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|o| async move {
-                let Some(path) = &o.path else {
-                    return None;
-                };
-                if self.is_valid_path(path).await {
-                    None
-                } else {
-                    Some(o)
+            .map(|(name, path)| async move {
+                match path {
+                    Some(p) if self.is_valid_path(&p).await => None,
+                    other => Some((name, other)),
                 }
             })
             .buffered(50)

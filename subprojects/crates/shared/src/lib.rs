@@ -245,7 +245,7 @@ where
 #[tracing::instrument(skip(store), err)]
 pub async fn parse_nix_support_from_outputs(
     store: &nix_utils::LocalStore,
-    derivation_outputs: &[nix_utils::DerivationOutput],
+    derivation_outputs: &[(nix_utils::OutputName, StorePath)],
 ) -> anyhow::Result<NixSupport> {
     let mut metrics = Vec::new();
     let mut failed = false;
@@ -253,7 +253,7 @@ pub async fn parse_nix_support_from_outputs(
 
     let outputs = derivation_outputs
         .iter()
-        .filter_map(|o| o.path.as_ref())
+        .map(|(_, path)| path)
         .collect::<Vec<_>>();
     for output in &outputs {
         let output_full_path = store.print_store_path(output);
@@ -319,10 +319,7 @@ pub async fn parse_nix_support_from_outputs(
     }
 
     if !explicit_products {
-        for o in derivation_outputs {
-            let Some(path) = &o.path else {
-                continue;
-            };
+        for (output_name, path) in derivation_outputs {
             let full_path = store.print_store_path(path);
             let Ok(metadata) = fs_err::tokio::metadata(&full_path).await else {
                 continue;
@@ -330,10 +327,10 @@ pub async fn parse_nix_support_from_outputs(
             if metadata.is_dir() {
                 products.push(BuildProduct {
                     r#type: "nix-build".to_string(),
-                    subtype: if o.name == "out" {
+                    subtype: if output_name.as_ref() == "out" {
                         String::new()
                     } else {
-                        o.name.clone()
+                        output_name.to_string()
                     },
                     path: full_path,
                     name: path.name().to_string(),

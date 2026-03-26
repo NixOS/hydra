@@ -13,6 +13,7 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -633,10 +634,7 @@ impl S3BinaryCacheClient {
             && let Some(deriver) = narinfo.deriver.as_ref()
             && let Some(drv) = query_drv(store, deriver).await?
         {
-            for output in drv.outputs {
-                let Ok(output_name) = output.name.parse() else {
-                    continue;
-                };
+            for (output_name, _output) in drv.outputs {
                 let id = nix_utils::DrvOutput {
                     output_name,
                     drv_path: deriver.to_owned(),
@@ -776,19 +774,15 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self, outputs))]
     pub async fn query_missing_remote_outputs(
         &self,
-        outputs: Vec<nix_utils::DerivationOutput>,
-    ) -> Vec<nix_utils::DerivationOutput> {
+        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
+    ) -> BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|o| async move {
-                let Some(path) = &o.path else {
-                    return None;
-                };
-                if self.has_narinfo(path).await.unwrap_or_default() {
-                    None
-                } else {
-                    Some(o)
+            .map(|(name, path)| async move {
+                match path {
+                    Some(p) if self.has_narinfo(&p).await.unwrap_or_default() => None,
+                    other => Some((name, other)),
                 }
             })
             .buffered(50)

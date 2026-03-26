@@ -38,11 +38,11 @@ moka = { version = "0.12", features = ["future"] }
 nix = { version = "0.31", default-features = false }
 data-encoding = "2"
 derive_more = { version = "2", features = ["display", "from", "into", "deref", "from_str"] }
+harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 md5 = "0.7"
-nix-diff = { git = "https://github.com/mic92/nix-diff-rs.git", rev = "7b79a68963fd7fcb48a57071b52bc90bd8d60609" }
 num_enum = "0.7"
 ring = "0.17"
 zerocopy = { version = "0.8", features = ["derive"] }
@@ -89,6 +89,7 @@ url = "2.5.4"
 uuid = "1.16"
 
 [patch.crates-io]
+harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git", branch = "main" }

@@ -478,10 +478,9 @@ impl State {
             .build_log(Request::new(log_stream))
             .await
             .map_err(|e| JobFailure::Build(e.into()))?;
-        let output_paths = drv_info
-            .outputs
-            .iter()
-            .filter_map(|o| o.path.clone())
+        let output_paths = nix_utils::output_paths(&drv_info, store.store_dir())
+            .into_values()
+            .flatten()
             .collect::<Vec<_>>();
         nix_utils::validate_statuscode(
             child
@@ -1054,36 +1053,40 @@ async fn new_success_build_result_info(
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
-    let outputs = &drv_info
+    let store_dir = store.store_dir();
+    let resolved: Vec<_> = drv_info
         .outputs
         .iter()
-        .filter_map(|o| o.path.as_ref())
-        .collect::<Vec<_>>();
-    let pathinfos = store.query_path_infos(outputs).await;
+        .filter_map(|(name, output)| {
+            Some((name.clone(), output.path(store_dir, &drv_info.name, name).ok()??))
+        })
+        .collect();
+    let flat_outputs = resolved.iter().map(|(_, path)| path).collect::<Vec<_>>();
+    let pathinfos = store.query_path_infos(&flat_outputs).await;
     let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
         &store,
-        &drv_info.outputs,
+        &resolved,
     ))
     .await?;
 
     let mut build_outputs = vec![];
-    for o in drv_info.outputs {
+    for (name, output) in &drv_info.outputs {
+        let path = output.path(store_dir, &drv_info.name, name).ok().flatten();
         build_outputs.push(Output {
-            output: Some(match o.path {
-                Some(p) => {
-                    if let Some(info) = pathinfos.get(&p) {
-                        output::Output::Withpath(OutputWithPath {
-                            name: o.name,
-                            closure_size: store.compute_closure_size(&p).await,
-                            path: p.to_string(),
-                            nar_size: info.nar_size,
-                            nar_hash: info.nar_hash.clone(),
-                        })
-                    } else {
-                        output::Output::Nameonly(OutputNameOnly { name: o.name })
-                    }
+            output: Some(match path.as_ref().and_then(|p| pathinfos.get(p)) {
+                Some(info) => {
+                    let p = path.as_ref().unwrap();
+                    output::Output::Withpath(OutputWithPath {
+                        name: name.to_string(),
+                        closure_size: store.compute_closure_size(p).await,
+                        path: p.to_string(),
+                        nar_size: info.nar_size,
+                        nar_hash: info.nar_hash.clone(),
+                    })
                 }
-                None => output::Output::Nameonly(OutputNameOnly { name: o.name }),
+                None => output::Output::Nameonly(OutputNameOnly {
+                    name: name.to_string(),
+                }),
             }),
         });
     }

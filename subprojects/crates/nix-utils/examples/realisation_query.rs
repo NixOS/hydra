@@ -5,10 +5,7 @@ use nix_utils::RealisationOperations as _;
 async fn main() {
     let local = nix_utils::LocalStore::init();
     let id = nix_utils::DrvOutput {
-        drv_hash: "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9"
-            .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
-            .unwrap()
-            .into_hash(),
+        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv".parse().unwrap(),
         output_name: "debug".parse().unwrap(),
     };
     let raw = local.query_raw_realisation(&id).unwrap();
@@ -24,7 +21,7 @@ async fn main() {
     .await
     .unwrap();
     let sk = key_str.trim().parse::<SecretKey>().unwrap();
-    realisation.sign(&[sk]);
+    realisation.value.sign_mut(&realisation.key, &[sk]);
 
     println!("json signed: {}", serde_json::to_string(&realisation).unwrap());
 }

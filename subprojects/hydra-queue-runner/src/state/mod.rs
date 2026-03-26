@@ -354,10 +354,10 @@ impl State {
                     None,
                     step_info
                         .step
-                        .get_outputs()
+                        .get_output_paths(self.store.store_dir())
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|o| (o.name, o.path.map(|s| self.store.print_store_path(&s))))
+                        .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
                         .collect(),
                 )
                 .await?;
@@ -557,7 +557,7 @@ impl State {
         db.insert_debug_build(
             jobset_id,
             &self.store.print_store_path(drv_path),
-            &drv.system,
+            std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
         )
         .await?;
 
@@ -1385,10 +1385,10 @@ impl State {
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_outputs()
+                        step.get_output_paths(self.store.store_dir())
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|o| (o.name, o.path.map(|s| self.store.print_store_path(&s))))
+                            .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
                             .collect(),
                     )
                     .await?;
@@ -1422,10 +1422,11 @@ impl State {
 
                 // Remember failed paths in the database so that they won't be built again.
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
-                    for o in step.get_outputs().unwrap_or_default() {
-                        let Some(p) = o.path else { continue };
-                        tx.insert_failed_paths(&self.store.print_store_path(&p))
-                            .await?;
+                    for (_, path) in step.get_output_paths(self.store.store_dir()).unwrap_or_default() {
+                        if let Some(path) = path {
+                            tx.insert_failed_paths(&self.store.print_store_path(&path))
+                                .await?;
+                        }
                     }
                 }
 
@@ -1507,15 +1508,17 @@ impl State {
             // we can access step.drv here because the value is always set if
             // PreviousFailure is returned, so this should never yield None
 
-            let outputs = step.get_outputs().unwrap_or_default();
-            for o in outputs {
-                let res = if let Some(path) = &o.path {
-                    tx.get_last_build_step_id_for_output_path(&self.store.print_store_path(path))
-                        .await
+            let outputs = step.get_output_paths(self.store.store_dir()).unwrap_or_default();
+            for (name, path) in &outputs {
+                let res = if let Some(path) = path {
+                    tx.get_last_build_step_id_for_output_path(
+                        &self.store.print_store_path(path),
+                    )
+                    .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
                         &self.store.print_store_path(step.get_drv_path()),
-                        &o.name,
+                        &name.to_string(),
                     )
                     .await
                 };
@@ -1535,10 +1538,10 @@ impl State {
             BuildStatus::CachedFailure,
             None,
             Some(propagated_from),
-            step.get_outputs()
+            step.get_output_paths(self.store.store_dir())
                 .unwrap_or_default()
                 .into_iter()
-                .map(|o| (o.name, o.path.map(|s| self.store.print_store_path(&s))))
+                .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
                 .collect(),
         )
         .await?;
@@ -1750,10 +1753,14 @@ impl State {
             fod_checker.add_ca_drv_parsed(&drv_path, &drv);
         }
 
-        let system_type = drv.system.as_str();
+        let system_type = std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8");
         #[allow(clippy::cast_precision_loss)]
-        self.metrics
-            .observe_build_input_drvs(drv.input_drvs.len() as f64, system_type);
+        self.metrics.observe_build_input_drvs(
+            harmonia_store_core::derivation::DerivationInputs::from(&drv.inputs)
+                .drvs
+                .len() as f64,
+            system_type,
+        );
 
         let use_substitutes = self.config.get_use_substitutes();
         // TODO: check all remote stores
@@ -1764,21 +1771,22 @@ impl State {
                 _ => None,
             })
         };
+        let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
         let missing_outputs = if let Some(ref remote_store) = remote_store {
             let mut missing = remote_store
-                .query_missing_remote_outputs(drv.outputs.to_vec())
+                .query_missing_remote_outputs(output_paths.clone())
                 .await;
             if !missing.is_empty()
                 && self
                     .store
-                    .query_missing_outputs(drv.outputs.to_vec())
+                    .query_missing_outputs(output_paths.clone())
                     .await
                     .is_empty()
             {
                 // we have all paths locally, so we can just upload them to the remote_store
                 if let Ok(log_file) = self.construct_log_file_path(&drv_path).await {
                     let missing_paths: Vec<nix_utils::StorePath> =
-                        missing.iter().filter_map(|v| v.path.clone()).collect();
+                        missing.values().filter_map(|path| path.clone()).collect();
                     self.uploader
                         .schedule_upload(
                             missing_paths,
@@ -1791,7 +1799,7 @@ impl State {
             }
             missing
         } else {
-            self.store.query_missing_outputs(drv.outputs.to_vec()).await
+            self.store.query_missing_outputs(output_paths).await
         };
 
         step.set_drv(drv);
@@ -1807,7 +1815,6 @@ impl State {
 
             let mut substituted = 0;
             let missing_outputs_len = missing_outputs.len();
-
             let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
                 self.metrics.nr_substitutes_started.inc();
                 crate::utils::substitute_output(
@@ -1864,11 +1871,10 @@ impl State {
             let new_steps = new_steps.clone();
             let new_runnable = new_runnable.clone();
             async move {
-                let path = nix_utils::parse_store_path(&i);
                 Box::pin(self.create_step(
                     // conn,
                     build,
-                    path,
+                    i,
                     None,
                     Some(step),
                     finished_drvs,
@@ -1912,7 +1918,7 @@ impl State {
 
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
     async fn check_cached_failure(&self, step: Arc<Step>) -> bool {
-        let Some(drv_outputs) = step.get_outputs() else {
+        let Some(drv_outputs) = step.get_output_paths(self.store.store_dir()) else {
             return false;
         };
 
@@ -1923,7 +1929,7 @@ impl State {
         conn.check_if_paths_failed(
             &drv_outputs
                 .iter()
-                .filter_map(|o| o.path.as_ref().map(|p| self.store.print_store_path(p)))
+                .filter_map(|(_, path)| path.as_ref().map(|p| self.store.print_store_path(p)))
                 .collect::<Vec<_>>(),
         )
         .await
@@ -1966,10 +1972,11 @@ impl State {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Derivation not found"))?;
 
+        let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
         {
             let mut db = self.db.get().await?;
-            for o in &drv.outputs {
-                let Some(out_path) = &o.path else {
+            for (_, out_path) in &output_paths {
+                let Some(out_path) = out_path else {
                     continue;
                 };
                 let Some(db_build_output) = db
@@ -2000,11 +2007,11 @@ impl State {
             }
         }
 
-        let build_output = BuildOutput::new(&self.store, drv.outputs.to_vec()).await?;
+        let build_output = BuildOutput::new(&self.store, output_paths).await?;
 
         #[allow(clippy::cast_precision_loss)]
         self.metrics
-            .observe_build_closure_size(build_output.closure_size as f64, &drv.system);
+            .observe_build_closure_size(build_output.closure_size as f64, std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"));
 
         Ok(build_output)
     }
