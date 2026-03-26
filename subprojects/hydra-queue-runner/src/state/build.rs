@@ -576,12 +576,11 @@ impl BuildOutput {
         store: &nix_utils::LocalStore,
         outputs: std::collections::BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
     ) -> anyhow::Result<Self> {
-        let resolved: Vec<_> = outputs
+        let resolved: std::collections::BTreeMap<_, _> = outputs
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
-        let flat_outputs = resolved.iter().map(|(_, path)| path).collect::<Vec<_>>();
-        let pathinfos = store.query_path_infos(&flat_outputs).await;
+        let pathinfos = store.query_path_infos(&resolved.values().collect::<Vec<_>>()).await;
         let nix_support =
             Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
 

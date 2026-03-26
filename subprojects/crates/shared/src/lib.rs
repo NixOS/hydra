@@ -15,6 +15,8 @@
 
 use std::{os::unix::fs::MetadataExt as _, sync::LazyLock};
 
+use std::collections::BTreeMap;
+
 use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
 
@@ -245,17 +247,13 @@ where
 #[tracing::instrument(skip(store), err)]
 pub async fn parse_nix_support_from_outputs(
     store: &nix_utils::LocalStore,
-    derivation_outputs: &[(nix_utils::OutputName, StorePath)],
+    derivation_outputs: &BTreeMap<nix_utils::OutputName, StorePath>,
 ) -> anyhow::Result<NixSupport> {
     let mut metrics = Vec::new();
     let mut failed = false;
     let mut hydra_release_name = None;
 
-    let outputs = derivation_outputs
-        .iter()
-        .map(|(_, path)| path)
-        .collect::<Vec<_>>();
-    for output in &outputs {
+    for output in derivation_outputs.values() {
         let output_full_path = store.print_store_path(output);
         let file_path = std::path::Path::new(&output_full_path).join("nix-support/hydra-metrics");
         let Ok(file) = fs_err::tokio::File::open(&file_path).await else {
@@ -272,7 +270,7 @@ pub async fn parse_nix_support_from_outputs(
         }
     }
 
-    for output in &outputs {
+    for output in derivation_outputs.values() {
         let file_path =
             std::path::Path::new(&store.print_store_path(output)).join("nix-support/failed");
         if fs_err::tokio::try_exists(file_path)
@@ -284,7 +282,7 @@ pub async fn parse_nix_support_from_outputs(
         }
     }
 
-    for output in &outputs {
+    for output in derivation_outputs.values() {
         let file_path = std::path::Path::new(&store.print_store_path(output))
             .join("nix-support/hydra-release-name");
         if let Ok(v) = fs_err::tokio::read_to_string(file_path).await
@@ -297,7 +295,7 @@ pub async fn parse_nix_support_from_outputs(
 
     let mut explicit_products = false;
     let mut products = Vec::new();
-    for output in &outputs {
+    for output in derivation_outputs.values() {
         let output_full_path = store.print_store_path(output);
         let file_path =
             std::path::Path::new(&output_full_path).join("nix-support/hydra-build-products");
