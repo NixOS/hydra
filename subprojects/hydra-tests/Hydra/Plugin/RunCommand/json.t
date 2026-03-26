@@ -80,10 +80,11 @@ subtest "Validate the outputs match" => sub {
 };
 
 subtest "Validate the metrics match" => sub {
-    is(scalar(@{$dat->{metrics}}), 2, "There are exactly two metrics");
+    is(scalar(@{$dat->{metrics}}), 3, "There are exactly three metrics");
 
     my ($lineCoverage)  = grep { $_->{name} eq "lineCoverage" } @{$dat->{metrics}};
     my ($maxResident) = grep { $_->{name} eq "maxResident" } @{$dat->{metrics}};
+    my ($testFoo) = grep { $_->{name} eq "test_foo.py::best_bar[1]" } @{$dat->{metrics}};
 
     subtest "verifying the lineCoverage metric" => sub {
         is($lineCoverage->{name}, "lineCoverage", "The name matches.");
@@ -95,6 +96,12 @@ subtest "Validate the metrics match" => sub {
         is($maxResident->{name}, "maxResident", "The name matches.");
         is($maxResident->{value}, 27, "The value matches.");
         is($maxResident->{unit}, "KiB", "The unit matches.");
+    };
+
+    subtest "verifying the test_foo.py::best_bar[1] metric" => sub {
+        is($testFoo->{name}, "test_foo.py::best_bar[1]", "The name matches.");
+        is($testFoo->{value}, 42, "The value matches.");
+        is($testFoo->{unit}, undef, "The unit is undefined.");
     };
 };
 
