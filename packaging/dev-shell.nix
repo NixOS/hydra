@@ -7,6 +7,7 @@
   hydra-linters,
   hydra-queue-runner,
   hydra-builder,
+  hydra-evaluator,
   foreman,
 }:
 
@@ -21,6 +22,7 @@ let
     hydra-linters
     hydra-queue-runner
     hydra-builder
+    hydra-evaluator
   ];
 
   # Collect and deduplicate build inputs from all components,

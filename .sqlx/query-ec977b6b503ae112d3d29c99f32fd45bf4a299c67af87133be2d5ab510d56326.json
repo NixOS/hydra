@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.id FROM builds b JOIN jobsetevalmembers m ON m.build = b.id WHERE m.eval = $1 AND b.finished = 0 LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ec977b6b503ae112d3d29c99f32fd45bf4a299c67af87133be2d5ab510d56326"
+}

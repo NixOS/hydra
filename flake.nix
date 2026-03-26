@@ -81,6 +81,8 @@
           };
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
           };
+          hydra-evaluator = self'.callPackage ./subprojects/hydra-evaluator/package.nix {
+          };
         });
       mkHydraBuilder =
         { pkgs, nixComponents }:
@@ -134,6 +136,7 @@
           hydra-linters
           hydra-queue-runner
           hydra-builder
+          hydra-evaluator
           ;
       };
 
@@ -280,6 +283,7 @@
               hydra-linters
               hydra-queue-runner
               hydra-builder
+              hydra-evaluator
               ;
             foreman = pkgs.callPackage ./packaging/foreman/package.nix {
               foreman-src = foreman;
