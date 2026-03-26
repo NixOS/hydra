@@ -533,15 +533,10 @@ impl State {
                     store.store_dir().parse::<nix_utils::StorePath>(&path)?,
                 ))
             })
-            .collect::<anyhow::Result<Vec<(OutputName, nix_utils::StorePath)>>>()
+            .collect::<anyhow::Result<BTreeMap<OutputName, nix_utils::StorePath>>>()
             .map_err(|e| JobFailure::PostProcessing(e))?;
 
-        let output_paths = outputs
-            .iter()
-            .map(|(_, path)| path.clone())
-            .collect::<Vec<_>>();
-
-        for o in &output_paths {
+        for o in outputs.values() {
             nix_utils::add_root(&store, &gcroot.root, o);
         }
 
@@ -559,7 +554,7 @@ impl State {
         let before_upload = Instant::now();
         self.upload_nars(
             store.clone(),
-            output_paths,
+            outputs.values().cloned().collect::<Vec<_>>(),
             &m.build_id,
             &machine_id.to_string(),
             m.presigned_url_opts,
@@ -1101,15 +1096,14 @@ async fn new_success_build_result_info(
     store: nix_utils::LocalStore,
     machine_id: uuid::Uuid,
     drv: &nix_utils::StorePath,
-    outputs: &[(OutputName, nix_utils::StorePath)],
+    outputs: &BTreeMap<OutputName, nix_utils::StorePath>,
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
-    let flat_outputs = outputs.iter().map(|(_, path)| path).collect::<Vec<_>>();
-    let pathinfos = store.query_path_infos(&flat_outputs).await;
+    let pathinfos = store.query_path_infos(&outputs.values().collect::<Vec<_>>()).await;
     let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
         &store,
-        &outputs,
+        outputs,
     ))
     .await?;
 
