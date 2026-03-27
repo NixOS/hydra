@@ -20,12 +20,51 @@ our @EXPORT_OK = qw(
     resolveOIDCConfig
 );
 
+# Resolve the effective provider configuration, merging static config
+# with (lazily fetched, cached) discovery endpoints. This is called on
+# every new()/load() so that an IdP that was down at Hydra startup will
+# start working once it recovers, without requiring a Hydra restart.
+sub _resolvedConf ($c, $provider_name) {
+    my $static = $c->config->{oidc}->{provider}->{$provider_name}
+        or error($c, "OIDC provider $provider_name is not configured", 404);
+
+    # If all endpoints are already set (either manually or by a previous
+    # discovery), no network I/O needed.
+    return $static if $static->{authorization_endpoint}
+                   && $static->{token_endpoint}
+                   && $static->{jwks_uri}
+                   && $static->{issuer};
+
+    error($c, "OIDC provider $provider_name has no discovery_url and is "
+            . "missing required endpoints", 500)
+        unless $static->{discovery_url};
+
+    my $cache_key = "oidc.$provider_name.discovery";
+    my $discovery = $c->cache_get($cache_key);
+    unless ($discovery) {
+        try {
+            $discovery = getOIDCDiscovery($static);
+        } catch ($e) {
+            error($c, "OIDC discovery for '$provider_name' failed: $e", 503);
+        }
+        $c->cache_set($cache_key, $discovery, expires => 3600);
+    }
+
+    # Merge: explicit config wins over discovery, discovery fills the rest.
+    # We also write back into the static config hash so subsequent calls
+    # in the same process short-circuit at the top of this function.
+    for my $k (qw(authorization_endpoint token_endpoint jwks_uri issuer
+                  end_session_endpoint)) {
+        $static->{$k} //= $discovery->{$k};
+    }
+    return $static;
+}
+
 # Start a new OIDC login session
 sub new ($class, $c, %args) {
     my $provider_name = $args{provider_name};
 
-    my $conf = $c->config->{oidc}->{provider}->{$provider_name}
-        or error($c, "OIDC provider $provider_name is not configured", 404);
+    my $conf = _resolvedConf($c, $provider_name);
     my $session_data = {
         # RFC 6749 §10.10 requires tokens to be unguessable (≤ 2^-160 probability).
         # 16 random bytes (128 bits) base64url-encoded is well above that.
@@ -56,8 +95,7 @@ sub new ($class, $c, %args) {
 sub load ($class, $c, %args) {
     my $provider_name = $args{provider_name};
 
-    my $conf = $c->config->{oidc}->{provider}->{$provider_name}
-        or error($c, "OIDC provider $provider_name is not configured", 404);
+    my $conf = _resolvedConf($c, $provider_name);
     my $session_data = $c->session->{oidc} or error($c, "No OIDC login in progress", 400);
     $session_data->{provider_name} eq $provider_name
         or error($c, "OIDC provider endpoint mismatch", 400);
@@ -290,10 +328,10 @@ sub _make_ua ($conf) {
     return $ua;
 }
 
-# Run at startup to perform a couple of jobs. Expects to receive $c->config->{oidc} and mutates it
-# to perform two tasks:
-#  * If discovery_url is set, fetch that JSON document & set other config parameters from it
-#  * If client_secret_file is set, read the file & set client_secret from it
+# Run at startup to load secrets from disk and validate static
+# configuration. Does NOT perform network I/O — discovery is resolved
+# lazily on first login so that a temporarily unreachable IdP does not
+# delay Hydra startup or require a restart to recover.
 sub resolveOIDCConfig ($oidc_config) {
     return unless $oidc_config;
     return unless $oidc_config->{provider};
@@ -308,32 +346,18 @@ sub resolveOIDCConfig ($oidc_config) {
             $provider->{client_secret} = $client_secret;
         }
 
-        # Load configuration from .well-known/oidc-configuration endpoint
-        if ($provider->{discovery_url}) {
-            my $discovery;
-            try {
-                $discovery = getOIDCDiscovery($provider);
-            } catch ($e) {
-                die "Failed to resolve OIDC discovery for provider '$provider_name': $e";
-            }
-
-            # Materialize discovery endpoints into config (only if not already set)
-            $provider->{authorization_endpoint} //= $discovery->{authorization_endpoint};
-            $provider->{token_endpoint} //= $discovery->{token_endpoint};
-            $provider->{jwks_uri} //= $discovery->{jwks_uri};
-            $provider->{issuer} //= $discovery->{issuer};
-            # Optional: RP-Initiated Logout (OpenID Connect Session Management)
-            $provider->{end_session_endpoint} //= $discovery->{end_session_endpoint};
-        }
-
-        # Validate that all required endpoints are present (either from discovery or manual config)
-        for my $field (qw(authorization_endpoint token_endpoint jwks_uri issuer)) {
-            $provider->{$field}
-                or die "OIDC provider '$provider_name' is missing '$field' "
-                     . "(set discovery_url or configure it explicitly)\n";
-        }
         $provider->{client_secret}
             or die "OIDC provider '$provider_name' must have client_secret or client_secret_file\n";
+
+        # Either discovery_url or all four endpoints must be configured.
+        # Actual discovery fetching happens lazily in _resolvedConf.
+        unless ($provider->{discovery_url}) {
+            for my $field (qw(authorization_endpoint token_endpoint jwks_uri issuer)) {
+                $provider->{$field}
+                    or die "OIDC provider '$provider_name' is missing '$field' "
+                         . "(set discovery_url or configure it explicitly)\n";
+            }
+        }
     }
 }
 

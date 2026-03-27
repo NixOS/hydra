@@ -61,16 +61,16 @@ CFG
 
 Catalyst::Test->import('Hydra');
 
-subtest "OIDC discovery configuration is loaded" => sub {
+subtest "OIDC static config is loaded, discovery is lazy" => sub {
     require Hydra;
     my $config = Hydra->config->{oidc}->{provider}->{test};
 
     ok($config, "OIDC provider config exists");
     is($config->{display_name}, "Test Provider", "Display name is correct");
-    is($config->{issuer}, $kanidm->issuer('hydra'), "Issuer is set from discovery");
-    is($config->{authorization_endpoint}, $kanidm->authorization_url('hydra'), "Auth endpoint is set");
-    is($config->{token_endpoint}, $kanidm->token_url('hydra'), "Token endpoint is set");
-    ok($config->{jwks_uri}, "JWKS URI is set");
+    ok($config->{client_secret}, "Client secret is loaded");
+    # Discovery endpoints are NOT fetched at startup — they're resolved on
+    # first login so an unreachable IdP doesn't block Hydra startup.
+    ok(!$config->{authorization_endpoint}, "Auth endpoint not yet resolved (lazy)");
 };
 
 subtest "OIDC redirect initiates authorization flow" => sub {
