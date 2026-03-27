@@ -104,11 +104,17 @@ has 'hydra_plugins' => (
     default => sub { return $plugins; }
 );
 
-# Resolve OIDC discovery URLs and materialize endpoints into config
+# Resolve OIDC discovery URLs and materialize endpoints into config.
+# Errors are logged but non-fatal so that a temporarily unreachable IdP
+# does not prevent Hydra from starting; OIDC login will simply be
+# unavailable until the next restart.
 after setup_finalize => sub {
     my $class = shift;
     if ($class->config->{oidc}) {
-        resolveOIDCConfig($class->config->{oidc});
+        eval { resolveOIDCConfig($class->config->{oidc}) };
+        if ($@) {
+            $class->log->error("OIDC configuration failed, OIDC login will be unavailable: $@");
+        }
     }
 };
 
