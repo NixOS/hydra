@@ -409,16 +409,13 @@ sub resolveOIDCConfig {
         }
 
         # Validate that all required endpoints are present (either from discovery or manual config)
-        $provider->{authorization_endpoint}
-            or die "OIDC provider '$provider_name' must have either discovery_url or all of: authorization_endpoint, token_endpoint, jwks_uri, issuer";
-        $provider->{token_endpoint}
-            or die "OIDC provider '$provider_name' must have either discovery_url or all of: authorization_endpoint, token_endpoint, jwks_uri, issuer";
-        $provider->{jwks_uri}
-            or die "OIDC provider '$provider_name' must have either discovery_url or all of: authorization_endpoint, token_endpoint, jwks_uri, issuer";
-        $provider->{issuer}
-            or die "OIDC provider '$provider_name' must have either discovery_url or all of: authorization_endpoint, token_endpoint, jwks_uri, issuer";
+        for my $field (qw(authorization_endpoint token_endpoint jwks_uri issuer)) {
+            $provider->{$field}
+                or die "OIDC provider '$provider_name' is missing '$field' "
+                     . "(set discovery_url or configure it explicitly)\n";
+        }
         $provider->{client_secret}
-            or die "OIDC provider '$provider_name' must have client_secret or client_secret_file";
+            or die "OIDC provider '$provider_name' must have client_secret or client_secret_file\n";
     }
 }
 
