@@ -73,7 +73,7 @@ sub generate_config {
     open(my $fh, '>', $self->{kanidm_config}) or die "Cannot open $self->{kanidm_config}: $!";
     print $fh <<EOF;
 version = "2"
-bindaddress = "[::1]:$self->{port}"
+bindaddress = "127.0.0.1:$self->{port}"
 db_path = "$self->{kanidm_dir}/kanidm.db"
 tls_chain = "$self->{kanidm_dir}/chain.pem"
 tls_key = "$self->{kanidm_dir}/key.pem"
@@ -93,7 +93,7 @@ sub wait_for_ready {
     my ($self) = @_;
 
     my $logfile = $self->{_logfile};
-    my $max_attempts = 60;
+    my $max_attempts = $ENV{KANIDM_STARTUP_TIMEOUT} // 60;
 
     for (my $i = 0; $i < $max_attempts; $i++) {
         eval { $self->assert_running(); };
@@ -120,8 +120,14 @@ sub wait_for_ready {
         sleep 1
     }
 
-    die "Kanidm process (PID $self->{_pid}) did not become ready in time. " .
-        "Check log file: $logfile";
+    # Dump the log so CI output actually shows what went wrong — the
+    # sandbox is torn down after the test so "Check log file" is useless
+    # there.
+    my @lines = do { my $fh; open $fh, '<', $logfile and <$fh> };
+    my $start = @lines > 40 ? @lines - 40 : 0;
+    my $log_tail = join "", @lines[$start .. $#lines];
+    die "Kanidm process (PID $self->{_pid}) did not become ready within "
+      . "${max_attempts}s. Last log lines:\n$log_tail";
 }
 
 sub assert_running {
