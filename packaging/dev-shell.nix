@@ -35,7 +35,11 @@ hydra.overrideAttrs (finalAttrs: prevAttrs: {
   src = null;
   sourceRoot = null;
 
-  nativeBuildInputs = collectInputs "nativeBuildInputs";
+  nativeBuildInputs = collectInputs "nativeBuildInputs" ++ (with pkgs; [
+    clippy
+    nixfmt
+    rustfmt
+  ]);
   buildInputs = collectInputs "buildInputs";
 
   inherit (hydra-tests) OPENLDAP_ROOT;

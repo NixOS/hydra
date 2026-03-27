@@ -15,7 +15,12 @@
     flake = false;
   };
 
-  outputs = { self, nixpkgs, nix, nix-eval-jobs, ... }:
+  inputs.treefmt-nix = {
+    url = "github:numtide/treefmt-nix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { self, nixpkgs, nix, nix-eval-jobs, treefmt-nix, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
@@ -45,6 +50,17 @@
             inherit nixComponents;
           };
         });
+
+        treefmtConfig = { ... }: {
+          projectRootFile = "flake.lock";
+          programs.rustfmt = {
+            enable = true;
+            edition = "2024";
+          };
+          programs.nixfmt.enable = true;
+        };
+
+        treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;
     in
     rec {
 
@@ -92,6 +108,7 @@
         systemTests = hydraJobs.systemTests.${system};
         install = hydraJobs.nixosTests.install.${system};
         validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
+        formatter = (treefmtEval system).config.build.check self;
       });
 
       packages = forEachSystem (system: let
@@ -125,6 +142,8 @@
       nixosModules = import ./nixos-modules {
         flakePackages = packages;
       };
+
+      formatter = forEachSystem (system: (treefmtEval system).config.build.wrapper);
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
