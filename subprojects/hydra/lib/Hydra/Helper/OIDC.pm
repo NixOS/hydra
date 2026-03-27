@@ -205,6 +205,11 @@ sub exchangeCodeForToken {
         # All of the possibilities here are a misconfiguration
         error($c, "OIDC token endpoint returned error: $error_str", 500);
     }
+    # Catch HTTP errors that returned valid JSON without an 'error' field
+    # (e.g. a reverse proxy returning a JSON 502 page).
+    if (not $res->is_success) {
+        error($c, "OIDC token endpoint returned status " . $res->status_line, 500);
+    }
 
     error($c, "OIDC token endpoint did not return an id token", 400) unless $res_json->{id_token};
 
@@ -251,6 +256,7 @@ sub validateToken {
 
     #   3. The Client MUST validate that the aud (audience) Claim contains its client_id value
     #      registered at the Issuer identified by the iss (issuer) Claim as an audience
+    $claims->{aud} or error($c, "No aud claim in OIDC token", 400);
     my $aud = ref $claims->{aud} eq 'ARRAY' ? $claims->{aud} : [$claims->{aud}];
     unless (grep { $_ eq $self->{conf}->{client_id} } @$aud) {
         error($c, "OIDC token validation failed: audience mismatch (got " . join(', ', @$aud)
