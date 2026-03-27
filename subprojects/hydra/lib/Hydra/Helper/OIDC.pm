@@ -5,7 +5,7 @@ use warnings;
 use Exporter 'import';
 use LWP::UserAgent;
 use JSON::MaybeXS qw(decode_json);
-use Digest::SHA qw(sha256 sha256_hex);
+use Digest::SHA qw(sha256);
 use MIME::Base64 qw(encode_base64url);
 use URI;
 use Crypt::URandom qw(urandom);
@@ -15,7 +15,6 @@ use ReadonlyX;
 use Crypt::JWT qw(decode_jwt);
 use String::Compare::ConstantTime qw(equals);
 use Hydra::Helper::CatalystUtils qw(error);
-use Data::Dumper;
 
 our @EXPORT_OK = qw(
     resolveOIDCConfig
