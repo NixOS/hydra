@@ -3,7 +3,8 @@ let
   builder = builtins.toFile "builder.sh" ''
     echo ${thisFile} > $out
   '';
-in {
+in
+{
   job = derivation {
     name = "job";
     system = builtins.currentSystem;

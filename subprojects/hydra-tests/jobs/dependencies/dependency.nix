@@ -12,6 +12,6 @@ let
     inherit underlyingJob;
   };
 in
-(if exposeUnderlyingJob then { inherit underlyingJob; } else { }) //
-(if exposeDependentJob then { inherit dependentJob; } else { }) //
-{ }
+(if exposeUnderlyingJob then { inherit underlyingJob; } else { })
+// (if exposeDependentJob then { inherit dependentJob; } else { })
+// { }

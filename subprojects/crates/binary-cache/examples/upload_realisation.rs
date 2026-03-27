@@ -14,7 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let id = nix_utils::DrvOutput {
-        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv".parse().unwrap(),
+        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv"
+            .parse()
+            .unwrap(),
         output_name: "debug".parse().unwrap(),
     };
     tracing::info!(

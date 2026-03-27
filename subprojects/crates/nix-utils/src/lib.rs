@@ -50,7 +50,9 @@ pub enum Error {
 
 pub use drv::{Derivation, output_paths, query_drv};
 pub use harmonia_store_core::derivation::{DerivationOutput, DerivationOutputs};
-pub use harmonia_store_core::derived_path::{DerivedPath, OutputName, OutputSpec, SingleDerivedPath};
+pub use harmonia_store_core::derived_path::{
+    DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
+};
 pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
@@ -485,8 +487,7 @@ pub struct BaseStoreImpl {
 
 impl BaseStoreImpl {
     fn new(store: cxx::UniquePtr<ffi::StoreWrapper>) -> Self {
-        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store))
-            .unwrap_or_default();
+        let store_dir = StoreDir::new(ffi::get_store_dir_for(&store)).unwrap_or_default();
         Self {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
             store_dir,

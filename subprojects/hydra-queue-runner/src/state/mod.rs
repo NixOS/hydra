@@ -118,9 +118,7 @@ impl State {
                 }
                 Err(_) => {
                     tracing::info!("Opening FFI store for: {uri}");
-                    remote_stores.push(RemoteStoreBackend::Nix(
-                        nix_utils::RemoteStore::init(&uri),
-                    ));
+                    remote_stores.push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(&uri)));
                 }
             }
         }
@@ -177,9 +175,8 @@ impl State {
                     }
                     Err(_) => {
                         tracing::info!("Opening FFI store for: {uri}");
-                        new_remote_stores.push(RemoteStoreBackend::Nix(
-                            nix_utils::RemoteStore::init(uri),
-                        ));
+                        new_remote_stores
+                            .push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(uri)));
                     }
                 }
             }
@@ -357,7 +354,12 @@ impl State {
                         .get_output_paths(self.store.store_dir())
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
+                        .map(|(name, path)| {
+                            (
+                                name.to_string(),
+                                path.map(|p| self.store.print_store_path(&p)),
+                            )
+                        })
                         .collect(),
                 )
                 .await?;
@@ -1388,7 +1390,12 @@ impl State {
                         step.get_output_paths(self.store.store_dir())
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
+                            .map(|(name, path)| {
+                                (
+                                    name.to_string(),
+                                    path.map(|p| self.store.print_store_path(&p)),
+                                )
+                            })
                             .collect(),
                     )
                     .await?;
@@ -1422,7 +1429,10 @@ impl State {
 
                 // Remember failed paths in the database so that they won't be built again.
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
-                    for (_, path) in step.get_output_paths(self.store.store_dir()).unwrap_or_default() {
+                    for (_, path) in step
+                        .get_output_paths(self.store.store_dir())
+                        .unwrap_or_default()
+                    {
                         if let Some(path) = path {
                             tx.insert_failed_paths(&self.store.print_store_path(&path))
                                 .await?;
@@ -1508,13 +1518,13 @@ impl State {
             // we can access step.drv here because the value is always set if
             // PreviousFailure is returned, so this should never yield None
 
-            let outputs = step.get_output_paths(self.store.store_dir()).unwrap_or_default();
+            let outputs = step
+                .get_output_paths(self.store.store_dir())
+                .unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(
-                        &self.store.print_store_path(path),
-                    )
-                    .await
+                    tx.get_last_build_step_id_for_output_path(&self.store.print_store_path(path))
+                        .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
                         &self.store.print_store_path(step.get_drv_path()),
@@ -1541,7 +1551,12 @@ impl State {
             step.get_output_paths(self.store.store_dir())
                 .unwrap_or_default()
                 .into_iter()
-                .map(|(name, path)| (name.to_string(), path.map(|p| self.store.print_store_path(&p))))
+                .map(|(name, path)| {
+                    (
+                        name.to_string(),
+                        path.map(|p| self.store.print_store_path(&p)),
+                    )
+                })
                 .collect(),
         )
         .await?;
@@ -2010,8 +2025,10 @@ impl State {
         let build_output = BuildOutput::new(&self.store, output_paths).await?;
 
         #[allow(clippy::cast_precision_loss)]
-        self.metrics
-            .observe_build_closure_size(build_output.closure_size as f64, std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"));
+        self.metrics.observe_build_closure_size(
+            build_output.closure_size as f64,
+            std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
+        );
 
         Ok(build_output)
     }

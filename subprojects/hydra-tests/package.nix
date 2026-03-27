@@ -1,35 +1,36 @@
-{ stdenv
-, lib
-, version
+{
+  stdenv,
+  lib,
+  version,
 
-, hydra
-, hydra-queue-runner
+  hydra,
+  hydra-queue-runner,
 
-, meson
-, ninja
+  meson,
+  ninja,
 
-, perlPackages
-, perl
-, nixComponents
-, git
+  perlPackages,
+  perl,
+  nixComponents,
+  git,
 
-, bzip2
-, top-git
-, mercurial
-, darcs
-, subversion
-, breezy
-, openldap
-, postgresql_17
-, pixz
-, nix-eval-jobs
-, foreman
-, curl
+  bzip2,
+  top-git,
+  mercurial,
+  darcs,
+  subversion,
+  breezy,
+  openldap,
+  postgresql_17,
+  pixz,
+  nix-eval-jobs,
+  foreman,
+  curl,
 
-, cacert
-, glibcLocales
-, libressl
-, python3
+  cacert,
+  glibcLocales,
+  libressl,
+  python3,
 }:
 
 stdenv.mkDerivation (finalAttrs: {

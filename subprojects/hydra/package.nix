@@ -1,63 +1,65 @@
-{ stdenv
-, lib
-, version
-, releaseVersion
+{
+  stdenv,
+  lib,
+  version,
+  releaseVersion,
 
-, rawSrc
+  rawSrc,
 
-, buildEnv
+  buildEnv,
 
-, perlPackages
+  perlPackages,
 
-, nixComponents
-, git
+  nixComponents,
+  git,
 
-, makeWrapper
-, meson
-, ninja
-, nukeReferences
-, pkg-config
+  makeWrapper,
+  meson,
+  ninja,
+  nukeReferences,
+  pkg-config,
 
-, unzip
-, libpqxx
-, openssl
-, bzip2
-, libxslt
-, perl
-, pixz
-, boost
-, nlohmann_json
-, prometheus-cpp
+  unzip,
+  libpqxx,
+  openssl,
+  bzip2,
+  libxslt,
+  perl,
+  pixz,
+  boost,
+  nlohmann_json,
+  prometheus-cpp,
 
-, openssh
-, coreutils
-, findutils
-, gzip
-, xz
-, gnutar
-, gnused
-, nix-eval-jobs
+  openssh,
+  coreutils,
+  findutils,
+  gzip,
+  xz,
+  gnutar,
+  gnused,
+  nix-eval-jobs,
 
-, subversion
-, top-git
-, mercurial
-, darcs
-, breezy
+  subversion,
+  top-git,
+  mercurial,
+  darcs,
+  breezy,
 
-, rpm
-, dpkg
-, cdrkit
+  rpm,
+  dpkg,
+  cdrkit,
 
 }:
 
 let
   perlDeps = buildEnv {
     name = "hydra-perl-deps";
-    paths = lib.closePropagation
-      ([
+    paths = lib.closePropagation (
+      [
         nixComponents.nix-perl-bindings
         git
-      ] ++ (with perlPackages; [
+      ]
+      ++ (with perlPackages; [
         AuthenSASL
         CatalystActionREST
         CatalystAuthenticationStoreDBIxClass
@@ -124,7 +126,8 @@ let
         UUID4Tiny
         YAML
         XMLSimple
-      ]));
+      ])
+    );
   };
 in
 stdenv.mkDerivation (finalAttrs: {
@@ -190,7 +193,12 @@ stdenv.mkDerivation (finalAttrs: {
       gnused
       breezy
       nix-eval-jobs
-    ] ++ lib.optionals stdenv.isLinux [ rpm dpkg cdrkit ]
+    ]
+    ++ lib.optionals stdenv.isLinux [
+      rpm
+      dpkg
+      cdrkit
+    ]
   );
 
   mesonBuildType = "release";
