@@ -61,6 +61,7 @@ sub begin :Private {
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
     $c->stash->{localStore} = isLocalStore;
+    $c->stash->{logoutToken} = logoutToken($c) if $c->user_exists;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
 

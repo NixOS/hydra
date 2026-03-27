@@ -144,7 +144,18 @@ subtest "OIDC login flow works end-to-end" => sub {
         # Don't auto-follow so we can inspect the redirect target without
         # actually hitting Kanidm's (non-existent) end_session endpoint.
         $mech->requests_redirectable([]);
-        my $res = $mech->get('/logout');
+
+        # GET /logout without a CSRF token must be rejected
+        my $no_token = $mech->get('/logout');
+        is($no_token->code, 403, "Logout without CSRF token is rejected");
+
+        # Follow the real sign-out link which includes the CSRF token
+        $mech->get('/');
+        my $signout = $mech->find_link(text => 'Sign out');
+        ok($signout, "Sign out link present");
+        like($signout->url, qr/[?&]token=[0-9a-f]{64}/, "Sign out link carries CSRF token");
+
+        my $res = $mech->get($signout->url);
         is($res->code, 302, "Logout issues a redirect");
 
         my $location = URI->new($res->header('Location'));

@@ -132,7 +132,7 @@
     [% INCLUDE navItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
     <li class="nav-item">
       [% IF c.user.type == 'oidc' %]
-        <a class="nav-link" href="[% c.uri_for('/logout') %]">Sign out</a>
+        <a class="nav-link" href="[% c.uri_for('/logout', { token => logoutToken }) %]">Sign out</a>
       [% ELSE %]
         <a class="nav-link" href="#" onclick="signOut();">Sign out</a>
       [% END %]

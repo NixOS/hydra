@@ -16,6 +16,7 @@ use Hydra::Config;
 use LWP::UserAgent;
 use URI;
 use JSON::MaybeXS;
+use String::Compare::ConstantTime qw(equals);
 use HTML::Entities;
 use Encode qw(decode);
 
@@ -60,6 +61,14 @@ sub logout_POST {
 
 sub logout_GET {
     my ($self, $c) = @_;
+
+    # CSRF protection: require a token derived from the session ID so that
+    # a cross-site <img>/<a>/top-level navigation cannot log the user out.
+    my $expected = logoutToken($c);
+    my $token = $c->req->params->{token} // "";
+    error($c, "Invalid CSRF token", 403)
+        unless defined $expected && equals($token, $expected);
+
     $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
 
     my $oidc_provider = $c->session->{oidc_provider};
