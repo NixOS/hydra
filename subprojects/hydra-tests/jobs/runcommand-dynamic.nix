@@ -5,13 +5,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          touch $out
-        ''
-      )
+        touch $out
+      '')
     ];
   };
 
@@ -20,15 +18,13 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          touch $out
-          chmod +x $out
-          # ... dunno ...
-        ''
-      )
+        touch $out
+        chmod +x $out
+        # ... dunno ...
+      '')
     ];
   };
 
@@ -37,13 +33,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          ln -s $1 $out
-        ''
-      )
+        ln -s $1 $out
+      '')
 
       runCommandHook.example
     ];
@@ -54,12 +48,10 @@ rec {
     builder = "/bin/sh";
     outputs = [ "bin" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
-          mkdir $bin
-        ''
-      )
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
+        mkdir $bin
+      '')
     ];
   };
 
@@ -68,13 +60,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          mkdir $out
-        ''
-      )
+        mkdir $out
+      '')
     ];
   };
 
@@ -83,13 +73,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          touch $out
-        ''
-      )
+        touch $out
+      '')
     ];
   };
 
@@ -98,13 +86,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          ln -s $1 $out
-        ''
-      )
+        ln -s $1 $out
+      '')
 
       runCommandHook.out-is-not-executable-file
     ];
@@ -115,13 +101,11 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          ln -s $1 $out
-        ''
-      )
+        ln -s $1 $out
+      '')
 
       runCommandHook.out-is-directory
     ];
@@ -132,16 +116,14 @@ rec {
     builder = "/bin/sh";
     outputs = [ "out" ];
     args = [
-      (
-        builtins.toFile "builder.sh" ''
-          #! /bin/sh
+      (builtins.toFile "builder.sh" ''
+        #! /bin/sh
 
-          touch $out
-          chmod +x $out
+        touch $out
+        chmod +x $out
 
-          exit 1
-        ''
-      )
+        exit 1
+      '')
     ];
   };
 

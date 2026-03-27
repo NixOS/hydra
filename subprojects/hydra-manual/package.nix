@@ -1,9 +1,10 @@
-{ stdenv
-, lib
-, version
-, meson
-, ninja
-, mdbook
+{
+  stdenv,
+  lib,
+  version,
+  meson,
+  ninja,
+  mdbook,
 }:
 
 stdenv.mkDerivation (finalAttrs: {

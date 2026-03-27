@@ -1,8 +1,9 @@
-{ stdenv
-, lib
-, version
-, perlPackages
-, perl
+{
+  stdenv,
+  lib,
+  version,
+  perlPackages,
+  perl,
 }:
 
 stdenv.mkDerivation (finalAttrs: {

@@ -1,6 +1,7 @@
 {
-  outputs = { ... }: {
-    checks =
-      import ./basic.nix;
-  };
+  outputs =
+    { ... }:
+    {
+      checks = import ./basic.nix;
+    };
 }

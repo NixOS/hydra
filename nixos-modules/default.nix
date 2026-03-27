@@ -1,68 +1,82 @@
 { flakePackages }:
 
 rec {
-  web-app = { pkgs, lib, ... }: {
-    _file = ./default.nix;
-    imports = [ ./web-app.nix ];
-    services.hydra-dev.package =
-      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
-  };
+  web-app =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./web-app.nix ];
+      services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
+    };
 
   postgresql = ./postgresql.nix;
 
-  queue-runner = { pkgs, lib, ... }: {
-    _file = ./default.nix;
-    imports = [ ./queue-runner-module.nix ];
-    services.hydra-queue-runner-dev.package =
-      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
-  };
+  queue-runner =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./queue-runner-module.nix ];
+      services.hydra-queue-runner-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+    };
 
-  linux-builder = { pkgs, lib, ... }: {
-    _file = ./default.nix;
-    imports = [ ./linux-builder-module.nix ];
-    services.hydra-queue-builder-dev.package =
-      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
-  };
+  linux-builder =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./linux-builder-module.nix ];
+      services.hydra-queue-builder-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+    };
 
-  darwin-builder = { pkgs, lib, ... }: {
-    _file = ./default.nix;
-    imports = [ ./darwin-builder-module.nix ];
-    services.hydra-queue-builder-dev.package =
-      lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
-  };
+  darwin-builder =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./darwin-builder-module.nix ];
+      services.hydra-queue-builder-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+    };
 
-  hydra = { ... }: {
-    _file = ./default.nix;
-    imports = [
-      web-app
-      queue-runner
-      linux-builder
-    ];
-  };
+  hydra =
+    { ... }:
+    {
+      _file = ./default.nix;
+      imports = [
+        web-app
+        queue-runner
+        linux-builder
+      ];
+    };
 
-  hydraTest = { pkgs, ... }: {
-    services.hydra-dev.enable = true;
-    services.hydra-dev.hydraURL = "http://hydra.example.org";
-    services.hydra-dev.notificationSender = "admin@hydra.example.org";
+  hydraTest =
+    { pkgs, ... }:
+    {
+      services.hydra-dev.enable = true;
+      services.hydra-dev.hydraURL = "http://hydra.example.org";
+      services.hydra-dev.notificationSender = "admin@hydra.example.org";
 
-    services.hydra-queue-runner-dev.enable = true;
+      services.hydra-queue-runner-dev.enable = true;
 
-    services.hydra-queue-builder-dev.enable = true;
-    services.hydra-queue-builder-dev.queueRunnerAddr = "http://[::1]:50051";
-    systemd.services.hydra-queue-builder-dev.after = [ "hydra-queue-runner-dev.service" ];
+      services.hydra-queue-builder-dev.enable = true;
+      services.hydra-queue-builder-dev.queueRunnerAddr = "http://[::1]:50051";
+      systemd.services.hydra-queue-builder-dev.after = [ "hydra-queue-runner-dev.service" ];
 
-    systemd.services.hydra-send-stats.enable = false;
+      systemd.services.hydra-send-stats.enable = false;
 
-    services.postgresql.enable = true;
+      services.postgresql.enable = true;
 
-    # The following is to work around the following error from hydra-server:
-    #   [error] Caught exception in engine "Cannot determine local time zone"
-    time.timeZone = "UTC";
+      # The following is to work around the following error from hydra-server:
+      #   [error] Caught exception in engine "Cannot determine local time zone"
+      time.timeZone = "UTC";
 
-    nix.extraOptions = ''
-      allowed-uris = https://github.com/
-    '';
-  };
+      nix.extraOptions = ''
+        allowed-uris = https://github.com/
+      '';
+    };
 
   hydraProxy = {
     services.httpd = {

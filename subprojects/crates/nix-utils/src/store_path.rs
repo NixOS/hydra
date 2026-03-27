@@ -20,19 +20,29 @@ mod tests {
     #[test]
     fn test_parse_base_name() {
         let sp = parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
-        assert_eq!(sp.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
+        assert_eq!(
+            sp.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name"
+        );
     }
 
     #[test]
     fn test_parse_with_store_prefix() {
         let sp = parse_store_path("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
-        assert_eq!(sp.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
+        assert_eq!(
+            sp.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name"
+        );
     }
 
     #[test]
     fn test_parse_with_subpath() {
-        let sp = parse_store_path("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name/bin/hello");
-        assert_eq!(sp.to_string(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name");
+        let sp =
+            parse_store_path("/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name/bin/hello");
+        assert_eq!(
+            sp.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-package-name"
+        );
     }
 
     #[test]

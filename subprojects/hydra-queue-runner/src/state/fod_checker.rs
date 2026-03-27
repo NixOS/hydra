@@ -48,9 +48,7 @@ async fn collect_ca_derivations(
     } else {
         futures::StreamExt::map(tokio_stream::iter(input_drvs), |i| {
             let processed = processed.clone();
-            async move {
-                Box::pin(collect_ca_derivations(store, &i, processed)).await
-            }
+            async move { Box::pin(collect_ca_derivations(store, &i, processed)).await }
         })
         .buffered(10)
         .flat_map(futures::stream::iter)

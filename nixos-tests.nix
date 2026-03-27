@@ -1,4 +1,8 @@
-{ forEachSystem, nixpkgs, nixosModules }:
+{
+  forEachSystem,
+  nixpkgs,
+  nixosModules,
+}:
 
 let
   # NixOS configuration used for VM tests.
@@ -13,7 +17,10 @@ let
       virtualisation.memorySize = 1024;
       virtualisation.writableStore = true;
 
-      environment.systemPackages = [ pkgs.perlPackages.LWP pkgs.perlPackages.JSON ];
+      environment.systemPackages = [
+        pkgs.perlPackages.LWP
+        pkgs.perlPackages.JSON
+      ];
 
       nix = {
         # Without this nix tries to fetch packages from the default
@@ -26,22 +33,24 @@ in
 
 {
 
-  install = forEachSystem (system:
+  install = forEachSystem (
+    system:
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).simpleTest {
       name = "hydra-install";
       nodes.machine = hydraServer;
-      testScript =
-        ''
-          machine.wait_for_job("hydra-init")
-          machine.wait_for_job("hydra-server")
-          machine.wait_for_job("hydra-evaluator")
-          machine.wait_for_job("hydra-queue-runner-dev")
-          machine.wait_for_open_port(3000)
-          machine.succeed("curl --fail http://localhost:3000/")
-        '';
-    });
+      testScript = ''
+        machine.wait_for_job("hydra-init")
+        machine.wait_for_job("hydra-server")
+        machine.wait_for_job("hydra-evaluator")
+        machine.wait_for_job("hydra-queue-runner-dev")
+        machine.wait_for_open_port(3000)
+        machine.succeed("curl --fail http://localhost:3000/")
+      '';
+    }
+  );
 
-  notifications = forEachSystem (system:
+  notifications = forEachSystem (
+    system:
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).simpleTest {
       name = "hydra-notifications";
       nodes.machine = {
@@ -54,79 +63,90 @@ in
         '';
         services.influxdb.enable = true;
       };
-      testScript = { nodes, ... }: ''
-        machine.wait_for_job("hydra-init")
+      testScript =
+        { nodes, ... }:
+        ''
+          machine.wait_for_job("hydra-init")
 
-        # Create an admin account and some other state.
-        machine.succeed(
-            """
-                su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
-                mkdir /run/jobset
-                chmod 755 /run/jobset
-                cp ${./subprojects/hydra-tests/jobs/api-test.nix} /run/jobset/default.nix
-                chmod 644 /run/jobset/default.nix
-                chown -R hydra /run/jobset
-        """
-        )
+          # Create an admin account and some other state.
+          machine.succeed(
+              """
+                  su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
+                  mkdir /run/jobset
+                  chmod 755 /run/jobset
+                  cp ${./subprojects/hydra-tests/jobs/api-test.nix} /run/jobset/default.nix
+                  chmod 644 /run/jobset/default.nix
+                  chown -R hydra /run/jobset
+          """
+          )
 
-        # Wait until InfluxDB can receive web requests
-        machine.wait_for_job("influxdb")
-        machine.wait_for_open_port(8086)
+          # Wait until InfluxDB can receive web requests
+          machine.wait_for_job("influxdb")
+          machine.wait_for_open_port(8086)
 
-        # Create an InfluxDB database where hydra will write to
-        machine.succeed(
-            "curl -XPOST 'http://127.0.0.1:8086/query' "
-            + "--data-urlencode 'q=CREATE DATABASE hydra'"
-        )
+          # Create an InfluxDB database where hydra will write to
+          machine.succeed(
+              "curl -XPOST 'http://127.0.0.1:8086/query' "
+              + "--data-urlencode 'q=CREATE DATABASE hydra'"
+          )
 
-        # Wait until hydra-server can receive HTTP requests
-        machine.wait_for_job("hydra-server")
-        machine.wait_for_open_port(3000)
+          # Wait until hydra-server can receive HTTP requests
+          machine.wait_for_job("hydra-server")
+          machine.wait_for_open_port(3000)
 
-        # Setup the project and jobset
-        machine.succeed(
-            "su - hydra -c 'perl -I ${nodes.machine.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
-        )
+          # Setup the project and jobset
+          machine.succeed(
+              "su - hydra -c 'perl -I ${nodes.machine.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
+          )
 
-        # Wait until hydra has build the job and
-        # the InfluxDBNotification plugin uploaded its notification to InfluxDB
-        machine.wait_until_succeeds(
-            "curl -s -H 'Accept: application/csv' "
-            + "-G 'http://127.0.0.1:8086/query?db=hydra' "
-            + "--data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success"
-        )
-      '';
-    });
+          # Wait until hydra has build the job and
+          # the InfluxDBNotification plugin uploaded its notification to InfluxDB
+          machine.wait_until_succeeds(
+              "curl -s -H 'Accept: application/csv' "
+              + "-G 'http://127.0.0.1:8086/query?db=hydra' "
+              + "--data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success"
+          )
+        '';
+    }
+  );
 
-  gitea = forEachSystem (system:
+  gitea = forEachSystem (
+    system:
     let
       pkgs = nixpkgs.legacyPackages.${system};
     in
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
       name = "hydra-gitea";
-      nodes.machine = { pkgs, ... }: {
-        imports = [ hydraServer ];
-        services.hydra-dev.extraConfig = ''
-          <gitea_authorization>
-          root=d7f16a3412e01a43a414535b16007c6931d3a9c7
-          </gitea_authorization>
-        '';
-        nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
-        nix = {
-          settings.substituters = [ ];
-        };
-        services.gitea = {
-          enable = true;
-          database.type = "postgres";
-          settings = {
-            service.DISABLE_REGISTRATION = true;
-            server.HTTP_PORT = 3001;
+      nodes.machine =
+        { pkgs, ... }:
+        {
+          imports = [ hydraServer ];
+          services.hydra-dev.extraConfig = ''
+            <gitea_authorization>
+            root=d7f16a3412e01a43a414535b16007c6931d3a9c7
+            </gitea_authorization>
+          '';
+          nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
+          nix = {
+            settings.substituters = [ ];
           };
+          services.gitea = {
+            enable = true;
+            database.type = "postgres";
+            settings = {
+              service.DISABLE_REGISTRATION = true;
+              server.HTTP_PORT = 3001;
+            };
+          };
+          services.openssh.enable = true;
+          environment.systemPackages = with pkgs; [
+            gitea
+            git
+            jq
+            gawk
+          ];
+          networking.firewall.allowedTCPPorts = [ 3000 ];
         };
-        services.openssh.enable = true;
-        environment.systemPackages = with pkgs; [ gitea git jq gawk ];
-        networking.firewall.allowedTCPPorts = [ 3000 ];
-      };
       skipLint = true;
       testScript =
         let
@@ -292,15 +312,18 @@ in
 
           machine.shutdown()
         '';
-    });
+    }
+  );
 
-  validate-openapi = forEachSystem (system:
-    let pkgs = nixpkgs.legacyPackages.${system}; in
-    pkgs.runCommand "validate-openapi"
-    { buildInputs = [ pkgs.openapi-generator-cli ]; }
-    ''
+  validate-openapi = forEachSystem (
+    system:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
+    pkgs.runCommand "validate-openapi" { buildInputs = [ pkgs.openapi-generator-cli ]; } ''
       openapi-generator-cli validate -i ${./hydra-api.yaml}
       touch $out
-    '');
+    ''
+  );
 
 }

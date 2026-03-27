@@ -1,6 +1,7 @@
 {
-  outputs = { ... }: {
-    hydraJobs =
-      import ./basic.nix;
-  };
+  outputs =
+    { ... }:
+    {
+      hydraJobs = import ./basic.nix;
+    };
 }

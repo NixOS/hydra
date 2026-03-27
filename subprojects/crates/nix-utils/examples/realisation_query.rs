@@ -26,5 +26,8 @@ async fn main() {
     let sk = key_str.trim().parse::<SecretKey>().unwrap();
     realisation.sign(&[sk]);
 
-    println!("json signed: {}", serde_json::to_string(&realisation).unwrap());
+    println!(
+        "json signed: {}",
+        serde_json::to_string(&realisation).unwrap()
+    );
 }
