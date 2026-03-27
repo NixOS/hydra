@@ -2,6 +2,8 @@ package Hydra::Helper::OIDC;
 
 use strict;
 use warnings;
+use feature qw(signatures try);
+no warnings 'experimental::try';
 use Exporter 'import';
 use LWP::UserAgent;
 use JSON::MaybeXS qw(decode_json);
@@ -19,8 +21,7 @@ our @EXPORT_OK = qw(
 );
 
 # Start a new OIDC login session
-sub new {
-    my ($class, $c, %args) = @_;
+sub new ($class, $c, %args) {
     my $provider_name = $args{provider_name};
 
     my $conf = $c->config->{oidc}->{provider}->{$provider_name}
@@ -52,8 +53,7 @@ sub new {
 }
 
 # Load OIDC login session data from the Catalyst session
-sub load {
-    my ($class, $c, %args) = @_;
+sub load ($class, $c, %args) {
     my $provider_name = $args{provider_name};
 
     my $conf = $c->config->{oidc}->{provider}->{$provider_name}
@@ -71,9 +71,7 @@ sub load {
 }
 
 
-sub authorizationURL {
-    my ($self) = @_;
-
+sub authorizationURL ($self) {
     my $uri = URI->new($self->{conf}->{authorization_endpoint});
     $uri->query_form(
         response_type => 'code',
@@ -85,11 +83,8 @@ sub authorizationURL {
         # DB needs an email. Any extra scopes can be added in configuration (because, for example,
         # the IDP might not be configured to return a hydra_roles claim without explicitly asking
         # for it with a scope)
-        scope => do {
-            my $base_scope = "openid profile email";
-            my $extra_scopes = $self->{conf}->{extra_scopes};
-            ($extra_scopes && $extra_scopes ne '') ? "$base_scope $extra_scopes" : $base_scope;
-        },
+        scope => join(" ", "openid", "profile", "email",
+                      grep { length } $self->{conf}->{extra_scopes} // ()),
         # RFC 7636 §4.2: code_challenge = BASE64URL-ENCODE(SHA256(code_verifier))
         # MIME::Base64::encode_base64url already omits '=' padding per RFC 4648 §5.
         code_challenge => encode_base64url(sha256($self->{session_data}->{code_verifier})),
@@ -100,8 +95,7 @@ sub authorizationURL {
     return $uri->as_string;
 }
 
-sub validateAuthorizationCode {
-    my ($self, $params) = @_;
+sub validateAuthorizationCode ($self, $params) {
     my $c = $self->{c};
 
     # Per RFC 6747 Section 10.12:
@@ -147,10 +141,9 @@ sub validateAuthorizationCode {
 
     error($c, "Invalid code", 400) unless $params->{code};
     return $params->{code};
-};
+}
 
-sub exchangeCodeForToken {
-    my ($self, $code) = @_;
+sub exchangeCodeForToken ($self, $code) {
     my $c = $self->{c};
 
     my $ua = $self->make_ua();
@@ -176,16 +169,16 @@ sub exchangeCodeForToken {
     $req->authorization_basic($self->{conf}->{client_id}, $self->{conf}->{client_secret});
     my $res = $ua->request($req);
 
-    my $res_json = eval {
-        decode_json($res->decoded_content);
-    };
-    if ($@) {
+    my $res_json;
+    try {
+        $res_json = decode_json($res->decoded_content);
+    } catch ($e) {
         # The response was not JSON, probably this is like a load balancer returning a 500
         # page or some such. So check the status code when deciding what to return here.
         if (not $res->is_success) {
             error($c, "OIDC token endpoint returned status " . $res->status_line, 500);
         } else {
-            error($c, "OIDC token endpoint did not return valid JSON: $@", 500);
+            error($c, "OIDC token endpoint did not return valid JSON: $e", 500);
         }
     }
     if ($res_json->{error}) {
@@ -207,8 +200,7 @@ sub exchangeCodeForToken {
     return $res_json->{id_token};
 }
 
-sub validateToken {
-    my ($self, $token) = @_;
+sub validateToken ($self, $token) {
     my $c = $self->{c};
 
     # Crypt::JWT handles the standard ID token validation required by OIDC
@@ -221,8 +213,8 @@ sub validateToken {
     # unknown (OIDC Core §10.1.1: re-fetch jwks_uri on unfamiliar kid).
     foreach my $force_refresh (0, 1) {
         my $jwks = $self->JWKS(force => $force_refresh);
-        $claims = eval {
-            decode_jwt(
+        try {
+            $claims = decode_jwt(
                 token      => $token,
                 kid_keys   => $jwks,
                 verify_iss => sub { $_[0] eq $self->{conf}->{issuer} },
@@ -230,10 +222,11 @@ sub validateToken {
                 verify_exp => 1,
                 verify_nbf => 1,
             );
-        };
+        } catch ($e) {
+            next if $e =~ /kid_keys lookup failed/ && !$force_refresh;
+            error($c, "OIDC token validation failed: $e", 401);
+        }
         last if $claims;
-        next if $@ =~ /kid_keys lookup failed/ && !$force_refresh;
-        error($c, "OIDC token validation failed: $@", 401);
     }
 
     # Nonce binds the token to our authorization request (replay protection).
@@ -248,8 +241,7 @@ sub validateToken {
     return $claims;
 }
 
-sub JWKS {
-    my ($self, %args) = @_;
+sub JWKS ($self, %args) {
     my $c = $self->{c};
     my $provider_name = $self->{session_data}->{provider_name};
     my $jwks_uri = $self->{conf}->{jwks_uri};
@@ -265,39 +257,32 @@ sub JWKS {
     if (not $res->is_success) {
         error($c, "Failed fetching OIDC JWKS endpoint $jwks_uri: ". $res->status_line, 500);
     }
-    my $res_json = eval {
-        decode_json($res->decoded_content);
-    };
-    if ($@) {
-        error($c, "OIDC JWKS endpoint returned invalid JSON: $@", 500);
+    my $res_json;
+    try {
+        $res_json = decode_json($res->decoded_content);
+    } catch ($e) {
+        error($c, "OIDC JWKS endpoint returned invalid JSON: $e", 500);
     }
 
     $c->cache_set($cache_key, $res_json, expires => 60);
     return $res_json;
 }
 
-sub clear_session {
-    my ($self) = @_;
-    my $c = $self->{c};
-
+sub clear_session ($self) {
     # Clears the session out of the session store, but does NOT clear $self->session_data;
     # this is so we can call $self->after() later in the request to redirect.
-    $c->session->{oidc} = undef;
+    $self->{c}->session->{oidc} = undef;
 }
 
-sub after {
-    my ($self) = @_;
+sub after ($self) {
     return $self->{session_data}->{after};
 }
 
-sub make_ua {
-    my ($self) = @_;
+sub make_ua ($self) {
     return _make_ua($self->{conf});
 }
 
-sub _make_ua {
-    my ($conf) = @_;
-
+sub _make_ua ($conf) {
     my $ua = LWP::UserAgent->new(timeout => 10);
     if (defined $conf->{ca_file}) {
         $ua->ssl_opts(SSL_ca_file => $conf->{ca_file});
@@ -309,9 +294,7 @@ sub _make_ua {
 # to perform two tasks:
 #  * If discovery_url is set, fetch that JSON document & set other config parameters from it
 #  * If client_secret_file is set, read the file & set client_secret from it
-sub resolveOIDCConfig {
-    my ($oidc_config) = @_;
-
+sub resolveOIDCConfig ($oidc_config) {
     return unless $oidc_config;
     return unless $oidc_config->{provider};
 
@@ -327,11 +310,11 @@ sub resolveOIDCConfig {
 
         # Load configuration from .well-known/oidc-configuration endpoint
         if ($provider->{discovery_url}) {
-            my $discovery = eval {
-                getOIDCDiscovery($provider);
-            };
-            if ($@) {
-                die "Failed to resolve OIDC discovery for provider '$provider_name': $@";
+            my $discovery;
+            try {
+                $discovery = getOIDCDiscovery($provider);
+            } catch ($e) {
+                die "Failed to resolve OIDC discovery for provider '$provider_name': $e";
             }
 
             # Materialize discovery endpoints into config (only if not already set)
@@ -354,16 +337,18 @@ sub resolveOIDCConfig {
     }
 }
 
-sub getOIDCDiscovery {
-    my ($conf) = @_;
-
+sub getOIDCDiscovery ($conf) {
     my $ua = _make_ua($conf);
     my $res = $ua->get($conf->{discovery_url});
     die "Discovery request to $conf->{discovery_url} failed: " . $res->status_line
         unless $res->is_success;
 
-    my $doc = eval { decode_json($res->decoded_content) };
-    die "Discovery response is not valid JSON: $@" if $@;
+    my $doc;
+    try {
+        $doc = decode_json($res->decoded_content);
+    } catch ($e) {
+        die "Discovery response is not valid JSON: $e";
+    }
 
     # Validate required fields per OIDC spec
     die "Missing 'issuer' in discovery document" unless $doc->{issuer};
