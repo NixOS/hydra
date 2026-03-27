@@ -83,7 +83,6 @@ let
         CryptPassphraseArgon2
         CryptRandPasswd
         CryptURandom
-        CryptURandomToken
         DataDump
         DateTime
         DBDPg

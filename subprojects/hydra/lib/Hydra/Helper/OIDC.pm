@@ -9,9 +9,7 @@ use Digest::SHA qw(sha256);
 use MIME::Base64 qw(encode_base64url);
 use URI;
 use Crypt::URandom qw(urandom);
-use Crypt::URandom::Token qw(urandom_token);
 use File::Slurper qw(read_text);
-use ReadonlyX;
 use Crypt::JWT qw(decode_jwt);
 use String::Compare::ConstantTime qw(equals);
 use Hydra::Helper::CatalystUtils qw(error);
@@ -19,9 +17,6 @@ use Hydra::Helper::CatalystUtils qw(error);
 our @EXPORT_OK = qw(
     resolveOIDCConfig
 );
-
-Readonly::Array our @BASE64URL_CHARS => ('A'..'Z', 'a'..'z', '0'..'9', '-', '_');
-Readonly::Array our @PKCE_VERIFIER_CHARS => ('A'..'Z', 'a'..'z', '0'..'9', '-', '_', '.', '~');
 
 # Start a new OIDC login session
 sub new {
@@ -31,17 +26,14 @@ sub new {
     my $conf = $c->config->{oidc}->{provider}->{$provider_name}
         or error($c, "OIDC provider $provider_name is not configured", 404);
     my $session_data = {
-        # Per RFC 6749, Section 10.10:
-        #   The probability of an attacker guessing generated tokens... SHOULD be less than equal
-        #   to 2^(-160)
-        # 10 characters of base64 text is well and truly above that.
-        state => urandom_token(10, \@BASE64URL_CHARS),
-        nonce => urandom_token(10, \@BASE64URL_CHARS),
-        # Per RFC 7636 Section 4.1:
-        #   high-entropy cryptographic random STRING using the unreserved characters
-        #   [A-Z] / [a-z] / [0-9] / "-" / "." / "_" / "~" ... with a minimum length of 43 characters
-        #   and a maximum length of 128 characters.
-        code_verifier => urandom_token(43, \@PKCE_VERIFIER_CHARS),
+        # RFC 6749 §10.10 requires tokens to be unguessable (≤ 2^-160 probability).
+        # 16 random bytes (128 bits) base64url-encoded is well above that.
+        state => encode_base64url(urandom(16)),
+        nonce => encode_base64url(urandom(16)),
+        # RFC 7636 §4.1: PKCE code_verifier must be 43-128 chars from the
+        # unreserved set [A-Za-z0-9-._~]. base64url output of 32 bytes is
+        # 43 chars using only [A-Za-z0-9-_], which is a subset.
+        code_verifier => encode_base64url(urandom(32)),
         # It's recommended to not allow redirects to take forever (although RFC 6749 does not
         # mandate or recommend any particular length of time)
         expires_at => time + 600,
