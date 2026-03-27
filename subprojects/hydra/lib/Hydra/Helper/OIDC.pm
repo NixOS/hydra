@@ -98,9 +98,9 @@ sub authorizationURL {
             my $extra_scopes = $self->{conf}->{extra_scopes};
             ($extra_scopes && $extra_scopes ne '') ? "$base_scope $extra_scopes" : $base_scope;
         },
-        # Per RFC 7636 Section 4.2:
-        #   code_challenge = BASE64URL-ENCODE(SHA256(ASCII(code_verifier)))
-        code_challenge => base64URLEncode(sha256($self->{session_data}->{code_verifier})),
+        # RFC 7636 §4.2: code_challenge = BASE64URL-ENCODE(SHA256(code_verifier))
+        # MIME::Base64::encode_base64url already omits '=' padding per RFC 4648 §5.
+        code_challenge => encode_base64url(sha256($self->{session_data}->{code_verifier})),
         code_challenge_method => 'S256',
         nonce => $self->{session_data}->{nonce},
         state => $self->{session_data}->{state},
@@ -368,14 +368,6 @@ sub _make_ua {
         $ua->ssl_opts(SSL_ca_file => $conf->{ca_file});
     }
     return $ua;
-}
-
-sub base64URLEncode {
-    my ($data) = @_;
-    # Per RFC 7636 Section 3:
-    #   Base64url Encoding: Base64 encoding using the URL- and filename-safe character set defined
-    #   in Section 5 of [RFC4648], with all trailing '=' characters omitted
-    return encode_base64url($data) =~ s/=+$//r;
 }
 
 # Run at startup to perform a couple of jobs. Expects to receive $c->config->{oidc} and mutates it
