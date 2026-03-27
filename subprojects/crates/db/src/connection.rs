@@ -274,6 +274,85 @@ impl Connection {
         .await
     }
 
+    /// Resolve output paths for derivation chains via `buildstepoutputs`.
+    ///
+    /// Each entry is `(root_drv_path, &[output_name, ...])` representing a
+    /// chain like `root.drv^out1^out2`. The recursive CTE walks the chain:
+    /// look up `root.drv`'s `out1` output to get an intermediate drv path,
+    /// then look up that drv's `out2`, etc. Returns the final resolved path
+    /// for each chain (or `None` if any step fails).
+    pub async fn resolve_drv_output_chains(
+        &mut self,
+        chains: &[(&str, &[&str])],
+    ) -> sqlx::Result<Vec<Option<String>>> {
+        if chains.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // We pack as JSON here since sqlx can't bind `text[][]` directly.
+        let json_input = serde_json::Value::Array(
+            chains
+                .iter()
+                .map(|(root, outputs)| {
+                    serde_json::json!({
+                        "root": root,
+                        "chain": outputs,
+                    })
+                })
+                .collect(),
+        );
+
+        let rows = sqlx::query_as::<_, (i32, Option<String>)>(
+            "
+            WITH RECURSIVE input AS (
+                SELECT (ordinality)::int AS idx,
+                       elem->>'root' AS drv,
+                       ARRAY(SELECT jsonb_array_elements_text(elem->'chain')) AS chain
+                FROM jsonb_array_elements($1::jsonb)
+                    WITH ORDINALITY AS t(elem, ordinality)
+            ),
+            resolve(idx, drv_path, step) AS (
+                SELECT idx, drv, 1 FROM input
+
+                UNION ALL
+
+                SELECT r.idx, sub.path, r.step + 1
+                FROM resolve r
+                JOIN input i ON i.idx = r.idx
+                CROSS JOIN LATERAL (
+                    SELECT o.path
+                    FROM buildsteps s
+                    JOIN buildstepoutputs o
+                        ON s.build = o.build AND s.stepnr = o.stepnr
+                    WHERE s.drvPath = r.drv_path
+                      AND o.name = i.chain[r.step]
+                      AND o.path IS NOT NULL
+                      AND s.status = 0
+                    ORDER BY s.build DESC
+                    LIMIT 1
+                ) sub
+                WHERE r.step <= array_length(i.chain, 1)
+                  AND r.drv_path IS NOT NULL
+            )
+            SELECT i.idx, r.drv_path
+            FROM input i
+            LEFT JOIN resolve r
+                ON r.idx = i.idx
+                AND r.step = array_length(i.chain, 1) + 1
+            ORDER BY i.idx
+            ",
+        )
+        .bind(&json_input)
+        .fetch_all(&mut *self.conn)
+        .await?;
+
+        let mut results = vec![None; chains.len()];
+        for (idx, path) in rows {
+            results[(idx - 1) as usize] = path;
+        }
+        Ok(results)
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_status(&mut self) -> sqlx::Result<Option<serde_json::Value>> {
         Ok(
@@ -993,5 +1072,135 @@ impl Transaction<'_> {
     pub async fn notify_status_dumped(&mut self) -> sqlx::Result<()> {
         self.notify_any("status_dumped", "").await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    async fn setup() -> (test_utils::TestPg, Connection) {
+        let (pg, pool) = test_utils::TestPg::new().await;
+        let mut conn = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql("SET session_replication_role = 'replica';")
+            .execute(&mut *conn.conn)
+            .await
+            .unwrap();
+        (pg, conn)
+    }
+
+    async fn insert_step(conn: &mut Connection, build: i32, stepnr: i32, drv_path: &str) {
+        sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 0, $3, 0)")
+            .bind(build)
+            .bind(stepnr)
+            .bind(drv_path)
+            .execute(&mut *conn.conn)
+            .await
+            .unwrap();
+    }
+
+    async fn insert_output(conn: &mut Connection, build: i32, stepnr: i32, name: &str, path: &str) {
+        sqlx::query(
+            "INSERT INTO BuildStepOutputs (build, stepnr, name, path) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(build)
+        .bind(stepnr)
+        .bind(name)
+        .bind(path)
+        .execute(&mut *conn.conn)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn resolve_depth_1() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 1, 1, "out", "/nix/store/bbb-result").await;
+
+        let results = conn
+            .resolve_drv_output_chains(&[("/nix/store/aaa-foo.drv", &["out"])])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some("/nix/store/bbb-result".into())]);
+    }
+
+    #[tokio::test]
+    async fn resolve_depth_2() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 1, 1, "out", "/nix/store/bbb-bar.drv").await;
+        insert_step(&mut conn, 2, 1, "/nix/store/bbb-bar.drv").await;
+        insert_output(&mut conn, 2, 1, "dev", "/nix/store/ccc-final").await;
+
+        let results = conn
+            .resolve_drv_output_chains(&[("/nix/store/aaa-foo.drv", &["out", "dev"])])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some("/nix/store/ccc-final".into())]);
+    }
+
+    #[tokio::test]
+    async fn resolve_batch() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 1, 1, "out", "/nix/store/bbb-foo-out").await;
+        insert_step(&mut conn, 2, 1, "/nix/store/ccc-bar.drv").await;
+        insert_output(&mut conn, 2, 1, "lib", "/nix/store/ddd-bar-lib").await;
+
+        let results = conn
+            .resolve_drv_output_chains(&[
+                ("/nix/store/aaa-foo.drv", &["out"]),
+                ("/nix/store/ccc-bar.drv", &["lib"]),
+            ])
+            .await
+            .unwrap();
+        assert_eq!(
+            results,
+            vec![
+                Some("/nix/store/bbb-foo-out".into()),
+                Some("/nix/store/ddd-bar-lib".into()),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn resolve_missing() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 1, 1, "out", "/nix/store/bbb-result").await;
+
+        let results = conn
+            .resolve_drv_output_chains(&[
+                ("/nix/store/aaa-foo.drv", &["out"]),
+                ("/nix/store/nonexistent.drv", &["out"]),
+            ])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some("/nix/store/bbb-result".into()), None]);
+    }
+
+    #[tokio::test]
+    async fn resolve_empty() {
+        let (_pg, mut conn) = setup().await;
+        let results = conn.resolve_drv_output_chains(&[]).await.unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolve_picks_latest_build() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 1, 1, "out", "/nix/store/old-result").await;
+        insert_step(&mut conn, 5, 1, "/nix/store/aaa-foo.drv").await;
+        insert_output(&mut conn, 5, 1, "out", "/nix/store/new-result").await;
+
+        let results = conn
+            .resolve_drv_output_chains(&[("/nix/store/aaa-foo.drv", &["out"])])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some("/nix/store/new-result".into())]);
     }
 }

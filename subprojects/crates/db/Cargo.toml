@@ -19,3 +19,7 @@ sqlx = { workspace = true, features = [
   "tls-rustls-ring-webpki",
   "postgres",
 ] }
+
+[dev-dependencies]
+test-utils = { path = "../test-utils" }
+tokio = { workspace = true, features = ["macros"] }

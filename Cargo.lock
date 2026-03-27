@@ -452,9 +452,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.57"
+version = "1.2.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a0dd1ca384932ff3641c8718a02769f1698e7563dc6974ffd03346116310423"
+checksum = "e1e928d4b69e3077709075a938a05ffbedfa53a84c8f766efbf8220bb1ff60e1"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -827,6 +827,8 @@ dependencies = [
  "jiff",
  "serde_json",
  "sqlx",
+ "test-utils",
+ "tokio",
  "tracing",
 ]
 
@@ -1251,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-aterm"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#0176db9431db793182a5f5d733d9d6be3e5a3162"
+source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#b60f311ba3ca3ab56a0eff2f0ea6ea0b1c3aac3d"
 dependencies = [
  "bytes",
  "harmonia-store-core",
@@ -1264,7 +1266,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-core"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#0176db9431db793182a5f5d733d9d6be3e5a3162"
+source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#b60f311ba3ca3ab56a0eff2f0ea6ea0b1c3aac3d"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1285,7 +1287,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#0176db9431db793182a5f5d733d9d6be3e5a3162"
+source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#b60f311ba3ca3ab56a0eff2f0ea6ea0b1c3aac3d"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1295,7 +1297,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-hash"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#0176db9431db793182a5f5d733d9d6be3e5a3162"
+source = "git+https://github.com/nix-community/harmonia.git?branch=nix-2.34#b60f311ba3ca3ab56a0eff2f0ea6ea0b1c3aac3d"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -2084,9 +2086,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a69bcab0ad47271a0234d9422b131806bf3968021e5dc9328caf2d4cd58557fc"
+checksum = "50b7e5b27aa02a74bac8c3f23f448f8d87ff11f92d3aac1a6ed369ee08cc56c1"
 dependencies = [
  "libc",
  "wasi",
@@ -3113,9 +3115,9 @@ dependencies = [
 
 [[package]]
 name = "rust_decimal"
-version = "1.40.0"
+version = "1.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61f703d19852dbf87cbc513643fa81428361eb6940f1ac14fd58155d295a3eb0"
+checksum = "2ce901f9a19d251159075a4c37af514c3b8ef99c22e02dd8c19161cf397ee94a"
 dependencies = [
  "arrayvec",
  "borsh",
@@ -3125,6 +3127,7 @@ dependencies = [
  "rkyv",
  "serde",
  "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -3503,9 +3506,9 @@ dependencies = [
 
 [[package]]
 name = "simd-adler32"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
+checksum = "703d5c7ef118737c72f1af64ad2f6f8c5e1921f818cdcb97b8fe6fc69bf66214"
 
 [[package]]
 name = "simdutf8"
@@ -3885,6 +3888,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "test-utils"
+version = "0.1.0"
+dependencies = [
+ "fs-err",
+ "sqlx",
 ]
 
 [[package]]
@@ -4379,9 +4390,9 @@ checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
 
 [[package]]
 name = "unicode-segmentation"
-version = "1.13.1"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da36089a805484bcccfffe0739803392c8298778a2d2f09febf76fac5ad9025b"
+checksum = "9629274872b2bfaf8d66f5f15725007f635594914870f65218920345aa11aa8c"
 
 [[package]]
 name = "unicode-width"
@@ -4433,9 +4444,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.22.0"
+version = "1.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
+checksum = "5ac8b6f42ead25368cf5b098aeb3dc8a1a2c05a3eee8a9a1a68c640edbfc79d9"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",

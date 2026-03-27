@@ -3,8 +3,36 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
 use nix_utils::BaseStore as _;
+use nix_utils::SingleDerivedPath;
 
 use super::Step;
+
+/// Flatten a [`SingleDerivedPath`] + output name into `(root_drv_path, [outputs...])`.
+/// The output chain is in resolution order: for `Built { Opaque(A), "out" }` with
+/// final output `"dev"`, returns `(A, ["out", "dev"])`.
+fn flatten_chain(
+    store: &nix_utils::LocalStore,
+    drv_path: &SingleDerivedPath,
+    output_name: &nix_utils::OutputName,
+) -> (String, Vec<String>) {
+    let mut outputs = Vec::<String>::new();
+    let mut current = drv_path;
+    let root = loop {
+        match current {
+            SingleDerivedPath::Opaque(p) => break store.print_store_path(p),
+            SingleDerivedPath::Built {
+                drv_path: parent,
+                output,
+            } => {
+                outputs.push(output.to_string());
+                current = parent;
+            }
+        }
+    };
+    outputs.reverse();
+    outputs.push(output_name.to_string());
+    (root, outputs)
+}
 
 #[derive(Debug)]
 pub struct StepInfo {
@@ -17,15 +45,82 @@ pub struct StepInfo {
 }
 
 impl StepInfo {
-    pub async fn new(store: &nix_utils::LocalStore, step: Arc<Step>) -> Self {
+    pub async fn new(store: &nix_utils::LocalStore, db: &db::Database, step: Arc<Step>) -> Self {
         Self {
-            resolved_drv_path: store.try_resolve_drv(step.get_drv_path()).await,
+            resolved_drv_path: Self::try_resolve(store, db, &step).await,
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: step.get_runnable_since(),
             lowest_share_used: step.get_lowest_share_used().into(),
             step,
         }
+    }
+
+    async fn try_resolve(
+        store: &nix_utils::LocalStore,
+        db: &db::Database,
+        step: &Step,
+    ) -> Option<nix_utils::StorePath> {
+        let drv_guard = step.get_drv()?;
+        let drv = drv_guard.as_ref().unwrap();
+
+        // Only resolve if the derivation has Built inputs (CA deps).
+        // Pure input-addressed derivations don't need resolution.
+        let has_built_inputs = drv.inputs.iter().any(|i| matches!(i, SingleDerivedPath::Built { .. }));
+        if !has_built_inputs {
+            return None;
+        }
+
+        let store_dir = store.store_dir();
+        let mut conn = db.get().await.ok()?;
+
+        let resolved = drv.try_resolve(store_dir, &mut |inputs| {
+            let store_dir_str = store_dir.to_str();
+            tokio::task::block_in_place(|| {
+                // Flatten each SingleDerivedPath chain into (root, [outputs...])
+                // and resolve everything in a single recursive SQL query.
+                let chains = inputs
+                    .iter()
+                    .map(|(drv_path, output_name)| flatten_chain(store, drv_path, output_name))
+                    .collect::<Vec<_>>();
+
+                let chain_refs = chains
+                    .iter()
+                    .map(|(root, outputs)| {
+                        (
+                            root.as_str(),
+                            outputs.iter().map(String::as_str).collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+
+                let sql_input = chain_refs
+                    .iter()
+                    .map(|(root, outputs)| (*root, outputs.as_slice()))
+                    .collect::<Vec<_>>();
+
+                let db_results = tokio::runtime::Handle::current()
+                    .block_on(conn.resolve_drv_output_chains(&sql_input))
+                    .unwrap_or_else(|e| {
+                        tracing::warn!("resolve_drv_output_chains failed: {e}");
+                        vec![None; inputs.len()]
+                    });
+
+                db_results
+                    .into_iter()
+                    .map(|path| {
+                        path.and_then(|p| {
+                            let base = p
+                                .strip_prefix(store_dir_str)
+                                .and_then(|s| s.strip_prefix('/'))?;
+                            Some(nix_utils::parse_store_path(base))
+                        })
+                    })
+                    .collect()
+            })
+        })?;
+
+        store.write_derivation(&resolved).await.ok()
     }
 
     pub fn update_internal_stats(&self) {
