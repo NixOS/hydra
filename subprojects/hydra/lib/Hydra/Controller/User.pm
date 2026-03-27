@@ -14,7 +14,9 @@ use Hydra::Helper::Email;
 use Hydra::Helper::OIDC;
 use Hydra::Config;
 use LWP::UserAgent;
+use URI;
 use JSON::MaybeXS;
+use String::Compare::ConstantTime qw(equals);
 use HTML::Entities;
 use Encode qw(decode);
 
@@ -55,6 +57,40 @@ sub logout_POST {
     $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
     $c->logout;
     $self->status_no_content($c);
+}
+
+sub logout_GET {
+    my ($self, $c) = @_;
+
+    # CSRF protection: require a token derived from the session ID so that
+    # a cross-site <img>/<a>/top-level navigation cannot log the user out.
+    my $expected = logoutToken($c);
+    my $token = $c->req->params->{token} // "";
+    error($c, "Invalid CSRF token", 403)
+        unless defined $expected && equals($token, $expected);
+
+    $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
+
+    my $oidc_provider = $c->session->{oidc_provider};
+    $c->logout;
+    $c->delete_session("Logout");
+
+    # If this was an OIDC session and the IdP advertises an end_session_endpoint,
+    # redirect there so the user is also logged out of the IdP (RP-Initiated Logout).
+    if (defined $oidc_provider) {
+        my $provider = $c->config->{oidc}->{provider}->{$oidc_provider};
+        if (defined $provider && defined $provider->{end_session_endpoint}) {
+            my $uri = URI->new($provider->{end_session_endpoint});
+            $uri->query_form(
+                post_logout_redirect_uri => $c->uri_for("/")->as_string,
+                client_id => $provider->{client_id},
+            );
+            $c->res->redirect($uri);
+            return;
+        }
+    }
+
+    $c->res->redirect($c->uri_for("/"));
 }
 
 sub doLDAPLogin {
@@ -287,6 +323,9 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
     }
 
     $oidc->clear_session();
+    # Remember which OIDC provider was used so we can perform RP-Initiated
+    # Logout against its end_session_endpoint when the user signs out.
+    $c->session->{oidc_provider} = $provider_name;
     $c->res->redirect($oidc->after());
 }
 
