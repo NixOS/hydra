@@ -219,95 +219,38 @@ sub validateToken {
     my ($self, $token) = @_;
     my $c = $self->{c};
 
+    # Crypt::JWT handles the standard ID token validation required by OIDC
+    # Core 1.0 §3.1.3.7 for us: signature verification against JWKS, issuer
+    # match, audience match, exp/nbf time checks, and rejection of alg=none.
+    # It does NOT verify the nonce (OIDC-specific) or sub presence, which we
+    # check separately below.
     my $claims;
-    # Try twice: first with cached JWKS, then with fresh JWKS if kid lookup fails
+    # Try twice: first with cached JWKS, then refreshed if the key ID is
+    # unknown (OIDC Core §10.1.1: re-fetch jwks_uri on unfamiliar kid).
     foreach my $force_refresh (0, 1) {
         my $jwks = $self->JWKS(force => $force_refresh);
         $claims = eval {
-            decode_jwt(token => $token, kid_keys => $jwks);
+            decode_jwt(
+                token      => $token,
+                kid_keys   => $jwks,
+                verify_iss => sub { $_[0] eq $self->{conf}->{issuer} },
+                verify_aud => sub { $_[0] eq $self->{conf}->{client_id} },
+                verify_exp => 1,
+                verify_nbf => 1,
+            );
         };
-
-        last if $claims;  # Token decoded successfully
-
-        # Per OIDC Core 1.0 Section 10.1.1:
-        #   The verifier knows to go back to the jwks_uri location to re-retrieve the keys when it
-        #   sees an unfamiliar kid value
-        # If the error was that the KID from the token was not found from the JWKS we passed in,
-        # force a refresh and try it again.
+        last if $claims;
         next if $@ =~ /kid_keys lookup failed/ && !$force_refresh;
-
-        # Any other error, or kid lookup failed on retry
         error($c, "OIDC token validation failed: $@", 401);
     }
 
-    # Per OIDC Core 1.0 Section 3.1.3.7:
-    #   Clients MUST validate the ID token in the Token Response in the following manner:
-
-    #   1. If the ID Token is encrypted...
-    # (we don't support that)
-
-    #   2. The Issuer Identifier for the OpenID Provider (which is typically obtained during
-    #      Discovery) MUST exactly match the value of the iss (issuer) Claim.
-    if ($claims->{iss} ne $self->{conf}->{issuer}) {
-        error($c, "OIDC token validation failed: issuer mismatch (got $claims->{iss}, expected "
-            . "$self->{conf}->{issuer})", 403);
-    }
-
-    #   3. The Client MUST validate that the aud (audience) Claim contains its client_id value
-    #      registered at the Issuer identified by the iss (issuer) Claim as an audience
-    $claims->{aud} or error($c, "No aud claim in OIDC token", 400);
-    my $aud = ref $claims->{aud} eq 'ARRAY' ? $claims->{aud} : [$claims->{aud}];
-    unless (grep { $_ eq $self->{conf}->{client_id} } @$aud) {
-        error($c, "OIDC token validation failed: audience mismatch (got " . join(', ', @$aud)
-            . ", expected $self->{conf}->{client_id})", 403);
-    }
-
-    #   4. If the implementation is using extensions ... that result in the azp Claim being present ...
-    #   5. This validation MAY ...
-    # We're not using any such extensions, ignore azp
-
-    #   6. If the ID Token is received via direct communication between the Client and the Token
-    #      Endpoint (...), the TLS server validation MAY be used to validate the issuer in place of
-    #      checking the token signature. The Client MUST validate the signature of all other ID
-    #      Tokens according to JWS [JWS] using the algorithm specified in the JWT alg Header
-    #      Parameter. The Client MUST use the keys provided by the Issuer.
-    # We did this above in decode_jwt already. That method both checks the signature against the
-    # JWKS keys we fetched _and_ decodes the base64-dot-separated-json token into a perl hash for
-    # us. Plus for good measure we also validated the TLS certificate when connecting to the token
-    # endpoint anyway.
-
-    #   7. The alg value SHOULD be the default of RS256 or the algorithm sent by the Client in the
-    #      id_token_signed_response_alg parameter during Registration.
-    # We didn't ask for any algorithm in particular, and the Crypt::JWT library we're using
-    # does not allow none alg without explicitly asking for it.
-
-    #   8. If the JWT alg Header Parameter uses a MAC based algorithm such as HS256, HS384, or
-    #      HS512...
-    # We don't support this; not explicitly, but at the moment the only way to fetch the key to
-    # verify the sig against is with jwks_uri, and, uh, I doubt anybody is serving up the secret
-    # key material that would be required to validate a HMAC-based signature over a public endpoint.
-
-    #   9. The current time MUST be before the time represented by the exp Claim.
-    $claims->{exp} or error($c, "No exp claim in OIDC token", 400);
-    $claims->{exp} > time or error($c, "OIDC token expired (at $claims->{exp})", 403);
-
-    #   10. The iat Claim can be used to reject tokens that were issued too far away from the
-    #       current time, limiting the amount of time that nonces need to be stored to prevent
-    #       attacks. The acceptable range is Client specific.
-    # We don't do this, it seems unnescessary for this use case? If this concerns you, mint tokens
-    # with an appropriate expiry.
-
-    #   11. If a nonce value was sent in the Authentication Request, a nonce Claim MUST be present
-    #       and its value checked to verify that it is the same value as the one that was sent in
-    #       the Authentication Request. The Client SHOULD check the nonce value for replay attacks.
+    # Nonce binds the token to our authorization request (replay protection).
     $claims->{nonce} or error($c, "No nonce claim in OIDC token", 400);
-    equals($claims->{nonce}, $self->{session_data}->{nonce}) or error($c, "Nonce mismatch", 403);
+    equals($claims->{nonce}, $self->{session_data}->{nonce})
+        or error($c, "Nonce mismatch", 403);
 
-    #   12. If the acr Claim was requested ...
-    #   13. If the auth_time Claim was requested ...
-    # No, they were not
-
-    # Make sure there is a `sub` claim (we'll use this as the user ID in our system)
+    # We use `sub` as the stable user identifier; it's REQUIRED by OIDC but
+    # be defensive anyway.
     $claims->{sub} or error($c, "No sub claim in OIDC token", 400);
 
     return $claims;
