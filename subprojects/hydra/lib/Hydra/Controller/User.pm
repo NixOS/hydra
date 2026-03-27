@@ -11,8 +11,12 @@ use Hydra::Config qw(getLDAPConfigAmbient);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use Hydra::Helper::OIDC;
+use Hydra::Config;
 use LWP::UserAgent;
+use URI;
 use JSON::MaybeXS;
+use String::Compare::ConstantTime qw(equals);
 use HTML::Entities;
 use Encode qw(decode);
 
@@ -55,6 +59,40 @@ sub logout_POST {
     $self->status_no_content($c);
 }
 
+sub logout_GET {
+    my ($self, $c) = @_;
+
+    # CSRF protection: require a token derived from the session ID so that
+    # a cross-site <img>/<a>/top-level navigation cannot log the user out.
+    my $expected = logoutToken($c);
+    my $token = $c->req->params->{token} // "";
+    error($c, "Invalid CSRF token", 403)
+        unless defined $expected && equals($token, $expected);
+
+    $c->flash->{flashMsg} = "You are no longer signed in." if $c->user_exists();
+
+    my $oidc_provider = $c->session->{oidc_provider};
+    $c->logout;
+    $c->delete_session("Logout");
+
+    # If this was an OIDC session and the IdP advertises an end_session_endpoint,
+    # redirect there so the user is also logged out of the IdP (RP-Initiated Logout).
+    if (defined $oidc_provider) {
+        my $provider = $c->config->{oidc}->{provider}->{$oidc_provider};
+        if (defined $provider && defined $provider->{end_session_endpoint}) {
+            my $uri = URI->new($provider->{end_session_endpoint});
+            $uri->query_form(
+                post_logout_redirect_uri => $c->uri_for("/")->as_string,
+                client_id => $provider->{client_id},
+            );
+            $c->res->redirect($uri);
+            return;
+        }
+    }
+
+    $c->res->redirect($c->uri_for("/"));
+}
+
 sub doLDAPLogin {
     my ($self, $c, $username) = @_;
     my $user = $c->find_user({ username => $username });
@@ -92,7 +130,9 @@ sub doLDAPLogin {
 }
 
 sub doEmailLogin {
-    my ($self, $c, $type, $email, $fullName) = @_;
+    my ($self, $c, %args) = @_;
+    my ($type, $email, $fullName) = @args{qw(type email fullName)};
+    my $username = $args{username} // $email;
 
     die "No email address provided.\n" unless defined $email;
 
@@ -116,7 +156,7 @@ sub doEmailLogin {
             unless $email_ok;
     }
 
-    my $user = $c->find_user({ username => $email });
+    my $user = $c->find_user({ username => $username });
 
     if ($user) {
         # Automatically upgrade legacy Persona accounts to Google accounts.
@@ -127,13 +167,13 @@ sub doEmailLogin {
         die "You cannot login via login type '$type'.\n" if $user->type ne $type;
     } else {
         $c->model('DB::Users')->create(
-            { username => $email
+            { username => $username
             , fullname => $fullName,
             , password => "!"
             , emailaddress => $email,
             , type => $type
             });
-        $user = $c->find_user({ username => $email }) or die;
+        $user = $c->find_user({ username => $username }) or die;
     }
 
     $c->set_authenticated($user);
@@ -162,7 +202,11 @@ sub google_login :Path('/google-login') Args(0) {
     die "Email address is not verified" unless $data->{email_verified};
     # FIXME: verify hosted domain claim?
 
-    doEmailLogin($self, $c, "google", $data->{email}, $data->{name} // undef);
+    doEmailLogin($self, $c,
+        type => "google",
+        email => $data->{email},
+        fullName => $data->{name} // undef,
+    );
 }
 
 sub github_login :Path('/github-login') Args(0) {
@@ -206,7 +250,11 @@ sub github_login :Path('/github-login') Args(0) {
     error($c, "Did not get a response from GitHub for user info.") unless $response->is_success;
     $data = decode_json($response->decoded_content) or die;
 
-    doEmailLogin($self, $c, "github", $email, $data->{name} // undef);
+    doEmailLogin($self, $c,
+        type => "github",
+        email => $email,
+        fullName => $data->{name} // undef,
+    );
 
     $c->res->redirect($c->uri_for($c->res->cookies->{'after_github'}));
 }
@@ -224,6 +272,61 @@ sub github_redirect :Path('/github-redirect') Args(0) {
     };
 
     $c->res->redirect("https://github.com/login/oauth/authorize?client_id=$client_id&scope=user:email");
+}
+
+sub oidc_redirect :Path('/oidc-redirect') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    # Sanitize the 'after' parameter to prevent open redirects: strip any
+    # leading slashes so that e.g. '//evil.com' cannot become a
+    # protocol-relative URL, and only allow same-origin paths.
+    my $after = $c->req->params->{after} // "";
+    $after =~ s{^/+}{};
+    $after =~ s{\\}{}g;  # also strip backslashes (some browsers normalize \\ to //)
+
+    my $oidc = Hydra::Helper::OIDC->new($c,
+        provider_name => $provider_name,
+        after => "/" . $after,
+        redirect_uri => $c->uri_for("/oidc-callback", $provider_name)->as_string,
+    );
+    $c->res->redirect($oidc->authorizationURL());
+}
+
+sub oidc_callback :Path('/oidc-callback') Args(1) {
+    my ($self, $c, $provider_name) = @_;
+
+    my $oidc = Hydra::Helper::OIDC->load($c, provider_name => $provider_name);
+    my $authorization_code = $oidc->validateAuthorizationCode($c->req->params);
+    my $token = $oidc->exchangeCodeForToken($authorization_code);
+    my $claims = $oidc->validateToken($token);
+
+    doEmailLogin($self, $c,
+        type => 'oidc',
+        email => $claims->{email},
+        fullName => $claims->{name},
+        username => $provider_name . ":" . $claims->{sub},
+    );
+
+    # If a hydra_roles claim was presented, set roles with it.
+    # We don't support any kind of role mapping other than this at the moment; you have to
+    # explicitly configure your IDP to present the hydra_roles claim in the ID token with the
+    # desired list of roles. I tested this with a couple of IDP's and it worked:
+    #  * Keycloak: You need to set up a "protocol mapper" to bind client-scoped role values to
+    #    ID token claims
+    #  * Kanidm: You have to use `kanidm system oauth2 update-claim-map`
+    if ($claims->{hydra_roles}) {
+        # Take the intersection of hydra_roles that are in valid_roles
+        my %valid_roles = map { $_ => 1 } @{Hydra::Config::valid_roles()};
+        my @normalized_roles = map { Hydra::Config::normalize_role_name($_) } @{$claims->{hydra_roles}};
+        my @roles = grep { $valid_roles{$_} } @normalized_roles;
+        $c->user->setRoles(@roles);
+    }
+
+    $oidc->clear_session();
+    # Remember which OIDC provider was used so we can perform RP-Initiated
+    # Logout against its end_session_endpoint when the user signs out.
+    $c->session->{oidc_provider} = $provider_name;
+    $c->res->redirect($oidc->after());
 }
 
 
@@ -314,9 +417,8 @@ sub updatePreferences {
         $user->update({ emailaddress => $emailAddress })
             if $user->type eq "hydra";
 
-        $user->userroles->delete;
-        $user->userroles->create({ role => $_ })
-            foreach paramToList($c, "roles");
+
+        $user->setRoles(paramToList($c, "roles"));
     }
 }
 

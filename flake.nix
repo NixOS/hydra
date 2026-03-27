@@ -45,6 +45,7 @@
             inherit nixComponents;
           };
         });
+
     in
     rec {
 
