@@ -49,7 +49,7 @@ pub enum Error {
 }
 
 pub use drv::{Derivation, output_paths, query_drv};
-pub use harmonia_store_core::derivation::{DerivationOutput, DerivationOutputs};
+pub use harmonia_store_core::derivation::{BasicDerivation, DerivationOutput, DerivationOutputs};
 pub use harmonia_store_core::derived_path::{
     DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
 };
@@ -213,7 +213,7 @@ mod ffi {
         fn list_nar_deep(store: &StoreWrapper, path: &str) -> Result<String>;
 
         fn ensure_path(store: &StoreWrapper, path: &str) -> Result<()>;
-        fn try_resolve_drv(store: &StoreWrapper, path: &str) -> Result<String>;
+        fn write_derivation(store: &StoreWrapper, json: &str) -> Result<String>;
         fn static_output_hashes(
             store: &StoreWrapper,
             drv_path: &str,
@@ -468,7 +468,6 @@ pub trait BaseStore {
     fn list_nar_deep(&self, path: &StorePath) -> impl Future<Output = Result<String, Error>>;
 
     fn ensure_path(&self, path: &StorePath) -> impl Future<Output = Result<(), Error>>;
-    fn try_resolve_drv(&self, path: &StorePath) -> impl Future<Output = Option<StorePath>>;
     fn static_output_hashes(
         &self,
         drv_path: &StorePath,
@@ -767,19 +766,6 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    async fn try_resolve_drv(&self, path: &StorePath) -> Option<StorePath> {
-        let store = self.wrapper.clone();
-        let path = self.print_store_path(path);
-        asyncify(move || {
-            let v = ffi::try_resolve_drv(store.as_raw(), &path)?;
-            Ok(v.is_empty().then_some(v).map(|v| parse_store_path(&v)))
-        })
-        .await
-        .ok()
-        .flatten()
-    }
-
-    #[inline]
     async fn static_output_hashes(
         &self,
         drv_path: &StorePath,
@@ -879,6 +865,35 @@ impl LocalStore {
 
     pub fn unsafe_set_store_dir(&mut self, store_dir: StoreDir) {
         self.base.store_dir = store_dir;
+    }
+
+    /// Write a [`BasicDerivation`] to the store.
+    ///
+    /// Returns the store path of the written `.drv` file.
+    pub async fn write_derivation(&self, drv: &BasicDerivation) -> Result<StorePath, Error> {
+        let full_drv = Derivation {
+            name: drv.name.clone(),
+            outputs: drv.outputs.clone(),
+            inputs: drv
+                .inputs
+                .iter()
+                .cloned()
+                .map(SingleDerivedPath::Opaque)
+                .collect(),
+            platform: drv.platform.clone(),
+            builder: drv.builder.clone(),
+            args: drv.args.clone(),
+            env: drv.env.clone(),
+            structured_attrs: drv.structured_attrs.clone(),
+        };
+        let json = serde_json::to_string(&full_drv)
+            .map_err(|e| anyhow::anyhow!("failed to serialize derivation: {e}"))?;
+        let store = self.base.wrapper.clone();
+        asyncify(move || {
+            let path = ffi::write_derivation(store.as_raw(), &json)?;
+            Ok(parse_store_path(&path))
+        })
+        .await
     }
 }
 
@@ -1005,11 +1020,6 @@ impl BaseStore for LocalStore {
     #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         self.base.ensure_path(path).await
-    }
-
-    #[inline]
-    async fn try_resolve_drv(&self, path: &StorePath) -> Option<StorePath> {
-        self.base.try_resolve_drv(path).await
     }
 
     #[inline]
@@ -1236,11 +1246,6 @@ impl BaseStore for RemoteStore {
     #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         self.base.ensure_path(path).await
-    }
-
-    #[inline]
-    async fn try_resolve_drv(&self, path: &StorePath) -> Option<StorePath> {
-        self.base.try_resolve_drv(path).await
     }
 
     #[inline]
