@@ -51,6 +51,9 @@ my $ctx = test_context(
                 client_id = "hydra"
                 client_secret = "${\$kanidm->get_oauth2_secret('hydra')}"
                 ca_file = "${\$kanidm->ca_file}"
+                # Kanidm does not implement RP-Initiated Logout, so we set this
+                # manually to exercise the logout redirect path.
+                end_session_endpoint = "${\$kanidm->url}/fake-end-session"
             </provider>
         </oidc>
 CFG
@@ -133,6 +136,32 @@ subtest "OIDC login flow works end-to-end" => sub {
     like($c->user->username, qr/^test:/, "username is prefixed with OIDC IDM name");
     is($c->user->emailaddress, 'bert@localhost', "User has email from IDM");
     is([sort map { $_->role } $c->user->userroles], ['bump-to-front', 'cancel-build', 'restart-jobs'], 'User has roles from IDM');
+
+    # Session should remember the OIDC provider for RP-Initiated Logout
+    is($c->session->{oidc_provider}, 'test', "OIDC provider stored in session");
+
+    subtest "OIDC logout redirects to end_session_endpoint" => sub {
+        # Don't auto-follow so we can inspect the redirect target without
+        # actually hitting Kanidm's (non-existent) end_session endpoint.
+        $mech->requests_redirectable([]);
+        my $res = $mech->get('/logout');
+        is($res->code, 302, "Logout issues a redirect");
+
+        my $location = URI->new($res->header('Location'));
+        my $end_session = $kanidm->url . "/fake-end-session";
+        is($location->scheme . "://" . $location->host_port . $location->path,
+            $end_session, "Redirects to the IdP end_session_endpoint");
+
+        my %params = $location->query_form;
+        is($params{client_id}, 'hydra', "client_id passed to end_session");
+        like($params{post_logout_redirect_uri}, qr{^http://localhost},
+            "post_logout_redirect_uri points back to Hydra");
+
+        # Verify we're actually logged out
+        $mech->requests_redirectable(['GET', 'HEAD']);
+        my ($res2, $c2) = ctx_request(GET '/', Cookie => $cookie_jar->cookie_header('http://localhost'));
+        ok(!$c2->user_exists, "User is logged out after /logout");
+    };
 };
 
 done_testing;

@@ -131,7 +131,11 @@
   [% IF c.user_exists %]
     [% INCLUDE navItem uri = c.uri_for(c.controller('User').action_for('edit'), [c.user.username]) title = "Preferences" %]
     <li class="nav-item">
-      <a class="nav-link" href="#" onclick="signOut();">Sign out</a>
+      [% IF c.user.type == 'oidc' %]
+        <a class="nav-link" href="[% c.uri_for('/logout') %]">Sign out</a>
+      [% ELSE %]
+        <a class="nav-link" href="#" onclick="signOut();">Sign out</a>
+      [% END %]
     </li>
   [% ELSE %]
     [% WRAPPER makeSubMenu title="Sign in" id="sign-in-menu" align="right" %]

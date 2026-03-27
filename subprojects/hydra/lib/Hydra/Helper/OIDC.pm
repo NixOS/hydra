@@ -406,6 +406,8 @@ sub resolveOIDCConfig {
             $provider->{token_endpoint} //= $discovery->{token_endpoint};
             $provider->{jwks_uri} //= $discovery->{jwks_uri};
             $provider->{issuer} //= $discovery->{issuer};
+            # Optional: RP-Initiated Logout (OpenID Connect Session Management)
+            $provider->{end_session_endpoint} //= $discovery->{end_session_endpoint};
         }
 
         # Validate that all required endpoints are present (either from discovery or manual config)
