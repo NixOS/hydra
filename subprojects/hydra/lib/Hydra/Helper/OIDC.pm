@@ -13,6 +13,7 @@ use Crypt::URandom::Token qw(urandom_token);
 use File::Slurper qw(read_text);
 use ReadonlyX;
 use Crypt::JWT qw(decode_jwt);
+use String::Compare::ConstantTime qw(equals);
 use Hydra::Helper::CatalystUtils qw(error);
 use Data::Dumper;
 
@@ -117,7 +118,7 @@ sub validateAuthorizationCode {
     #   accomplished by requiring any request sent to the redirection URI to include a value that
     #   binds the request to the user-agent's authenticated state
     error($c, "Invalid state", 400) unless $params->{state};
-    error($c, "Invalid state", 400) unless $params->{state} eq $self->{session_data}->{state};
+    error($c, "Invalid state", 400) unless equals($params->{state}, $self->{session_data}->{state});
 
     # Per RFC 9207 Section 2.4:
     #   Clients that support this specification MUST extract the value of the iss parameter from
@@ -295,7 +296,7 @@ sub validateToken {
     #       and its value checked to verify that it is the same value as the one that was sent in
     #       the Authentication Request. The Client SHOULD check the nonce value for replay attacks.
     $claims->{nonce} or error($c, "No nonce claim in OIDC token", 400);
-    $claims->{nonce} eq $self->{session_data}->{nonce} or error($c, "Nonce mismatch", 403);
+    equals($claims->{nonce}, $self->{session_data}->{nonce}) or error($c, "Nonce mismatch", 403);
 
     #   12. If the acr Claim was requested ...
     #   13. If the auth_time Claim was requested ...
