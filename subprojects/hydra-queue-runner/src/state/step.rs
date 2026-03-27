@@ -156,6 +156,11 @@ impl Step {
         self.runnable.load(Ordering::SeqCst)
     }
 
+    pub fn get_drv(&self) -> Option<arc_swap::Guard<Option<Arc<nix_utils::Derivation>>>> {
+        let drv = self.drv.load();
+        if drv.is_some() { Some(drv) } else { None }
+    }
+
     pub fn set_drv(&self, drv: nix_utils::Derivation) {
         self.drv.store(Some(Arc::new(drv)));
     }

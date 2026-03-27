@@ -962,7 +962,7 @@ impl State {
             if r.atomic_state.tries.load(Ordering::Relaxed) > 0 {
                 continue;
             }
-            let step_info = StepInfo::new(&self.store, r.clone()).await;
+            let step_info = StepInfo::new(&self.store, &self.db, r.clone()).await;
 
             new_queues
                 .entry(system)
