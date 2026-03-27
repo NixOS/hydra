@@ -23,5 +23,4 @@ jobs:
       with:
         extra_nix_config: |
           extra-systems = ${{ matrix.system }}
-    - uses: DeterminateSystems/magic-nix-cache-action@main
     - run: nix-build -A checks.${{ matrix.system }}.systemTests -A checks.${{ matrix.system }}.validate-openapi -A checks.${{ matrix.system }}.formatter
