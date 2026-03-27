@@ -109,9 +109,10 @@ mod tests {
         .unwrap();
 
         assert_eq!(drv.outputs.len(), 2);
-        assert!(drv
-            .outputs
-            .values()
-            .all(|o| matches!(o, DerivationOutput::InputAddressed(_))));
+        assert!(
+            drv.outputs
+                .values()
+                .all(|o| matches!(o, DerivationOutput::InputAddressed(_)))
+        );
     }
 }

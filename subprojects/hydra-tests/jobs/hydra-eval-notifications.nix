@@ -2,14 +2,16 @@
 # anything but itself as "default.nix".
 
 let
-  simpleDerivation = name: builderText: derivation {
-    inherit name;
-    system = builtins.currentSystem;
-    builder = "/bin/sh";
-    args = [
-      (builtins.toFile "builder.sh" builderText)
-    ];
-  };
+  simpleDerivation =
+    name: builderText:
+    derivation {
+      inherit name;
+      system = builtins.currentSystem;
+      builder = "/bin/sh";
+      args = [
+        (builtins.toFile "builder.sh" builderText)
+      ];
+    };
 in
 {
   stable-job-queued = simpleDerivation "stable-job-queued" ''

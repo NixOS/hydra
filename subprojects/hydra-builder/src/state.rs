@@ -1100,26 +1100,22 @@ async fn new_success_build_result_info(
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
-    let pathinfos = store.query_path_infos(&outputs.values().collect::<Vec<_>>()).await;
-    let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
-        &store,
-        outputs,
-    ))
-    .await?;
+    let pathinfos = store
+        .query_path_infos(&outputs.values().collect::<Vec<_>>())
+        .await;
+    let nix_support = Box::pin(shared::parse_nix_support_from_outputs(&store, outputs)).await?;
 
     let mut build_outputs = vec![];
     for (name, path) in outputs {
         build_outputs.push(Output {
             output: Some(match pathinfos.get(path) {
-                Some(info) => {
-                    output::Output::Withpath(OutputWithPath {
-                        name: name.to_string(),
-                        closure_size: store.compute_closure_size(path).await,
-                        path: path.to_string(),
-                        nar_size: info.nar_size,
-                        nar_hash: info.nar_hash.clone(),
-                    })
-                }
+                Some(info) => output::Output::Withpath(OutputWithPath {
+                    name: name.to_string(),
+                    closure_size: store.compute_closure_size(path).await,
+                    path: path.to_string(),
+                    nar_size: info.nar_size,
+                    nar_hash: info.nar_hash.clone(),
+                }),
                 None => output::Output::Nameonly(OutputNameOnly {
                     name: name.to_string(),
                 }),

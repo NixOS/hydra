@@ -1,12 +1,13 @@
-{ lib
-, version
+{
+  lib,
+  version,
 
-, rustPlatform
+  rustPlatform,
 
-, nixComponents
-, protobuf
-, pkg-config
-, rust-jemalloc-sys
+  nixComponents,
+  protobuf,
+  pkg-config,
+  rust-jemalloc-sys,
 }:
 
 rustPlatform.buildRustPackage {

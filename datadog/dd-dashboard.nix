@@ -1,8 +1,8 @@
 {
-  host
-, appKey
-, apiKey
-, ...
+  host,
+  appKey,
+  apiKey,
+  ...
 }:
 {
   resources.datadogTimeboards.hydra-status = {
@@ -45,7 +45,10 @@
       {
         definition = builtins.toJSON {
           requests = [
-            { q = "max:system.io.await{$host} by {device}"; type = "area"; }
+            {
+              q = "max:system.io.await{$host} by {device}";
+              type = "area";
+            }
           ];
           viz = "timeseries";
         };
@@ -97,17 +100,17 @@
           requests = [
             {
               aggregator = "avg";
-              conditional_formats = [];
+              conditional_formats = [ ];
               q = "avg:system.mem.used{$host}";
               type = "line";
             }
             {
-              conditional_formats = [];
+              conditional_formats = [ ];
               q = "avg:system.mem.free{$host}";
               type = "line";
             }
             {
-              conditional_formats = [];
+              conditional_formats = [ ];
               q = "avg:system.mem.usable{$host}";
               type = "line";
             }
@@ -119,8 +122,14 @@
       {
         definition = builtins.toJSON {
           requests = [
-            { q = "avg:hydra.queue.bytes_sent{$host}"; type = "line"; }
-            { q = "avg:hydra.queue.bytes_received{$host}"; type = "line"; }
+            {
+              q = "avg:hydra.queue.bytes_sent{$host}";
+              type = "line";
+            }
+            {
+              q = "avg:hydra.queue.bytes_received{$host}";
+              type = "line";
+            }
           ];
           viz = "timeseries";
         };
@@ -141,8 +150,14 @@
       {
         definition = builtins.toJSON {
           requests = [
-            { q = "avg:hydra.queue.machines.total{$host}"; type = "line"; }
-            { q = "avg:hydra.queue.machines.in_use{$host}"; type = "line"; }
+            {
+              q = "avg:hydra.queue.machines.total{$host}";
+              type = "line";
+            }
+            {
+              q = "avg:hydra.queue.machines.in_use{$host}";
+              type = "line";
+            }
           ];
           viz = "timeseries";
         };

@@ -37,14 +37,14 @@ mod streaming_hash;
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
-pub use crate::narinfo::{NarInfo, parse_hash};
-pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 use crate::narinfo::NarInfoError;
+pub use crate::narinfo::{NarInfo, parse_hash};
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
     PresignedUploadResult,
 };
 pub use async_compression::Level as CompressionLevel;
+pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 
 pub async fn path_to_narinfo(
     store: &nix_utils::LocalStore,
@@ -635,9 +635,7 @@ impl S3BinaryCacheClient {
             && let Ok(hashes) = store.static_output_hashes(deriver).await
         {
             for (output_name, drv_hash) in hashes {
-                let Ok(drv_hash) =
-                    drv_hash.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
-                else {
+                let Ok(drv_hash) = drv_hash.parse::<harmonia_utils_hash::fmt::Any<Hash>>() else {
                     continue;
                 };
                 let Ok(output_name) = output_name.parse() else {
@@ -704,7 +702,6 @@ impl S3BinaryCacheClient {
             .await?;
         Ok(())
     }
-
 
     #[tracing::instrument(skip(self), err)]
     pub async fn download_narinfo(

@@ -12,5 +12,7 @@ with import ./config.nix;
 
   # does-not-exist doesn't exist.
 
-  does-not-evaluate = assert false; {};
+  does-not-evaluate =
+    assert false;
+    { };
 }

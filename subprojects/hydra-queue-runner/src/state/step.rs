@@ -162,8 +162,11 @@ impl Step {
 
     pub fn get_system(&self) -> Option<String> {
         let drv = self.drv.load_full();
-        drv.as_ref()
-            .map(|drv| std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8").to_owned())
+        drv.as_ref().map(|drv| {
+            std::str::from_utf8(&drv.platform)
+                .expect("platform must be valid UTF-8")
+                .to_owned()
+        })
     }
 
     pub fn get_input_drvs(&self) -> Option<Vec<nix_utils::StorePath>> {
@@ -203,7 +206,8 @@ impl Step {
         store_dir: &nix_utils::StoreDir,
     ) -> Option<BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>> {
         let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| nix_utils::output_paths(&drv, store_dir))
+        drv.as_ref()
+            .map(|drv| nix_utils::output_paths(&drv, store_dir))
     }
 
     // TODO: properly parse derivation options instead of reading env vars directly

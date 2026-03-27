@@ -362,7 +362,11 @@ impl RelativeStorePath {
         if self.relative_path.is_empty() {
             store_dir.display(&self.base_path).to_string()
         } else {
-            format!("{}/{}", store_dir.display(&self.base_path), self.relative_path)
+            format!(
+                "{}/{}",
+                store_dir.display(&self.base_path),
+                self.relative_path
+            )
         }
     }
 }
@@ -580,7 +584,9 @@ impl BuildOutput {
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
-        let pathinfos = store.query_path_infos(&resolved.values().collect::<Vec<_>>()).await;
+        let pathinfos = store
+            .query_path_infos(&resolved.values().collect::<Vec<_>>())
+            .await;
         let nix_support =
             Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
 

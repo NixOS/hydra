@@ -1,4 +1,9 @@
-{ config, pkgs, lib ? pkgs.lib, ... }:
+{
+  config,
+  pkgs,
+  lib ? pkgs.lib,
+  ...
+}:
 
 with lib;
 
@@ -10,27 +15,32 @@ let
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
-  hydraEnv =
-    { HYDRA_DBI = cfg.dbi;
-      HYDRA_CONFIG = "${baseDir}/hydra.conf";
-      HYDRA_DATA = "${baseDir}";
-    };
+  hydraEnv = {
+    HYDRA_DBI = cfg.dbi;
+    HYDRA_CONFIG = "${baseDir}/hydra.conf";
+    HYDRA_DATA = "${baseDir}";
+  };
 
-  env =
-    { NIX_REMOTE = "daemon";
-      PGPASSFILE = "${baseDir}/pgpass";
-      NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
-    } // optionalAttrs (cfg.smtpHost != null) {
-      EMAIL_SENDER_TRANSPORT = "SMTP";
-      EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
-    } // hydraEnv // cfg.extraEnv;
+  env = {
+    NIX_REMOTE = "daemon";
+    PGPASSFILE = "${baseDir}/pgpass";
+    NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
+  }
+  // optionalAttrs (cfg.smtpHost != null) {
+    EMAIL_SENDER_TRANSPORT = "SMTP";
+    EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
+  }
+  // hydraEnv
+  // cfg.extraEnv;
 
-  serverEnv = env //
-    {
+  serverEnv =
+    env
+    // {
       COLUMNS = "80";
       PGPASSFILE = "${baseDir}/pgpass-www"; # grrr
       XDG_CACHE_HOME = "${baseDir}/www/.cache";
-    } // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
+    }
+    // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
 
   localDB = "dbi:Pg:dbname=hydra;user=hydra;";
 
@@ -115,7 +125,7 @@ in
       smtpHost = mkOption {
         type = types.nullOr types.str;
         default = null;
-        example = ["localhost"];
+        example = [ "localhost" ];
         description = ''
           Hostname of the SMTP server to use to send email.
         '';
@@ -150,7 +160,7 @@ in
 
       extraEnv = mkOption {
         type = types.attrsOf types.str;
-        default = {};
+        default = { };
         description = "Extra environment variables for Hydra.";
       };
 
@@ -162,9 +172,12 @@ in
 
       buildMachinesFiles = mkOption {
         type = types.listOf types.path;
-        default = optional (config.nix.buildMachines != []) "/etc/nix/machines";
+        default = optional (config.nix.buildMachines != [ ]) "/etc/nix/machines";
         defaultText = literalExpression ''optional (config.nix.buildMachines != []) "/etc/nix/machines"'';
-        example = [ "/etc/nix/machines" "/var/lib/hydra/provisioner/machines" ];
+        example = [
+          "/etc/nix/machines"
+          "/var/lib/hydra/provisioner/machines"
+        ];
         description = "List of files containing build machines.";
       };
 
@@ -185,7 +198,6 @@ in
 
   };
 
-
   ###### implementation
 
   config = mkIf cfg.enable {
@@ -198,160 +210,170 @@ in
       "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
 
-    users.users.hydra-www =
-      { description = "Hydra web server";
-        group = "hydra";
-        isSystemUser = true;
-        useDefaultShell = true;
-        home = "${baseDir}/www";
-      };
+    users.users.hydra-www = {
+      description = "Hydra web server";
+      group = "hydra";
+      isSystemUser = true;
+      useDefaultShell = true;
+      home = "${baseDir}/www";
+    };
 
-    services.postgresql.identMap = optionalString haveLocalDB
-      ''
-        hydra-users hydra-www hydra
-      '';
+    services.postgresql.identMap = optionalString haveLocalDB ''
+      hydra-users hydra-www hydra
+    '';
 
-    services.hydra-dev.extraConfig =
-      ''
-        using_frontend_proxy = 1
-        base_uri = ${cfg.hydraURL}
-        notification_sender = ${cfg.notificationSender}
-        max_servers = 25
-        compress_num_threads = 0
-        ${optionalString (cfg.logo != null) ''
-          hydra_logo = ${cfg.logo}
-        ''}
-        gc_roots_dir = ${cfg.gcRootsDir}
-        use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
+    services.hydra-dev.extraConfig = ''
+      using_frontend_proxy = 1
+      base_uri = ${cfg.hydraURL}
+      notification_sender = ${cfg.notificationSender}
+      max_servers = 25
+      compress_num_threads = 0
+      ${optionalString (cfg.logo != null) ''
+        hydra_logo = ${cfg.logo}
+      ''}
+      gc_roots_dir = ${cfg.gcRootsDir}
+      use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
 
-        ${optionalString (cfg.tracker != null) (let
-            indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (lib.splitString "\n" cfg.tracker);
-          in ''
+      ${optionalString (cfg.tracker != null) (
+        let
+          indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (
+            lib.splitString "\n" cfg.tracker
+          );
+        in
+        ''
           tracker = <<TRACKER
           ${indentedTrackerData}
             TRACKER
-        '')}
-      '';
+        ''
+      )}
+    '';
 
     environment.systemPackages = [ cfg.package ];
 
     environment.variables = hydraEnv;
 
-    systemd.services.hydra-server =
-      { wantedBy = [ "multi-user.target" ];
-        requires = [ "hydra-init.service" ];
-        after = [ "hydra-init.service" ];
-        environment = serverEnv // {
-          HYDRA_DBI = "${serverEnv.HYDRA_DBI};application_name=hydra-server";
-        };
-        restartTriggers = [ hydraConf ];
-        serviceConfig =
-          { ExecStart =
-              "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
-              + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
-              + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
-            User = "hydra-www";
-            PermissionsStartOnly = true;
-            Restart = "always";
-          };
+    systemd.services.hydra-server = {
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      after = [ "hydra-init.service" ];
+      environment = serverEnv // {
+        HYDRA_DBI = "${serverEnv.HYDRA_DBI};application_name=hydra-server";
       };
+      restartTriggers = [ hydraConf ];
+      serviceConfig = {
+        ExecStart =
+          "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
+          + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
+          + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
+        User = "hydra-www";
+        PermissionsStartOnly = true;
+        Restart = "always";
+      };
+    };
 
-    systemd.services.hydra-evaluator =
-      { wantedBy = [ "multi-user.target" ];
-        requires = [ "hydra-init.service" ];
-        restartTriggers = [ hydraConf ];
-        after = [ "hydra-init.service" "network.target" ];
-        path = with pkgs; [ hostname-debian cfg.package ];
-        environment = env // {
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
-        };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
-            ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
-            User = "hydra";
-            Restart = "always";
-            WorkingDirectory = baseDir;
-          };
+    systemd.services.hydra-evaluator = {
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      restartTriggers = [ hydraConf ];
+      after = [
+        "hydra-init.service"
+        "network.target"
+      ];
+      path = with pkgs; [
+        hostname-debian
+        cfg.package
+      ];
+      environment = env // {
+        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
       };
+      serviceConfig = {
+        ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
+        ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
+        User = "hydra";
+        Restart = "always";
+        WorkingDirectory = baseDir;
+      };
+    };
 
-    systemd.services.hydra-update-gc-roots =
-      { requires = [ "hydra-init.service" ];
-        after = [ "hydra-init.service" ];
-        environment = env // {
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-update-gc-roots";
-        };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
-            User = "hydra";
-          };
-        startAt = "2,14:15";
+    systemd.services.hydra-update-gc-roots = {
+      requires = [ "hydra-init.service" ];
+      after = [ "hydra-init.service" ];
+      environment = env // {
+        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-update-gc-roots";
       };
+      serviceConfig = {
+        ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
+        User = "hydra";
+      };
+      startAt = "2,14:15";
+    };
 
-    systemd.services.hydra-send-stats =
-      { wantedBy = [ "multi-user.target" ];
-        after = [ "hydra-init.service" ];
-        environment = env // {
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-send-stats";
-        };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
-            User = "hydra";
-          };
+    systemd.services.hydra-send-stats = {
+      wantedBy = [ "multi-user.target" ];
+      after = [ "hydra-init.service" ];
+      environment = env // {
+        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-send-stats";
       };
+      serviceConfig = {
+        ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
+        User = "hydra";
+      };
+    };
 
-    systemd.services.hydra-notify =
-      { wantedBy = [ "multi-user.target" ];
-        requires = [ "hydra-init.service" ];
-        after = [ "hydra-init.service" ];
-        restartTriggers = [ hydraConf ];
-        path = [ pkgs.zstd ];
-        environment = env // {
-          PGPASSFILE = "${baseDir}/pgpass-notify";
-          HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
-        };
-        serviceConfig =
-          { ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
-            # FIXME: hydra-notify should not need to write to build-logs.
-            # Move log compression into the queue-runner, then give
-            # hydra-notify its own user again.
-            User = "hydra-queue-runner";
-            Restart = "always";
-            RestartSec = 5;
-          };
+    systemd.services.hydra-notify = {
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      after = [ "hydra-init.service" ];
+      restartTriggers = [ hydraConf ];
+      path = [ pkgs.zstd ];
+      environment = env // {
+        PGPASSFILE = "${baseDir}/pgpass-notify";
+        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
       };
+      serviceConfig = {
+        ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
+        # FIXME: hydra-notify should not need to write to build-logs.
+        # Move log compression into the queue-runner, then give
+        # hydra-notify its own user again.
+        User = "hydra-queue-runner";
+        Restart = "always";
+        RestartSec = 5;
+      };
+    };
 
     # If there is less than a certain amount of free disk space, stop
     # the evaluator to prevent builds from failing or aborting.
     # Leaves a tag file indicating this reason; if the tag file exists
     # and disk space is above the threshold + 10GB, the evaluator will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-evaluator-check-space =
-      { script =
-          ''
-            ${builtins.readFile ./check-space.sh}
-            spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
-          '';
-        startAt = "*:0/5";
-      };
+    systemd.services.hydra-evaluator-check-space = {
+      script = ''
+        ${builtins.readFile ./check-space.sh}
+        spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
+      '';
+      startAt = "*:0/5";
+    };
 
     # Periodically compress build logs. The queue runner compresses
     # logs automatically after a step finishes, but this doesn't work
     # if the queue runner is stopped prematurely.
-    systemd.services.hydra-compress-logs =
-      { path = [ pkgs.bzip2 pkgs.zstd ];
-        script =
-          ''
-            set -eou pipefail
-            compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
-            if [[ $compression == "" || $compression == bzip2 ]]; then
-              compressionCmd=(bzip2)
-            elif [[ $compression == zstd ]]; then
-              compressionCmd=(zstd --rm)
-            fi
-            find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
-          '';
-        startAt = "Sun 01:45";
-      };
+    systemd.services.hydra-compress-logs = {
+      path = [
+        pkgs.bzip2
+        pkgs.zstd
+      ];
+      script = ''
+        set -eou pipefail
+        compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
+        if [[ $compression == "" || $compression == bzip2 ]]; then
+          compressionCmd=(bzip2)
+        elif [[ $compression == zstd ]]; then
+          compressionCmd=(zstd --rm)
+        fi
+        find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
+      '';
+      startAt = "Sun 01:45";
+    };
 
   };
 

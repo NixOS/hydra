@@ -20,16 +20,30 @@
     inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nix, nix-eval-jobs, treefmt-nix, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nix,
+      nix-eval-jobs,
+      treefmt-nix,
+      ...
+    }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
 
       version = nixpkgs.lib.strings.trim (builtins.readFile ./version.txt);
 
-      releaseVersion = "${version}.${builtins.substring 0 8 (self.lastModifiedDate or "19700101")}.${self.shortRev or "DIRTY"}";
+      releaseVersion = "${version}.${
+        builtins.substring 0 8 (self.lastModifiedDate or "19700101")
+      }.${self.shortRev or "DIRTY"}";
 
-      mkHydraComponents = { pkgs, nixComponents }:
+      mkHydraComponents =
+        { pkgs, nixComponents }:
         pkgs.lib.makeScope pkgs.newScope (self': {
           inherit version releaseVersion;
           nix-eval-jobs = self'.callPackage nix-eval-jobs {
@@ -51,7 +65,9 @@
           };
         });
 
-        treefmtConfig = { ... }: {
+      treefmtConfig =
+        { ... }:
+        {
           projectRootFile = "flake.lock";
           programs.rustfmt = {
             enable = true;
@@ -60,30 +76,38 @@
           programs.nixfmt.enable = true;
         };
 
-        treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;
+      treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;
     in
     rec {
 
       overlays.default = final: prev: {
-        nixDependenciesForHydra = final.lib.makeScope final.newScope
-          (import (nix + "/packaging/dependencies.nix") {
+        nixDependenciesForHydra = final.lib.makeScope final.newScope (
+          import (nix + "/packaging/dependencies.nix") {
             pkgs = final;
             inherit (final) stdenv;
-            inputs = {};
-          });
-        nixComponentsForHydra = final.lib.makeScope final.nixDependenciesForHydra.newScope
-          (import (nix + "/packaging/components.nix") {
+            inputs = { };
+          }
+        );
+        nixComponentsForHydra = final.lib.makeScope final.nixDependenciesForHydra.newScope (
+          import (nix + "/packaging/components.nix") {
             officialRelease = true;
             inherit (final) lib;
             pkgs = final;
             src = nix;
             maintainers = [ ];
-          });
+          }
+        );
         hydraComponents = mkHydraComponents {
           pkgs = final;
           nixComponents = final.nixComponentsForHydra;
         };
-        inherit (final.hydraComponents) hydra hydra-tests hydra-manual hydra-linters hydra-queue-runner;
+        inherit (final.hydraComponents)
+          hydra
+          hydra-tests
+          hydra-manual
+          hydra-linters
+          hydra-queue-runner
+          ;
       };
 
       hydraJobs = {
@@ -111,31 +135,44 @@
         formatter = (treefmtEval system).config.build.check self;
       });
 
-      packages = forEachSystem (system: let
-        inherit (nixpkgs) lib;
-        pkgs = nixpkgs.legacyPackages.${system};
-        nixDependencies = lib.makeScope pkgs.newScope
-          (import (nix + "/packaging/dependencies.nix") {
-            inherit pkgs;
-            inherit (pkgs) stdenv;
-            inputs = {};
-          });
-        nixComponents = lib.makeScope nixDependencies.newScope
-          (import (nix + "/packaging/components.nix") {
-            officialRelease = true;
-            inherit lib pkgs;
-            src = nix;
-            maintainers = [ ];
-          });
-        hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
-      in hydraComponents // {
-        default = hydraComponents.hydra-tests;
-      });
+      packages = forEachSystem (
+        system:
+        let
+          inherit (nixpkgs) lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+          nixDependencies = lib.makeScope pkgs.newScope (
+            import (nix + "/packaging/dependencies.nix") {
+              inherit pkgs;
+              inherit (pkgs) stdenv;
+              inputs = { };
+            }
+          );
+          nixComponents = lib.makeScope nixDependencies.newScope (
+            import (nix + "/packaging/components.nix") {
+              officialRelease = true;
+              inherit lib pkgs;
+              src = nix;
+              maintainers = [ ];
+            }
+          );
+          hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
+        in
+        hydraComponents
+        // {
+          default = hydraComponents.hydra-tests;
+        }
+      );
 
       devShells = forEachSystem (system: {
         default = import ./packaging/dev-shell.nix {
           pkgs = nixpkgs.legacyPackages.${system};
-          inherit (self.packages.${system}) hydra hydra-tests hydra-manual hydra-linters hydra-queue-runner;
+          inherit (self.packages.${system})
+            hydra
+            hydra-tests
+            hydra-manual
+            hydra-linters
+            hydra-queue-runner
+            ;
         };
       });
 
@@ -147,22 +184,21 @@
 
       nixosConfigurations.container = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
-        modules =
-          [
-            self.nixosModules.hydra
-            self.nixosModules.hydraTest
-            self.nixosModules.hydraProxy
-            {
-              system.configurationRevision = self.lastModifiedDate;
+        modules = [
+          self.nixosModules.hydra
+          self.nixosModules.hydraTest
+          self.nixosModules.hydraProxy
+          {
+            system.configurationRevision = self.lastModifiedDate;
 
-              boot.isContainer = true;
-              networking.useDHCP = false;
-              networking.firewall.allowedTCPPorts = [ 80 ];
-              networking.hostName = "hydra";
+            boot.isContainer = true;
+            networking.useDHCP = false;
+            networking.firewall.allowedTCPPorts = [ 80 ];
+            networking.hostName = "hydra";
 
-              services.hydra-dev.useSubstitutes = true;
-            }
-          ];
+            services.hydra-dev.useSubstitutes = true;
+          }
+        ];
       };
 
     };
