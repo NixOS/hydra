@@ -268,9 +268,16 @@ sub github_redirect :Path('/github-redirect') Args(0) {
 sub oidc_redirect :Path('/oidc-redirect') Args(1) {
     my ($self, $c, $provider_name) = @_;
 
+    # Sanitize the 'after' parameter to prevent open redirects: strip any
+    # leading slashes so that e.g. '//evil.com' cannot become a
+    # protocol-relative URL, and only allow same-origin paths.
+    my $after = $c->req->params->{after} // "";
+    $after =~ s{^/+}{};
+    $after =~ s{\\}{}g;  # also strip backslashes (some browsers normalize \\ to //)
+
     my $oidc = Hydra::Helper::OIDC->new($c,
         provider_name => $provider_name,
-        after => "/" . $c->req->params->{after},
+        after => "/" . $after,
         redirect_uri => $c->uri_for("/oidc-callback", $provider_name)->as_string,
     );
     $c->res->redirect($oidc->authorizationURL());
