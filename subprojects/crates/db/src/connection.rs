@@ -274,6 +274,85 @@ impl Connection {
         .await
     }
 
+    /// Resolve output paths for derivation chains via `buildstepoutputs`.
+    ///
+    /// Each entry is `(root_drv_path, &[output_name, ...])` representing a
+    /// chain like `root.drv^out1^out2`. The recursive CTE walks the chain:
+    /// look up `root.drv`'s `out1` output to get an intermediate drv path,
+    /// then look up that drv's `out2`, etc. Returns the final resolved path
+    /// for each chain (or `None` if any step fails).
+    pub async fn resolve_drv_output_chains(
+        &mut self,
+        chains: &[(&str, &[&str])],
+    ) -> sqlx::Result<Vec<Option<String>>> {
+        if chains.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // We pack as JSON here since sqlx can't bind `text[][]` directly.
+        let json_input = serde_json::Value::Array(
+            chains
+                .iter()
+                .map(|(root, outputs)| {
+                    serde_json::json!({
+                        "root": root,
+                        "chain": outputs,
+                    })
+                })
+                .collect(),
+        );
+
+        let rows = sqlx::query_as::<_, (i32, Option<String>)>(
+            "
+            WITH RECURSIVE input AS (
+                SELECT (ordinality)::int AS idx,
+                       elem->>'root' AS drv,
+                       ARRAY(SELECT jsonb_array_elements_text(elem->'chain')) AS chain
+                FROM jsonb_array_elements($1::jsonb)
+                    WITH ORDINALITY AS t(elem, ordinality)
+            ),
+            resolve(idx, drv_path, step) AS (
+                SELECT idx, drv, 1 FROM input
+
+                UNION ALL
+
+                SELECT r.idx, sub.path, r.step + 1
+                FROM resolve r
+                JOIN input i ON i.idx = r.idx
+                CROSS JOIN LATERAL (
+                    SELECT o.path
+                    FROM buildsteps s
+                    JOIN buildstepoutputs o
+                        ON s.build = o.build AND s.stepnr = o.stepnr
+                    WHERE s.drvPath = r.drv_path
+                      AND o.name = i.chain[r.step]
+                      AND o.path IS NOT NULL
+                      AND s.status = 0
+                    ORDER BY s.build DESC
+                    LIMIT 1
+                ) sub
+                WHERE r.step <= array_length(i.chain, 1)
+                  AND r.drv_path IS NOT NULL
+            )
+            SELECT i.idx, r.drv_path
+            FROM input i
+            LEFT JOIN resolve r
+                ON r.idx = i.idx
+                AND r.step = array_length(i.chain, 1) + 1
+            ORDER BY i.idx
+            ",
+        )
+        .bind(&json_input)
+        .fetch_all(&mut *self.conn)
+        .await?;
+
+        let mut results = vec![None; chains.len()];
+        for (idx, path) in rows {
+            results[(idx - 1) as usize] = path;
+        }
+        Ok(results)
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_status(&mut self) -> sqlx::Result<Option<serde_json::Value>> {
         Ok(
