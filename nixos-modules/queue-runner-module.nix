@@ -62,7 +62,7 @@ in
               default = "WithRdeps";
             };
             dispatchTriggerTimerInS = lib.mkOption {
-              description = "Timer for triggering dispatch in an interval in seconds. Setting this to a value <= 0 will disable this timer and only trigger the dispatcher if queue changes happend.";
+              description = "Timer for triggering dispatch in an interval in seconds. Setting this to a value <= 0 will disable this timer and only trigger the dispatcher if queue changes happened.";
               type = lib.types.int;
               default = 120;
             };
@@ -107,7 +107,7 @@ in
               default = 120;
             };
             stopQueueRunAfterInS = lib.mkOption {
-              description = "Seconds after which the queue run should be interupted early. Setting this to a value <= 0 will disable this feature and the queue run will never exit early.";
+              description = "Seconds after which the queue run should be interrupted early. Setting this to a value <= 0 will disable this feature and the queue run will never exit early.";
               type = lib.types.int;
               default = 60;
             };
@@ -127,7 +127,7 @@ in
               default = null;
             };
             enableFodChecker = lib.mkOption {
-              description = "This will enable the FOD checker. It will collect FOD in a separate queue and scheudle these builds to a separate machine with the mandatory feature FOD.";
+              description = "This will enable the FOD checker. It will collect FOD in a separate queue and schedule these builds to a separate machine with the mandatory feature FOD.";
               type = lib.types.bool;
               default = false;
             };
