@@ -26,6 +26,9 @@ let
         # Without this nix tries to fetch packages from the default
         # cache.nixos.org which is not reachable from this sandboxed NixOS test.
         settings.substituters = [ ];
+        # Disable WAL to prevent potential SIGBUS crashes. WAL mode memory-maps
+        # a shared memory file that can fault under concurrent access, which kills nix.
+        settings.use-sqlite-wal = false;
       };
     };
 
@@ -45,6 +48,7 @@ in
         machine.wait_for_job("hydra-queue-runner-dev")
         machine.wait_for_open_port(3000)
         machine.succeed("curl --fail http://localhost:3000/")
+        machine.succeed("test ! -e /nix/var/nix/db/db.sqlite-shm")
       '';
     }
   );
@@ -325,5 +329,4 @@ in
       touch $out
     ''
   );
-
 }
