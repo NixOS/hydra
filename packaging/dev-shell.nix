@@ -46,6 +46,7 @@ hydra.overrideAttrs (
         clippy
         nixfmt
         rustfmt
+        taplo
       ]);
     buildInputs = collectInputs "buildInputs";
 

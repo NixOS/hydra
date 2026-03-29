@@ -74,6 +74,7 @@
             edition = "2024";
           };
           programs.nixfmt.enable = true;
+          programs.taplo.enable = true;
         };
 
       treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;
