@@ -61,7 +61,7 @@ hydra.overrideAttrs (
     shellHook = ''
       pushd $(git rev-parse --show-toplevel) >/dev/null
 
-      PATH=$(pwd)/build/subprojects/hydra/hydra-evaluator:$(pwd)/subprojects/hydra/script:$PATH
+      PATH=$(pwd)/subprojects/hydra/script:$PATH
       PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
       export HYDRA_HOME="$(pwd)/subprojects/hydra/"
       mkdir -p .hydra-data
