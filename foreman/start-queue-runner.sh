@@ -10,6 +10,7 @@ while ! psql -h $(pwd)/.hydra-data/postgres -p 64444 -d hydra -c 'SELECT 1' >/de
 while ! nc -z localhost 63333; do sleep 1; done
 
 HYDRA_DATA=$(pwd)/.hydra-data
+PATH="$(pwd)/target/release:$PATH"
 CONFIG="$HYDRA_DATA/queue-runner.toml"
 
 # Generate a config for the Rust queue-runner if it doesn't exist

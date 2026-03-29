@@ -46,6 +46,7 @@ hydra.overrideAttrs (
         clippy
         nixfmt
         rustfmt
+        taplo
       ]);
     buildInputs = collectInputs "buildInputs";
 
@@ -54,6 +55,8 @@ hydra.overrideAttrs (
     # TODO: use factored-out Nix packaging infra to combine mesonFlags
     # from each component (transforming `-Dfoo=bar` to `-Dsubproject:foo=bar`)
     mesonFlags = [ ];
+
+    RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
 
     shellHook = ''
       pushd $(git rev-parse --show-toplevel) >/dev/null

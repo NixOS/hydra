@@ -1,0 +1,16 @@
+exclude = [ "target/**" ]
+
+[formatting]
+align_entries       = true
+column_width        = 100
+compact_arrays      = false
+indent_string       = "    "
+inline_table_expand = true
+reorder_keys        = true
+
+[[rule]]
+include = [ "**/Cargo.toml" ]
+keys    = [ "package" ]
+
+[rule.formatting]
+reorder_keys = false
