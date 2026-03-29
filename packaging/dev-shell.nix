@@ -56,6 +56,8 @@ hydra.overrideAttrs (
     # from each component (transforming `-Dfoo=bar` to `-Dsubproject:foo=bar`)
     mesonFlags = [ ];
 
+    RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+
     shellHook = ''
       pushd $(git rev-parse --show-toplevel) >/dev/null
 
