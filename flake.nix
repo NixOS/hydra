@@ -158,7 +158,15 @@
           );
           hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
         in
-        hydraComponents
+        # makeScope adds non-derivation attrs that fail `nix flake check`
+        removeAttrs hydraComponents [
+          "newScope"
+          "callPackage"
+          "overrideScope"
+          "packages"
+          "version"
+          "releaseVersion"
+        ]
         // {
           default = hydraComponents.hydra-tests;
         }
