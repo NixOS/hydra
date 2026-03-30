@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -15,7 +16,7 @@ pub(super) type AtomicBuildID = AtomicI32;
 pub struct Build {
     pub id: BuildID,
     pub drv_path: nix_utils::StorePath,
-    pub outputs: HashMap<String, nix_utils::StorePath>,
+    pub outputs: BTreeMap<String, nix_utils::StorePath>,
     pub jobset_id: JobsetID,
     pub name: String,
     pub timestamp: jiff::Timestamp,
@@ -52,7 +53,7 @@ impl Build {
         Arc::new(Self {
             id: BuildID::MAX,
             drv_path: drv_path.to_owned(),
-            outputs: HashMap::with_capacity(6),
+            outputs: BTreeMap::new(),
             jobset_id: JobsetID::MAX,
             name: "debug".into(),
             timestamp: jiff::Timestamp::now(),
@@ -71,7 +72,7 @@ impl Build {
         Ok(Arc::new(Self {
             id: v.id,
             drv_path: nix_utils::parse_store_path(&v.drvpath),
-            outputs: HashMap::with_capacity(6),
+            outputs: BTreeMap::new(),
             jobset_id: v.jobset_id,
             name: v.job,
             timestamp: jiff::Timestamp::from_second(v.timestamp)?,
@@ -490,7 +491,7 @@ pub struct BuildOutput {
     pub size: u64,
 
     pub products: Vec<BuildProduct>,
-    pub outputs: HashMap<String, nix_utils::StorePath>,
+    pub outputs: BTreeMap<String, nix_utils::StorePath>,
     pub metrics: Vec<BuildMetric>,
 }
 
@@ -512,7 +513,7 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
             #[allow(clippy::cast_sign_loss)]
             size: v.size.unwrap_or_default() as u64,
             products: vec![],
-            outputs: HashMap::with_capacity(6),
+            outputs: BTreeMap::new(),
             metrics: Vec::with_capacity(10),
         })
     }
@@ -523,7 +524,7 @@ impl BuildOutput {
         store_dir: &nix_utils::StoreDir,
         v: crate::server::grpc::runner_v1::BuildResultInfo,
     ) -> anyhow::Result<Self> {
-        let mut outputs = HashMap::with_capacity(6);
+        let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
 
@@ -578,9 +579,9 @@ impl BuildOutput {
     #[tracing::instrument(skip(store, outputs), err)]
     pub async fn new(
         store: &nix_utils::LocalStore,
-        outputs: std::collections::BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
+        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
     ) -> anyhow::Result<Self> {
-        let resolved: std::collections::BTreeMap<_, _> = outputs
+        let resolved: BTreeMap<_, _> = outputs
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
@@ -590,7 +591,7 @@ impl BuildOutput {
         let nix_support =
             Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
 
-        let mut outputs_map = HashMap::with_capacity(outputs.len());
+        let mut outputs_map = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
 
