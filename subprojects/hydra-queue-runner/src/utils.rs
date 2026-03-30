@@ -107,3 +107,31 @@ pub async fn substitute_output(
 
     Ok(true)
 }
+
+#[tracing::instrument(skip(db, store, ), fields(%drv_path), err(level=tracing::Level::WARN))]
+pub async fn make_local_step(
+    db: &db::Database,
+    store: &nix_utils::LocalStore,
+    build_id: BuildID,
+    drv_path: &StorePath,
+    missing: &BTreeMap<nix_utils::OutputName, Option<StorePath>>,
+) -> anyhow::Result<()> {
+    let time = i32::try_from(jiff::Timestamp::now().as_second())?;
+
+    let mut db = db.get().await?;
+    let mut tx = db.begin_transaction().await?;
+    tx.create_local_step(
+        store.store_dir(),
+        time,
+        time,
+        build_id,
+        drv_path,
+        missing
+            .iter()
+            .filter_map(|(name, path)| path.as_ref().map(|p| (name.clone(), p.clone())))
+            .collect(),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(())
+}
