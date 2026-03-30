@@ -323,17 +323,12 @@ void ensure_path(const StoreWrapper &wrapper, rust::Str path) {
   store->ensurePath(store->followLinksToStorePath(AS_VIEW(path)));
 }
 
-rust::String try_resolve_drv(const StoreWrapper &wrapper, rust::Str path) {
+rust::String write_derivation(const StoreWrapper &wrapper, rust::Str json) {
   auto store = wrapper._store;
-
-  auto drv = store->readDerivation(store->parseStorePath(AS_VIEW(path)));
-  auto resolved = drv.tryResolve(*store);
-  if (!resolved) {
-    return "";
-  }
-
-  auto resolved_path = store->writeDerivation(*resolved, nix::NoRepair);
-  // TODO: return drv not drv path
-  return extract_opt_path(*store, resolved_path);
+  auto drv = nix::Derivation::parseJsonAndValidate(
+      *store, nlohmann::json::parse(AS_VIEW(json)));
+  auto path = store->writeDerivation(drv, nix::NoRepair);
+  auto s = path.to_string();
+  return rust::String(s.data(), s.size());
 }
 } // namespace nix_utils
