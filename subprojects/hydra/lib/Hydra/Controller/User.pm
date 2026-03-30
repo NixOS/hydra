@@ -429,7 +429,8 @@ sub dashboard_base :Chained('/') PathPart('dashboard') CaptureArgs(1) {
 
     accessDenied($c, "You do not have permission to view this dashboard.")
         unless $c->stash->{user}->publicdashboard ||
-          (defined $c->user && ($userName eq $c->user->username || !isAdmin($c)));
+          (defined $c->user && $userName eq $c->user->username) ||
+          isAdmin($c);
 }
 
 
