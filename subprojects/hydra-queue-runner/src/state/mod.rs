@@ -1080,7 +1080,8 @@ impl State {
             job.build_id,
             job.step_nr,
             &job.result,
-            Some(item.machine.hostname.clone()),
+            Some(&item.machine.hostname),
+            Some(&output.outputs),
         )
         .await?;
 
@@ -1262,7 +1263,8 @@ impl State {
                     job.build_id,
                     job.step_nr,
                     &job.result,
-                    Some(item.machine.hostname.clone()),
+                    Some(&item.machine.hostname),
+                    None,
                 )
                 .await?;
                 self.trigger_dispatch();
@@ -1341,7 +1343,8 @@ impl State {
                 job.build_id,
                 job.step_nr,
                 &job.result,
-                machine.as_ref().map(|m| m.hostname.clone()),
+                machine.as_ref().map(|m| m.hostname.as_str()),
+                None,
             )
             .await?;
         }

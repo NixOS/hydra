@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
+
 use db::models::BuildID;
-use nix_utils::BaseStore as _;
+use nix_utils::{BaseStore as _, StorePath};
 
 use crate::state::RemoteBuild;
 
@@ -10,7 +12,8 @@ pub async fn finish_build_step(
     build_id: BuildID,
     step_nr: i32,
     res: &RemoteBuild,
-    machine: Option<String>,
+    machine: Option<&str>,
+    output_paths: Option<&BTreeMap<String, StorePath>>,
 ) -> anyhow::Result<()> {
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
@@ -30,7 +33,7 @@ pub async fn finish_build_step(
         error_msg: res.error_msg.as_deref(),
         start_time: res.get_start_time_as_i32()?,
         stop_time: res.get_stop_time_as_i32()?,
-        machine: machine.as_deref(),
+        machine: machine,
         overhead: res.get_overhead(),
         times_built: res.get_times_built(),
         is_non_deterministic: res.get_is_non_deterministic(),
@@ -43,24 +46,15 @@ pub async fn finish_build_step(
         .await?;
 
     if res.step_status == db::models::BuildStatus::Success {
-        // Update the corresponding `BuildStepOutputs` row to add the output path
-        let drv_path = tx.get_drv_path_from_build_step(build_id, step_nr).await?;
-        if let Some(drv_path) = drv_path {
-            // If we've finished building, all the paths should be known
-            if let Some(drv) =
-                nix_utils::query_drv(store, &nix_utils::parse_store_path(&drv_path)).await?
-            {
-                for (name, path) in nix_utils::output_paths(&drv, store.store_dir()) {
-                    if let Some(path) = path {
-                        tx.update_build_step_output(
-                            build_id,
-                            step_nr,
-                            name.as_ref(),
-                            &store.print_store_path(&path),
-                        )
-                        .await?;
-                    }
-                }
+        if let Some(output_paths) = output_paths {
+            for (name, path) in output_paths {
+                tx.update_build_step_output(
+                    build_id,
+                    step_nr,
+                    name.as_ref(),
+                    &store.print_store_path(&path),
+                )
+                .await?;
             }
         }
     }
@@ -73,9 +67,9 @@ pub async fn finish_build_step(
 pub async fn substitute_output(
     db: db::Database,
     store: nix_utils::LocalStore,
-    o: (nix_utils::OutputName, Option<nix_utils::StorePath>),
+    o: (nix_utils::OutputName, Option<StorePath>),
     build_id: BuildID,
-    drv_path: &nix_utils::StorePath,
+    drv_path: &StorePath,
     remote_store: Option<&binary_cache::S3BinaryCacheClient>,
 ) -> anyhow::Result<bool> {
     let (name, path) = o;
