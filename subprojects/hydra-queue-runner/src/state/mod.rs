@@ -237,7 +237,7 @@ impl State {
                 if let Err(e) = self
                     .fail_step(
                         machine_id,
-                        &job.path,
+                        &job.drv,
                         // we fail this with preparing because we kinda want to restart all jobs if
                         // a machine is removed
                         BuildResultState::PreparingFailure,
@@ -247,7 +247,7 @@ impl State {
                 {
                     tracing::error!(
                         "Failed to fail step machine_id={machine_id} drv={} e={e}",
-                        job.path
+                        job.drv
                     );
                 }
             }
@@ -319,8 +319,7 @@ impl State {
 
         let mut job = machine::Job::new(
             build_id,
-            drv.to_owned(),
-            step_info.resolved_drv_path.clone(),
+            step_info.resolved_drv_path.as_ref().unwrap_or(drv).clone(),
         );
         job.result.set_start_time_now();
         if self.check_cached_failure(step_info.step.clone()).await {
@@ -1133,7 +1132,7 @@ impl State {
                 self.uploader
                     .schedule_upload(
                         outputs_to_upload,
-                        format!("log/{}", job.path.to_string()),
+                        format!("log/{}", job.drv.to_string()),
                         job.result.log_file.clone(),
                     )
                     .await;
@@ -2087,7 +2086,7 @@ impl State {
                 continue;
             };
 
-            let mut job = machine::Job::new(build.id, drv.to_owned(), None);
+            let mut job = machine::Job::new(build.id, drv.to_owned());
             job.result.set_start_and_stop(now);
             job.result.step_status = BuildStatus::Unsupported;
             job.result.error_msg = Some(format!(
