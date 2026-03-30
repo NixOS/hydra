@@ -351,6 +351,28 @@ impl Step {
             .store(state.deps.len() as u64, Ordering::Relaxed);
     }
 
+    pub fn remove_dep(&self, dep: &Arc<Self>) {
+        let mut state = self.state.write();
+        state.deps.remove(dep);
+        self.atomic_state
+            .deps_len
+            .store(state.deps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn make_rdep(self: &Arc<Self>, dep: &Arc<Self>) {
+        dep.add_dep(self.clone());
+        let mut state = self.state.write();
+        state.rdeps.push(Arc::downgrade(dep));
+        self.atomic_state
+            .rdeps_len
+            .store(state.rdeps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn clone_rdeps(&self) -> Vec<Weak<Step>> {
+        let state = self.state.read();
+        state.rdeps.clone()
+    }
+
     pub fn add_referring_data(
         &self,
         referring_build: Option<&Arc<Build>>,
@@ -523,5 +545,35 @@ impl Steps {
     pub fn remove(&self, drv_path: &nix_utils::StorePath) {
         let mut steps = self.inner.write();
         steps.remove(drv_path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn drv(name: &str) -> nix_utils::StorePath {
+        nix_utils::parse_store_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+    }
+
+    #[test]
+    fn steps_create_and_remove() {
+        let steps = Steps::new();
+        let (step, is_new) = steps.create(&drv("test"), None, None);
+        assert!(is_new);
+        assert_eq!(steps.len(), 1);
+
+        steps.remove(step.get_drv_path());
+        assert_eq!(steps.len(), 0);
+    }
+
+    #[test]
+    fn steps_weak_ref_dies_without_strong_ref() {
+        let steps = Steps::new();
+        let (step, _) = steps.create(&drv("ephemeral"), None, None);
+        assert_eq!(steps.len(), 1);
+
+        drop(step);
+        assert_eq!(steps.len(), 0);
     }
 }

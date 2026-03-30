@@ -408,8 +408,6 @@ impl State {
             .drv
             .ok_or(JobFailure::Preparing(anyhow::anyhow!("missing drv")))?
             .0;
-        let resolved_drv = m.resolved_drv.map(|v| v.0);
-        let maybe_resolved_drv = resolved_drv.as_ref().unwrap_or(&drv);
 
         let before_import = Instant::now();
         let gcroot_prefix = uuid::Uuid::new_v4().to_string();
@@ -427,7 +425,7 @@ impl State {
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: Some(ProtoStorePath::from(maybe_resolved_drv.clone())),
+                path: Some(ProtoStorePath::from(drv.clone())),
                 include_outputs: false,
             })
             .await
@@ -440,7 +438,7 @@ impl State {
             store.clone(),
             self.metrics.clone(),
             &gcroot,
-            maybe_resolved_drv,
+            &drv,
             requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
@@ -459,7 +457,7 @@ impl State {
         let before_build = Instant::now();
         let (mut child, stdout, mut stderr) = nix_utils::realise_drv(
             &store,
-            maybe_resolved_drv,
+            &drv,
             &nix_utils::BuildOptions::complete(m.max_log_size, m.max_silent_time, m.build_timeout),
             true,
         )
@@ -536,7 +534,7 @@ impl State {
             .store_dir()
             .parse(&output_raw[0].drv_path)
             .map_err(|e: nix_utils::ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
-        if &actual_out_drv != maybe_resolved_drv {
+        if actual_out_drv != drv {
             return Err(JobFailure::PostProcessing(anyhow::anyhow!(
                 "Nix returned outputs for {actual_out_drv} when we expected {drv}"
             )));
