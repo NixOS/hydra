@@ -187,7 +187,6 @@
         system = "x86_64-linux";
         modules = [
           self.nixosModules.hydra
-          self.nixosModules.hydraTest
           self.nixosModules.hydraProxy
           {
             system.configurationRevision = self.lastModifiedDate;
@@ -197,7 +196,22 @@
             networking.firewall.allowedTCPPorts = [ 80 ];
             networking.hostName = "hydra";
 
+            services.hydra-dev.enable = true;
+            services.hydra-dev.hydraURL = "http://hydra.example.org";
+            services.hydra-dev.notificationSender = "admin@hydra.example.org";
             services.hydra-dev.useSubstitutes = true;
+
+            services.hydra-queue-runner-dev.enable = true;
+
+            services.hydra-queue-builder-dev.enable = true;
+            services.hydra-queue-builder-dev.queueRunnerAddr = "http://[::1]:50051";
+            systemd.services.hydra-queue-builder-dev.after = [ "hydra-queue-runner-dev.service" ];
+
+            services.postgresql.enable = true;
+
+            # The following is to work around the following error from hydra-server:
+            #   [error] Caught exception in engine "Cannot determine local time zone"
+            time.timeZone = "UTC";
           }
         ];
       };
