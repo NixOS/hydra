@@ -5,28 +5,63 @@
 }:
 
 let
-  # NixOS configuration used for VM tests.
-  hydraServer =
+  # Shared nix settings for all test VMs
+  nixSettings = {
+    settings.substituters = [ ];
+  };
+
+  serverConfig =
     { pkgs, ... }:
     {
       imports = [
-        nixosModules.hydra
-        nixosModules.hydraTest
+        nixosModules.web-app
+        nixosModules.queue-runner
       ];
 
-      virtualisation.memorySize = 1024;
+      services.hydra-dev.enable = true;
+      services.hydra-dev.hydraURL = "http://hydra.example.org";
+      services.hydra-dev.notificationSender = "admin@hydra.example.org";
+
+      services.hydra-queue-runner-dev.enable = true;
+      services.hydra-queue-runner-dev.grpc.address = "[::]";
+
+      systemd.services.hydra-send-stats.enable = false;
+
+      services.postgresql.enable = true;
+
+      time.timeZone = "UTC";
+
+      nix = nixSettings // {
+        extraOptions = ''
+          allowed-uris = https://github.com/
+        '';
+      };
+
+      networking.firewall.allowedTCPPorts = [ 50051 ];
+
+      virtualisation.memorySize = 2048;
       virtualisation.writableStore = true;
 
       environment.systemPackages = [
         pkgs.perlPackages.LWP
         pkgs.perlPackages.JSON
       ];
+    };
 
-      nix = {
-        # Without this nix tries to fetch packages from the default
-        # cache.nixos.org which is not reachable from this sandboxed NixOS test.
-        settings.substituters = [ ];
-      };
+  builderConfig =
+    { ... }:
+    {
+      imports = [
+        nixosModules.linux-builder
+      ];
+
+      services.hydra-queue-builder-dev.enable = true;
+      services.hydra-queue-builder-dev.queueRunnerAddr = "http://server:50051";
+
+      virtualisation.memorySize = 2048;
+      virtualisation.writableStore = true;
+
+      nix = nixSettings;
     };
 
 in
@@ -37,14 +72,16 @@ in
     system:
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).simpleTest {
       name = "hydra-install";
-      nodes.machine = hydraServer;
+      nodes.server = serverConfig;
+      nodes.builder = builderConfig;
       testScript = ''
-        machine.wait_for_job("hydra-init")
-        machine.wait_for_job("hydra-server")
-        machine.wait_for_job("hydra-evaluator")
-        machine.wait_for_job("hydra-queue-runner-dev")
-        machine.wait_for_open_port(3000)
-        machine.succeed("curl --fail http://localhost:3000/")
+        server.wait_for_job("hydra-init")
+        server.wait_for_job("hydra-server")
+        server.wait_for_job("hydra-evaluator")
+        server.wait_for_job("hydra-queue-runner-dev")
+        builder.wait_for_job("hydra-queue-builder-dev")
+        server.wait_for_open_port(3000)
+        server.succeed("curl --fail http://localhost:3000/")
       '';
     }
   );
@@ -53,8 +90,8 @@ in
     system:
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).simpleTest {
       name = "hydra-notifications";
-      nodes.machine = {
-        imports = [ hydraServer ];
+      nodes.server = {
+        imports = [ serverConfig ];
         services.hydra-dev.extraConfig = ''
           <influxdb>
             url = http://127.0.0.1:8086
@@ -63,13 +100,16 @@ in
         '';
         services.influxdb.enable = true;
       };
+      nodes.builder = builderConfig;
       testScript =
         { nodes, ... }:
         ''
-          machine.wait_for_job("hydra-init")
+          server.wait_for_job("hydra-init")
+          server.wait_for_job("hydra-queue-runner-dev")
+          builder.wait_for_job("hydra-queue-builder-dev")
 
           # Create an admin account and some other state.
-          machine.succeed(
+          server.succeed(
               """
                   su - hydra -c "hydra-create-user root --email-address 'alice@example.org' --password foobar --role admin"
                   mkdir /run/jobset
@@ -81,27 +121,27 @@ in
           )
 
           # Wait until InfluxDB can receive web requests
-          machine.wait_for_job("influxdb")
-          machine.wait_for_open_port(8086)
+          server.wait_for_job("influxdb")
+          server.wait_for_open_port(8086)
 
           # Create an InfluxDB database where hydra will write to
-          machine.succeed(
+          server.succeed(
               "curl -XPOST 'http://127.0.0.1:8086/query' "
               + "--data-urlencode 'q=CREATE DATABASE hydra'"
           )
 
           # Wait until hydra-server can receive HTTP requests
-          machine.wait_for_job("hydra-server")
-          machine.wait_for_open_port(3000)
+          server.wait_for_job("hydra-server")
+          server.wait_for_open_port(3000)
 
           # Setup the project and jobset
-          machine.succeed(
-              "su - hydra -c 'perl -I ${nodes.machine.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
+          server.succeed(
+              "su - hydra -c 'perl -I ${nodes.server.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${./subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
           )
 
           # Wait until hydra has build the job and
           # the InfluxDBNotification plugin uploaded its notification to InfluxDB
-          machine.wait_until_succeeds(
+          server.wait_until_succeeds(
               "curl -s -H 'Accept: application/csv' "
               + "-G 'http://127.0.0.1:8086/query?db=hydra' "
               + "--data-urlencode 'q=SELECT * FROM hydra_build_status' | grep success"
@@ -117,19 +157,16 @@ in
     in
     (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
       name = "hydra-gitea";
-      nodes.machine =
+      nodes.server =
         { pkgs, ... }:
         {
-          imports = [ hydraServer ];
+          imports = [ serverConfig ];
           services.hydra-dev.extraConfig = ''
             <gitea_authorization>
             root=d7f16a3412e01a43a414535b16007c6931d3a9c7
             </gitea_authorization>
           '';
           nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
-          nix = {
-            settings.substituters = [ ];
-          };
           services.gitea = {
             enable = true;
             database.type = "postgres";
@@ -147,6 +184,7 @@ in
           ];
           networking.firewall.allowedTCPPorts = [ 3000 ];
         };
+      nodes.builder = builderConfig;
       skipLint = true;
       testScript =
         let
@@ -165,7 +203,7 @@ in
             git config --global user.email test@localhost
             git config --global user.name test
             git -C /tmp/repo commit -m 'Initial import'
-            git -C /tmp/repo remote add origin gitea@machine:root/repo
+            git -C /tmp/repo remote add origin gitea@server:root/repo
             GIT_SSH_COMMAND='ssh -i $HOME/.ssh/privk -o StrictHostKeyChecking=no' \
               git -C /tmp/repo push origin master
             git -C /tmp/repo log >&2
@@ -260,45 +298,48 @@ in
         ''
           import json
 
-          machine.start()
-          machine.wait_for_unit("multi-user.target")
-          machine.wait_for_open_port(3000)
-          machine.wait_for_open_port(3001)
+          server.start()
+          builder.start()
+          server.wait_for_unit("multi-user.target")
+          server.wait_for_job("hydra-queue-runner-dev")
+          builder.wait_for_job("hydra-queue-builder-dev")
+          server.wait_for_open_port(3000)
+          server.wait_for_open_port(3001)
 
-          machine.succeed(
+          server.succeed(
               "su -l gitea -c 'GITEA_WORK_DIR=/var/lib/gitea gitea admin user create "
               + "--username root --password root --email test@localhost'"
           )
-          machine.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
+          server.succeed("su -l postgres -c 'psql gitea < ${scripts.mktoken}'")
 
-          machine.succeed(
+          server.succeed(
               "curl --fail -X POST http://localhost:3001/api/v1/user/repos "
               + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
               + f"-H 'Authorization: token ${api_token}'"
               + ' -d \'{"auto_init":false, "description":"string", "license":"mit", "name":"repo", "private":false}\'''
           )
 
-          machine.succeed(
+          server.succeed(
               "curl --fail -X POST http://localhost:3001/api/v1/user/keys "
               + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
               + f"-H 'Authorization: token ${api_token}'"
               + ' -d \'{"key":"${snakeoilKeypair.pubkey}","read_only":true,"title":"SSH"}\'''
           )
 
-          machine.succeed(
+          server.succeed(
               "${scripts.git-setup}"
           )
 
-          machine.succeed(
+          server.succeed(
               "${scripts.hydra-setup}"
           )
 
-          machine.wait_until_succeeds(
+          server.wait_until_succeeds(
               'curl -Lf -s http://localhost:3000/build/1 -H "Accept: application/json" '
               + '|  jq .buildstatus | xargs test 0 -eq'
           )
 
-          data = machine.succeed(
+          data = server.succeed(
               'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show | head -n1 | awk "{print \\$2}")" '
               + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
               + f"-H 'Authorization: token ${api_token}'"
@@ -310,7 +351,7 @@ in
           items = {item['status'] for item in response}
           assert items == {"success", "pending"}, "Expected one success status and one pending status"
 
-          machine.shutdown()
+          server.shutdown()
         '';
     }
   );
