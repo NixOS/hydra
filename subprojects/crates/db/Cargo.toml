@@ -15,3 +15,7 @@ jiff.workspace       = true
 serde_json.workspace = true
 
 sqlx = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+
+[dev-dependencies]
+test-utils = { path = "../test-utils" }
+tokio      = { workspace = true, features = [ "macros" ] }

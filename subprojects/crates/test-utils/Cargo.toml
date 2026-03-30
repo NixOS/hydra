@@ -1,0 +1,10 @@
+[package]
+name                   = "test-utils"
+version                = "0.1.0"
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+fs-err.workspace = true
+sqlx             = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
