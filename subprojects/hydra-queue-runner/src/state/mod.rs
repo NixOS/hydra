@@ -311,11 +311,7 @@ impl State {
             build.id
         };
 
-        let mut job = machine::Job::new(
-            build_id,
-            drv.to_owned(),
-            step_info.resolved_drv_path.clone(),
-        );
+        let mut job = machine::Job::new(build_id, drv.to_owned());
         job.result.set_start_time_now();
         if self.check_cached_failure(step_info.step.clone()).await {
             job.result.step_status = BuildStatus::CachedFailure;
@@ -357,10 +353,75 @@ impl State {
                         .collect(),
                 )
                 .await?;
+
             tx.commit().await?;
             step_nr
         };
         job.step_nr = step_nr;
+
+        // Try to resolve CA derivation inputs. If resolution yields a
+        // different drv, mark this step as Resolved in the DB and create a new
+        // step for the resolved drv that the builder will actually build.
+        let resolved = if let Some(guard) = step_info.step.get_drv() {
+            let drv_ref = guard.as_ref().unwrap();
+            if let Some(basic_drv) =
+                StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref).await
+            {
+                let resolved_path = self.store.write_derivation(&basic_drv).await?;
+                (&resolved_path != drv).then_some(resolved_path)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let effective_drv = if let Some(resolved_path) = resolved {
+            tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
+
+            // Finish original step as "resolved".
+            let mut resolved_result = RemoteBuild::new();
+            resolved_result.step_status = BuildStatus::Resolved;
+            resolved_result.set_start_time_now();
+            resolved_result.set_stop_time_now();
+            resolved_result.log_file.clone_from(&job.result.log_file);
+            finish_build_step(
+                &self.db,
+                &self.store,
+                build_id,
+                step_nr,
+                &resolved_result,
+                Some(&machine.hostname),
+                None,
+            )
+            .await?;
+
+            // Create DB step for the resolved drv under the same build.
+            let resolved_step_nr = {
+                let mut tx = db.begin_transaction().await?;
+                let nr = tx
+                    .create_build_step(
+                        Some(job.result.get_start_time_as_i32()?),
+                        build_id,
+                        &self.store.print_store_path(&resolved_path),
+                        step_info.step.get_system().as_deref(),
+                        machine.hostname.clone(),
+                        BuildStatus::Busy,
+                        None,
+                        None,
+                        vec![],
+                    )
+                    .await?;
+
+                tx.set_resolved_to(build_id, step_nr, nr).await?;
+                tx.commit().await?;
+                nr
+            };
+            job.step_nr = resolved_step_nr;
+            resolved_path
+        } else {
+            drv.to_owned()
+        };
 
         {
             let mut tx = db.begin_transaction().await?;
@@ -368,22 +429,24 @@ impl State {
             tx.commit().await?;
         }
         tracing::info!(
-            "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} step_nr={step_nr}",
+            "Submitting build drv={effective_drv} on machine={} hostname={} build_id={build_id} step_nr={}",
             machine.id,
-            machine.hostname
+            machine.hostname,
+            job.step_nr,
         );
         self.db
             .get()
             .await?
             .update_build_step(db::models::UpdateBuildStep {
                 build_id,
-                step_nr,
+                step_nr: job.step_nr,
                 status: db::models::StepStatus::Connecting,
             })
             .await?;
         machine
             .build_drv(
                 job,
+                effective_drv,
                 &build_options,
                 // TODO: cleanup
                 if self.config.use_presigned_uploads() {
@@ -956,7 +1019,7 @@ impl State {
             if r.atomic_state.tries.load(Ordering::Relaxed) > 0 {
                 continue;
             }
-            let step_info = StepInfo::new(&self.store, &self.db, r.clone()).await;
+            let step_info = StepInfo::new(r.clone());
 
             new_queues
                 .entry(system)
@@ -2086,7 +2149,7 @@ impl State {
                 continue;
             };
 
-            let mut job = machine::Job::new(build.id, drv.to_owned(), None);
+            let mut job = machine::Job::new(build.id, drv.to_owned());
             job.result.set_start_and_stop(now);
             job.result.step_status = BuildStatus::Unsupported;
             job.result.error_msg = Some(format!(

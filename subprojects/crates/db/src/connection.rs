@@ -879,6 +879,30 @@ impl Transaction<'_> {
         Ok(step_nr)
     }
 
+    /// Set resolvedToBuild/resolvedToStep on a dependency step after the
+    /// resolved step has been created, linking the dependency to its resolution.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn set_resolved_to(
+        &mut self,
+        origin_build_id: crate::models::BuildID,
+        origin_step_nr: i32,
+        resolved_step_nr: i32,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            r"
+              UPDATE buildsteps
+              SET resolvedToStep = $3
+              WHERE build = $1 AND stepnr = $2
+            ",
+        )
+        .bind(origin_build_id)
+        .bind(origin_step_nr)
+        .bind(resolved_step_nr)
+        .execute(&mut *self.tx)
+        .await?;
+        Ok(())
+    }
+
     #[tracing::instrument(
         skip(self, start_time, stop_time, build_id, drv_path, output,),
         err,
