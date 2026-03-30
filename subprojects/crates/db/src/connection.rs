@@ -1,8 +1,17 @@
 use sqlx::Acquire;
 
 use super::models::{
-    Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
-    InsertBuildStep, InsertBuildStepOutput, Jobset, UpdateBuild, UpdateBuildStep,
+    Build,
+    BuildSmall,
+    BuildStatus,
+    BuildSteps,
+    InsertBuildMetric,
+    InsertBuildProduct,
+    InsertBuildStep,
+    InsertBuildStepOutput,
+    Jobset,
+    UpdateBuild,
+    UpdateBuildStep,
     UpdateBuildStepInFinish,
 };
 
@@ -124,7 +133,8 @@ impl Connection {
     pub async fn abort_build(&mut self, build_id: i32) -> sqlx::Result<()> {
         #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
-            "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
+            "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 \
+             where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
             // TODO migrate to 64bit timestamp
@@ -160,7 +170,8 @@ impl Connection {
     #[tracing::instrument(skip(self, step), err)]
     pub async fn update_build_step(&mut self, step: UpdateBuildStep) -> sqlx::Result<()> {
         sqlx::query!(
-            "UPDATE buildsteps SET busy = $1 WHERE build = $2 AND stepnr = $3 AND busy != 0 AND status IS NULL",
+            "UPDATE buildsteps SET busy = $1 WHERE build = $2 AND stepnr = $3 AND busy != 0 AND \
+             status IS NULL",
             step.status as i32,
             step.build_id,
             step.step_nr,
@@ -480,10 +491,14 @@ impl Transaction<'_> {
 
     #[tracing::instrument(skip(self), err)]
     pub async fn get_last_build_step_id(&mut self, path: &str) -> sqlx::Result<Option<i32>> {
-        Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1", path)
-            .fetch_optional(&mut *self.tx)
-            .await?
-            .and_then(|v| v.max))
+        Ok(sqlx::query!(
+            "SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime \
+             != 0 and status = 1",
+            path
+        )
+        .fetch_optional(&mut *self.tx)
+        .await?
+        .and_then(|v| v.max))
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -849,11 +864,13 @@ impl Transaction<'_> {
         self.insert_build_step_outputs(
             &outputs
                 .into_iter()
-                .map(|(name, path)| InsertBuildStepOutput {
-                    build_id,
-                    step_nr,
-                    name,
-                    path,
+                .map(|(name, path)| {
+                    InsertBuildStepOutput {
+                        build_id,
+                        step_nr,
+                        name,
+                        path,
+                    }
                 })
                 .collect::<Vec<_>>(),
         )
@@ -929,22 +946,19 @@ impl Transaction<'_> {
             return Ok(());
         }
 
-        self.update_build(
-            build.id,
-            UpdateBuild {
-                status: if build.failed {
-                    BuildStatus::FailedWithOutput
-                } else {
-                    BuildStatus::Success
-                },
-                start_time,
-                stop_time,
-                size: i64::try_from(build.size)?,
-                closure_size: i64::try_from(build.closure_size)?,
-                release_name: build.release_name,
-                is_cached_build,
+        self.update_build(build.id, UpdateBuild {
+            status: if build.failed {
+                BuildStatus::FailedWithOutput
+            } else {
+                BuildStatus::Success
             },
-        )
+            start_time,
+            stop_time,
+            size: i64::try_from(build.size)?,
+            closure_size: i64::try_from(build.closure_size)?,
+            release_name: build.release_name,
+            is_cached_build,
+        })
         .await?;
 
         for (name, path) in &build.outputs {
@@ -955,14 +969,14 @@ impl Transaction<'_> {
 
         for (nr, p) in build.products.iter().enumerate() {
             self.insert_build_product(InsertBuildProduct {
-                build_id: build.id,
-                product_nr: i32::try_from(nr + 1)?,
-                r#type: p.r#type,
-                subtype: p.subtype,
-                file_size: p.filesize,
-                sha256hash: p.sha256hash,
-                path: p.path.as_deref().unwrap_or_default(),
-                name: p.name,
+                build_id:     build.id,
+                product_nr:   i32::try_from(nr + 1)?,
+                r#type:       p.r#type,
+                subtype:      p.subtype,
+                file_size:    p.filesize,
+                sha256hash:   p.sha256hash,
+                path:         p.path.as_deref().unwrap_or_default(),
+                name:         p.name,
                 default_path: p.defaultpath.unwrap_or_default(),
             })
             .await?;
@@ -971,13 +985,13 @@ impl Transaction<'_> {
         self.delete_build_metrics_by_build_id(build.id).await?;
         for m in &build.metrics {
             self.insert_build_metric(InsertBuildMetric {
-                build_id: build.id,
-                name: m.name,
-                unit: m.unit,
-                value: m.value,
-                project: build.project_name,
-                jobset: build.jobset_name,
-                job: build.name,
+                build_id:  build.id,
+                name:      m.name,
+                unit:      m.unit,
+                value:     m.value,
+                project:   build.project_name,
+                jobset:    build.jobset_name,
+                job:       build.name,
                 timestamp: i32::try_from(build.timestamp)?, // TODO
             })
             .await?;
@@ -1092,13 +1106,16 @@ mod tests {
     }
 
     async fn insert_step(conn: &mut Connection, build: i32, stepnr: i32, drv_path: &str) {
-        sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 0, $3, 0)")
-            .bind(build)
-            .bind(stepnr)
-            .bind(drv_path)
-            .execute(&mut *conn.conn)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, \
+             0, 0, $3, 0)",
+        )
+        .bind(build)
+        .bind(stepnr)
+        .bind(drv_path)
+        .execute(&mut *conn.conn)
+        .await
+        .unwrap();
     }
 
     async fn insert_output(conn: &mut Connection, build: i32, stepnr: i32, name: &str, path: &str) {
@@ -1157,13 +1174,10 @@ mod tests {
             ])
             .await
             .unwrap();
-        assert_eq!(
-            results,
-            vec![
-                Some("/nix/store/bbb-foo-out".into()),
-                Some("/nix/store/ddd-bar-lib".into()),
-            ]
-        );
+        assert_eq!(results, vec![
+            Some("/nix/store/bbb-foo-out".into()),
+            Some("/nix/store/ddd-bar-lib".into()),
+        ]);
     }
 
     #[tokio::test]
@@ -1220,7 +1234,8 @@ mod tests {
         insert_step(&mut conn, 3, 1, "/nix/store/ccc.drv").await;
         insert_output(&mut conn, 3, 1, "lib", "/nix/store/result-b").await;
 
-        // Depth 3: ddd.drv ^out => eee.drv, eee.drv ^dev => fff.drv, fff.drv ^bin => result-c
+        // Depth 3: ddd.drv ^out => eee.drv, eee.drv ^dev => fff.drv, fff.drv ^bin =>
+        // result-c
         insert_step(&mut conn, 4, 1, "/nix/store/ddd.drv").await;
         insert_output(&mut conn, 4, 1, "out", "/nix/store/eee.drv").await;
         insert_step(&mut conn, 5, 1, "/nix/store/eee.drv").await;
@@ -1236,13 +1251,10 @@ mod tests {
             ])
             .await
             .unwrap();
-        assert_eq!(
-            results,
-            vec![
-                Some("/nix/store/result-a".into()),
-                Some("/nix/store/result-b".into()),
-                Some("/nix/store/result-c".into()),
-            ]
-        );
+        assert_eq!(results, vec![
+            Some("/nix/store/result-a".into()),
+            Some("/nix/store/result-b".into()),
+            Some("/nix/store/result-c".into()),
+        ]);
     }
 }

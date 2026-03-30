@@ -13,14 +13,25 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
-use std::{os::unix::fs::MetadataExt as _, sync::LazyLock};
+use std::{
+    collections::BTreeMap,
+    os::unix::fs::MetadataExt as _,
+    sync::LazyLock,
+};
 
-use std::collections::BTreeMap;
-
-use sha2::{Digest as _, Sha256};
-use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
-
-use nix_utils::{BaseStore as _, StorePath};
+use nix_utils::{
+    BaseStore as _,
+    StorePath,
+};
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use tokio::io::{
+    AsyncBufReadExt as _,
+    AsyncReadExt as _,
+    BufReader,
+};
 
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> =
@@ -44,39 +55,39 @@ static BUILD_PRODUCT_PARSER: LazyLock<regex::Regex> = LazyLock::new(|| {
 
 #[derive(Debug)]
 pub struct BuildProduct {
-    pub path: String,
+    pub path:         String,
     pub default_path: String,
 
-    pub r#type: String,
+    pub r#type:  String,
     pub subtype: String,
-    pub name: String,
+    pub name:    String,
 
     pub is_regular: bool,
 
     pub sha256hash: Option<String>,
-    pub file_size: Option<u64>,
+    pub file_size:  Option<u64>,
 }
 
 #[derive(Debug)]
 pub struct BuildMetric {
-    pub path: String,
-    pub name: String,
-    pub unit: Option<String>,
+    pub path:  String,
+    pub name:  String,
+    pub unit:  Option<String>,
     pub value: f64,
 }
 
 #[derive(Debug)]
 pub struct NixSupport {
-    pub failed: bool,
+    pub failed:             bool,
     pub hydra_release_name: Option<String>,
-    pub metrics: Vec<BuildMetric>,
-    pub products: Vec<BuildProduct>,
+    pub metrics:            Vec<BuildMetric>,
+    pub products:           Vec<BuildProduct>,
 }
 
 #[derive(Debug, Clone)]
 struct FileMetadata {
     is_regular: bool,
-    size: u64,
+    size:       u64,
 }
 
 trait FsOperations {
@@ -117,7 +128,7 @@ impl FsOperations for FilesystemOperations {
         let m = fs_err::tokio::metadata(path).await?;
         Ok(FileMetadata {
             is_regular: m.is_file(),
-            size: m.size(),
+            size:       m.size(),
         })
     }
 
@@ -164,10 +175,10 @@ fn parse_metric(
     }
 
     Some(BuildMetric {
-        path: store.print_store_path(output),
-        name: fields[0].clone(),
+        path:  store.print_store_path(output),
+        name:  fields[0].clone(),
         value: fields[1].parse::<f64>().unwrap_or(0.0),
-        unit: if fields.len() >= 3 && VALIDATE_METRICS_UNIT.is_match(&fields[2]) {
+        unit:  if fields.len() >= 3 && VALIDATE_METRICS_UNIT.is_match(&fields[2]) {
             Some(fields[2].clone())
         } else {
             None
@@ -324,18 +335,18 @@ pub async fn parse_nix_support_from_outputs(
             };
             if metadata.is_dir() {
                 products.push(BuildProduct {
-                    r#type: "nix-build".to_string(),
-                    subtype: if output_name.as_ref() == "out" {
+                    r#type:       "nix-build".to_string(),
+                    subtype:      if output_name.as_ref() == "out" {
                         String::new()
                     } else {
                         output_name.to_string()
                     },
-                    path: full_path,
-                    name: path.name().to_string(),
+                    path:         full_path,
+                    name:         path.name().to_string(),
                     default_path: String::new(),
-                    is_regular: false,
-                    file_size: None,
-                    sha256hash: None,
+                    is_regular:   false,
+                    file_size:    None,
+                    sha256hash:   None,
                 });
             }
         }
@@ -358,8 +369,8 @@ mod tests {
     #[derive(Debug, Clone)]
     struct DummyFsOperations {
         valid_file: bool,
-        metadata: FileMetadata,
-        file_hash: String,
+        metadata:   FileMetadata,
+        file_hash:  String,
     }
 
     impl FsOperations for DummyFsOperations {
@@ -392,11 +403,11 @@ mod tests {
         );
         let fsop = DummyFsOperations {
             valid_file: true,
-            metadata: FileMetadata {
+            metadata:   FileMetadata {
                 is_regular: true,
-                size: 12345,
+                size:       12345,
             },
-            file_hash: "4306152c73d2a7a01dbac16ba48f45fa4ae5b746a1d282638524ae2ae93af210".into(),
+            file_hash:  "4306152c73d2a7a01dbac16ba48f45fa4ae5b746a1d282638524ae2ae93af210".into(),
         };
         let build_product = parse_build_product(&store, fsop, &output, &line)
             .await

@@ -1,5 +1,9 @@
+use std::{
+    env,
+    path::PathBuf,
+};
+
 use sha2::Digest;
-use std::{env, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);

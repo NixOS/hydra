@@ -1,13 +1,21 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 use backon::Retryable;
-
 use bytes::Bytes;
-use nix_utils::{BaseStore as _, LocalStore};
-
+use nix_utils::{
+    BaseStore as _,
+    LocalStore,
+};
 use tokio_util::io::StreamReader;
 
-use crate::{CacheError, Compression, streaming_hash::HashingReader};
+use crate::{
+    CacheError,
+    Compression,
+    streaming_hash::HashingReader,
+};
 
 const RETRY_MIN_DELAY_SECS: u64 = 1;
 const RETRY_MAX_DELAY_SECS: u64 = 30;
@@ -15,9 +23,9 @@ const RETRY_MAX_ATTEMPTS: usize = 3;
 
 #[derive(Debug, Clone)]
 pub struct PresignedUpload {
-    pub path: String,
-    pub url: String,
-    pub compression: Compression,
+    pub path:              String,
+    pub url:               String,
+    pub compression:       Compression,
     pub compression_level: async_compression::Level,
 }
 
@@ -55,23 +63,23 @@ impl PresignedUpload {
 
 #[derive(Debug, Clone)]
 pub struct PresignedUploadResponse {
-    pub nar_url: String,
-    pub nar_upload: PresignedUpload,
-    pub ls_upload: Option<PresignedUpload>,
+    pub nar_url:           String,
+    pub nar_upload:        PresignedUpload,
+    pub ls_upload:         Option<PresignedUpload>,
     pub debug_info_upload: Vec<PresignedUpload>,
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct AtomicPresignedUploadMetrics {
-    pub put: AtomicU64,
-    pub put_bytes: AtomicU64,
+    pub put:         AtomicU64,
+    pub put_bytes:   AtomicU64,
     pub put_time_ms: AtomicU64,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PresignedUploadMetrics {
-    pub put: u64,
-    pub put_bytes: u64,
+    pub put:         u64,
+    pub put_bytes:   u64,
     pub put_time_ms: u64,
 }
 
@@ -83,7 +91,7 @@ pub struct PresignedUploadResult {
 
 #[derive(Debug, Clone)]
 pub struct PresignedUploadClient {
-    client: reqwest::Client,
+    client:  reqwest::Client,
     metrics: std::sync::Arc<AtomicPresignedUploadMetrics>,
 }
 
@@ -91,7 +99,7 @@ impl PresignedUploadClient {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client:  reqwest::Client::new(),
             metrics: std::sync::Arc::new(AtomicPresignedUploadMetrics::default()),
         }
     }
@@ -99,8 +107,8 @@ impl PresignedUploadClient {
     #[must_use]
     pub fn metrics(&self) -> PresignedUploadMetrics {
         PresignedUploadMetrics {
-            put: self.metrics.put.load(Ordering::Relaxed),
-            put_bytes: self.metrics.put_bytes.load(Ordering::Relaxed),
+            put:         self.metrics.put.load(Ordering::Relaxed),
+            put_bytes:   self.metrics.put_bytes.load(Ordering::Relaxed),
             put_time_ms: self.metrics.put_time_ms.load(Ordering::Relaxed),
         }
     }
@@ -123,7 +131,7 @@ impl PresignedUploadClient {
 
         if !req.debug_info_upload.is_empty() {
             let debug_info_client = PresignedDebugInfoUpload {
-                client: self.clone(),
+                client:          self.clone(),
                 debug_info_urls: std::sync::Arc::new(req.debug_info_upload),
             };
             crate::debug_info::process_debug_info(
@@ -187,14 +195,18 @@ impl PresignedUploadClient {
 
         match result_rx.await {
             Ok(Ok(())) => upload_result,
-            Ok(Err(e)) => Err(CacheError::UploadError {
-                path: upload.path.clone(),
-                reason: e,
-            }),
-            Err(_) => Err(CacheError::UploadError {
-                path: upload.path.clone(),
-                reason: "NAR reading task was cancelled or panicked".to_string(),
-            }),
+            Ok(Err(e)) => {
+                Err(CacheError::UploadError {
+                    path:   upload.path.clone(),
+                    reason: e,
+                })
+            },
+            Err(_) => {
+                Err(CacheError::UploadError {
+                    path:   upload.path.clone(),
+                    reason: "NAR reading task was cancelled or panicked".to_string(),
+                })
+            },
         }
     }
 
@@ -263,16 +275,18 @@ impl PresignedUploadClient {
         let mut buffer = Vec::new();
         reader.read_to_end(&mut buffer).await?;
 
-        let _response = (|| async {
-            Ok::<_, CacheError>(
-                request
-                    .try_clone()
-                    .ok_or_else(|| CacheError::RequestCloneError)?
-                    .body(buffer.clone())
-                    .send()
-                    .await?
-                    .error_for_status()?,
-            )
+        let _response = (|| {
+            async {
+                Ok::<_, CacheError>(
+                    request
+                        .try_clone()
+                        .ok_or_else(|| CacheError::RequestCloneError)?
+                        .body(buffer.clone())
+                        .send()
+                        .await?
+                        .error_for_status()?,
+                )
+            }
         })
         .retry(
             &backon::ExponentialBuilder::default()
@@ -316,16 +330,17 @@ impl Default for PresignedUploadClient {
 
 #[derive(Debug, Clone)]
 struct PresignedDebugInfoUpload {
-    client: PresignedUploadClient,
+    client:          PresignedUploadClient,
     debug_info_urls: std::sync::Arc<Vec<PresignedUpload>>,
 }
 
 impl crate::debug_info::DebugInfoClient for PresignedDebugInfoUpload {
     /// Creates debug info links for build IDs found in NAR files.
     ///
-    /// This function processes debug information from NIX store paths that contain
-    /// debug symbols in the standard `lib/debug/.build-id` directory structure.
-    /// It creates JSON links that allow debuggers to find debug symbols by build ID.
+    /// This function processes debug information from NIX store paths that
+    /// contain debug symbols in the standard `lib/debug/.build-id`
+    /// directory structure. It creates JSON links that allow debuggers to
+    /// find debug symbols by build ID.
     ///
     /// The directory structure expected is:
     /// lib/debug/.build-id/ab/cdef1234567890123456789012345678901234.debug
@@ -352,13 +367,13 @@ impl crate::debug_info::DebugInfoClient for PresignedDebugInfoUpload {
             .iter()
             .find(|presigned| presigned.path == key)
             .ok_or(CacheError::UploadError {
-                path: key.clone(),
+                path:   key.clone(),
                 reason: format!("Presigned URL not found for build ID: {build_id}"),
             })?;
 
         let json_content = crate::debug_info::DebugInfoLink {
             archive: format!("../{nar_url}"),
-            member: debug_path,
+            member:  debug_path,
         };
 
         tracing::debug!("Creating debuginfo link from '{}' to '{}'", key, nar_url);

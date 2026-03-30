@@ -15,6 +15,11 @@
     flake = false;
   };
 
+  inputs.fenix = {
+    url = "github:nix-community/fenix";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+
   inputs.treefmt-nix = {
     url = "github:numtide/treefmt-nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -26,6 +31,7 @@
       nixpkgs,
       nix,
       nix-eval-jobs,
+      fenix,
       treefmt-nix,
       ...
     }:
@@ -66,18 +72,20 @@
         });
 
       treefmtConfig =
+        system:
         { ... }:
         {
           projectRootFile = "flake.lock";
           programs.rustfmt = {
             enable = true;
-            edition = "2024";
+            package = fenix.packages.${system}.latest.rustfmt;
           };
           programs.nixfmt.enable = true;
           programs.taplo.enable = true;
         };
 
-      treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;
+      treefmtEval =
+        system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} (treefmtConfig system);
     in
     rec {
 
@@ -174,6 +182,7 @@
             hydra-linters
             hydra-queue-runner
             ;
+          nightly-rustfmt = fenix.packages.${system}.latest.rustfmt;
         };
       });
 

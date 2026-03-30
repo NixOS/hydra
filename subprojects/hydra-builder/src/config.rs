@@ -25,23 +25,23 @@ pub struct Cli {
     pub max_jobs: u32,
 
     /// build dir available storage percentage Threshold
-    #[clap(long, default_value_t = 10.)]
+    #[clap(long, default_value_t = 10.0)]
     pub build_dir_avail_threshold: f32,
 
     /// prefix/store available storage percentage Threshold
-    #[clap(long, default_value_t = 10.)]
+    #[clap(long, default_value_t = 10.0)]
     pub store_avail_threshold: f32,
 
     /// Load1 Threshold
-    #[clap(long, default_value_t = 8.)]
+    #[clap(long, default_value_t = 8.0)]
     pub load1_threshold: f32,
 
     /// CPU Pressure Threshold
-    #[clap(long, default_value_t = 75.)]
+    #[clap(long, default_value_t = 75.0)]
     pub cpu_psi_threshold: f32,
 
     /// Memory Pressure Threshold
-    #[clap(long, default_value_t = 80.)]
+    #[clap(long, default_value_t = 80.0)]
     pub mem_psi_threshold: f32,
 
     /// IO Pressure Threshold, null disables this pressure check
@@ -64,7 +64,8 @@ pub struct Cli {
     #[clap(long)]
     pub domain_name: Option<String>,
 
-    /// List of supported systems, defaults to systems from nix and extra-platforms
+    /// List of supported systems, defaults to systems from nix and
+    /// extra-platforms
     #[clap(long, default_value = None)]
     pub systems: Option<Vec<String>>,
 

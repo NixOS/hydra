@@ -1,19 +1,18 @@
 use std::sync::Arc;
 
-use prometheus::Encoder as _;
-
 use nix_utils::BaseStore as _;
+use prometheus::Encoder as _;
 
 #[derive(Debug)]
 pub struct PromMetrics {
-    pub queue_runner_current_time_seconds: prometheus::IntGauge, // hydraqueuerunner_current_time_seconds
-    pub queue_runner_uptime_seconds: prometheus::IntGauge,       // hydraqueuerunner_uptime_seconds
+    pub queue_runner_current_time_seconds: prometheus::IntGauge, /* hydraqueuerunner_current_time_seconds */
+    pub queue_runner_uptime_seconds:       prometheus::IntGauge, // hydraqueuerunner_uptime_seconds
 
-    pub queue_checks_started: prometheus::IntCounter,
-    pub queue_build_loads: prometheus::IntCounter,
-    pub queue_steps_created: prometheus::IntCounter,
+    pub queue_checks_started:     prometheus::IntCounter,
+    pub queue_build_loads:        prometheus::IntCounter,
+    pub queue_steps_created:      prometheus::IntCounter,
     pub queue_checks_early_exits: prometheus::IntCounter,
-    pub queue_checks_finished: prometheus::IntCounter,
+    pub queue_checks_finished:    prometheus::IntCounter,
 
     pub dispatcher_time_spent_running: prometheus::IntCounter,
     pub dispatcher_time_spent_waiting: prometheus::IntCounter,
@@ -21,102 +20,102 @@ pub struct PromMetrics {
     pub queue_monitor_time_spent_running: prometheus::IntCounter,
     pub queue_monitor_time_spent_waiting: prometheus::IntCounter,
 
-    pub nr_builds_read: prometheus::IntCounter, // hydraqueuerunner_builds_read
-    pub build_read_time_ms: prometheus::IntCounter, // hydraqueuerunner_builds_read_time_ms
-    pub nr_builds_unfinished: prometheus::IntGauge, // hydraqueuerunner_builds_unfinished
-    pub nr_builds_done: prometheus::IntCounter, // hydraqueuerunner_builds_finished
-    pub nr_builds_succeeded: prometheus::IntCounter, // hydraqueuerunner_builds_succeeded
-    pub nr_builds_failed: prometheus::IntCounter, // hydraqueuerunner_builds_failed
-    pub nr_steps_started: prometheus::IntCounter, // hydraqueuerunner_steps_started
-    pub nr_steps_done: prometheus::IntCounter,  // hydraqueuerunner_steps_finished
-    pub nr_steps_building: prometheus::IntGauge, // hydraqueuerunner_steps_building
-    pub nr_steps_waiting: prometheus::IntGauge, // hydraqueuerunner_steps_waiting
-    pub nr_steps_runnable: prometheus::IntGauge, // hydraqueuerunner_steps_runnable
-    pub nr_steps_unfinished: prometheus::IntGauge, // hydraqueuerunner_steps_unfinished
-    pub nr_unsupported_steps: prometheus::IntGauge, // hydraqueuerunner_steps_unsupported
-    pub nr_unsupported_steps_aborted: prometheus::IntCounter, // hydraqueuerunner_steps_unsupported_aborted
-    pub nr_substitutes_started: prometheus::IntCounter, // hydraqueuerunner_substitutes_started
-    pub nr_substitutes_failed: prometheus::IntCounter,  // hydraqueuerunner_substitutes_failed
-    pub nr_substitutes_succeeded: prometheus::IntCounter, // hydraqueuerunner_substitutes_succeeded
-    pub nr_retries: prometheus::IntCounter,             // hydraqueuerunner_steps_retries
-    pub max_nr_retries: prometheus::IntGauge,           // hydraqueuerunner_steps_max_retries
-    pub nr_steps_copying_to: prometheus::IntGauge,      // hydraqueuerunner_steps_copying_to
-    pub nr_steps_copying_from: prometheus::IntGauge,    // hydraqueuerunner_steps_copying_from
-    pub avg_step_time_ms: prometheus::IntGauge,         // hydraqueuerunner_steps_avg_total_time_ms
-    pub avg_step_import_time_ms: prometheus::IntGauge,  // hydraqueuerunner_steps_avg_import_time_ms
-    pub avg_step_build_time_ms: prometheus::IntGauge,   // hydraqueuerunner_steps_avg_build_time_ms
-    pub avg_step_upload_time_ms: prometheus::IntGauge,  // hydraqueuerunner_steps_avg_upload_time_ms
-    pub total_step_time_ms: prometheus::IntCounter,     // hydraqueuerunner_steps_total_time_ms
-    pub total_step_import_time_ms: prometheus::IntCounter, // hydraqueuerunner_steps_total_import_time_ms
-    pub total_step_build_time_ms: prometheus::IntCounter, // hydraqueuerunner_steps_total_build_time_ms
-    pub total_step_upload_time_ms: prometheus::IntCounter, // hydraqueuerunner_steps_total_upload_time_ms
-    pub nr_queue_wakeups: prometheus::IntCounter,          //hydraqueuerunner_monitor_checks
-    pub nr_dispatcher_wakeups: prometheus::IntCounter,     // hydraqueuerunner_dispatch_wakeup
-    pub dispatch_time_ms: prometheus::IntCounter,          // hydraqueuerunner_dispatch_time_ms
-    pub machines_total: prometheus::IntGauge,              // hydraqueuerunner_machines_total
-    pub machines_in_use: prometheus::IntGauge,             // hydraqueuerunner_machines_in_use
-    pub s3_uploads_pending: prometheus::IntGauge,          // hydraqueuerunner_s3_uploads_pending
+    pub nr_builds_read:               prometheus::IntCounter, // hydraqueuerunner_builds_read
+    pub build_read_time_ms:           prometheus::IntCounter, /* hydraqueuerunner_builds_read_time_ms */
+    pub nr_builds_unfinished:         prometheus::IntGauge,   // hydraqueuerunner_builds_unfinished
+    pub nr_builds_done:               prometheus::IntCounter, // hydraqueuerunner_builds_finished
+    pub nr_builds_succeeded:          prometheus::IntCounter, // hydraqueuerunner_builds_succeeded
+    pub nr_builds_failed:             prometheus::IntCounter, // hydraqueuerunner_builds_failed
+    pub nr_steps_started:             prometheus::IntCounter, // hydraqueuerunner_steps_started
+    pub nr_steps_done:                prometheus::IntCounter, // hydraqueuerunner_steps_finished
+    pub nr_steps_building:            prometheus::IntGauge,   // hydraqueuerunner_steps_building
+    pub nr_steps_waiting:             prometheus::IntGauge,   // hydraqueuerunner_steps_waiting
+    pub nr_steps_runnable:            prometheus::IntGauge,   // hydraqueuerunner_steps_runnable
+    pub nr_steps_unfinished:          prometheus::IntGauge,   // hydraqueuerunner_steps_unfinished
+    pub nr_unsupported_steps:         prometheus::IntGauge,   // hydraqueuerunner_steps_unsupported
+    pub nr_unsupported_steps_aborted: prometheus::IntCounter, /* hydraqueuerunner_steps_unsupported_aborted */
+    pub nr_substitutes_started:       prometheus::IntCounter, /* hydraqueuerunner_substitutes_started */
+    pub nr_substitutes_failed:        prometheus::IntCounter, /* hydraqueuerunner_substitutes_failed */
+    pub nr_substitutes_succeeded:     prometheus::IntCounter, /* hydraqueuerunner_substitutes_succeeded */
+    pub nr_retries:                   prometheus::IntCounter, // hydraqueuerunner_steps_retries
+    pub max_nr_retries:               prometheus::IntGauge,   // hydraqueuerunner_steps_max_retries
+    pub nr_steps_copying_to:          prometheus::IntGauge,   // hydraqueuerunner_steps_copying_to
+    pub nr_steps_copying_from:        prometheus::IntGauge, // hydraqueuerunner_steps_copying_from
+    pub avg_step_time_ms:             prometheus::IntGauge, /* hydraqueuerunner_steps_avg_total_time_ms */
+    pub avg_step_import_time_ms:      prometheus::IntGauge, /* hydraqueuerunner_steps_avg_import_time_ms */
+    pub avg_step_build_time_ms:       prometheus::IntGauge, /* hydraqueuerunner_steps_avg_build_time_ms */
+    pub avg_step_upload_time_ms:      prometheus::IntGauge, /* hydraqueuerunner_steps_avg_upload_time_ms */
+    pub total_step_time_ms:           prometheus::IntCounter, /* hydraqueuerunner_steps_total_time_ms */
+    pub total_step_import_time_ms:    prometheus::IntCounter, /* hydraqueuerunner_steps_total_import_time_ms */
+    pub total_step_build_time_ms:     prometheus::IntCounter, /* hydraqueuerunner_steps_total_build_time_ms */
+    pub total_step_upload_time_ms:    prometheus::IntCounter, /* hydraqueuerunner_steps_total_upload_time_ms */
+    pub nr_queue_wakeups:             prometheus::IntCounter, // hydraqueuerunner_monitor_checks
+    pub nr_dispatcher_wakeups:        prometheus::IntCounter, // hydraqueuerunner_dispatch_wakeup
+    pub dispatch_time_ms:             prometheus::IntCounter, // hydraqueuerunner_dispatch_time_ms
+    pub machines_total:               prometheus::IntGauge,   // hydraqueuerunner_machines_total
+    pub machines_in_use:              prometheus::IntGauge,   // hydraqueuerunner_machines_in_use
+    pub s3_uploads_pending:           prometheus::IntGauge, // hydraqueuerunner_s3_uploads_pending
 
     // Per-machine-type metrics
-    pub runnable_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_runnable
-    pub running_per_machine_type: prometheus::IntGaugeVec,  // hydraqueuerunner_machine_type_running
-    pub waiting_per_machine_type: prometheus::IntGaugeVec,  // hydraqueuerunner_machine_type_waiting
-    pub disabled_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_disabled
-    pub avg_runnable_time_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_avg_runnable_time
-    pub wait_time_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_wait_time
+    pub runnable_per_machine_type:          prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_runnable */
+    pub running_per_machine_type:           prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_running */
+    pub waiting_per_machine_type:           prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_waiting */
+    pub disabled_per_machine_type:          prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_disabled */
+    pub avg_runnable_time_per_machine_type: prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_avg_runnable_time */
+    pub wait_time_per_machine_type:         prometheus::IntGaugeVec, /* hydraqueuerunner_machine_type_wait_time */
 
     // Per-machine metrics
-    pub machine_current_jobs: prometheus::IntGaugeVec, // hydraqueuerunner_machine_current_jobs
-    pub machine_steps_done: prometheus::IntGaugeVec,   // hydraqueuerunner_machine_steps_done
-    pub machine_total_step_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_machine_total_step_time_ms
-    pub machine_total_step_import_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_machine_total_step_import_time_ms
-    pub machine_total_step_build_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_machine_total_step_build_time_ms
-    pub machine_total_step_upload_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_machine_total_step_upload_time_ms
-    pub machine_consecutive_failures: prometheus::IntGaugeVec, // hydraqueuerunner_machine_consecutive_failures
-    pub machine_last_ping_timestamp: prometheus::IntGaugeVec, // hydraqueuerunner_machine_last_ping_timestamp
-    pub machine_idle_since_timestamp: prometheus::IntGaugeVec, // hydraqueuerunner_machine_idle_since_timestamp
+    pub machine_current_jobs:              prometheus::IntGaugeVec, /* hydraqueuerunner_machine_current_jobs */
+    pub machine_steps_done:                prometheus::IntGaugeVec, /* hydraqueuerunner_machine_steps_done */
+    pub machine_total_step_time_ms:        prometheus::IntGaugeVec, /* hydraqueuerunner_machine_total_step_time_ms */
+    pub machine_total_step_import_time_ms: prometheus::IntGaugeVec, /* hydraqueuerunner_machine_total_step_import_time_ms */
+    pub machine_total_step_build_time_ms:  prometheus::IntGaugeVec, /* hydraqueuerunner_machine_total_step_build_time_ms */
+    pub machine_total_step_upload_time_ms: prometheus::IntGaugeVec, /* hydraqueuerunner_machine_total_step_upload_time_ms */
+    pub machine_consecutive_failures:      prometheus::IntGaugeVec, /* hydraqueuerunner_machine_consecutive_failures */
+    pub machine_last_ping_timestamp:       prometheus::IntGaugeVec, /* hydraqueuerunner_machine_last_ping_timestamp */
+    pub machine_idle_since_timestamp:      prometheus::IntGaugeVec, /* hydraqueuerunner_machine_idle_since_timestamp */
 
     // Store metrics (single store)
-    pub store_nar_info_read: prometheus::IntGauge, // hydraqueuerunner_store_nar_info_read
-    pub store_nar_info_read_averted: prometheus::IntGauge, // hydraqueuerunner_store_nar_info_read_averted
-    pub store_nar_info_missing: prometheus::IntGauge, // hydraqueuerunner_store_nar_info_missing
-    pub store_nar_info_write: prometheus::IntGauge,   // hydraqueuerunner_store_nar_info_write
-    pub store_path_info_cache_size: prometheus::IntGauge, // hydraqueuerunner_store_path_info_cache_size
-    pub store_nar_read: prometheus::IntGauge,             // hydraqueuerunner_store_nar_read
-    pub store_nar_read_bytes: prometheus::IntGauge,       // hydraqueuerunner_store_nar_read_bytes
-    pub store_nar_read_compressed_bytes: prometheus::IntGauge, // hydraqueuerunner_store_nar_read_compressed_bytes
-    pub store_nar_write: prometheus::IntGauge,                 // hydraqueuerunner_store_nar_write
-    pub store_nar_write_averted: prometheus::IntGauge, // hydraqueuerunner_store_nar_write_averted
-    pub store_nar_write_bytes: prometheus::IntGauge,   // hydraqueuerunner_store_nar_write_bytes
-    pub store_nar_write_compressed_bytes: prometheus::IntGauge, // hydraqueuerunner_store_nar_write_compressed_bytes
-    pub store_nar_write_compression_time_ms: prometheus::IntGauge, // hydraqueuerunner_store_nar_write_compression_time_ms
-    pub store_nar_compression_savings: prometheus::Gauge, // hydraqueuerunner_store_nar_compression_savings
-    pub store_nar_compression_speed: prometheus::Gauge, // hydraqueuerunner_store_nar_compression_speed
+    pub store_nar_info_read:                 prometheus::IntGauge, /* hydraqueuerunner_store_nar_info_read */
+    pub store_nar_info_read_averted:         prometheus::IntGauge, /* hydraqueuerunner_store_nar_info_read_averted */
+    pub store_nar_info_missing:              prometheus::IntGauge, /* hydraqueuerunner_store_nar_info_missing */
+    pub store_nar_info_write:                prometheus::IntGauge, /* hydraqueuerunner_store_nar_info_write */
+    pub store_path_info_cache_size:          prometheus::IntGauge, /* hydraqueuerunner_store_path_info_cache_size */
+    pub store_nar_read:                      prometheus::IntGauge, /* hydraqueuerunner_store_nar_read */
+    pub store_nar_read_bytes:                prometheus::IntGauge, /* hydraqueuerunner_store_nar_read_bytes */
+    pub store_nar_read_compressed_bytes:     prometheus::IntGauge, /* hydraqueuerunner_store_nar_read_compressed_bytes */
+    pub store_nar_write:                     prometheus::IntGauge, /* hydraqueuerunner_store_nar_write */
+    pub store_nar_write_averted:             prometheus::IntGauge, /* hydraqueuerunner_store_nar_write_averted */
+    pub store_nar_write_bytes:               prometheus::IntGauge, /* hydraqueuerunner_store_nar_write_bytes */
+    pub store_nar_write_compressed_bytes:    prometheus::IntGauge, /* hydraqueuerunner_store_nar_write_compressed_bytes */
+    pub store_nar_write_compression_time_ms: prometheus::IntGauge, /* hydraqueuerunner_store_nar_write_compression_time_ms */
+    pub store_nar_compression_savings:       prometheus::Gauge, /* hydraqueuerunner_store_nar_compression_savings */
+    pub store_nar_compression_speed:         prometheus::Gauge, /* hydraqueuerunner_store_nar_compression_speed */
 
     // S3 metrics (multiple backends)
-    pub s3_put: prometheus::IntGaugeVec, // hydraqueuerunner_s3_put
-    pub s3_put_bytes: prometheus::IntGaugeVec, // hydraqueuerunner_s3_put_bytes
-    pub s3_put_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_s3_put_time_ms
-    pub s3_put_speed: prometheus::GaugeVec, // hydraqueuerunner_s3_put_speed
-    pub s3_get: prometheus::IntGaugeVec, // hydraqueuerunner_s3_get
-    pub s3_get_bytes: prometheus::IntGaugeVec, // hydraqueuerunner_s3_get_bytes
-    pub s3_get_time_ms: prometheus::IntGaugeVec, // hydraqueuerunner_s3_get_time_ms
-    pub s3_get_speed: prometheus::GaugeVec, // hydraqueuerunner_s3_get_speed
-    pub s3_head: prometheus::IntGaugeVec, // hydraqueuerunner_s3_head
-    pub s3_cost_dollar_approx: prometheus::GaugeVec, // hydraqueuerunner_s3_cost_dollar_approx
+    pub s3_put:                prometheus::IntGaugeVec, // hydraqueuerunner_s3_put
+    pub s3_put_bytes:          prometheus::IntGaugeVec, // hydraqueuerunner_s3_put_bytes
+    pub s3_put_time_ms:        prometheus::IntGaugeVec, // hydraqueuerunner_s3_put_time_ms
+    pub s3_put_speed:          prometheus::GaugeVec,    // hydraqueuerunner_s3_put_speed
+    pub s3_get:                prometheus::IntGaugeVec, // hydraqueuerunner_s3_get
+    pub s3_get_bytes:          prometheus::IntGaugeVec, // hydraqueuerunner_s3_get_bytes
+    pub s3_get_time_ms:        prometheus::IntGaugeVec, // hydraqueuerunner_s3_get_time_ms
+    pub s3_get_speed:          prometheus::GaugeVec,    // hydraqueuerunner_s3_get_speed
+    pub s3_head:               prometheus::IntGaugeVec, // hydraqueuerunner_s3_head
+    pub s3_cost_dollar_approx: prometheus::GaugeVec,    // hydraqueuerunner_s3_cost_dollar_approx
 
     // Build dependency and complexity metrics
-    pub build_input_drvs_histogram: prometheus::HistogramVec, // hydraqueuerunner_build_input_drvs_seconds
-    pub build_closure_size_bytes_histogram: prometheus::HistogramVec, // hydraqueuerunner_build_closure_size_bytes
+    pub build_input_drvs_histogram:         prometheus::HistogramVec, /* hydraqueuerunner_build_input_drvs_seconds */
+    pub build_closure_size_bytes_histogram: prometheus::HistogramVec, /* hydraqueuerunner_build_closure_size_bytes */
 
     // Queue performance metrics
-    pub queue_sort_duration_ms_total: prometheus::IntCounter, // hydraqueuerunner_sort_duration_ms_total
-    pub queue_job_wait_time_histogram: prometheus::HistogramVec, // hydraqueuerunner_job_wait_time_seconds
-    pub queue_aborted_jobs_total: prometheus::IntCounter, // hydraqueuerunner_aborted_jobs_total
+    pub queue_sort_duration_ms_total:  prometheus::IntCounter, /* hydraqueuerunner_sort_duration_ms_total */
+    pub queue_job_wait_time_histogram: prometheus::HistogramVec, /* hydraqueuerunner_job_wait_time_seconds */
+    pub queue_aborted_jobs_total:      prometheus::IntCounter, /* hydraqueuerunner_aborted_jobs_total */
 
     // Jobset metrics
     pub jobset_share_used: prometheus::IntGaugeVec, // hydraqueuerunner_jobset_share_used
-    pub jobset_seconds: prometheus::IntGaugeVec,    // hydraqueuerunner_jobset_seconds
+    pub jobset_seconds:    prometheus::IntGaugeVec, // hydraqueuerunner_jobset_seconds
 }
 
 impl PromMetrics {
@@ -1061,9 +1060,11 @@ impl PromMetrics {
         }
 
         let backends = state.remote_stores.read();
-        for remote_store in backends.iter().filter_map(|s| match s {
-            super::RemoteStoreBackend::S3(s) => Some(s),
-            _ => None,
+        for remote_store in backends.iter().filter_map(|s| {
+            match s {
+                super::RemoteStoreBackend::S3(s) => Some(s),
+                _ => None,
+            }
         }) {
             let backend_name = &remote_store.cfg.client_config.bucket;
             let s3_stats = remote_store.s3_stats();

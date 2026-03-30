@@ -1,9 +1,17 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
+
+use bytes::Bytes;
+use http_body_util::{
+    BodyExt as _,
+    Full,
+    combinators::BoxBody,
+};
+use tracing::Instrument as _;
 
 use crate::state::State;
-use bytes::Bytes;
-use http_body_util::{BodyExt as _, Full, combinators::BoxBody};
-use tracing::Instrument as _;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -131,31 +139,31 @@ async fn router(
             (&hyper::Method::GET, "/status" | "/status/") => handler::status::get(state).await,
             (&hyper::Method::GET, "/status/machines" | "/status/machines/") => {
                 handler::status::machines(state).await
-            }
+            },
             (&hyper::Method::GET, "/status/jobsets" | "/status/jobsets/") => {
                 handler::status::jobsets(state)
-            }
+            },
             (&hyper::Method::GET, "/status/builds" | "/status/builds/") => {
                 handler::status::builds(state)
-            }
+            },
             (&hyper::Method::GET, "/status/steps" | "/status/steps/") => {
                 handler::status::steps(state)
-            }
+            },
             (&hyper::Method::GET, "/status/runnable" | "/status/runnable/") => {
                 handler::status::runnable(state)
-            }
+            },
             (&hyper::Method::GET, "/status/queues" | "/status/queues/") => {
                 handler::status::queues(state).await
-            }
+            },
             (&hyper::Method::GET, "/status/queues/jobs" | "/status/queues/jobs/") => {
                 handler::status::queue_jobs(state).await
-            }
+            },
             (&hyper::Method::GET, "/status/queues/scheduled" | "/status/queues/scheduled/") => {
                 handler::status::queue_scheduled(state).await
-            }
+            },
             (&hyper::Method::GET, "/status/uploads" | "/status/uploads/") => {
                 handler::status::queued_uploads(state).await
-            }
+            },
             (&hyper::Method::GET, path)
                 if path.starts_with("/status/build/") && path.ends_with("/active") =>
             {
@@ -164,14 +172,14 @@ async fn router(
                     .and_then(|p| p.strip_suffix("/active"))
                     .ok_or(Error::NotFound)?;
                 handler::status::active(id_str, state).await
-            }
+            },
             (&hyper::Method::POST, "/dump_status" | "/dump_status/") => {
                 handler::dump_status::post(state).await
-            }
+            },
             (&hyper::Method::PUT, "/build" | "/build/") => handler::build::put(req, state).await,
             (&hyper::Method::POST, "/build_one" | "/build_one/") => {
                 handler::build_one::post(req, state).await
-            }
+            },
             (&hyper::Method::GET, "/metrics" | "/metrics/") => handler::metrics::get(state).await,
             _ => Err(Error::NotFound),
         };
@@ -187,9 +195,17 @@ async fn router(
 
 mod handler {
     pub(super) mod status {
-        use super::super::{Error, Response, construct_json_ok_response};
-        use crate::{io, state::State};
         use db::models::BuildID;
+
+        use super::super::{
+            Error,
+            Response,
+            construct_json_ok_response,
+        };
+        use crate::{
+            io,
+            state::State,
+        };
 
         #[tracing::instrument(skip(state), err)]
         pub(crate) async fn get(state: std::sync::Arc<State>) -> Result<Response, Error> {
@@ -212,9 +228,11 @@ mod handler {
                 let stores = state.remote_stores.read();
                 stores
                     .iter()
-                    .filter_map(|s| match s {
-                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        _ => None,
+                    .filter_map(|s| {
+                        match s {
+                            crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                            _ => None,
+                        }
                     })
                     .collect()
             };
@@ -345,8 +363,15 @@ mod handler {
     }
 
     pub(super) mod dump_status {
-        use super::super::{Error, Response, construct_json_ok_response};
-        use crate::{io, state::State};
+        use super::super::{
+            Error,
+            Response,
+            construct_json_ok_response,
+        };
+        use crate::{
+            io,
+            state::State,
+        };
 
         #[tracing::instrument(skip(state), err)]
         pub(crate) async fn post(state: std::sync::Arc<State>) -> Result<Response, Error> {
@@ -362,8 +387,15 @@ mod handler {
         use bytes::Buf as _;
         use http_body_util::BodyExt as _;
 
-        use super::super::{Error, Response, construct_json_ok_response};
-        use crate::{io, state::State};
+        use super::super::{
+            Error,
+            Response,
+            construct_json_ok_response,
+        };
+        use crate::{
+            io,
+            state::State,
+        };
 
         #[tracing::instrument(skip(req, state), err)]
         pub(crate) async fn put(
@@ -384,8 +416,15 @@ mod handler {
         use bytes::Buf as _;
         use http_body_util::BodyExt as _;
 
-        use super::super::{Error, Response, construct_json_ok_response};
-        use crate::{io, state::State};
+        use super::super::{
+            Error,
+            Response,
+            construct_json_ok_response,
+        };
+        use crate::{
+            io,
+            state::State,
+        };
 
         #[tracing::instrument(skip(req, state), err)]
         pub(crate) async fn post(
@@ -401,7 +440,11 @@ mod handler {
     }
 
     pub(super) mod metrics {
-        use super::super::{Error, Response, full};
+        use super::super::{
+            Error,
+            Response,
+            full,
+        };
         use crate::state::State;
 
         #[tracing::instrument(skip(state), err)]

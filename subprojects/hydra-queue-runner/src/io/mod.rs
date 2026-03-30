@@ -8,15 +8,35 @@ pub mod step;
 pub mod step_info;
 pub mod uploads;
 
-pub use build::{Build, BuildActiveResponse, BuildOnePayload, BuildPayload};
+pub use build::{
+    Build,
+    BuildActiveResponse,
+    BuildOnePayload,
+    BuildPayload,
+};
 pub use jobset::Jobset;
-pub use machine::{Machine, MachineStats};
+pub use machine::{
+    Machine,
+    MachineStats,
+};
 pub use queue_runner::QueueRunnerStats;
 pub use response_types::{
-    BuildsResponse, DumpResponse, JobsetsResponse, MachinesResponse, QueueResponse,
-    StepInfoResponse, StepsResponse,
+    BuildsResponse,
+    DumpResponse,
+    JobsetsResponse,
+    MachinesResponse,
+    QueueResponse,
+    StepInfoResponse,
+    StepsResponse,
 };
-pub use stats::{BuildQueueStats, CgroupStats, CpuStats, IoStats, MemoryStats, Process};
+pub use stats::{
+    BuildQueueStats,
+    CgroupStats,
+    CpuStats,
+    IoStats,
+    MemoryStats,
+    Process,
+};
 pub use step::Step;
 pub use step_info::StepInfo;
 pub use uploads::UploadsResponse;

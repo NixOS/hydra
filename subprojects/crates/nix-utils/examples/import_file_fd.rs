@@ -1,6 +1,11 @@
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
-
-use nix_utils::{self, BaseStore as _};
+use nix_utils::{
+    self,
+    BaseStore as _,
+};
+use tokio::io::{
+    AsyncReadExt as _,
+    AsyncWriteExt as _,
+};
 
 #[tokio::main]
 async fn main() {
@@ -24,10 +29,12 @@ async fn main() {
         let _ = rx.shutdown().await;
         drop(rx);
     });
-    tokio::task::spawn_blocking(move || async move {
-        store
-            .import_paths_with_fd(tx.into_blocking_fd().unwrap(), false)
-            .unwrap();
+    tokio::task::spawn_blocking(move || {
+        async move {
+            store
+                .import_paths_with_fd(tx.into_blocking_fd().unwrap(), false)
+                .unwrap();
+        }
     })
     .await
     .unwrap()

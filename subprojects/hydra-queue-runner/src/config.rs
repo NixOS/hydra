@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+};
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -35,7 +38,8 @@ pub struct Cli {
     #[clap(short, long, default_value = "[::1]:8080")]
     pub rest_bind: SocketAddr,
 
-    /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-` to use `ListenFD` (systemd socket activation)
+    /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-`
+    /// to use `ListenFD` (systemd socket activation)
     #[clap(short, long, default_value = "[::1]:50051")]
     pub grpc_bind: BindSocket,
 
@@ -55,7 +59,8 @@ pub struct Cli {
     #[clap(long)]
     pub client_ca_cert_path: Option<std::path::PathBuf>,
 
-    /// Dangerous to disable this, this is only implemented so we can manually trigger only one build
+    /// Dangerous to disable this, this is only implemented so we can manually
+    /// trigger only one build
     #[clap(long, default_value_t = false)]
     pub disable_queue_monitor_loop: bool,
 }
@@ -265,30 +270,30 @@ struct AppConfig {
 #[derive(Debug)]
 pub struct PreparedApp {
     #[allow(dead_code)]
-    hydra_data_dir: std::path::PathBuf,
-    hydra_log_dir: std::path::PathBuf,
-    lockfile: std::path::PathBuf,
-    pub db_url: secrecy::SecretString,
-    max_db_connections: u32,
-    pub machine_sort_fn: MachineSortFn,
-    machine_free_fn: MachineFreeFn,
-    pub step_sort_fn: StepSortFn,
-    dispatch_trigger_timer: Option<tokio::time::Duration>,
-    queue_trigger_timer: Option<tokio::time::Duration>,
-    pub remote_store_addr: Vec<String>,
-    use_substitutes: bool,
-    roots_dir: std::path::PathBuf,
-    max_retries: u32,
-    retry_interval: f32,
-    retry_backoff: f32,
-    max_unsupported_time: jiff::SignedDuration,
-    stop_queue_run_after: Option<jiff::SignedDuration>,
+    hydra_data_dir:               std::path::PathBuf,
+    hydra_log_dir:                std::path::PathBuf,
+    lockfile:                     std::path::PathBuf,
+    pub db_url:                   secrecy::SecretString,
+    max_db_connections:           u32,
+    pub machine_sort_fn:          MachineSortFn,
+    machine_free_fn:              MachineFreeFn,
+    pub step_sort_fn:             StepSortFn,
+    dispatch_trigger_timer:       Option<tokio::time::Duration>,
+    queue_trigger_timer:          Option<tokio::time::Duration>,
+    pub remote_store_addr:        Vec<String>,
+    use_substitutes:              bool,
+    roots_dir:                    std::path::PathBuf,
+    max_retries:                  u32,
+    retry_interval:               f32,
+    retry_backoff:                f32,
+    max_unsupported_time:         jiff::SignedDuration,
+    stop_queue_run_after:         Option<jiff::SignedDuration>,
     pub max_concurrent_downloads: u32,
-    concurrent_upload_limit: usize,
-    token_list: Option<Vec<String>>,
-    pub enable_fod_checker: bool,
-    pub use_presigned_uploads: bool,
-    pub forced_substituters: Vec<String>,
+    concurrent_upload_limit:      usize,
+    token_list:                   Option<Vec<String>>,
+    pub enable_fod_checker:       bool,
+    pub use_presigned_uploads:    bool,
+    pub forced_substituters:      Vec<String>,
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
@@ -569,7 +574,7 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
             ]);
 
             return;
-        }
+        },
     };
 
     if let Err(e) = state.reload_config_callback(&new_config).await {

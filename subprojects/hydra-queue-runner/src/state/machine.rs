@@ -1,30 +1,48 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::{
+    Arc,
+    atomic::Ordering,
+};
 
-use hashbrown::{HashMap, HashSet};
+use db::models::BuildID;
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
 use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
-use db::models::BuildID;
-
-use super::{RemoteBuild, System};
-use crate::config::{MachineFreeFn, MachineSortFn};
-use crate::server::grpc::runner_v1::{AbortMessage, BuildMessage, JoinMessage, runner_request};
+use super::{
+    RemoteBuild,
+    System,
+};
+use crate::{
+    config::{
+        MachineFreeFn,
+        MachineSortFn,
+    },
+    server::grpc::runner_v1::{
+        AbortMessage,
+        BuildMessage,
+        JoinMessage,
+        runner_request,
+    },
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pressure {
-    pub avg10: f32,
-    pub avg60: f32,
+    pub avg10:  f32,
+    pub avg60:  f32,
     pub avg300: f32,
-    pub total: u64,
+    pub total:  u64,
 }
 
 impl From<crate::server::grpc::runner_v1::Pressure> for Pressure {
     fn from(v: crate::server::grpc::runner_v1::Pressure) -> Self {
         Self {
-            avg10: v.avg10,
-            avg60: v.avg60,
+            avg10:  v.avg10,
+            avg60:  v.avg60,
             avg300: v.avg300,
-            total: v.total,
+            total:  v.total,
         }
     }
 }
@@ -34,38 +52,38 @@ pub struct PressureState {
     pub cpu_some: Option<Pressure>,
     pub mem_some: Option<Pressure>,
     pub mem_full: Option<Pressure>,
-    pub io_some: Option<Pressure>,
-    pub io_full: Option<Pressure>,
+    pub io_some:  Option<Pressure>,
+    pub io_full:  Option<Pressure>,
     pub irq_full: Option<Pressure>,
 }
 
 #[derive(Debug)]
 pub struct Stats {
-    current_jobs: std::sync::atomic::AtomicU64,
-    nr_steps_done: std::sync::atomic::AtomicU64,
-    failed_builds: std::sync::atomic::AtomicU64,
+    current_jobs:     std::sync::atomic::AtomicU64,
+    nr_steps_done:    std::sync::atomic::AtomicU64,
+    failed_builds:    std::sync::atomic::AtomicU64,
     succeeded_builds: std::sync::atomic::AtomicU64,
 
-    total_step_time_ms: std::sync::atomic::AtomicU64,
+    total_step_time_ms:        std::sync::atomic::AtomicU64,
     total_step_import_time_ms: std::sync::atomic::AtomicU64,
-    total_step_build_time_ms: std::sync::atomic::AtomicU64,
+    total_step_build_time_ms:  std::sync::atomic::AtomicU64,
     total_step_upload_time_ms: std::sync::atomic::AtomicU64,
-    idle_since: std::sync::atomic::AtomicI64,
+    idle_since:                std::sync::atomic::AtomicI64,
 
-    last_failure: std::sync::atomic::AtomicI64,
-    disabled_until: std::sync::atomic::AtomicI64,
+    last_failure:         std::sync::atomic::AtomicI64,
+    disabled_until:       std::sync::atomic::AtomicI64,
     consecutive_failures: std::sync::atomic::AtomicU64,
-    last_ping: std::sync::atomic::AtomicI64,
+    last_ping:            std::sync::atomic::AtomicI64,
 
-    load1: atomic_float::AtomicF32,
-    load5: atomic_float::AtomicF32,
-    load15: atomic_float::AtomicF32,
-    mem_usage: std::sync::atomic::AtomicU64,
-    pub pressure: arc_swap::ArcSwapOption<PressureState>,
-    build_dir_free_percent: atomic_float::AtomicF64,
-    store_free_percent: atomic_float::AtomicF64,
+    load1:                        atomic_float::AtomicF32,
+    load5:                        atomic_float::AtomicF32,
+    load15:                       atomic_float::AtomicF32,
+    mem_usage:                    std::sync::atomic::AtomicU64,
+    pub pressure:                 arc_swap::ArcSwapOption<PressureState>,
+    build_dir_free_percent:       atomic_float::AtomicF64,
+    store_free_percent:           atomic_float::AtomicF64,
     current_uploading_path_count: std::sync::atomic::AtomicU64,
-    current_downloading_count: std::sync::atomic::AtomicU64,
+    current_downloading_count:    std::sync::atomic::AtomicU64,
 
     pub jobs_in_last_30s_start: std::sync::atomic::AtomicI64,
     pub jobs_in_last_30s_count: std::sync::atomic::AtomicU64,
@@ -81,31 +99,31 @@ impl Stats {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            current_jobs: 0.into(),
-            nr_steps_done: 0.into(),
-            failed_builds: 0.into(),
+            current_jobs:     0.into(),
+            nr_steps_done:    0.into(),
+            failed_builds:    0.into(),
             succeeded_builds: 0.into(),
 
-            total_step_time_ms: 0.into(),
+            total_step_time_ms:        0.into(),
             total_step_import_time_ms: 0.into(),
-            total_step_build_time_ms: 0.into(),
+            total_step_build_time_ms:  0.into(),
             total_step_upload_time_ms: 0.into(),
-            idle_since: (jiff::Timestamp::now().as_second()).into(),
-            last_failure: 0.into(),
-            disabled_until: 0.into(),
-            consecutive_failures: 0.into(),
-            last_ping: 0.into(),
+            idle_since:                (jiff::Timestamp::now().as_second()).into(),
+            last_failure:              0.into(),
+            disabled_until:            0.into(),
+            consecutive_failures:      0.into(),
+            last_ping:                 0.into(),
 
-            load1: 0.0.into(),
-            load5: 0.0.into(),
-            load15: 0.0.into(),
+            load1:     0.0.into(),
+            load5:     0.0.into(),
+            load15:    0.0.into(),
             mem_usage: 0.into(),
 
-            pressure: arc_swap::ArcSwapOption::from(None),
-            build_dir_free_percent: 0.0.into(),
-            store_free_percent: 0.0.into(),
+            pressure:                     arc_swap::ArcSwapOption::from(None),
+            build_dir_free_percent:       0.0.into(),
+            store_free_percent:           0.0.into(),
             current_uploading_path_count: 0.into(),
-            current_downloading_count: 0.into(),
+            current_downloading_count:    0.into(),
 
             jobs_in_last_30s_start: 0.into(),
             jobs_in_last_30s_count: 0.into(),
@@ -236,8 +254,8 @@ impl Stats {
                 cpu_some: p.cpu_some.map(Into::into),
                 mem_some: p.mem_some.map(Into::into),
                 mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
+                io_some:  p.io_some.map(Into::into),
+                io_full:  p.io_full.map(Into::into),
                 irq_full: p.irq_full.map(Into::into),
             })));
         }
@@ -288,7 +306,7 @@ impl Stats {
 
 #[derive(Debug)]
 struct MachinesInner {
-    by_uuid: HashMap<uuid::Uuid, Arc<Machine>>,
+    by_uuid:   HashMap<uuid::Uuid, Arc<Machine>>,
     // by_system is always sorted, as we insert sorted based on cpu score
     by_system: HashMap<System, Vec<Arc<Machine>>>,
 }
@@ -311,7 +329,7 @@ impl MachinesInner {
 
 #[derive(Debug)]
 pub struct Machines {
-    inner: parking_lot::RwLock<MachinesInner>,
+    inner:              parking_lot::RwLock<MachinesInner>,
     supported_features: parking_lot::RwLock<HashSet<String>>,
 }
 
@@ -324,8 +342,8 @@ impl Default for Machines {
 impl Machines {
     pub fn new() -> Self {
         Self {
-            inner: parking_lot::RwLock::new(MachinesInner {
-                by_uuid: HashMap::with_capacity(10),
+            inner:              parking_lot::RwLock::new(MachinesInner {
+                by_uuid:   HashMap::with_capacity(10),
                 by_system: HashMap::with_capacity(10),
             }),
             supported_features: parking_lot::RwLock::new(HashSet::new()),
@@ -490,11 +508,11 @@ impl Machines {
 #[derive(Debug, Clone)]
 pub struct Job {
     pub internal_build_id: uuid::Uuid,
-    pub path: nix_utils::StorePath,
-    pub resolved_drv: Option<nix_utils::StorePath>,
-    pub build_id: BuildID,
-    pub step_nr: i32,
-    pub result: RemoteBuild,
+    pub path:              nix_utils::StorePath,
+    pub resolved_drv:      Option<nix_utils::StorePath>,
+    pub build_id:          BuildID,
+    pub step_nr:           i32,
+    pub result:            RemoteBuild,
 }
 
 impl Job {
@@ -536,12 +554,12 @@ pub struct ConfigUpdate {
 pub enum Message {
     ConfigUpdate(ConfigUpdate),
     BuildMessage {
-        build_id: uuid::Uuid,
-        drv: nix_utils::StorePath,
-        resolved_drv: Option<nix_utils::StorePath>,
-        max_log_size: u64,
-        max_silent_time: i32,
-        build_timeout: i32,
+        build_id:           uuid::Uuid,
+        drv:                nix_utils::StorePath,
+        resolved_drv:       Option<nix_utils::StorePath>,
+        max_log_size:       u64,
+        max_silent_time:    i32,
+        build_timeout:      i32,
         presigned_url_opts: Option<PresignedUrlOpts>,
     },
     AbortMessage {
@@ -552,11 +570,13 @@ pub enum Message {
 impl Message {
     pub fn into_request(self) -> crate::server::grpc::runner_v1::RunnerRequest {
         let msg = match self {
-            Self::ConfigUpdate(m) => runner_request::Message::ConfigUpdate(
-                crate::server::grpc::runner_v1::ConfigUpdate {
-                    max_concurrent_downloads: m.max_concurrent_downloads,
-                },
-            ),
+            Self::ConfigUpdate(m) => {
+                runner_request::Message::ConfigUpdate(
+                    crate::server::grpc::runner_v1::ConfigUpdate {
+                        max_concurrent_downloads: m.max_concurrent_downloads,
+                    },
+                )
+            },
             Self::BuildMessage {
                 build_id,
                 drv,
@@ -565,18 +585,22 @@ impl Message {
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
-            } => runner_request::Message::Build(BuildMessage {
-                build_id: build_id.to_string(),
-                drv: drv.to_string(),
-                resolved_drv: resolved_drv.map(|p| p.to_string()),
-                max_log_size,
-                max_silent_time,
-                build_timeout,
-                presigned_url_opts: presigned_url_opts.map(Into::into),
-            }),
-            Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
-                build_id: build_id.to_string(),
-            }),
+            } => {
+                runner_request::Message::Build(BuildMessage {
+                    build_id: build_id.to_string(),
+                    drv: drv.to_string(),
+                    resolved_drv: resolved_drv.map(|p| p.to_string()),
+                    max_log_size,
+                    max_silent_time,
+                    build_timeout,
+                    presigned_url_opts: presigned_url_opts.map(Into::into),
+                })
+            },
+            Self::AbortMessage { build_id } => {
+                runner_request::Message::Abort(AbortMessage {
+                    build_id: build_id.to_string(),
+                })
+            },
         };
 
         crate::server::grpc::runner_v1::RunnerRequest { message: Some(msg) }
@@ -585,38 +609,39 @@ impl Message {
 
 #[derive(Debug, Clone)]
 pub struct Machine {
-    pub id: uuid::Uuid,
-    pub systems: SmallVec<[System; 4]>,
-    pub hostname: String,
-    pub cpu_count: u32,
-    pub bogomips: f32,
-    pub speed_factor: f32,
-    pub max_jobs: u32,
+    pub id:                        uuid::Uuid,
+    pub systems:                   SmallVec<[System; 4]>,
+    pub hostname:                  String,
+    pub cpu_count:                 u32,
+    pub bogomips:                  f32,
+    pub speed_factor:              f32,
+    pub max_jobs:                  u32,
     pub build_dir_avail_threshold: f64,
-    pub store_avail_threshold: f64,
-    pub load1_threshold: f32,
-    pub cpu_psi_threshold: f32,
-    pub mem_psi_threshold: f32,        // If None, dont consider this value
-    pub io_psi_threshold: Option<f32>, // If None, dont consider this value
-    pub total_mem: u64,
-    pub supported_features: SmallVec<[String; 8]>,
-    pub mandatory_features: SmallVec<[String; 4]>,
-    pub cgroups: bool,
-    pub substituters: SmallVec<[String; 4]>,
-    pub use_substitutes: bool,
-    pub nix_version: String,
-    pub joined_at: jiff::Timestamp,
+    pub store_avail_threshold:     f64,
+    pub load1_threshold:           f32,
+    pub cpu_psi_threshold:         f32,
+    pub mem_psi_threshold:         f32, // If None, dont consider this value
+    pub io_psi_threshold:          Option<f32>, // If None, dont consider this value
+    pub total_mem:                 u64,
+    pub supported_features:        SmallVec<[String; 8]>,
+    pub mandatory_features:        SmallVec<[String; 4]>,
+    pub cgroups:                   bool,
+    pub substituters:              SmallVec<[String; 4]>,
+    pub use_substitutes:           bool,
+    pub nix_version:               String,
+    pub joined_at:                 jiff::Timestamp,
 
     msg_queue: mpsc::Sender<Message>,
     pub stats: Arc<Stats>,
-    pub jobs: Arc<parking_lot::RwLock<Vec<Job>>>,
+    pub jobs:  Arc<parking_lot::RwLock<Vec<Job>>>,
 }
 
 impl std::fmt::Display for Machine {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
-            "Machine: [systems={:?} hostname={} cpu_count={} bogomips={:.2} speed_factor={:.2} max_jobs={} total_mem={:.2} supported_features={:?} cgroups={} joined_at={}]",
+            "Machine: [systems={:?} hostname={} cpu_count={} bogomips={:.2} speed_factor={:.2} \
+             max_jobs={} total_mem={:.2} supported_features={:?} cgroups={} joined_at={}]",
             self.systems,
             self.hostname,
             self.cpu_count,
@@ -642,7 +667,8 @@ impl Machine {
         if use_presigned_uploads && !forced_substituters.is_empty() {
             if !msg.use_substitutes {
                 return Err(anyhow::anyhow!(
-                    "Forced_substituters is configured but builder doesnt use substituters. This is an issue because presigned uploads are enabled",
+                    "Forced_substituters is configured but builder doesnt use substituters. This \
+                     is an issue because presigned uploads are enabled",
                 ));
             }
 
@@ -658,31 +684,31 @@ impl Machine {
         }
 
         Ok(Self {
-            id: msg.machine_id.parse()?,
-            systems: msg.systems.into(),
-            hostname: msg.hostname,
-            cpu_count: msg.cpu_count,
-            bogomips: msg.bogomips,
-            speed_factor: msg.speed_factor,
-            max_jobs: msg.max_jobs,
+            id:                        msg.machine_id.parse()?,
+            systems:                   msg.systems.into(),
+            hostname:                  msg.hostname,
+            cpu_count:                 msg.cpu_count,
+            bogomips:                  msg.bogomips,
+            speed_factor:              msg.speed_factor,
+            max_jobs:                  msg.max_jobs,
             build_dir_avail_threshold: msg.build_dir_avail_threshold.into(),
-            store_avail_threshold: msg.store_avail_threshold.into(),
-            load1_threshold: msg.load1_threshold,
-            cpu_psi_threshold: msg.cpu_psi_threshold,
-            mem_psi_threshold: msg.mem_psi_threshold,
-            io_psi_threshold: msg.io_psi_threshold,
-            total_mem: msg.total_mem,
-            supported_features: msg.supported_features.into(),
-            mandatory_features: msg.mandatory_features.into(),
-            cgroups: msg.cgroups,
-            substituters: msg.substituters.into(),
-            use_substitutes: msg.use_substitutes,
-            nix_version: msg.nix_version,
+            store_avail_threshold:     msg.store_avail_threshold.into(),
+            load1_threshold:           msg.load1_threshold,
+            cpu_psi_threshold:         msg.cpu_psi_threshold,
+            mem_psi_threshold:         msg.mem_psi_threshold,
+            io_psi_threshold:          msg.io_psi_threshold,
+            total_mem:                 msg.total_mem,
+            supported_features:        msg.supported_features.into(),
+            mandatory_features:        msg.mandatory_features.into(),
+            cgroups:                   msg.cgroups,
+            substituters:              msg.substituters.into(),
+            use_substitutes:           msg.use_substitutes,
+            nix_version:               msg.nix_version,
 
             msg_queue: tx,
             joined_at: jiff::Timestamp::now(),
-            stats: Arc::new(Stats::new()),
-            jobs: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            stats:     Arc::new(Stats::new()),
+            jobs:      Arc::new(parking_lot::RwLock::new(Vec::new())),
         })
     }
 
@@ -730,7 +756,8 @@ impl Machine {
             .send(Message::AbortMessage { build_id })
             .await?;
 
-        // dont remove job from machine now, we will do that when the job is set to failed/cancelled
+        // dont remove job from machine now, we will do that when the job is set to
+        // failed/cancelled
         Ok(())
     }
 
@@ -806,7 +833,7 @@ impl Machine {
             MachineFreeFn::Dynamic => self.has_dynamic_capacity(),
             MachineFreeFn::DynamicWithMaxJobLimit => {
                 self.has_dynamic_capacity() && self.has_static_capacity()
-            }
+            },
             MachineFreeFn::Static => self.has_static_capacity(),
         }
     }
@@ -825,16 +852,16 @@ impl Machine {
             {
                 #[allow(clippy::cast_precision_loss)]
                 (self.speed_factor * (self.cpu_count as f32))
-            }
+            },
             MachineSortFn::BogomipsWithSpeedFactor => {
-                let bogomips = if self.bogomips > 1. {
+                let bogomips = if self.bogomips > 1.0 {
                     self.bogomips
                 } else {
                     1.0
                 };
                 #[allow(clippy::cast_precision_loss)]
                 (self.speed_factor * bogomips * (self.cpu_count as f32))
-            }
+            },
         }
     }
 

@@ -1,4 +1,7 @@
-use nix_utils::{self, copy_paths};
+use nix_utils::{
+    self,
+    copy_paths,
+};
 
 // requires env vars: AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 

@@ -1,31 +1,49 @@
-use std::collections::BTreeMap;
-use std::hash::Hash;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::{
+    collections::BTreeMap,
+    hash::Hash,
+    sync::{
+        Arc,
+        atomic::{
+            AtomicBool,
+            AtomicI32,
+            Ordering,
+        },
+    },
+};
 
 use anyhow::Context;
-use hashbrown::{HashMap, HashSet};
-
-use super::{Jobset, JobsetID, Step};
-use db::models::{BuildID, BuildStatus};
+use db::models::{
+    BuildID,
+    BuildStatus,
+};
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
 use nix_utils::BaseStore as _;
+
+use super::{
+    Jobset,
+    JobsetID,
+    Step,
+};
 
 pub(super) type AtomicBuildID = AtomicI32;
 
 #[derive(Debug)]
 pub struct Build {
-    pub id: BuildID,
-    pub drv_path: nix_utils::StorePath,
-    pub outputs: BTreeMap<String, nix_utils::StorePath>,
-    pub jobset_id: JobsetID,
-    pub name: String,
-    pub timestamp: jiff::Timestamp,
+    pub id:              BuildID,
+    pub drv_path:        nix_utils::StorePath,
+    pub outputs:         BTreeMap<String, nix_utils::StorePath>,
+    pub jobset_id:       JobsetID,
+    pub name:            String,
+    pub timestamp:       jiff::Timestamp,
     pub max_silent_time: i32,
-    pub timeout: i32,
-    pub local_priority: i32,
+    pub timeout:         i32,
+    pub local_priority:  i32,
     pub global_priority: AtomicI32,
 
-    toplevel: arc_swap::ArcSwapOption<Step>,
+    toplevel:   arc_swap::ArcSwapOption<Step>,
     pub jobset: Arc<Jobset>,
 
     finished_in_db: AtomicBool,
@@ -51,19 +69,19 @@ impl Build {
     #[must_use]
     pub fn new_debug(drv_path: &nix_utils::StorePath) -> Arc<Self> {
         Arc::new(Self {
-            id: BuildID::MAX,
-            drv_path: drv_path.to_owned(),
-            outputs: BTreeMap::new(),
-            jobset_id: JobsetID::MAX,
-            name: "debug".into(),
-            timestamp: jiff::Timestamp::now(),
+            id:              BuildID::MAX,
+            drv_path:        drv_path.to_owned(),
+            outputs:         BTreeMap::new(),
+            jobset_id:       JobsetID::MAX,
+            name:            "debug".into(),
+            timestamp:       jiff::Timestamp::now(),
             max_silent_time: i32::MAX,
-            timeout: i32::MAX,
-            local_priority: 1000,
+            timeout:         i32::MAX,
+            local_priority:  1000,
             global_priority: 1000.into(),
-            toplevel: arc_swap::ArcSwapOption::from(None),
-            jobset: Arc::new(Jobset::new(JobsetID::MAX, "debug", "debug")),
-            finished_in_db: false.into(),
+            toplevel:        arc_swap::ArcSwapOption::from(None),
+            jobset:          Arc::new(Jobset::new(JobsetID::MAX, "debug", "debug")),
+            finished_in_db:  false.into(),
         })
     }
 
@@ -173,12 +191,12 @@ impl From<crate::server::grpc::runner_v1::BuildResultState> for BuildResultState
             crate::server::grpc::runner_v1::BuildResultState::Success => Self::Success,
             crate::server::grpc::runner_v1::BuildResultState::PreparingFailure => {
                 Self::PreparingFailure
-            }
+            },
             crate::server::grpc::runner_v1::BuildResultState::ImportFailure => Self::ImportFailure,
             crate::server::grpc::runner_v1::BuildResultState::UploadFailure => Self::UploadFailure,
             crate::server::grpc::runner_v1::BuildResultState::PostProcessingFailure => {
                 Self::PostProcessingFailure
-            }
+            },
         }
     }
 }
@@ -187,18 +205,18 @@ impl From<crate::server::grpc::runner_v1::BuildResultState> for BuildResultState
 #[derive(Debug, Clone)]
 pub struct RemoteBuild {
     pub step_status: BuildStatus,
-    pub can_retry: bool,           // for bsAborted
-    pub is_cached: bool,           // for bsSucceed
-    pub can_cache: bool,           // for bsFailed
-    pub error_msg: Option<String>, // for bsAborted
+    pub can_retry:   bool,           // for bsAborted
+    pub is_cached:   bool,           // for bsSucceed
+    pub can_cache:   bool,           // for bsFailed
+    pub error_msg:   Option<String>, // for bsAborted
 
-    times_built: i32,
+    times_built:          i32,
     is_non_deterministic: bool,
 
     start_time: Option<jiff::Timestamp>,
-    stop_time: Option<jiff::Timestamp>,
+    stop_time:  Option<jiff::Timestamp>,
 
-    overhead: i32,
+    overhead:     i32,
     pub log_file: String,
 }
 
@@ -212,17 +230,17 @@ impl RemoteBuild {
     #[must_use]
     pub const fn new() -> Self {
         Self {
-            step_status: BuildStatus::Aborted,
-            can_retry: false,
-            is_cached: false,
-            can_cache: false,
-            error_msg: None,
-            times_built: 0,
+            step_status:          BuildStatus::Aborted,
+            can_retry:            false,
+            is_cached:            false,
+            can_cache:            false,
+            error_msg:            None,
+            times_built:          0,
             is_non_deterministic: false,
-            start_time: None,
-            stop_time: None,
-            overhead: 0,
-            log_file: String::new(),
+            start_time:           None,
+            stop_time:            None,
+            overhead:             0,
+            log_file:             String::new(),
         }
     }
 
@@ -243,22 +261,22 @@ impl RemoteBuild {
         match state {
             BuildResultState::BuildFailure => {
                 self.can_retry = false;
-            }
+            },
             BuildResultState::Success => (),
             BuildResultState::PreparingFailure
             | BuildResultState::ImportFailure
             | BuildResultState::UploadFailure
             | BuildResultState::PostProcessingFailure => {
                 self.can_retry = true;
-            }
+            },
             BuildResultState::Aborted => {
                 self.can_retry = true;
                 self.step_status = BuildStatus::Aborted;
-            }
+            },
             BuildResultState::Cancelled => {
                 self.can_retry = true;
                 self.step_status = BuildStatus::Cancelled;
-            }
+            },
         }
     }
 
@@ -338,11 +356,12 @@ impl RemoteBuild {
 
 /// Store path with an optional relative path from the store object directory.
 ///
-/// Build products can reference files inside store outputs (e.g. `/nix/store/hash-name/bin/foo`),
-/// so we separate the base `StorePath` from the trailing sub-path.
+/// Build products can reference files inside store outputs (e.g.
+/// `/nix/store/hash-name/bin/foo`), so we separate the base `StorePath` from
+/// the trailing sub-path.
 #[derive(Debug, Clone)]
 pub struct RelativeStorePath {
-    pub base_path: nix_utils::StorePath,
+    pub base_path:     nix_utils::StorePath,
     pub relative_path: Box<str>,
 }
 
@@ -353,7 +372,7 @@ impl RelativeStorePath {
             .with_context(|| format!("stripping store dir from '{path}'"))?;
         let (base_str, remaining_str) = stripped.split_once('/').unwrap_or((stripped, ""));
         Ok(Self {
-            base_path: nix_utils::StorePath::from_base_path(base_str)
+            base_path:     nix_utils::StorePath::from_base_path(base_str)
                 .with_context(|| format!("parsing store path from '{base_str}'"))?,
             relative_path: remaining_str.into(),
         })
@@ -374,17 +393,17 @@ impl RelativeStorePath {
 
 #[derive(Debug, Clone)]
 pub struct BuildProduct {
-    pub path: Option<RelativeStorePath>,
+    pub path:         Option<RelativeStorePath>,
     pub default_path: Option<String>,
 
-    pub r#type: String,
+    pub r#type:  String,
     pub subtype: String,
-    pub name: String,
+    pub name:    String,
 
     pub is_regular: bool,
 
     pub sha256hash: Option<String>,
-    pub file_size: Option<u64>,
+    pub file_size:  Option<u64>,
 }
 
 impl BuildProduct {
@@ -393,18 +412,18 @@ impl BuildProduct {
         v: db::models::OwnedBuildProduct,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            path: v
+            path:                                       v
                 .path
                 .map(|p| RelativeStorePath::from_path(store_dir, &p))
                 .transpose()?,
-            default_path: v.defaultpath,
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.filesize.is_some(),
-            sha256hash: v.sha256hash,
+            default_path:                               v.defaultpath,
+            r#type:                                     v.r#type,
+            subtype:                                    v.subtype,
+            name:                                       v.name,
+            is_regular:                                 v.filesize.is_some(),
+            sha256hash:                                 v.sha256hash,
             #[allow(clippy::cast_sign_loss)]
-            file_size: v.filesize.map(|v| v as u64),
+            file_size:                                  v.filesize.map(|v| v as u64),
         })
     }
 
@@ -413,14 +432,14 @@ impl BuildProduct {
         v: crate::server::grpc::runner_v1::BuildProduct,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
+            path:         Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
+            r#type:       v.r#type,
+            subtype:      v.subtype,
+            name:         v.name,
+            is_regular:   v.is_regular,
+            sha256hash:   v.sha256hash,
+            file_size:    v.file_size,
         })
     }
 
@@ -429,30 +448,30 @@ impl BuildProduct {
         v: shared::BuildProduct,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
+            path:         Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
+            r#type:       v.r#type,
+            subtype:      v.subtype,
+            name:         v.name,
+            is_regular:   v.is_regular,
+            sha256hash:   v.sha256hash,
+            file_size:    v.file_size,
         })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct BuildMetric {
-    pub name: String,
-    pub unit: Option<String>,
+    pub name:  String,
+    pub unit:  Option<String>,
     pub value: f64,
 }
 
 impl From<db::models::OwnedBuildMetric> for BuildMetric {
     fn from(v: db::models::OwnedBuildMetric) -> Self {
         Self {
-            name: v.name,
-            unit: v.unit,
+            name:  v.name,
+            unit:  v.unit,
             value: v.value,
         }
     }
@@ -461,7 +480,7 @@ impl From<db::models::OwnedBuildMetric> for BuildMetric {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BuildTimings {
     pub import_elapsed: std::time::Duration,
-    pub build_elapsed: std::time::Duration,
+    pub build_elapsed:  std::time::Duration,
     pub upload_elapsed: std::time::Duration,
 }
 
@@ -470,7 +489,7 @@ impl BuildTimings {
     pub const fn new(import_time_ms: u64, build_time_ms: u64, upload_time_ms: u64) -> Self {
         Self {
             import_elapsed: std::time::Duration::from_millis(import_time_ms),
-            build_elapsed: std::time::Duration::from_millis(build_time_ms),
+            build_elapsed:  std::time::Duration::from_millis(build_time_ms),
             upload_elapsed: std::time::Duration::from_millis(upload_time_ms),
         }
     }
@@ -483,16 +502,16 @@ impl BuildTimings {
 
 #[derive(Debug)]
 pub struct BuildOutput {
-    pub failed: bool,
-    pub timings: BuildTimings,
+    pub failed:       bool,
+    pub timings:      BuildTimings,
     pub release_name: Option<String>,
 
     pub closure_size: u64,
-    pub size: u64,
+    pub size:         u64,
 
     pub products: Vec<BuildProduct>,
-    pub outputs: BTreeMap<String, nix_utils::StorePath>,
-    pub metrics: Vec<BuildMetric>,
+    pub outputs:  BTreeMap<String, nix_utils::StorePath>,
+    pub metrics:  Vec<BuildMetric>,
 }
 
 impl TryFrom<db::models::BuildOutput> for BuildOutput {
@@ -505,16 +524,16 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
         )
         .ok_or_else(|| anyhow::anyhow!("buildstatus did not map"))?;
         Ok(Self {
-            failed: build_status != BuildStatus::Success,
-            timings: BuildTimings::default(),
-            release_name: v.releasename,
+            failed:                                        build_status != BuildStatus::Success,
+            timings:                                       BuildTimings::default(),
+            release_name:                                  v.releasename,
             #[allow(clippy::cast_sign_loss)]
-            closure_size: v.closuresize.unwrap_or_default() as u64,
+            closure_size:                                  v.closuresize.unwrap_or_default() as u64,
             #[allow(clippy::cast_sign_loss)]
-            size: v.size.unwrap_or_default() as u64,
-            products: vec![],
-            outputs: BTreeMap::new(),
-            metrics: Vec::with_capacity(10),
+            size:                                          v.size.unwrap_or_default() as u64,
+            products:                                      vec![],
+            outputs:                                       BTreeMap::new(),
+            metrics:                                       Vec::with_capacity(10),
         })
     }
 }
@@ -532,12 +551,12 @@ impl BuildOutput {
             match o.output {
                 Some(crate::server::grpc::runner_v1::output::Output::Nameonly(_)) => {
                     // We dont care about outputs that dont have a path,
-                }
+                },
                 Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
                     outputs.insert(o.name, nix_utils::parse_store_path(&o.path));
                     closure_size += o.closure_size;
                     nar_size += o.nar_size;
-                }
+                },
                 None => (),
             }
         }
@@ -565,10 +584,12 @@ impl BuildOutput {
             outputs,
             metrics: metrics
                 .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
+                .map(|v| {
+                    BuildMetric {
+                        name:  v.name,
+                        unit:  v.unit,
+                        value: v.value,
+                    }
                 })
                 .collect(),
         })
@@ -618,10 +639,12 @@ impl BuildOutput {
             metrics: nix_support
                 .metrics
                 .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
+                .map(|v| {
+                    BuildMetric {
+                        name:  v.name,
+                        unit:  v.unit,
+                        value: v.value,
+                    }
                 })
                 .collect(),
         })
@@ -634,41 +657,45 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
     res: &'a BuildOutput,
 ) -> db::models::MarkBuildSuccessData<'a> {
     db::models::MarkBuildSuccessData {
-        id: b.id,
-        name: &b.name,
-        project_name: &b.jobset.project_name,
-        jobset_name: &b.jobset.name,
+        id:             b.id,
+        name:           &b.name,
+        project_name:   &b.jobset.project_name,
+        jobset_name:    &b.jobset.name,
         finished_in_db: b.get_finished_in_db(),
-        timestamp: b.timestamp.as_second(),
-        failed: res.failed,
-        closure_size: res.closure_size,
-        size: res.size,
-        release_name: res.release_name.as_deref(),
-        outputs: res
+        timestamp:      b.timestamp.as_second(),
+        failed:         res.failed,
+        closure_size:   res.closure_size,
+        size:           res.size,
+        release_name:   res.release_name.as_deref(),
+        outputs:        res
             .outputs
             .iter()
             .map(|(name, path)| (name.clone(), store.print_store_path(path)))
             .collect(),
-        products: res
+        products:       res
             .products
             .iter()
-            .map(|v| db::models::BuildProduct {
-                r#type: &v.r#type,
-                subtype: &v.subtype,
-                filesize: v.file_size.and_then(|v| i64::try_from(v).ok()),
-                sha256hash: v.sha256hash.as_deref(),
-                path: v.path.as_ref().map(|p| p.print(store.store_dir())),
-                name: &v.name,
-                defaultpath: v.default_path.as_deref(),
+            .map(|v| {
+                db::models::BuildProduct {
+                    r#type:      &v.r#type,
+                    subtype:     &v.subtype,
+                    filesize:    v.file_size.and_then(|v| i64::try_from(v).ok()),
+                    sha256hash:  v.sha256hash.as_deref(),
+                    path:        v.path.as_ref().map(|p| p.print(store.store_dir())),
+                    name:        &v.name,
+                    defaultpath: v.default_path.as_deref(),
+                }
             })
             .collect(),
-        metrics: res
+        metrics:        res
             .metrics
             .iter()
-            .map(|m| db::models::BuildMetric {
-                name: &m.name,
-                unit: m.unit.as_deref(),
-                value: m.value,
+            .map(|m| {
+                db::models::BuildMetric {
+                    name:  &m.name,
+                    unit:  m.unit.as_deref(),
+                    value: m.value,
+                }
             })
             .collect(),
     }

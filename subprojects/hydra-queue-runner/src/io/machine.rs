@@ -1,23 +1,26 @@
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::{
+    Arc,
+    atomic::Ordering,
+};
 
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pressure {
-    avg10: f32,
-    avg60: f32,
+    avg10:  f32,
+    avg60:  f32,
     avg300: f32,
-    total: u64,
+    total:  u64,
 }
 
 impl From<crate::state::Pressure> for Pressure {
     fn from(v: crate::state::Pressure) -> Self {
         Self {
-            avg10: v.avg10,
-            avg60: v.avg60,
+            avg10:  v.avg10,
+            avg60:  v.avg60,
             avg300: v.avg300,
-            total: v.total,
+            total:  v.total,
         }
     }
 }
@@ -28,46 +31,46 @@ pub struct PressureState {
     cpu_some: Option<Pressure>,
     mem_some: Option<Pressure>,
     mem_full: Option<Pressure>,
-    io_some: Option<Pressure>,
-    io_full: Option<Pressure>,
+    io_some:  Option<Pressure>,
+    io_full:  Option<Pressure>,
     irq_full: Option<Pressure>,
 }
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineStats {
-    current_jobs: u64,
-    nr_steps_done: u64,
-    avg_step_time_ms: u64,
-    avg_step_import_time_ms: u64,
-    avg_step_build_time_ms: u64,
-    avg_step_upload_time_ms: u64,
-    total_step_time_ms: u64,
+    current_jobs:              u64,
+    nr_steps_done:             u64,
+    avg_step_time_ms:          u64,
+    avg_step_import_time_ms:   u64,
+    avg_step_build_time_ms:    u64,
+    avg_step_upload_time_ms:   u64,
+    total_step_time_ms:        u64,
     total_step_import_time_ms: u64,
-    total_step_build_time_ms: u64,
+    total_step_build_time_ms:  u64,
     total_step_upload_time_ms: u64,
-    idle_since: i64,
+    idle_since:                i64,
 
-    last_failure: i64,
-    disabled_until: i64,
+    last_failure:         i64,
+    disabled_until:       i64,
     consecutive_failures: u64,
-    last_ping: i64,
-    since_last_ping: i64,
+    last_ping:            i64,
+    since_last_ping:      i64,
 
-    load1: f32,
-    load5: f32,
-    load15: f32,
-    mem_usage: u64,
-    pressure: Option<PressureState>,
-    build_dir_free_percent: f64,
-    store_free_percent: f64,
-    current_uploading_path_count: u64,
+    load1:                          f32,
+    load5:                          f32,
+    load15:                         f32,
+    mem_usage:                      u64,
+    pressure:                       Option<PressureState>,
+    build_dir_free_percent:         f64,
+    store_free_percent:             f64,
+    current_uploading_path_count:   u64,
     current_downloading_path_count: u64,
 
     jobs_in_last_30s_start: i64,
     jobs_in_last_30s_count: u64,
-    pub failed_builds: u64,
-    pub succeeded_builds: u64,
+    pub failed_builds:      u64,
+    pub succeeded_builds:   u64,
 }
 
 impl MachineStats {
@@ -116,13 +119,15 @@ impl MachineStats {
             load5: item.get_load5(),
             load15: item.get_load15(),
             mem_usage: item.get_mem_usage(),
-            pressure: item.pressure.load().as_ref().map(|p| PressureState {
-                cpu_some: p.cpu_some.map(Into::into),
-                mem_some: p.mem_some.map(Into::into),
-                mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
-                irq_full: p.irq_full.map(Into::into),
+            pressure: item.pressure.load().as_ref().map(|p| {
+                PressureState {
+                    cpu_some: p.cpu_some.map(Into::into),
+                    mem_some: p.mem_some.map(Into::into),
+                    mem_full: p.mem_full.map(Into::into),
+                    io_some:  p.io_some.map(Into::into),
+                    io_full:  p.io_full.map(Into::into),
+                    irq_full: p.irq_full.map(Into::into),
+                }
             }),
             build_dir_free_percent: item.get_build_dir_free_percent(),
             store_free_percent: item.get_store_free_percent(),
@@ -140,33 +145,33 @@ impl MachineStats {
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Machine {
-    systems: SmallVec<[crate::state::System; 4]>,
-    hostname: String,
-    uptime: f64,
-    cpu_count: u32,
-    bogomips: f32,
-    speed_factor: f32,
-    max_jobs: u32,
+    systems:                   SmallVec<[crate::state::System; 4]>,
+    hostname:                  String,
+    uptime:                    f64,
+    cpu_count:                 u32,
+    bogomips:                  f32,
+    speed_factor:              f32,
+    max_jobs:                  u32,
     build_dir_avail_threshold: f64,
-    store_avail_threshold: f64,
-    load1_threshold: f32,
-    cpu_psi_threshold: f32,
-    mem_psi_threshold: f32,
-    io_psi_threshold: Option<f32>,
-    score: f32,
-    total_mem: u64,
-    supported_features: SmallVec<[String; 8]>,
-    mandatory_features: SmallVec<[String; 4]>,
-    cgroups: bool,
-    substituters: SmallVec<[String; 4]>,
-    use_substitutes: bool,
-    nix_version: String,
-    stats: MachineStats,
-    jobs: Vec<nix_utils::StorePath>,
+    store_avail_threshold:     f64,
+    load1_threshold:           f32,
+    cpu_psi_threshold:         f32,
+    mem_psi_threshold:         f32,
+    io_psi_threshold:          Option<f32>,
+    score:                     f32,
+    total_mem:                 u64,
+    supported_features:        SmallVec<[String; 8]>,
+    mandatory_features:        SmallVec<[String; 4]>,
+    cgroups:                   bool,
+    substituters:              SmallVec<[String; 4]>,
+    use_substitutes:           bool,
+    nix_version:               String,
+    stats:                     MachineStats,
+    jobs:                      Vec<nix_utils::StorePath>,
 
-    has_capacity: bool,
+    has_capacity:         bool,
     has_dynamic_capacity: bool,
-    has_static_capacity: bool,
+    has_static_capacity:  bool,
 }
 
 impl Machine {

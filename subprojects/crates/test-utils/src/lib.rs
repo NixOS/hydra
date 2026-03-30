@@ -4,9 +4,14 @@
 //! `Test::PostgreSQL`), loads the hydra schema, and hands back a
 //! [`sqlx::PgPool`]. Cleaned up automatically on drop.
 
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    path::PathBuf,
+    process::Command,
+    sync::atomic::{
+        AtomicU32,
+        Ordering,
+    },
+};
 
 /// An Ephemeral PostgreSQL instance.
 ///
@@ -14,7 +19,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// run in parallel without interference.
 #[derive(Debug)]
 pub struct TestPg {
-    dir: PathBuf,
+    dir:  PathBuf,
     port: u16,
 }
 

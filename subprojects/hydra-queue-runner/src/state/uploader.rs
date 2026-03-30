@@ -1,5 +1,7 @@
-use backon::ExponentialBuilder;
-use backon::Retryable as _;
+use backon::{
+    ExponentialBuilder,
+    Retryable as _,
+};
 use nix_utils::BaseStore as _;
 
 #[allow(clippy::unnecessary_wraps)]
@@ -13,15 +15,15 @@ where
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct Message {
     #[serde(skip_serializing, deserialize_with = "deserialize_with_new_v4")]
-    id: uuid::Uuid,
-    store_paths: std::sync::Arc<Vec<nix_utils::StorePath>>,
+    id:              uuid::Uuid,
+    store_paths:     std::sync::Arc<Vec<nix_utils::StorePath>>,
     log_remote_path: std::sync::Arc<String>,
-    log_local_path: std::sync::Arc<String>,
+    log_local_path:  std::sync::Arc<String>,
 }
 
 #[derive(Debug)]
 pub struct Uploader {
-    queue: super::InspectableChannel<Message>,
+    queue:         super::InspectableChannel<Message>,
     current_tasks: parking_lot::RwLock<Vec<Message>>,
 
     state_file_path: std::path::PathBuf,
@@ -83,10 +85,10 @@ impl Uploader {
     ) {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
         self.queue.send(Message {
-            id: uuid::Uuid::new_v4(),
-            store_paths: std::sync::Arc::new(store_paths),
+            id:              uuid::Uuid::new_v4(),
+            store_paths:     std::sync::Arc::new(store_paths),
             log_remote_path: std::sync::Arc::new(log_remote_path),
-            log_local_path: std::sync::Arc::new(log_local_path),
+            log_local_path:  std::sync::Arc::new(log_local_path),
         });
         let _ = self.save_state().await;
     }
@@ -110,7 +112,7 @@ impl Uploader {
             Err(e) => {
                 tracing::error!("Failed to query requisites: {e}");
                 return;
-            }
+            },
         };
         tracing::info!(
             "{} paths results in {} paths_to_copy",
@@ -122,15 +124,21 @@ impl Uploader {
             let bucket = &remote_store.cfg.client_config.bucket;
 
             // Upload log file with backon retry
-            let log_upload_result = (|| async {
-                let file = fs_err::tokio::File::open(msg.log_local_path.as_str()).await?;
-                let reader = Box::new(tokio::io::BufReader::new(file));
+            let log_upload_result = (|| {
+                async {
+                    let file = fs_err::tokio::File::open(msg.log_local_path.as_str()).await?;
+                    let reader = Box::new(tokio::io::BufReader::new(file));
 
-                remote_store
-                    .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
-                    .await?;
+                    remote_store
+                        .upsert_file_stream(
+                            &msg.log_remote_path,
+                            reader,
+                            "text/plain; charset=utf-8",
+                        )
+                        .await?;
 
-                Ok::<(), anyhow::Error>(())
+                    Ok::<(), anyhow::Error>(())
+                }
             })
             .retry(
                 ExponentialBuilder::default()
@@ -151,12 +159,14 @@ impl Uploader {
                 paths_to_copy.len()
             );
 
-            let copy_result = (|| async {
-                remote_store
-                    .copy_paths(&local_store, paths_to_copy.clone(), false)
-                    .await?;
+            let copy_result = (|| {
+                async {
+                    remote_store
+                        .copy_paths(&local_store, paths_to_copy.clone(), false)
+                        .await?;
 
-                Ok::<(), anyhow::Error>(())
+                    Ok::<(), anyhow::Error>(())
+                }
             })
             .retry(
                 ExponentialBuilder::default()

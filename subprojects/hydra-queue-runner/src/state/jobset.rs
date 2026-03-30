@@ -1,7 +1,15 @@
-use std::collections::BTreeMap;
-use std::hash::Hash;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
+use std::{
+    collections::BTreeMap,
+    hash::Hash,
+    sync::{
+        Arc,
+        atomic::{
+            AtomicI64,
+            AtomicU32,
+            Ordering,
+        },
+    },
+};
 
 use hashbrown::HashMap;
 
@@ -10,14 +18,14 @@ pub(super) const SCHEDULING_WINDOW: i64 = 24 * 60 * 60;
 
 #[derive(Debug)]
 pub struct Jobset {
-    pub id: JobsetID,
+    pub id:           JobsetID,
     pub project_name: String,
-    pub name: String,
+    pub name:         String,
 
     seconds: AtomicI64,
-    shares: AtomicU32,
+    shares:  AtomicU32,
     // The start time and duration of the most recent build steps.
-    steps: parking_lot::RwLock<BTreeMap<i64, i64>>,
+    steps:   parking_lot::RwLock<BTreeMap<i64, i64>>,
 }
 
 impl PartialEq for Jobset {
@@ -210,7 +218,8 @@ impl Jobsets {
                 && let Err(e) = i.set_shares(row.schedulingshares)
             {
                 tracing::error!(
-                    "Failed to update jobset scheduling shares. project_name={} jobset_name={} e={}",
+                    "Failed to update jobset scheduling shares. project_name={} jobset_name={} \
+                     e={}",
                     row.project,
                     row.name,
                     e,

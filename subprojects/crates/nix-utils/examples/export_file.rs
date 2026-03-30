@@ -1,4 +1,7 @@
-use nix_utils::{self, BaseStore as _};
+use nix_utils::{
+    self,
+    BaseStore as _,
+};
 
 #[tokio::main]
 async fn main() {
@@ -16,15 +19,17 @@ async fn main() {
         }
     });
 
-    tokio::task::spawn_blocking(move || async move {
-        store
-            .export_paths(
-                &[nix_utils::parse_store_path(
-                    "5g60vyp4cbgwl12pav5apyi571smp62s-hello-2.12.2.drv",
-                )],
-                closure,
-            )
-            .unwrap();
+    tokio::task::spawn_blocking(move || {
+        async move {
+            store
+                .export_paths(
+                    &[nix_utils::parse_store_path(
+                        "5g60vyp4cbgwl12pav5apyi571smp62s-hello-2.12.2.drv",
+                    )],
+                    closure,
+                )
+                .unwrap();
+        }
     })
     .await
     .unwrap()

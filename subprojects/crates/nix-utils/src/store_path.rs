@@ -1,10 +1,16 @@
 #[allow(unreachable_pub)]
 pub use harmonia_store_core::store_path::{
-    ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
+    ParseStorePathError,
+    StoreDir,
+    StoreDirDisplay,
+    StorePath,
+    StorePathHash,
+    StorePathName,
 };
 
-/// Parse a store path from a string that may or may not have the store dir prefix.
-/// Handles paths inside store outputs (e.g. `/nix/store/hash-name/subdir/file`).
+/// Parse a store path from a string that may or may not have the store dir
+/// prefix. Handles paths inside store outputs (e.g.
+/// `/nix/store/hash-name/subdir/file`).
 #[must_use]
 pub fn parse_store_path(s: &str) -> StorePath {
     let after_store = s.find("/store/").map_or(s, |i| &s[i + 7..]);

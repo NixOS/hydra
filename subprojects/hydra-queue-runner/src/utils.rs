@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
 
 use db::models::BuildID;
-use nix_utils::{BaseStore as _, StorePath};
+use nix_utils::{
+    BaseStore as _,
+    StorePath,
+};
 
 use crate::state::RemoteBuild;
 
@@ -33,7 +36,7 @@ pub async fn finish_build_step(
         error_msg: res.error_msg.as_deref(),
         start_time: res.get_start_time_as_i32()?,
         stop_time: res.get_stop_time_as_i32()?,
-        machine: machine,
+        machine,
         overhead: res.get_overhead(),
         times_built: res.get_times_built(),
         is_non_deterministic: res.get_is_non_deterministic(),

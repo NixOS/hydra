@@ -11,7 +11,7 @@ use crate::CacheError;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct DebugInfoLink {
     pub(crate) archive: String,
-    pub(crate) member: String,
+    pub(crate) member:  String,
 }
 
 /// Processes debug info for a given store path using a custom full path.
@@ -159,7 +159,7 @@ mod tests {
         ) -> Result<(), CacheError> {
             let link = DebugInfoLink {
                 archive: format!("../{nar_url}"),
-                member: debug_path,
+                member:  debug_path,
             };
 
             self.created_links.lock().unwrap().push(link);
@@ -477,7 +477,7 @@ mod tests {
     async fn test_debug_info_link_serialization() {
         let link = DebugInfoLink {
             archive: "../test.nar".to_string(),
-            member: "lib/debug/.build-id/ab/cdef1234567890123456789012345678901234.debug"
+            member:  "lib/debug/.build-id/ab/cdef1234567890123456789012345678901234.debug"
                 .to_string(),
         };
 
