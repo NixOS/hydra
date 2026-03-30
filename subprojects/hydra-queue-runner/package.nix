@@ -29,6 +29,8 @@ rustPlatform.buildRustPackage {
       ../../subprojects/hydra-builder/build.rs
       ../../subprojects/hydra-builder/src
       ../../subprojects/crates
+      # For unit tests which want to spin up a fresh database
+      ../../subprojects/hydra/sql/hydra.sql
       ../../subprojects/proto
     ];
   };
