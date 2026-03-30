@@ -491,22 +491,16 @@ impl Machines {
 pub struct Job {
     pub internal_build_id: uuid::Uuid,
     pub path: nix_utils::StorePath,
-    pub resolved_drv: Option<nix_utils::StorePath>,
     pub build_id: BuildID,
     pub step_nr: i32,
     pub result: RemoteBuild,
 }
 
 impl Job {
-    pub fn new(
-        build_id: BuildID,
-        path: nix_utils::StorePath,
-        resolved_drv: Option<nix_utils::StorePath>,
-    ) -> Self {
+    pub fn new(build_id: BuildID, path: nix_utils::StorePath) -> Self {
         Self {
             internal_build_id: uuid::Uuid::new_v4(),
             path,
-            resolved_drv,
             build_id,
             step_nr: 0,
             result: RemoteBuild::new(),
@@ -538,7 +532,6 @@ pub enum Message {
     BuildMessage {
         build_id: uuid::Uuid,
         drv: nix_utils::StorePath,
-        resolved_drv: Option<nix_utils::StorePath>,
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
@@ -560,7 +553,6 @@ impl Message {
             Self::BuildMessage {
                 build_id,
                 drv,
-                resolved_drv,
                 max_log_size,
                 max_silent_time,
                 build_timeout,
@@ -568,7 +560,6 @@ impl Message {
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
                 drv: Some(shared::proto::ProtoStorePath::from(drv)),
-                resolved_drv: resolved_drv.map(shared::proto::ProtoStorePath::from),
                 max_log_size,
                 max_silent_time,
                 build_timeout,
@@ -694,15 +685,15 @@ impl Machine {
     pub async fn build_drv(
         &self,
         job: Job,
+        effective_drv: nix_utils::StorePath,
         opts: &nix_utils::BuildOptions,
         presigned_url_opts: Option<PresignedUrlOpts>,
     ) -> anyhow::Result<()> {
-        let drv = job.path.clone();
+        let drv = effective_drv;
         self.msg_queue
             .send(Message::BuildMessage {
                 build_id: job.internal_build_id,
                 drv,
-                resolved_drv: job.resolved_drv.clone(),
                 max_log_size: opts.get_max_log_size(),
                 max_silent_time: opts.get_max_silent_time(),
                 build_timeout: opts.get_build_timeout(),
