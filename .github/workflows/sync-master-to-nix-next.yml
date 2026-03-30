@@ -1,0 +1,39 @@
+name: Sync master into nix-next
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: nix-next
+          fetch-depth: 0
+      - name: Create PR to merge master into nix-next
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if a sync PR already exists
+          existing=$(gh pr list --base nix-next --head master --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "Sync PR #$existing already exists, skipping"
+            exit 0
+          fi
+
+          # Check if master is already merged into nix-next
+          if git merge-base --is-ancestor origin/master origin/nix-next; then
+            echo "nix-next is already up to date with master"
+            exit 0
+          fi
+
+          gh pr create \
+            --base nix-next \
+            --head master \
+            --title "Merge \`master\` into \`nix-next\`" \
+            --body "Automated PR to keep \`nix-next\` in sync with \`master\`."
