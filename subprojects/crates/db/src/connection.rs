@@ -1,5 +1,7 @@
 use sqlx::Acquire;
 
+use harmonia_store_core::store_path::StoreDir;
+
 use super::models::{
     Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
     InsertBuildStep, InsertBuildStepOutput, Jobset, UpdateBuild, UpdateBuildStep,
@@ -44,9 +46,12 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_not_finished_builds(&mut self) -> sqlx::Result<Vec<Build>> {
-        sqlx::query_as!(
-            Build,
+    pub async fn get_not_finished_builds(
+        &mut self,
+        store_dir: &StoreDir,
+    ) -> anyhow::Result<Vec<Build>> {
+        let rows = sqlx::query_as!(
+            Build::<String>,
             r#"
             SELECT
               builds.id,
@@ -65,7 +70,10 @@ impl Connection {
             WHERE finished = 0 ORDER BY globalPriority desc, schedulingshares, random();"#
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?;
+        rows.into_iter()
+            .map(|r| Ok(r.parse_paths(store_dir)?))
+            .collect()
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -237,9 +245,10 @@ impl Connection {
     pub async fn get_build_products_for_build_id(
         &mut self,
         build_id: i32,
-    ) -> sqlx::Result<Vec<crate::models::OwnedBuildProduct>> {
-        sqlx::query_as!(
-            super::models::OwnedBuildProduct,
+        store_dir: &StoreDir,
+    ) -> anyhow::Result<Vec<crate::models::OwnedBuildProduct>> {
+        let rows = sqlx::query_as!(
+            crate::models::OwnedBuildProduct::<String>,
             r#"
             SELECT
               type,
@@ -254,7 +263,10 @@ impl Connection {
             build_id
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?;
+        rows.into_iter()
+            .map(|r| Ok(r.parse_paths(store_dir)?))
+            .collect()
     }
 
     pub async fn get_build_metrics_for_build_id(
@@ -281,6 +293,10 @@ impl Connection {
     /// look up `root.drv`'s `out1` output to get an intermediate drv path,
     /// then look up that drv's `out2`, etc. Returns the final resolved path
     /// for each chain (or `None` if any step fails).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the SQL `ordinality` column is negative (should never happen).
     pub async fn resolve_drv_output_chains(
         &mut self,
         chains: &[(&str, &[&str])],
@@ -348,7 +364,9 @@ impl Connection {
 
         let mut results = vec![None; chains.len()];
         for (idx, path) in rows {
-            results[(idx - 1) as usize] = path;
+            #[allow(clippy::expect_used)]
+            let i = usize::try_from(idx - 1).expect("SQL ordinality is always positive");
+            results[i] = path;
         }
         Ok(results)
     }
@@ -592,7 +610,7 @@ impl Transaction<'_> {
     #[tracing::instrument(skip(self, outputs), err)]
     pub async fn insert_build_step_outputs(
         &mut self,
-        outputs: &[InsertBuildStepOutput],
+        outputs: &[InsertBuildStepOutput<String>],
     ) -> sqlx::Result<()> {
         if outputs.is_empty() {
             return Ok(());
@@ -849,7 +867,7 @@ impl Transaction<'_> {
         self.insert_build_step_outputs(
             &outputs
                 .into_iter()
-                .map(|(name, path)| InsertBuildStepOutput {
+                .map(|(name, path)| InsertBuildStepOutput::<String> {
                     build_id,
                     step_nr,
                     name,
@@ -902,7 +920,7 @@ impl Transaction<'_> {
             }
         };
 
-        self.insert_build_step_outputs(&[InsertBuildStepOutput {
+        self.insert_build_step_outputs(&[InsertBuildStepOutput::<String> {
             build_id,
             step_nr,
             name: output.0,
@@ -913,13 +931,17 @@ impl Transaction<'_> {
         Ok(step_nr)
     }
 
-    #[tracing::instrument(skip(self, build, is_cached_build, start_time, stop_time,), err)]
+    #[tracing::instrument(
+        skip(self, build, is_cached_build, start_time, stop_time, store_dir),
+        err
+    )]
     pub async fn mark_succeeded_build(
         &mut self,
         build: crate::models::MarkBuildSuccessData<'_>,
         is_cached_build: bool,
         start_time: i32,
         stop_time: i32,
+        store_dir: &StoreDir,
     ) -> anyhow::Result<()> {
         if build.finished_in_db {
             return Ok(());
@@ -948,7 +970,12 @@ impl Transaction<'_> {
         .await?;
 
         for (name, path) in &build.outputs {
-            self.update_build_output(build.id, name, path).await?;
+            self.update_build_output(
+                build.id,
+                name.as_ref(),
+                &store_dir.display(path).to_string(),
+            )
+            .await?;
         }
 
         self.delete_build_products_by_build_id(build.id).await?;

@@ -44,7 +44,7 @@ pub async fn query_drv(
 }
 
 /// Resolve output paths for all outputs. Returns `None` for outputs whose
-/// paths cannot be determined before building (Deferred, CAFloating, Impure).
+/// paths cannot be determined before building (`Deferred`, `CAFloating`, `Impure`).
 pub fn output_paths(
     drv: &Derivation,
     store_dir: &StoreDir,

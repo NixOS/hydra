@@ -707,7 +707,7 @@ impl S3BinaryCacheClient {
         }
 
         match self
-            .get_object(&format!("{}.narinfo", store_path.hash().to_string()))
+            .get_object(&format!("{}.narinfo", store_path.hash()))
             .await?
         {
             Some(v) => {
@@ -816,7 +816,7 @@ impl S3BinaryCacheClient {
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
         let ls_upload = if self.cfg.write_nar_listing {
-            let s3_file_path = format!("{}.ls", path.hash().to_string());
+            let s3_file_path = format!("{}.ls", path.hash());
             Some(PresignedUpload {
                 url: self
                     .s3
