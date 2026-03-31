@@ -124,7 +124,6 @@ message PresignedUploadOpts {
 message BuildMessage {
   string build_id = 1; // UUIDv4
   string drv = 2;
-  optional string resolved_drv = 3;
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
   int32 build_timeout = 6;

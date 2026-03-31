@@ -490,23 +490,17 @@ impl Machines {
 #[derive(Debug, Clone)]
 pub struct Job {
     pub internal_build_id: uuid::Uuid,
-    pub path: nix_utils::StorePath,
-    pub resolved_drv: Option<nix_utils::StorePath>,
+    pub drv: nix_utils::StorePath,
     pub build_id: BuildID,
     pub step_nr: i32,
     pub result: RemoteBuild,
 }
 
 impl Job {
-    pub fn new(
-        build_id: BuildID,
-        path: nix_utils::StorePath,
-        resolved_drv: Option<nix_utils::StorePath>,
-    ) -> Self {
+    pub fn new(build_id: BuildID, drv: nix_utils::StorePath) -> Self {
         Self {
             internal_build_id: uuid::Uuid::new_v4(),
-            path,
-            resolved_drv,
+            drv,
             build_id,
             step_nr: 0,
             result: RemoteBuild::new(),
@@ -538,7 +532,6 @@ pub enum Message {
     BuildMessage {
         build_id: uuid::Uuid,
         drv: nix_utils::StorePath,
-        resolved_drv: Option<nix_utils::StorePath>,
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
@@ -560,7 +553,6 @@ impl Message {
             Self::BuildMessage {
                 build_id,
                 drv,
-                resolved_drv,
                 max_log_size,
                 max_silent_time,
                 build_timeout,
@@ -568,7 +560,6 @@ impl Message {
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
                 drv: drv.to_string(),
-                resolved_drv: resolved_drv.map(|p| p.to_string()),
                 max_log_size,
                 max_silent_time,
                 build_timeout,
@@ -697,12 +688,10 @@ impl Machine {
         opts: &nix_utils::BuildOptions,
         presigned_url_opts: Option<PresignedUrlOpts>,
     ) -> anyhow::Result<()> {
-        let drv = job.path.clone();
         self.msg_queue
             .send(Message::BuildMessage {
                 build_id: job.internal_build_id,
-                drv,
-                resolved_drv: job.resolved_drv.clone(),
+                drv: job.drv.clone(),
                 max_log_size: opts.get_max_log_size(),
                 max_silent_time: opts.get_max_silent_time(),
                 build_timeout: opts.get_build_timeout(),
@@ -842,7 +831,7 @@ impl Machine {
     pub fn get_build_id_and_step_nr(&self, drv: &nix_utils::StorePath) -> Option<(i32, i32)> {
         let jobs = self.jobs.read();
         jobs.iter()
-            .find(|j| &j.path == drv)
+            .find(|j| &j.drv == drv)
             .map(|j| (j.build_id, j.step_nr))
     }
 
@@ -859,14 +848,14 @@ impl Machine {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| j.internal_build_id == build_id)
-            .map(|v| v.path.clone())
+            .map(|v| v.drv.clone())
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
     pub fn get_internal_build_id_for_drv(&self, drv: &nix_utils::StorePath) -> Option<uuid::Uuid> {
         let jobs = self.jobs.read();
         jobs.iter()
-            .find(|j| &j.path == drv)
+            .find(|j| &j.drv == drv)
             .map(|v| v.internal_build_id)
     }
 
@@ -881,8 +870,8 @@ impl Machine {
     pub fn remove_job(&self, drv: &nix_utils::StorePath) -> Option<Job> {
         let job = {
             let mut jobs = self.jobs.write();
-            let job = jobs.iter().find(|j| &j.path == drv).cloned();
-            jobs.retain(|j| &j.path != drv);
+            let job = jobs.iter().find(|j| &j.drv == drv).cloned();
+            jobs.retain(|j| &j.drv != drv);
             self.stats.incr_nr_steps_done();
             self.stats.store_current_jobs(jobs.len() as u64);
             job

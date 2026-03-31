@@ -176,7 +176,7 @@ impl Machine {
         sort_fn: crate::config::MachineSortFn,
         free_fn: crate::config::MachineFreeFn,
     ) -> Self {
-        let jobs = { item.jobs.read().iter().map(|j| j.path.clone()).collect() };
+        let jobs = { item.jobs.read().iter().map(|j| j.drv.clone()).collect() };
         let time = jiff::Timestamp::now();
         Self {
             systems: item.systems.clone(),
