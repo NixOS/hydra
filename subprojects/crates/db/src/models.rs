@@ -1,3 +1,5 @@
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::{ParseStorePathError, StoreDir};
 use hashbrown::HashMap;
 
 pub type BuildID = i32;
@@ -68,18 +70,36 @@ pub struct BuildSmall {
 }
 
 #[derive(Debug)]
-pub struct Build {
+pub struct Build<StorePath = harmonia_store_core::store_path::StorePath> {
     pub id: BuildID,
     pub jobset_id: i32,
     pub project: String,
     pub jobset: String,
     pub job: String,
-    pub drvpath: String,
+    pub drvpath: StorePath,
     pub maxsilent: Option<i32>, // maxsilent integer default 3600
     pub timeout: Option<i32>,   // timeout integer default 36000
     pub timestamp: i64,
     pub globalpriority: i32,
     pub priority: i32,
+}
+
+impl Build<String> {
+    pub fn parse_paths(self, store_dir: &StoreDir) -> Result<Build, ParseStorePathError> {
+        Ok(Build {
+            id: self.id,
+            jobset_id: self.jobset_id,
+            project: self.project,
+            jobset: self.jobset,
+            job: self.job,
+            drvpath: store_dir.parse(&self.drvpath)?,
+            maxsilent: self.maxsilent,
+            timeout: self.timeout,
+            timestamp: self.timestamp,
+            globalpriority: self.globalpriority,
+            priority: self.priority,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -123,11 +143,25 @@ pub struct InsertBuildStep<'a> {
 }
 
 #[derive(Debug)]
-pub struct InsertBuildStepOutput {
+pub struct InsertBuildStepOutput<StorePath = harmonia_store_core::store_path::StorePath> {
     pub build_id: BuildID,
     pub step_nr: i32,
     pub name: String,
-    pub path: Option<String>,
+    pub path: Option<StorePath>,
+}
+
+impl InsertBuildStepOutput<String> {
+    pub fn parse_paths(
+        self,
+        store_dir: &StoreDir,
+    ) -> Result<InsertBuildStepOutput, ParseStorePathError> {
+        Ok(InsertBuildStepOutput {
+            build_id: self.build_id,
+            step_nr: self.step_nr,
+            name: self.name,
+            path: self.path.map(|p| store_dir.parse(&p)).transpose()?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -186,14 +220,31 @@ pub struct BuildOutput {
 }
 
 #[derive(Debug)]
-pub struct OwnedBuildProduct {
+pub struct OwnedBuildProduct<StorePath = harmonia_store_core::store_path::StorePath> {
     pub r#type: String,
     pub subtype: String,
     pub filesize: Option<i64>,
     pub sha256hash: Option<String>,
-    pub path: Option<String>,
+    pub path: Option<StorePath>,
     pub name: String,
     pub defaultpath: Option<String>,
+}
+
+impl OwnedBuildProduct<String> {
+    pub fn parse_paths(
+        self,
+        store_dir: &StoreDir,
+    ) -> Result<OwnedBuildProduct, ParseStorePathError> {
+        Ok(OwnedBuildProduct {
+            r#type: self.r#type,
+            subtype: self.subtype,
+            filesize: self.filesize,
+            sha256hash: self.sha256hash,
+            path: self.path.map(|p| store_dir.parse(&p)).transpose()?,
+            name: self.name,
+            defaultpath: self.defaultpath,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -222,7 +273,7 @@ pub struct BuildMetric<'a> {
 }
 
 #[derive(Debug)]
-pub struct MarkBuildSuccessData<'a> {
+pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_core::store_path::StorePath> {
     pub id: BuildID,
     pub name: &'a str,
     pub project_name: &'a str,
@@ -234,7 +285,7 @@ pub struct MarkBuildSuccessData<'a> {
     pub closure_size: u64,
     pub size: u64,
     pub release_name: Option<&'a str>,
-    pub outputs: HashMap<String, String>,
+    pub outputs: HashMap<OutputName, StorePath>,
     pub products: Vec<BuildProduct<'a>>,
     pub metrics: Vec<BuildMetric<'a>>,
 }

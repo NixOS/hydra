@@ -782,8 +782,9 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
-    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
-        requisites.into_iter().partition(nix_utils::StorePath::is_derivation);
+    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) = requisites
+        .into_iter()
+        .partition(nix_utils::StorePath::is_derivation);
 
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(

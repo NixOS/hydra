@@ -572,7 +572,7 @@ impl State {
         {
             let mut conn = self.db.get().await?;
             for b in conn
-                .get_not_finished_builds()
+                .get_not_finished_builds(self.store.store_dir())
                 .await?
                 .into_iter()
                 .filter(|b| b.id == build_id)
@@ -614,7 +614,7 @@ impl State {
 
         {
             let mut conn = self.db.get().await?;
-            for b in conn.get_not_finished_builds().await? {
+            for b in conn.get_not_finished_builds(self.store.store_dir()).await? {
                 let jobset = self
                     .jobsets
                     .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
@@ -1152,6 +1152,7 @@ impl State {
                     is_cached,
                     start_time,
                     stop_time,
+                    self.store.store_dir(),
                 )
                 .await?;
                 self.metrics.nr_builds_done.inc();
@@ -1963,6 +1964,7 @@ impl State {
                 true,
                 i32::try_from(now)?, // TODO
                 i32::try_from(now)?, // TODO
+                self.store.store_dir(),
             )
             .await?;
             self.metrics.nr_builds_done.inc();
@@ -2003,11 +2005,11 @@ impl State {
                 };
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id)
+                    .get_build_products_for_build_id(build_id, self.store.store_dir())
                     .await?
                     .into_iter()
-                    .map(|p| build::BuildProduct::from_db(self.store.store_dir(), p))
-                    .collect::<anyhow::Result<Vec<_>>>()?;
+                    .map(build::BuildProduct::from_db)
+                    .collect();
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?

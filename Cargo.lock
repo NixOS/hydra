@@ -823,6 +823,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "harmonia-store-core",
  "hashbrown 0.16.1",
  "jiff",
  "serde_json",

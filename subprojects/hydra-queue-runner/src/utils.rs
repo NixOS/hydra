@@ -13,7 +13,7 @@ pub async fn finish_build_step(
     step_nr: i32,
     res: &RemoteBuild,
     machine: Option<&str>,
-    output_paths: Option<&BTreeMap<String, StorePath>>,
+    output_paths: Option<&BTreeMap<nix_utils::OutputName, StorePath>>,
 ) -> anyhow::Result<()> {
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
@@ -46,17 +46,18 @@ pub async fn finish_build_step(
         .await?;
 
     if res.step_status == db::models::BuildStatus::Success
-        && let Some(output_paths) = output_paths {
-            for (name, path) in output_paths {
-                tx.update_build_step_output(
-                    build_id,
-                    step_nr,
-                    name.as_ref(),
-                    &store.print_store_path(path),
-                )
-                .await?;
-            }
+        && let Some(output_paths) = output_paths
+    {
+        for (name, path) in output_paths {
+            tx.update_build_step_output(
+                build_id,
+                step_nr,
+                name.as_ref(),
+                &store.print_store_path(path),
+            )
+            .await?;
         }
+    }
 
     tx.commit().await?;
     Ok(())
