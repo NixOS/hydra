@@ -110,16 +110,13 @@ impl State {
 
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
-            match uri.parse::<binary_cache::S3CacheConfig>() {
-                Ok(cfg) => {
-                    remote_stores.push(RemoteStoreBackend::S3(
-                        binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                    ));
-                }
-                Err(_) => {
-                    tracing::info!("Opening FFI store for: {uri}");
-                    remote_stores.push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(&uri)));
-                }
+            if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
+                remote_stores.push(RemoteStoreBackend::S3(
+                    binary_cache::S3BinaryCacheClient::new(cfg).await?,
+                ));
+            } else {
+                tracing::info!("Opening FFI store for: {uri}");
+                remote_stores.push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(&uri)));
             }
         }
 
@@ -167,17 +164,14 @@ impl State {
         let mut new_remote_stores = vec![];
         if curr_remote_stores != new_config.remote_store_addr {
             for uri in &new_config.remote_store_addr {
-                match uri.parse::<binary_cache::S3CacheConfig>() {
-                    Ok(cfg) => {
-                        new_remote_stores.push(RemoteStoreBackend::S3(
-                            binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                        ));
-                    }
-                    Err(_) => {
-                        tracing::info!("Opening FFI store for: {uri}");
-                        new_remote_stores
-                            .push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(uri)));
-                    }
+                if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
+                    new_remote_stores.push(RemoteStoreBackend::S3(
+                        binary_cache::S3BinaryCacheClient::new(cfg).await?,
+                    ));
+                } else {
+                    tracing::info!("Opening FFI store for: {uri}");
+                    new_remote_stores
+                        .push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(uri)));
                 }
             }
         }
@@ -1134,7 +1128,7 @@ impl State {
                 self.uploader
                     .schedule_upload(
                         outputs_to_upload,
-                        format!("log/{}", job.path.to_string()),
+                        format!("log/{}", job.path),
                         job.result.log_file.clone(),
                     )
                     .await;
@@ -1531,7 +1525,7 @@ impl State {
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
                         &self.store.print_store_path(step.get_drv_path()),
-                        &name.to_string(),
+                        name.as_ref(),
                     )
                     .await
                 };
@@ -1804,11 +1798,11 @@ impl State {
                 // we have all paths locally, so we can just upload them to the remote_store
                 if let Ok(log_file) = self.construct_log_file_path(&drv_path).await {
                     let missing_paths: Vec<nix_utils::StorePath> =
-                        missing.values().filter_map(|path| path.clone()).collect();
+                        missing.values().filter_map(Clone::clone).collect();
                     self.uploader
                         .schedule_upload(
                             missing_paths,
-                            format!("log/{}", drv_path.to_string()),
+                            format!("log/{drv_path}"),
                             log_file.to_string_lossy().to_string(),
                         )
                         .await;
@@ -1993,7 +1987,7 @@ impl State {
         let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
         {
             let mut db = self.db.get().await?;
-            for (_, out_path) in &output_paths {
+            for out_path in output_paths.values() {
                 let Some(out_path) = out_path else {
                     continue;
                 };

@@ -33,7 +33,7 @@ pub async fn finish_build_step(
         error_msg: res.error_msg.as_deref(),
         start_time: res.get_start_time_as_i32()?,
         stop_time: res.get_stop_time_as_i32()?,
-        machine: machine,
+        machine,
         overhead: res.get_overhead(),
         times_built: res.get_times_built(),
         is_non_deterministic: res.get_is_non_deterministic(),
@@ -45,19 +45,18 @@ pub async fn finish_build_step(
     tx.notify_step_finished(build_id, step_nr, &res.log_file)
         .await?;
 
-    if res.step_status == db::models::BuildStatus::Success {
-        if let Some(output_paths) = output_paths {
+    if res.step_status == db::models::BuildStatus::Success
+        && let Some(output_paths) = output_paths {
             for (name, path) in output_paths {
                 tx.update_build_step_output(
                     build_id,
                     step_nr,
                     name.as_ref(),
-                    &store.print_store_path(&path),
+                    &store.print_store_path(path),
                 )
                 .await?;
             }
         }
-    }
 
     tx.commit().await?;
     Ok(())

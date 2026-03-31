@@ -128,7 +128,7 @@ impl NarInfo {
 
     #[must_use]
     pub fn get_ls_path(&self) -> String {
-        format!("{}.ls", self.store_path.hash().to_string())
+        format!("{}.ls", self.store_path.hash())
     }
 
     pub fn render(&self, store_dir: &StoreDir) -> Result<String, std::fmt::Error> {
@@ -156,7 +156,7 @@ impl NarInfo {
         )?;
 
         if let Some(d) = &self.deriver {
-            writeln!(o, "Deriver: {}", d.to_string())?;
+            writeln!(o, "Deriver: {d}")?;
         }
         if let Some(ca) = &self.ca {
             writeln!(o, "CA: {ca}")?;
