@@ -123,8 +123,8 @@ message PresignedUploadOpts {
 
 message BuildMessage {
   string build_id = 1; // UUIDv4
-  string drv = 2;
-  optional string resolved_drv = 3;
+  StorePath drv = 2;
+  optional StorePath resolved_drv = 3;
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
   int32 build_timeout = 6;
@@ -134,7 +134,7 @@ message BuildMessage {
 }
 
 message DrvRequisitesMessage {
-  repeated string requisites = 1;
+  repeated StorePath requisites = 1;
 }
 
 message AbortMessage {
@@ -142,12 +142,12 @@ message AbortMessage {
 }
 
 message LogChunk {
-  string drv = 1;
+  StorePath drv = 1;
   bytes data = 2;
 }
 
 message FetchRequisitesRequest {
-  string path = 1;
+  StorePath path = 1;
   bool include_outputs = 2;
 }
 
@@ -156,7 +156,7 @@ message StorePath {
 }
 
 message StorePaths {
-  repeated string paths = 1;
+  repeated StorePath paths = 1;
 }
 
 message HasPathResponse {
@@ -173,7 +173,7 @@ message OutputNameOnly {
 
 message OutputWithPath {
   string name = 1;
-  string path = 2;
+  StorePath path = 2;
   uint64 closure_size = 3;
   uint64 nar_size = 4;
   string nar_hash = 5;
