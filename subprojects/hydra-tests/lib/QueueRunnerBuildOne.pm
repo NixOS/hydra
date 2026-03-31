@@ -56,25 +56,27 @@ sub _dump_harness {
 }
 
 sub runBuilds {
-    my @builds = @_;
+    my ($ctx, @builds) = @_;
+    ref $ctx eq 'HydraTestContext' or die "runBuilds requires a HydraTestContext as first argument\n";
     my @build_ids = map { $_->id } @builds;
 
     my $grpc_port = _get_random_port(5000, 9999);
     my $http_port = _get_random_port(10000, 19999);
 
-    # Use the temp dir provided by the test harness, or HYDRA_DATA as fallback.
-    my $config_dir = $ENV{T2_HARNESS_TEMP_DIR} // $ENV{HYDRA_DATA}
-        // die "HYDRA_DATA must be set\n";
+    my $config_dir = $ENV{T2_HARNESS_TEMP_DIR}
+        // $ctx->{central_env}{'HYDRA_DATA'};
     my $config_file = "$config_dir/config.toml";
 
-    # Read store settings from the Apache-style HYDRA_CONFIG if present.
-    my $hydra_config = getHydraConfig();
+    # Read store settings from the Hydra config file.
+    my $hydra_config_file = $ctx->{central_env}{'HYDRA_CONFIG'};
+    my $hydra_config = ($hydra_config_file && -f $hydra_config_file)
+        ? Hydra::Config::loadConfig($hydra_config_file) : {};
     my $dest_store_uri = $hydra_config->{store_uri} // "";
     my $use_substitutes = $hydra_config->{'use-substitutes'} // "";
 
     # Write the TOML config for the queue runner.
     {
-        my $db_url = $ENV{HYDRA_DATABASE_URL} // die "HYDRA_DATABASE_URL must be set\n";
+        my $db_url = $ctx->{central_env}{'HYDRA_DATABASE_URL'};
         open(my $fh, '>', $config_file) or die "Cannot write $config_file: $!\n";
         print $fh "dbUrl = \"$db_url\"\n";
         print $fh "hydraDataDir = \"$config_dir/data\"\n";
@@ -83,22 +85,25 @@ sub runBuilds {
         close($fh);
     }
 
-    local $ENV{RUST_LOG} = "queue_runner=debug,info";
-    local $ENV{NO_COLOR} = "1";
-
     my ($qr_in, $qr_out, $qr_err) = ("", "", "");
     my ($bl_in, $bl_out, $bl_err) = ("", "", "");
 
-    # Start the queue runner as a managed IPC::Run harness.
-    my $qr_harness = IPC::Run::start(
-        ["hydra-queue-runner",
-            "--config-path", $config_file,
-            "--rest-bind", "[::]:$http_port",
-            "--grpc-bind", "[::]:$grpc_port",
-            "--disable-queue-monitor-loop",
-        ],
-        \$qr_in, \$qr_out, \$qr_err,
-    );
+    # Start the queue runner with central env applied.
+    my $qr_harness;
+    {
+        local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+        local $ENV{RUST_LOG} = "queue_runner=debug,info";
+        local $ENV{NO_COLOR} = "1";
+        $qr_harness = IPC::Run::start(
+            ["hydra-queue-runner",
+                "--config-path", $config_file,
+                "--rest-bind", "[::]:$http_port",
+                "--grpc-bind", "[::]:$grpc_port",
+                "--disable-queue-monitor-loop",
+            ],
+            \$qr_in, \$qr_out, \$qr_err,
+        );
+    }
 
     my $base_url = "http://[::1]:$http_port";
     my $ua = LWP::UserAgent->new(timeout => 2);
@@ -112,13 +117,19 @@ sub runBuilds {
         _wait_for($ua, "$base_url/status")
             or die "Timed out waiting for queue-runner REST server\n";
 
-        # Start the builder.
-        $bl_harness = IPC::Run::start(
-            ["hydra-builder",
-                "--gateway-endpoint", "http://[::1]:$grpc_port",
-            ],
-            \$bl_in, \$bl_out, \$bl_err,
-        );
+        # Start the builder with its own store settings.
+        {
+            local $ENV{NIX_REMOTE} = $ctx->{builder}{store_uri};
+            local $ENV{NIX_CONF_DIR} = $ctx->{central_env}{'NIX_CONF_DIR'};
+            local $ENV{RUST_LOG} = "hydra_builder=debug,info";
+            local $ENV{NO_COLOR} = "1";
+            $bl_harness = IPC::Run::start(
+                ["hydra-builder",
+                    "--gateway-endpoint", "http://[::1]:$grpc_port",
+                ],
+                \$bl_in, \$bl_out, \$bl_err,
+            );
+        }
 
         # Wait for the builder to register as a machine.
         _wait_for($ua, "$base_url/status/machines", sub {
@@ -181,8 +192,8 @@ sub runBuilds {
 }
 
 sub runBuild {
-    my ($build) = @_;
-    return runBuilds($build);
+    my ($ctx, $build) = @_;
+    return runBuilds($ctx, $build);
 }
 
 1;

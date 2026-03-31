@@ -10,14 +10,11 @@ sub getHydraPath {
     return $dir;
 }
 
-sub getHydraDBPath {
-    return $ENV{"HYDRA_DBI"} || "dbi:Pg:dbname=hydra;";
-}
-
 __PACKAGE__->config(
     schema_class => 'Hydra::Schema',
     connect_info => {
-        dsn => getHydraDBPath
+        # Get the hydra database string
+        dsn => $ENV{"HYDRA_DBI"} || "dbi:Pg:dbname=hydra;"
     },
 );
 

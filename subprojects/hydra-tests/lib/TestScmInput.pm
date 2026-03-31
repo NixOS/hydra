@@ -39,7 +39,7 @@ sub testScmInput {
   my $jobsdir = $args{jobsdir} // die "required arg 'jobsdir' missing";
 
   my $db = $args{db} // die "required arg 'db' missing";
-
+  my $ctx = $args{ctx};
   my $update = $args{update} // die "required arg 'update' missing";
   $update = "$testdir/$update";
 
@@ -59,12 +59,12 @@ sub testScmInput {
     my ($loop, $updated) = updateRepository($name, $update, $scratchdir);
     while ($loop) {
       subtest "Mutation number $mutations" => sub {
-        ok(evalSucceeds($jobset), "Evaluating nix-expression.");
+        ok(evalSucceeds($ctx, $jobset), "Evaluating nix-expression.");
 
         if ($updated) {
           $queueSize++;
           is(nrQueuedBuildsForJobset($jobset), $queueSize, "Expect $queueSize jobs in the queue.");
-          ok(evalSucceeds($jobset), "Evaluating nix-expression again.");
+          ok(evalSucceeds($ctx, $jobset), "Evaluating nix-expression again.");
         }
 
         is(nrQueuedBuildsForJobset($jobset), $queueSize, "Expect deterministic evaluation.");

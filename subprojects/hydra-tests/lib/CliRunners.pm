@@ -14,7 +14,8 @@ our @EXPORT = qw(
 );
 
 sub evalSucceeds {
-    my ($jobset) = @_;
+    my ($ctx, $jobset) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
@@ -29,7 +30,8 @@ sub evalSucceeds {
 }
 
 sub evalFails {
-    my ($jobset) = @_;
+    my ($ctx, $jobset) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
@@ -43,7 +45,9 @@ sub evalFails {
     return !!$res;
 }
 
-sub sendNotifications() {
+sub sendNotifications {
+    my ($ctx) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-notify", "--queued-only"));
     if ($res) {
         utf8::decode($stdout) or die "Invalid unicode in stdout.";

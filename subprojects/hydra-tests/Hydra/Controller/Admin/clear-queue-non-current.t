@@ -51,7 +51,7 @@ subtest "Create and evaluate our job at version 1" => sub {
 EOF
     close($fh);
 
-    ok(evalSucceeds($jobset),               "Evaluating our default.nix should exit with return code 0");
+    ok(evalSucceeds($ctx{context}, $jobset),               "Evaluating our default.nix should exit with return code 0");
     is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating our default.nix should result in 1 builds");
 };
 
@@ -70,7 +70,7 @@ EOF
     close($fh);
 
 
-    ok(evalSucceeds($jobset),               "Evaluating our default.nix should exit with return code 0");
+    ok(evalSucceeds($ctx{context}, $jobset),               "Evaluating our default.nix should exit with return code 0");
     is(nrQueuedBuildsForJobset($jobset), 2, "Evaluating our default.nix should result in 1 more build, resulting in 2 queued builds");
 };
 

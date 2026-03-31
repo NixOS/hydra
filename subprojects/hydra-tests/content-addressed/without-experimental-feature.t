@@ -20,7 +20,7 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 
 my $jobset = createBaseJobset($db, "content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),                  "Evaluating jobs/content-addressed.nix without the experimental feature should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset),                  "Evaluating jobs/content-addressed.nix without the experimental feature should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 0, "Evaluating jobs/content-addressed.nix without the experimental Nix feature should result in 0 build");
 
 done_testing;
