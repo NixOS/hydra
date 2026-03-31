@@ -1,7 +1,7 @@
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadsResponse {
-    paths: Vec<nix_utils::StorePath>,
+    paths:      Vec<nix_utils::StorePath>,
     path_count: usize,
 }
 

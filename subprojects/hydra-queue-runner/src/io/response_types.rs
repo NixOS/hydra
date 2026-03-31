@@ -1,15 +1,23 @@
 use hashbrown::HashMap;
-
 use nix_utils::BaseStore as _;
 
 use super::{
-    Build, Jobset, Machine, QueueRunnerStats, Step, StepInfo, stats::S3Stats, stats::StoreStats,
+    Build,
+    Jobset,
+    Machine,
+    QueueRunnerStats,
+    Step,
+    StepInfo,
+    stats::{
+        S3Stats,
+        StoreStats,
+    },
 };
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachinesResponse {
-    machines: HashMap<String, Machine>,
+    machines:       HashMap<String, Machine>,
     machines_count: usize,
 }
 
@@ -27,10 +35,10 @@ impl MachinesResponse {
 #[serde(rename_all = "camelCase")]
 pub struct DumpResponse {
     queue_runner: QueueRunnerStats,
-    machines: HashMap<String, Machine>,
-    jobsets: HashMap<String, Jobset>,
-    store: Option<StoreStats>,
-    s3: HashMap<String, S3Stats>,
+    machines:     HashMap<String, Machine>,
+    jobsets:      HashMap<String, Jobset>,
+    store:        Option<StoreStats>,
+    s3:           HashMap<String, S3Stats>,
 }
 
 impl DumpResponse {
@@ -67,7 +75,7 @@ impl DumpResponse {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobsetsResponse {
-    jobsets: HashMap<String, Jobset>,
+    jobsets:      HashMap<String, Jobset>,
     jobset_count: usize,
 }
 
@@ -84,7 +92,7 @@ impl JobsetsResponse {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildsResponse {
-    builds: Vec<Build>,
+    builds:      Vec<Build>,
     build_count: usize,
 }
 
@@ -101,7 +109,7 @@ impl BuildsResponse {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepsResponse {
-    steps: Vec<Step>,
+    steps:      Vec<Step>,
     step_count: usize,
 }
 
@@ -131,7 +139,7 @@ impl QueueResponse {
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepInfoResponse {
-    steps: Vec<StepInfo>,
+    steps:      Vec<StepInfo>,
     step_count: usize,
 }
 

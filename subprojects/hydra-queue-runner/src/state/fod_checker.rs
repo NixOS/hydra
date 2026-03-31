@@ -1,14 +1,21 @@
 use std::sync::Arc;
 
-use hashbrown::{HashMap, HashSet};
-use nix_utils::{Derivation, LocalStore, StorePath};
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
+use nix_utils::{
+    Derivation,
+    LocalStore,
+    StorePath,
+};
 
 #[derive(Debug)]
 pub struct FodChecker {
     ca_derivations: parking_lot::RwLock<HashMap<StorePath, Derivation>>,
-    to_traverse: parking_lot::RwLock<HashSet<StorePath>>,
+    to_traverse:    parking_lot::RwLock<HashSet<StorePath>>,
 
-    notify_traverse: tokio::sync::Notify,
+    notify_traverse:        tokio::sync::Notify,
     traverse_done_notifier: Option<tokio::sync::mpsc::Sender<()>>,
 }
 
@@ -34,9 +41,11 @@ async fn collect_ca_derivations(
         return HashMap::new();
     };
 
-    let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-        nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
-        _ => None,
+    let ca_fixed_hash = parsed.outputs.values().find_map(|o| {
+        match o {
+            nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+            _ => None,
+        }
     });
     let input_drvs: Vec<StorePath> =
         harmonia_store_core::derivation::DerivationInputs::from(&parsed.inputs)
@@ -75,9 +84,11 @@ impl FodChecker {
     }
 
     pub(super) fn add_ca_drv_parsed(&self, drv: &StorePath, parsed: &Derivation) {
-        let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-            nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
-            _ => None,
+        let ca_fixed_hash = parsed.outputs.values().find_map(|o| {
+            match o {
+                nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+                _ => None,
+            }
         });
         if ca_fixed_hash.is_some() {
             let mut ca = self.ca_derivations.write();
@@ -169,8 +180,9 @@ impl FodChecker {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use crate::state::fod_checker::FodChecker;
     use nix_utils::BaseStore as _;
+
+    use crate::state::fod_checker::FodChecker;
 
     #[ignore = "Requires a valid drv in the nix-store"]
     #[tokio::test]

@@ -5,7 +5,7 @@ use nix_utils::RealisationOperations as _;
 async fn main() {
     let local = nix_utils::LocalStore::init();
     let id = nix_utils::DrvOutput {
-        drv_hash: "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9"
+        drv_hash:    "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9"
             .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
             .unwrap()
             .into_hash(),

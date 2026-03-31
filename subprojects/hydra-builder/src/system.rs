@@ -3,8 +3,8 @@ use procfs_core::FromRead as _;
 
 #[derive(Debug, Clone, Copy)]
 pub struct BaseSystemInfo {
-    pub cpu_count: usize,
-    pub bogomips: f32,
+    pub cpu_count:    usize,
+    pub bogomips:     f32,
     pub total_memory: u64,
 }
 
@@ -35,8 +35,8 @@ impl BaseSystemInfo {
         sys.refresh_cpu_all();
 
         Ok(Self {
-            cpu_count: sys.cpus().len(),
-            bogomips: 0.0,
+            cpu_count:    sys.cpus().len(),
+            bogomips:     0.0,
             total_memory: sys.total_memory(),
         })
     }
@@ -44,20 +44,20 @@ impl BaseSystemInfo {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pressure {
-    pub avg10: f32,
-    pub avg60: f32,
+    pub avg10:  f32,
+    pub avg60:  f32,
     pub avg300: f32,
-    pub total: u64,
+    pub total:  u64,
 }
 
 #[cfg(target_os = "linux")]
 impl Pressure {
     const fn new(record: &procfs_core::PressureRecord) -> Self {
         Self {
-            avg10: record.avg10,
-            avg60: record.avg60,
+            avg10:  record.avg10,
+            avg60:  record.avg60,
             avg300: record.avg300,
-            total: record.total,
+            total:  record.total,
         }
     }
 }
@@ -65,10 +65,10 @@ impl Pressure {
 impl From<Pressure> for crate::grpc::runner_v1::Pressure {
     fn from(val: Pressure) -> Self {
         Self {
-            avg10: val.avg10,
-            avg60: val.avg60,
+            avg10:  val.avg10,
+            avg60:  val.avg60,
             avg300: val.avg300,
-            total: val.total,
+            total:  val.total,
         }
     }
 }
@@ -78,8 +78,8 @@ pub struct PressureState {
     pub cpu_some: Option<Pressure>,
     pub mem_some: Option<Pressure>,
     pub mem_full: Option<Pressure>,
-    pub io_some: Option<Pressure>,
-    pub io_full: Option<Pressure>,
+    pub io_some:  Option<Pressure>,
+    pub io_full:  Option<Pressure>,
     pub irq_full: Option<Pressure>,
 }
 
@@ -127,10 +127,10 @@ fn parse_pressure_record(line: &str) -> procfs_core::ProcResult<procfs_core::Pre
     }
 
     Ok(procfs_core::PressureRecord {
-        avg10: get_f32(&parsed, "avg10")?,
-        avg60: get_f32(&parsed, "avg60")?,
+        avg10:  get_f32(&parsed, "avg10")?,
+        avg60:  get_f32(&parsed, "avg60")?,
         avg300: get_f32(&parsed, "avg300")?,
-        total: get_total(&parsed)?,
+        total:  get_total(&parsed)?,
     })
 }
 
@@ -153,8 +153,8 @@ impl PressureState {
             cpu_some: cpu_psi.map(|v| Pressure::new(&v.some)),
             mem_some: mem_psi.as_ref().map(|v| Pressure::new(&v.some)),
             mem_full: mem_psi.map(|v| Pressure::new(&v.full)),
-            io_some: io_psi.as_ref().map(|v| Pressure::new(&v.some)),
-            io_full: io_psi.map(|v| Pressure::new(&v.full)),
+            io_some:  io_psi.as_ref().map(|v| Pressure::new(&v.some)),
+            io_full:  io_psi.map(|v| Pressure::new(&v.full)),
             irq_full: irq_psi_full.map(|v| Pressure::new(&v)),
         })
     }
@@ -162,15 +162,15 @@ impl PressureState {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SystemLoad {
-    pub load_avg_1: f32,
-    pub load_avg_5: f32,
+    pub load_avg_1:  f32,
+    pub load_avg_5:  f32,
     pub load_avg_15: f32,
 
     pub mem_usage: u64,
-    pub pressure: Option<PressureState>,
+    pub pressure:  Option<PressureState>,
 
     pub build_dir_free_percent: f64,
-    pub store_free_percent: f64,
+    pub store_free_percent:     f64,
 }
 
 #[tracing::instrument(err)]
@@ -196,13 +196,13 @@ impl SystemLoad {
         .unwrap_or_default();
 
         Ok(Self {
-            load_avg_1: load.one,
-            load_avg_5: load.five,
-            load_avg_15: load.fifteen,
-            mem_usage: meminfo.mem_total - meminfo.mem_available.unwrap_or(0),
-            pressure: PressureState::new(),
-            build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(100.),
-            store_free_percent: get_mount_free_percent(store_dir.to_str()).unwrap_or(100.),
+            load_avg_1:             load.one,
+            load_avg_5:             load.five,
+            load_avg_15:            load.fifteen,
+            mem_usage:              meminfo.mem_total - meminfo.mem_available.unwrap_or(0),
+            pressure:               PressureState::new(),
+            build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(100.0),
+            store_free_percent:     get_mount_free_percent(store_dir.to_str()).unwrap_or(100.0),
         })
     }
 
@@ -219,13 +219,13 @@ impl SystemLoad {
         .unwrap_or_default();
 
         Ok(Self {
-            load_avg_1: load.one as f32,
-            load_avg_5: load.five as f32,
-            load_avg_15: load.fifteen as f32,
-            mem_usage: sys.used_memory(),
-            pressure: None,
-            build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(0.),
-            store_free_percent: get_mount_free_percent(store_dir.to_str()).unwrap_or(0.),
+            load_avg_1:             load.one as f32,
+            load_avg_5:             load.five as f32,
+            load_avg_15:            load.fifteen as f32,
+            mem_usage:              sys.used_memory(),
+            pressure:               None,
+            build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(0.0),
+            store_free_percent:     get_mount_free_percent(store_dir.to_str()).unwrap_or(0.0),
         })
     }
 }

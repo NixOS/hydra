@@ -1,9 +1,9 @@
 [workspace]
-
 members  = [ "subprojects/hydra-builder", "subprojects/hydra-queue-runner", "subprojects/crates/*" ]
 resolver = "2"
 
 [workspace.package]
+edition      = "2024"
 rust-version = "1.91.0"
 version      = "0.1.0"
 

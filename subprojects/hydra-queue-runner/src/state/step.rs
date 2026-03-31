@@ -1,47 +1,69 @@
-use std::collections::BTreeMap;
-use std::hash::Hash;
-use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
-use std::sync::{Arc, Weak};
+use std::{
+    collections::BTreeMap,
+    hash::Hash,
+    sync::{
+        Arc,
+        Weak,
+        atomic::{
+            AtomicBool,
+            AtomicI32,
+            AtomicU32,
+            AtomicU64,
+            Ordering,
+        },
+    },
+};
 
-use hashbrown::{HashMap, HashSet};
-
-use super::{Build, Jobset};
 use db::models::BuildID;
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
+
+use super::{
+    Build,
+    Jobset,
+};
 
 #[derive(Debug)]
 pub struct StepAtomicState {
-    created: AtomicBool,  // Whether the step has finished initialisation.
-    pub tries: AtomicU32, // Number of times we've tried this step.
-    pub highest_global_priority: AtomicI32, // The highest global priority of any build depending on this step.
-    pub highest_local_priority: AtomicI32, // The highest local priority of any build depending on this step.
+    created:                     AtomicBool, // Whether the step has finished initialisation.
+    pub tries:                   AtomicU32,  // Number of times we've tried this step.
+    pub highest_global_priority: AtomicI32,  /* The highest global priority of any build
+                                              * depending on this step. */
+    pub highest_local_priority:  AtomicI32, /* The highest local priority of any build depending
+                                             * on this step. */
 
-    pub lowest_build_id: super::build::AtomicBuildID, // The lowest ID of any build depending on this step.
+    pub lowest_build_id: super::build::AtomicBuildID, /* The lowest ID of any build depending on
+                                                       * this step. */
 
-    pub after: super::AtomicDateTime, // Point in time after which the step can be retried.
+    pub after:          super::AtomicDateTime, /* Point in time after which the step can be
+                                                * retried. */
     pub runnable_since: super::AtomicDateTime, // The time at which this step became runnable.
-    pub last_supported: super::AtomicDateTime, // The time that we last saw a machine that supports this step
+    pub last_supported: super::AtomicDateTime, /* The time that we last saw a machine that
+                                                * supports this step */
 
-    pub deps_len: AtomicU64,
+    pub deps_len:  AtomicU64,
     pub rdeps_len: AtomicU64,
 }
 
 impl StepAtomicState {
     pub fn new(after: jiff::Timestamp, runnable_since: jiff::Timestamp) -> Self {
         Self {
-            created: false.into(),
-            tries: 0.into(),
+            created:                 false.into(),
+            tries:                   0.into(),
             highest_global_priority: 0.into(),
-            highest_local_priority: 0.into(),
-            lowest_build_id: BuildID::MAX.into(),
-            after: super::AtomicDateTime::new(after),
-            runnable_since: super::AtomicDateTime::new(runnable_since),
+            highest_local_priority:  0.into(),
+            lowest_build_id:         BuildID::MAX.into(),
+            after:                   super::AtomicDateTime::new(after),
+            runnable_since:          super::AtomicDateTime::new(runnable_since),
             // Set the default of last_supported to runnable_since.
             // This fixes an issue that a step is marked as unsupported immediatly, if we currently
             // dont have a machine that supports system/all features.
             // So we still follow max_unsupported_time
-            last_supported: super::AtomicDateTime::new(runnable_since),
-            deps_len: 0.into(),
-            rdeps_len: 0.into(),
+            last_supported:          super::AtomicDateTime::new(runnable_since),
+            deps_len:                0.into(),
+            rdeps_len:               0.into(),
         }
     }
 
@@ -58,10 +80,11 @@ impl StepAtomicState {
 
 #[derive(Debug)]
 pub(super) struct StepState {
-    deps: HashSet<Arc<Step>>,      // The build steps on which this step depends.
-    rdeps: Vec<Weak<Step>>,        // The build steps that depend on this step.
-    builds: Vec<Weak<Build>>,      // Builds that have this step as the top-level derivation.
-    jobsets: HashSet<Arc<Jobset>>, // Jobsets to which this step belongs. Used for determining scheduling priority.
+    deps:    HashSet<Arc<Step>>, // The build steps on which this step depends.
+    rdeps:   Vec<Weak<Step>>,    // The build steps that depend on this step.
+    builds:  Vec<Weak<Build>>,   // Builds that have this step as the top-level derivation.
+    jobsets: HashSet<Arc<Jobset>>, /* Jobsets to which this step belongs. Used for determining
+                                  * scheduling priority. */
 }
 
 impl Default for StepState {
@@ -73,9 +96,9 @@ impl Default for StepState {
 impl StepState {
     pub(super) fn new() -> Self {
         Self {
-            deps: HashSet::new(),
-            rdeps: Vec::new(),
-            builds: Vec::new(),
+            deps:    HashSet::new(),
+            rdeps:   Vec::new(),
+            builds:  Vec::new(),
             jobsets: HashSet::new(),
         }
     }
@@ -84,13 +107,13 @@ impl StepState {
 #[derive(Debug)]
 pub struct Step {
     drv_path: nix_utils::StorePath,
-    drv: arc_swap::ArcSwapOption<nix_utils::Derivation>,
+    drv:      arc_swap::ArcSwapOption<nix_utils::Derivation>,
 
-    runnable: AtomicBool,
-    finished: AtomicBool,
+    runnable:         AtomicBool,
+    finished:         AtomicBool,
     previous_failure: AtomicBool,
     pub atomic_state: StepAtomicState,
-    state: parking_lot::RwLock<StepState>,
+    state:            parking_lot::RwLock<StepState>,
 }
 
 impl PartialEq for Step {
@@ -321,8 +344,8 @@ impl Step {
             let now = jiff::Timestamp::now();
             self.atomic_state.runnable_since.store(now);
             // we also say now, is the last time that we supported this step.
-            // This ensure that we actually wait for max_unsupported_time until we mark it as
-            // unsupported. See also [`StepAtomicState::new`]
+            // This ensure that we actually wait for max_unsupported_time until we mark it
+            // as unsupported. See also [`StepAtomicState::new`]
             self.atomic_state.last_supported.store(now);
         }
     }
@@ -335,7 +358,7 @@ impl Step {
             .iter()
             .map(|v| v.share_used())
             .min_by(f64::total_cmp)
-            .unwrap_or(1e9)
+            .unwrap_or(1.0e9)
     }
 
     pub fn add_jobset(&self, jobset: Arc<Jobset>) {
@@ -488,7 +511,8 @@ impl Steps {
             if s.get_finished() && !s.get_previous_failure() {
                 s.make_rdeps_runnable();
             }
-            // TODO: if previous failure we should propably also remove from deps
+            // TODO: if previous failure we should propably also remove from
+            // deps
         }
     }
 

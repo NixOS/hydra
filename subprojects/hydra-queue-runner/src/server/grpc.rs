@@ -1,25 +1,50 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use tokio::{io::AsyncWriteExt as _, sync::mpsc};
+use nix_utils::BaseStore as _;
+use tokio::{
+    io::AsyncWriteExt as _,
+    sync::mpsc,
+};
 use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
 use tracing::Instrument as _;
 
 use crate::{
     config::BindSocket,
-    server::grpc::runner_v1::{BuildResultState, StepUpdate},
-    state::{Machine, MachineMessage, State},
+    server::grpc::runner_v1::{
+        BuildResultState,
+        StepUpdate,
+    },
+    state::{
+        Machine,
+        MachineMessage,
+        State,
+    },
 };
-use nix_utils::BaseStore as _;
 
 include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
-use runner_v1::runner_service_server::{RunnerService, RunnerServiceServer};
 use runner_v1::{
-    BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
-    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StorePath, StorePaths, VersionCheckRequest, VersionCheckResponse,
+    BuildResultInfo,
+    BuilderRequest,
+    FetchRequisitesRequest,
+    JoinResponse,
+    LogChunk,
+    NarData,
+    PresignedUploadComplete,
+    PresignedUrlRequest,
+    PresignedUrlResponse,
+    RunnerRequest,
+    SimplePingMessage,
+    StorePath,
+    StorePaths,
+    VersionCheckRequest,
+    VersionCheckResponse,
     builder_request,
+    runner_service_server::{
+        RunnerService,
+        RunnerServiceServer,
+    },
 };
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
@@ -28,8 +53,8 @@ type OpenTunnelResponseStream =
 type StreamFileResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<NarData, tonic::Status>> + Send>>;
 
-// there is no reason to make this configurable, it only exists so we ensure the channel is not
-// closed. we dont use this to write any actual information.
+// there is no reason to make this configurable, it only exists so we ensure the
+// channel is not closed. we dont use this to write any actual information.
 const BACKWARDS_PING_INTERVAL: u64 = 30;
 
 pub mod runner_v1 {
@@ -89,7 +114,7 @@ fn handle_message(state: &Arc<State>, msg: builder_request::Message) {
             if let Some(m) = state.machines.get_machine_by_id(machine_id) {
                 m.stats.store_ping(&msg);
             }
-        }
+        },
     }
 }
 
@@ -111,7 +136,7 @@ impl tonic::service::Interceptor for CheckAuthInterceptor {
                     ) =>
                 {
                     Ok(req)
-                }
+                },
                 _ => Err(tonic::Status::unauthenticated("No valid auth token")),
             }
         } else {
@@ -136,12 +161,9 @@ impl Server {
         .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
         .max_decoding_message_size(50 * 1024 * 1024)
         .max_encoding_message_size(50 * 1024 * 1024);
-        let intercepted_service = InterceptedService::new(
-            service,
-            CheckAuthInterceptor {
-                config: state.config.clone(),
-            },
-        );
+        let intercepted_service = InterceptedService::new(service, CheckAuthInterceptor {
+            config: state.config.clone(),
+        });
 
         let mut server = tonic::transport::Server::builder().layer(
             ServiceBuilder::new()
@@ -184,7 +206,7 @@ impl Server {
                 let uds = tokio::net::UnixListener::bind(p)?;
                 let uds_stream = tokio_stream::wrappers::UnixListenerStream::new(uds);
                 server.serve_with_incoming(uds_stream).await?;
-            }
+            },
             BindSocket::ListenFd => {
                 let listener = listenfd::ListenFd::from_env()
                     .take_unix_listener(0)?
@@ -195,7 +217,7 @@ impl Server {
                 );
 
                 server.serve_with_incoming(listener).await?;
-            }
+            },
         }
 
         Ok(())
@@ -225,7 +247,7 @@ impl RunnerService for Server {
                 server_version
             );
             Ok(tonic::Response::new(VersionCheckResponse {
-                compatible: true,
+                compatible:     true,
                 server_version: server_version.to_string(),
             }))
         } else {
@@ -237,7 +259,7 @@ impl RunnerService for Server {
                 server_version
             );
             Ok(tonic::Response::new(VersionCheckResponse {
-                compatible: false,
+                compatible:     false,
                 server_version: server_version.to_string(),
             }))
         }
@@ -255,22 +277,27 @@ impl RunnerService for Server {
         let use_presigned_uploads = self.state.config.use_presigned_uploads();
         let forced_substituters = self.state.config.get_forced_substituters();
         let machine = match stream.next().await {
-            Some(Ok(m)) => match m.message {
-                Some(builder_request::Message::Join(v)) => {
-                    match Machine::new(v, input_tx, use_presigned_uploads, &forced_substituters) {
-                        Ok(m) => Some(m),
-                        Err(e) => {
-                            tracing::error!("Rejecting new machine creation: {e}");
-                            return Err(tonic::Status::invalid_argument("Machine is not valid"));
+            Some(Ok(m)) => {
+                match m.message {
+                    Some(builder_request::Message::Join(v)) => {
+                        match Machine::new(v, input_tx, use_presigned_uploads, &forced_substituters)
+                        {
+                            Ok(m) => Some(m),
+                            Err(e) => {
+                                tracing::error!("Rejecting new machine creation: {e}");
+                                return Err(tonic::Status::invalid_argument(
+                                    "Machine is not valid",
+                                ));
+                            },
                         }
-                    }
+                    },
+                    _ => None,
                 }
-                _ => None,
             },
             Some(Err(e)) => {
                 tracing::error!("Bad message in stream: {e}");
                 None
-            }
+            },
             _ => None,
         };
         let Some(machine) = machine else {
@@ -285,7 +312,7 @@ impl RunnerService for Server {
         if let Err(e) = output_tx
             .send(Ok(RunnerRequest {
                 message: Some(runner_v1::runner_request::Message::Join(JoinResponse {
-                    machine_id: machine_id.to_string(),
+                    machine_id:               machine_id.to_string(),
                     max_concurrent_downloads: state.config.get_max_concurrent_downloads(),
                 })),
             }))
@@ -395,8 +422,8 @@ impl RunnerService for Server {
         let stream = req.into_inner();
 
         // We leak memory if we use the store from state, so we open and close a new
-        // connection for each import. This sucks but using the state.store will result in the path
-        // not being closed!
+        // connection for each import. This sucks but using the state.store will result
+        // in the path not being closed!
         {
             let store = nix_utils::LocalStore::init();
             store
@@ -434,18 +461,16 @@ impl RunnerService for Server {
         tokio::spawn({
             async move {
                 if let Err(e) = state
-                    .update_build_step(
-                        build_id,
-                        machine_id,
-                        step_status,
-                    )
+                    .update_build_step(build_id, machine_id, step_status)
                     .await
                 {
                     tracing::error!(
-                        "Failed to update build step with build_id={build_id:?} step_status={step_status:?}: {e}"
+                        "Failed to update build step with build_id={build_id:?} \
+                         step_status={step_status:?}: {e}"
                     );
                 }
-            }.in_current_span()
+            }
+            .in_current_span()
         });
 
         Ok(tonic::Response::new(runner_v1::Empty {}))
@@ -477,7 +502,7 @@ impl RunnerService for Server {
                             Err(e) => {
                                 tracing::error!("Failed to parse build output: {e}");
                                 return;
-                            }
+                            },
                         };
                     if let Err(e) = state
                         .succeed_step_by_uuid(build_id, machine_id, build_output)
@@ -631,9 +656,11 @@ impl RunnerService for Server {
             let remote_stores = _state.remote_stores.read();
             remote_stores
                 .iter()
-                .find_map(|s| match s {
-                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    _ => None,
+                .find_map(|s| {
+                    match s {
+                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        _ => None,
+                    }
                 })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
@@ -655,34 +682,36 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(runner_v1::PresignedNarResponse {
-                store_path: store_path.to_string().to_owned(),
-                nar_url: presigned_response.nar_url,
-                nar_upload: Some(runner_v1::PresignedUpload {
+                store_path:        store_path.to_string().to_owned(),
+                nar_url:           presigned_response.nar_url,
+                nar_upload:        Some(runner_v1::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
-                    url: presigned_response.nar_upload.url,
-                    path: presigned_response.nar_upload.path,
-                    compression: presigned_response
+                    url:               presigned_response.nar_upload.url,
+                    path:              presigned_response.nar_upload.path,
+                    compression:       presigned_response
                         .nar_upload
                         .compression
                         .as_str()
                         .to_owned(),
                 }),
-                ls_upload: presigned_response
-                    .ls_upload
-                    .map(|ls| runner_v1::PresignedUpload {
+                ls_upload:         presigned_response.ls_upload.map(|ls| {
+                    runner_v1::PresignedUpload {
                         compression_level: ls.get_compression_level_as_i32(),
-                        url: ls.url,
-                        path: ls.path,
-                        compression: ls.compression.as_str().to_owned(),
-                    }),
+                        url:               ls.url,
+                        path:              ls.path,
+                        compression:       ls.compression.as_str().to_owned(),
+                    }
+                }),
                 debug_info_upload: presigned_response
                     .debug_info_upload
                     .into_iter()
-                    .map(|p| runner_v1::PresignedUpload {
-                        compression_level: p.get_compression_level_as_i32(),
-                        url: p.url,
-                        path: p.path,
-                        compression: p.compression.as_str().to_owned(),
+                    .map(|p| {
+                        runner_v1::PresignedUpload {
+                            compression_level: p.get_compression_level_as_i32(),
+                            url:               p.url,
+                            path:              p.path,
+                            compression:       p.compression.as_str().to_owned(),
+                        }
                     })
                     .collect(),
             });
@@ -731,31 +760,33 @@ impl RunnerService for Server {
             let remote_stores = state.remote_stores.read();
             remote_stores
                 .iter()
-                .find_map(|s| match s {
-                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    _ => None,
+                .find_map(|s| {
+                    match s {
+                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        _ => None,
+                    }
                 })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
         let narinfo = binary_cache::NarInfo {
-            store_path: nix_utils::parse_store_path(&req.store_path),
-            url: req.url.clone(),
+            store_path:  nix_utils::parse_store_path(&req.store_path),
+            url:         req.url.clone(),
             compression: remote_store.cfg.compression,
-            file_hash: binary_cache::parse_hash(&req.file_hash),
-            file_size: Some(req.file_size),
-            nar_hash: binary_cache::parse_hash(&req.nar_hash).ok_or_else(|| {
+            file_hash:   binary_cache::parse_hash(&req.file_hash),
+            file_size:   Some(req.file_size),
+            nar_hash:    binary_cache::parse_hash(&req.nar_hash).ok_or_else(|| {
                 tonic::Status::invalid_argument(format!("invalid nar hash: {}", req.nar_hash))
             })?,
-            nar_size: req.nar_size,
-            references: req
+            nar_size:    req.nar_size,
+            references:  req
                 .references
                 .into_iter()
                 .map(|p| nix_utils::parse_store_path(&p))
                 .collect(),
-            deriver: req.deriver.map(|p| nix_utils::parse_store_path(&p)),
-            ca: req.ca,
-            sigs: vec![],
+            deriver:     req.deriver.map(|p| nix_utils::parse_store_path(&p)),
+            ca:          req.ca,
+            sigs:        vec![],
         };
         let store_path = narinfo.store_path.clone();
 
@@ -768,7 +799,8 @@ impl RunnerService for Server {
             })?;
 
         tracing::debug!(
-            "Presigned upload completed and narinfo uploaded for path: {}, url: {}, size: {} bytes, narinfo: {}",
+            "Presigned upload completed and narinfo uploaded for path: {}, url: {}, size: {} \
+             bytes, narinfo: {}",
             store_path,
             req.url,
             req.file_size,

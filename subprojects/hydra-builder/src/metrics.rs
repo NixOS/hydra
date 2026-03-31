@@ -1,11 +1,14 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
 
 #[derive(Debug, Default)]
 #[allow(clippy::struct_field_names)]
 pub struct Metrics {
     pub substituting_path_count: AtomicU64,
 
-    pub uploading_path_count: AtomicU64,
+    pub uploading_path_count:   AtomicU64,
     pub downloading_path_count: AtomicU64,
 }
 

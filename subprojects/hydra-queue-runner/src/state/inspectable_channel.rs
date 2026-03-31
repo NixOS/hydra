@@ -1,17 +1,20 @@
-use std::collections::VecDeque;
-use std::sync::Arc;
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+};
+
 use tokio::sync::Notify;
 
 #[derive(Debug)]
 pub(super) struct InspectableChannel<T> {
-    queue: parking_lot::RwLock<VecDeque<T>>,
+    queue:  parking_lot::RwLock<VecDeque<T>>,
     notify: Arc<Notify>,
 }
 
 impl<T> InspectableChannel<T> {
     pub(super) fn with_capacity(cap: usize) -> Self {
         InspectableChannel {
-            queue: parking_lot::RwLock::new(VecDeque::with_capacity(cap)),
+            queue:  parking_lot::RwLock::new(VecDeque::with_capacity(cap)),
             notify: Arc::new(Notify::new()),
         }
     }

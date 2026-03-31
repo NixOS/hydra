@@ -13,19 +13,31 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{
+            AtomicU64,
+            Ordering,
+        },
+    },
+    time::Instant,
+};
 
 use bytes::Bytes;
 use moka::future::Cache;
-use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
+use nix_utils::{
+    BaseStore as _,
+    RealisationOperations as _,
+};
+use object_store::{
+    ObjectStore as _,
+    ObjectStoreExt as _,
+    signer::Signer as _,
+};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
-
-use nix_utils::BaseStore as _;
-use nix_utils::RealisationOperations as _;
 
 mod cfg;
 mod compression;
@@ -34,17 +46,34 @@ mod narinfo;
 mod presigned;
 mod streaming_hash;
 
-pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
-pub use crate::compression::Compression;
-pub use crate::debug_info::get_debug_info_build_ids;
-use crate::narinfo::NarInfoError;
-pub use crate::narinfo::{NarInfo, parse_hash};
-pub use crate::presigned::{
-    PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
-    PresignedUploadResult,
-};
 pub use async_compression::Level as CompressionLevel;
-pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
+pub use harmonia_utils_hash::{
+    self as harmonia_utils_hash,
+    Hash,
+};
+
+use crate::narinfo::NarInfoError;
+pub use crate::{
+    cfg::{
+        S3CacheConfig,
+        S3ClientConfig,
+        S3CredentialsConfig,
+        S3Scheme,
+    },
+    compression::Compression,
+    debug_info::get_debug_info_build_ids,
+    narinfo::{
+        NarInfo,
+        parse_hash,
+    },
+    presigned::{
+        PresignedUpload,
+        PresignedUploadClient,
+        PresignedUploadMetrics,
+        PresignedUploadResponse,
+        PresignedUploadResult,
+    },
+};
 
 pub async fn path_to_narinfo(
     store: &nix_utils::LocalStore,
@@ -72,24 +101,24 @@ pub async fn path_to_narinfo(
 
 #[derive(Debug, Default)]
 struct AtomicS3Stats {
-    put: AtomicU64,
-    put_bytes: AtomicU64,
+    put:         AtomicU64,
+    put_bytes:   AtomicU64,
     put_time_ms: AtomicU64,
-    get: AtomicU64,
-    get_bytes: AtomicU64,
+    get:         AtomicU64,
+    get_bytes:   AtomicU64,
     get_time_ms: AtomicU64,
-    head: AtomicU64,
+    head:        AtomicU64,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct S3Stats {
-    pub put: u64,
-    pub put_bytes: u64,
+    pub put:         u64,
+    pub put_bytes:   u64,
     pub put_time_ms: u64,
-    pub get: u64,
-    pub get_bytes: u64,
+    pub get:         u64,
+    pub get_bytes:   u64,
     pub get_time_ms: u64,
-    pub head: u64,
+    pub head:        u64,
 }
 
 impl S3Stats {
@@ -160,10 +189,10 @@ pub enum CacheError {
 
 #[derive(Debug, Clone)]
 pub struct S3BinaryCacheClient {
-    s3: object_store::aws::AmazonS3,
-    pub cfg: S3CacheConfig,
-    s3_stats: Arc<AtomicS3Stats>,
-    signing_keys: SmallVec<[secrecy::SecretString; 4]>,
+    s3:            object_store::aws::AmazonS3,
+    pub cfg:       S3CacheConfig,
+    s3_stats:      Arc<AtomicS3Stats>,
+    signing_keys:  SmallVec<[secrecy::SecretString; 4]>,
     narinfo_cache: Cache<nix_utils::StorePath, NarInfo, foldhash::fast::RandomState>,
 }
 
@@ -251,12 +280,13 @@ impl S3BinaryCacheClient {
                     builder = builder
                         .with_access_key_id(&access_key)
                         .with_secret_access_key(secret_key.expose_secret());
-                }
+                },
                 Err(e) => {
                     tracing::warn!(
-                        "AWS credentials not found in environment variables or credentials file for profile: {profile}. error={e}",
+                        "AWS credentials not found in environment variables or credentials file \
+                         for profile: {profile}. error={e}",
                     );
-                }
+                },
             }
         }
 
@@ -296,13 +326,13 @@ impl S3BinaryCacheClient {
     #[must_use]
     pub fn s3_stats(&self) -> S3Stats {
         S3Stats {
-            put: self.s3_stats.put.load(Ordering::Relaxed),
-            put_bytes: self.s3_stats.put_bytes.load(Ordering::Relaxed),
+            put:         self.s3_stats.put.load(Ordering::Relaxed),
+            put_bytes:   self.s3_stats.put_bytes.load(Ordering::Relaxed),
             put_time_ms: self.s3_stats.put_time_ms.load(Ordering::Relaxed),
-            get: self.s3_stats.get.load(Ordering::Relaxed),
-            get_bytes: self.s3_stats.get_bytes.load(Ordering::Relaxed),
+            get:         self.s3_stats.get.load(Ordering::Relaxed),
+            get_bytes:   self.s3_stats.get_bytes.load(Ordering::Relaxed),
             get_time_ms: self.s3_stats.get_time_ms.load(Ordering::Relaxed),
-            head: self.s3_stats.head.load(Ordering::Relaxed),
+            head:        self.s3_stats.head.load(Ordering::Relaxed),
         }
     }
 
@@ -504,14 +534,14 @@ impl S3BinaryCacheClient {
                 self.s3_stats
                     .put_bytes
                     .fetch_add(file_size as u64, Ordering::Relaxed);
-            }
+            },
             Err(e) => {
                 tracing::warn!("Upload was interrupted - Aborting multipart upload: {e}");
 
                 if let Err(e) = multipart_upload.abort().await {
                     tracing::warn!("Failed to abort multipart upload: {e}");
                 }
-            }
+            },
         }
 
         Ok(())
@@ -664,9 +694,11 @@ impl S3BinaryCacheClient {
         use futures::stream::StreamExt as _;
 
         let mut stream = tokio_stream::iter(paths)
-            .map(|p| async move {
-                tracing::debug!("copying path {p} to s3 binary cache.");
-                self.copy_path(store, &p, repair).await
+            .map(|p| {
+                async move {
+                    tracing::debug!("copying path {p} to s3 binary cache.");
+                    self.copy_path(store, &p, repair).await
+                }
             })
             .buffered(10);
 
@@ -722,7 +754,7 @@ impl S3BinaryCacheClient {
                     .insert(store_path.to_owned(), narinfo.clone())
                     .await;
                 Ok(Some(narinfo))
-            }
+            },
             None => Ok(None),
         }
     }
@@ -764,11 +796,13 @@ impl S3BinaryCacheClient {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(paths)
-            .map(|p| async move {
-                if self.has_narinfo(&p).await.unwrap_or_default() {
-                    None
-                } else {
-                    Some(p)
+            .map(|p| {
+                async move {
+                    if self.has_narinfo(&p).await.unwrap_or_default() {
+                        None
+                    } else {
+                        Some(p)
+                    }
                 }
             })
             .buffered(50)
@@ -785,10 +819,12 @@ impl S3BinaryCacheClient {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|(name, path)| async move {
-                match path {
-                    Some(p) if self.has_narinfo(&p).await.unwrap_or_default() => None,
-                    other => Some((name, other)),
+            .map(|(name, path)| {
+                async move {
+                    match path {
+                        Some(p) if self.has_narinfo(&p).await.unwrap_or_default() => None,
+                        other => Some((name, other)),
+                    }
                 }
             })
             .buffered(50)
@@ -817,14 +853,16 @@ impl S3BinaryCacheClient {
                 self.cfg.presigned_url_expiry,
             )
             .await
-            .map_err(|e| CacheError::PresignedUrlError {
-                path: path.to_string(),
-                reason: format!("Failed to generate presigned URL for NAR: {e}"),
+            .map_err(|e| {
+                CacheError::PresignedUrlError {
+                    path:   path.to_string(),
+                    reason: format!("Failed to generate presigned URL for NAR: {e}"),
+                }
             })?;
         let ls_upload = if self.cfg.write_nar_listing {
             let s3_file_path = format!("{}.ls", path.hash().to_string());
             Some(PresignedUpload {
-                url: self
+                url:               self
                     .s3
                     .signed_url(
                         reqwest::Method::PUT,
@@ -832,13 +870,15 @@ impl S3BinaryCacheClient {
                         self.cfg.presigned_url_expiry,
                     )
                     .await
-                    .map_err(|e| CacheError::PresignedUrlError {
-                        path: s3_file_path.clone(),
-                        reason: format!("Failed to generate presigned URL for listing: {e}"),
+                    .map_err(|e| {
+                        CacheError::PresignedUrlError {
+                            path:   s3_file_path.clone(),
+                            reason: format!("Failed to generate presigned URL for listing: {e}"),
+                        }
                     })?
                     .to_string(),
-                path: s3_file_path,
-                compression: self.cfg.ls_compression,
+                path:              s3_file_path,
+                compression:       self.cfg.ls_compression,
                 compression_level: self.cfg.get_compression_level(),
             })
         } else {
@@ -849,26 +889,29 @@ impl S3BinaryCacheClient {
 
             let mut o = Vec::with_capacity(debug_info_build_ids.len());
             let mut stream = tokio_stream::iter(debug_info_build_ids)
-                .map(|build_id| async move {
-                    let s3_file_path = format!("debuginfo/{build_id}");
-                    // if this request fails, we assume default, which will then override the file
-                    if self.head_object(&s3_file_path).await.unwrap_or_default() {
-                        Ok(None)
-                    } else {
-                        Ok::<_, CacheError>(Some(PresignedUpload {
-                            url: self
-                                .s3
-                                .signed_url(
-                                    reqwest::Method::PUT,
-                                    &object_store::path::Path::from(s3_file_path.as_str()),
-                                    self.cfg.presigned_url_expiry,
-                                )
-                                .await?
-                                .to_string(),
-                            path: s3_file_path,
-                            compression: Compression::None,
-                            compression_level: async_compression::Level::Default,
-                        }))
+                .map(|build_id| {
+                    async move {
+                        let s3_file_path = format!("debuginfo/{build_id}");
+                        // if this request fails, we assume default, which will then override the
+                        // file
+                        if self.head_object(&s3_file_path).await.unwrap_or_default() {
+                            Ok(None)
+                        } else {
+                            Ok::<_, CacheError>(Some(PresignedUpload {
+                                url:               self
+                                    .s3
+                                    .signed_url(
+                                        reqwest::Method::PUT,
+                                        &object_store::path::Path::from(s3_file_path.as_str()),
+                                        self.cfg.presigned_url_expiry,
+                                    )
+                                    .await?
+                                    .to_string(),
+                                path:              s3_file_path,
+                                compression:       Compression::None,
+                                compression_level: async_compression::Level::Default,
+                            }))
+                        }
                     }
                 })
                 .buffered(10);
@@ -886,9 +929,9 @@ impl S3BinaryCacheClient {
         Ok(PresignedUploadResponse {
             nar_url: nar_url.clone(), // we could deduplicate this, but its not that big of a deal
             nar_upload: PresignedUpload {
-                path: nar_url,
-                url: url.to_string(),
-                compression: self.cfg.compression,
+                path:              nar_url,
+                url:               url.to_string(),
+                compression:       self.cfg.compression,
                 compression_level: self.cfg.get_compression_level(),
             },
             ls_upload,
@@ -926,9 +969,10 @@ impl S3BinaryCacheClient {
 impl debug_info::DebugInfoClient for S3BinaryCacheClient {
     /// Creates debug info links for build IDs found in NAR files.
     ///
-    /// This function processes debug information from NIX store paths that contain
-    /// debug symbols in the standard `lib/debug/.build-id` directory structure.
-    /// It creates JSON links that allow debuggers to find debug symbols by build ID.
+    /// This function processes debug information from NIX store paths that
+    /// contain debug symbols in the standard `lib/debug/.build-id`
+    /// directory structure. It creates JSON links that allow debuggers to
+    /// find debug symbols by build ID.
     ///
     /// The directory structure expected is:
     /// lib/debug/.build-id/ab/cdef1234567890123456789012345678901234.debug
@@ -958,7 +1002,7 @@ impl debug_info::DebugInfoClient for S3BinaryCacheClient {
 
         let json_content = debug_info::DebugInfoLink {
             archive: format!("../{nar_url}"),
-            member: debug_path,
+            member:  debug_path,
         };
 
         tracing::debug!("Creating debuginfo link from '{}' to '{}'", key, nar_url);

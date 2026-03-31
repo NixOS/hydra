@@ -1,10 +1,22 @@
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Weak};
+use std::sync::{
+    Arc,
+    Weak,
+    atomic::{
+        AtomicU64,
+        Ordering,
+    },
+};
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
 use smallvec::SmallVec;
 
-use super::{StepInfo, System};
+use super::{
+    StepInfo,
+    System,
+};
 use crate::config::StepSortFn;
 
 #[derive(Debug)]
@@ -12,34 +24,34 @@ pub struct BuildQueue {
     // Note: ensure that this stays private
     jobs: parking_lot::RwLock<Vec<Weak<StepInfo>>>,
 
-    active_runnable: AtomicU64,
-    total_runnable: AtomicU64,
-    nr_runnable_waiting: AtomicU64,
+    active_runnable:      AtomicU64,
+    total_runnable:       AtomicU64,
+    nr_runnable_waiting:  AtomicU64,
     nr_runnable_disabled: AtomicU64,
-    avg_runnable_time: AtomicU64,
-    wait_time_ms: AtomicU64,
+    avg_runnable_time:    AtomicU64,
+    wait_time_ms:         AtomicU64,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildQueueStats {
-    pub active_runnable: u64,
-    pub total_runnable: u64,
-    pub nr_runnable_waiting: u64,
+    pub active_runnable:      u64,
+    pub total_runnable:       u64,
+    pub nr_runnable_waiting:  u64,
     pub nr_runnable_disabled: u64,
-    pub avg_runnable_time: u64,
-    pub wait_time: u64,
+    pub avg_runnable_time:    u64,
+    pub wait_time:            u64,
 }
 
 impl BuildQueue {
     fn new() -> Self {
         Self {
-            jobs: parking_lot::RwLock::new(Vec::new()),
-            active_runnable: 0.into(),
-            total_runnable: 0.into(),
-            nr_runnable_waiting: 0.into(),
+            jobs:                 parking_lot::RwLock::new(Vec::new()),
+            active_runnable:      0.into(),
+            total_runnable:       0.into(),
+            nr_runnable_waiting:  0.into(),
             nr_runnable_disabled: 0.into(),
-            avg_runnable_time: 0.into(),
-            wait_time_ms: 0.into(),
+            avg_runnable_time:    0.into(),
+            wait_time_ms:         0.into(),
         }
     }
 
@@ -139,21 +151,21 @@ impl BuildQueue {
 
     pub fn get_stats(&self) -> BuildQueueStats {
         BuildQueueStats {
-            active_runnable: self.active_runnable.load(Ordering::Relaxed),
-            total_runnable: self.total_runnable.load(Ordering::Relaxed),
-            nr_runnable_waiting: self.nr_runnable_waiting.load(Ordering::Relaxed),
+            active_runnable:      self.active_runnable.load(Ordering::Relaxed),
+            total_runnable:       self.total_runnable.load(Ordering::Relaxed),
+            nr_runnable_waiting:  self.nr_runnable_waiting.load(Ordering::Relaxed),
             nr_runnable_disabled: self.nr_runnable_disabled.load(Ordering::Relaxed),
-            avg_runnable_time: self.avg_runnable_time.load(Ordering::Relaxed),
-            wait_time: self.wait_time_ms.load(Ordering::Relaxed),
+            avg_runnable_time:    self.avg_runnable_time.load(Ordering::Relaxed),
+            wait_time:            self.wait_time_ms.load(Ordering::Relaxed),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ScheduledItem {
-    pub step_info: Arc<StepInfo>,
+    pub step_info:   Arc<StepInfo>,
     pub build_queue: Arc<BuildQueue>,
-    pub machine: Arc<super::Machine>,
+    pub machine:     Arc<super::Machine>,
 }
 
 impl ScheduledItem {
@@ -173,8 +185,8 @@ impl ScheduledItem {
 #[derive(Debug)]
 pub(super) struct InnerQueues {
     // flat list of all step infos in queues, owning those steps inner queue dont own them
-    jobs: HashMap<nix_utils::StorePath, Arc<StepInfo>>,
-    inner: HashMap<System, Arc<BuildQueue>>,
+    jobs:      HashMap<nix_utils::StorePath, Arc<StepInfo>>,
+    inner:     HashMap<System, Arc<BuildQueue>>,
     #[allow(clippy::type_complexity)]
     scheduled: parking_lot::RwLock<HashMap<nix_utils::StorePath, ScheduledItem>>,
 }
@@ -188,8 +200,8 @@ impl Default for InnerQueues {
 impl InnerQueues {
     fn new() -> Self {
         Self {
-            jobs: HashMap::with_capacity(1000),
-            inner: HashMap::with_capacity(4),
+            jobs:      HashMap::with_capacity(1000),
+            inner:     HashMap::with_capacity(4),
             scheduled: parking_lot::RwLock::new(HashMap::with_capacity(100)),
         }
     }
@@ -206,10 +218,10 @@ impl InnerQueues {
         for j in jobs {
             let j = Arc::new(j);
             // we need to check that get_finished is not true!
-            // the reason for this is that while a job is currently being proccessed for finished
-            // it can be resubmitted into the queues.
-            // to ensure that this does not block everything we need to ensure that it doesnt land
-            // here.
+            // the reason for this is that while a job is currently being proccessed for
+            // finished it can be resubmitted into the queues.
+            // to ensure that this does not block everything we need to ensure that it
+            // doesnt land here.
             if !self.jobs.contains_key(j.step.get_drv_path()) && !j.step.get_finished() {
                 self.jobs
                     .insert(j.step.get_drv_path().to_owned(), j.clone());
@@ -318,7 +330,8 @@ impl InnerQueues {
                 {
                     if let Err(e) = item.machine.abort_build(internal_build_id).await {
                         tracing::error!(
-                            "Failed to abort build drv_path={drv_path} build_id={internal_build_id} e={e}",
+                            "Failed to abort build drv_path={drv_path} \
+                             build_id={internal_build_id} e={e}",
                         );
                         continue;
                     }
@@ -358,8 +371,8 @@ impl InnerQueues {
 }
 
 pub(super) struct JobConstraint {
-    job: Arc<StepInfo>,
-    system: System,
+    job:            Arc<StepInfo>,
+    system:         System,
     queue_features: SmallVec<[String; 4]>,
 }
 
@@ -467,7 +480,8 @@ impl Queues {
                 };
                 if job.get_already_scheduled() {
                     tracing::debug!(
-                        "Can't schedule job because job is already scheduled system={system} drv={}",
+                        "Can't schedule job because job is already scheduled system={system} \
+                         drv={}",
                         job.step.get_drv_path()
                     );
                     continue;
@@ -483,7 +497,8 @@ impl Queues {
                 if after > now {
                     nr_disabled += 1;
                     tracing::debug!(
-                        "Can't schedule job because job is not yet ready system={system} drv={} after={after}",
+                        "Can't schedule job because job is not yet ready system={system} drv={} \
+                         after={after}",
                         job.step.get_drv_path(),
                     );
                     continue;
@@ -495,15 +510,16 @@ impl Queues {
                         metrics.observe_job_wait_time(wait_seconds, &system);
 
                         self.add_job_to_scheduled(&job, &queue, m).await;
-                    }
+                    },
                     Ok(crate::state::RealiseStepResult::None) => {
                         tracing::debug!(
-                            "Waiting for job to schedule because no builder is ready system={system} drv={}",
+                            "Waiting for job to schedule because no builder is ready \
+                             system={system} drv={}",
                             job.step.get_drv_path(),
                         );
                         nr_waiting += 1;
                         nr_steps_waiting_all_queues += 1;
-                    }
+                    },
                     Ok(
                         crate::state::RealiseStepResult::MaybeCancelled
                         | crate::state::RealiseStepResult::CachedFailure,
@@ -516,13 +532,13 @@ impl Queues {
                         self.remove_job(&job, &queue).await;
 
                         metrics.queue_aborted_jobs_total.inc();
-                    }
+                    },
                     Err(e) => {
                         tracing::warn!(
                             "Failed to realise drv on valid machine, will be skipped: drv={} e={e}",
                             job.step.get_drv_path(),
                         );
-                    }
+                    },
                 }
                 queue.set_nr_runnable_waiting(nr_waiting);
                 queue.set_nr_runnable_disabled(nr_disabled);

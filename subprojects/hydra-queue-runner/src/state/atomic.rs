@@ -1,9 +1,14 @@
+use std::sync::atomic::{
+    AtomicI32,
+    AtomicI64,
+    Ordering,
+};
+
 use jiff::Timestamp;
-use std::sync::atomic::{AtomicI32, AtomicI64, Ordering};
 
 #[derive(Debug)]
 pub struct AtomicDateTime {
-    seconds: AtomicI64,
+    seconds:     AtomicI64,
     nanoseconds: AtomicI32,
 }
 
@@ -17,7 +22,7 @@ impl AtomicDateTime {
     #[must_use]
     pub fn new(dt: Timestamp) -> Self {
         Self {
-            seconds: AtomicI64::new(dt.as_second()),
+            seconds:     AtomicI64::new(dt.as_second()),
             nanoseconds: AtomicI32::new(dt.subsec_nanosecond()),
         }
     }

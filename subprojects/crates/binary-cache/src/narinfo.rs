@@ -1,26 +1,33 @@
 use std::fmt::Write as _;
 
-use harmonia_store_core::signature::{SecretKey, fingerprint_path};
-use harmonia_store_core::store_path::StoreDir;
-use harmonia_utils_hash::Hash;
-use harmonia_utils_hash::fmt::CommonHash as _;
+use harmonia_store_core::{
+    signature::{
+        SecretKey,
+        fingerprint_path,
+    },
+    store_path::StoreDir,
+};
+use harmonia_utils_hash::{
+    Hash,
+    fmt::CommonHash as _,
+};
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
 
 #[derive(Debug, Clone)]
 pub struct NarInfo {
-    pub store_path: nix_utils::StorePath,
-    pub url: String,
+    pub store_path:  nix_utils::StorePath,
+    pub url:         String,
     pub compression: Compression,
-    pub file_hash: Option<Hash>,
-    pub file_size: Option<u64>,
-    pub nar_hash: Hash,
-    pub nar_size: u64,
-    pub references: Vec<nix_utils::StorePath>,
-    pub deriver: Option<nix_utils::StorePath>,
-    pub ca: Option<String>,
-    pub sigs: Vec<String>,
+    pub file_hash:   Option<Hash>,
+    pub file_size:   Option<u64>,
+    pub nar_hash:    Hash,
+    pub nar_size:    u64,
+    pub references:  Vec<nix_utils::StorePath>,
+    pub deriver:     Option<nix_utils::StorePath>,
+    pub ca:          Option<String>,
+    pub sigs:        Vec<String>,
 }
 
 impl NarInfo {
@@ -187,7 +194,7 @@ pub enum NarInfoError {
     #[error("integer parse error for {field}: {err}")]
     Int {
         field: &'static str,
-        err: std::num::ParseIntError,
+        err:   std::num::ParseIntError,
     },
 }
 
@@ -198,18 +205,18 @@ impl std::str::FromStr for NarInfo {
     #[allow(clippy::too_many_lines)]
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         let mut out = Self {
-            store_path: nix_utils::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
-            url: String::new(),
+            store_path:  nix_utils::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
+            url:         String::new(),
             compression: Compression::None,
-            file_hash: None,
-            file_size: None,
-            nar_hash: Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
+            file_hash:   None,
+            file_size:   None,
+            nar_hash:    Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
                 .expect("sha256 zero hash"),
-            nar_size: 0,
-            references: vec![],
-            deriver: None,
-            ca: None,
-            sigs: vec![],
+            nar_size:    0,
+            references:  vec![],
+            deriver:     None,
+            ca:          None,
+            sigs:        vec![],
         };
 
         // Temporaries to know what was present
@@ -228,7 +235,7 @@ impl std::str::FromStr for NarInfo {
 
             let Some((k, v)) = line.split_once(':') else {
                 return Err(NarInfoError::Line {
-                    line: line_no,
+                    line:   line_no,
                     reason: "expected `Key: value`".into(),
                 });
             };
@@ -242,40 +249,46 @@ impl std::str::FromStr for NarInfo {
                 "StorePath" => {
                     out.store_path = nix_utils::parse_store_path(val);
                     have_store_path = true;
-                }
+                },
                 "URL" => {
                     out.url = val.to_string();
                     have_url = true;
-                }
+                },
                 "Compression" => {
-                    out.compression = val.parse().map_err(|e| NarInfoError::InvalidField {
-                        field: "Compression".into(),
-                        value: e,
+                    out.compression = val.parse().map_err(|e| {
+                        NarInfoError::InvalidField {
+                            field: "Compression".into(),
+                            value: e,
+                        }
                     })?;
                     have_compression = true;
-                }
+                },
                 "FileHash" => {
                     out.file_hash = parse_hash(val);
-                }
+                },
                 "FileSize" => {
-                    out.file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                        field: "FileSize",
-                        err: e,
+                    out.file_size = Some(val.parse::<u64>().map_err(|e| {
+                        NarInfoError::Int {
+                            field: "FileSize",
+                            err:   e,
+                        }
                     })?);
-                }
+                },
                 "NarHash" => {
                     if let Some(h) = parse_hash(val) {
                         out.nar_hash = h;
                         have_nar_hash = true;
                     }
-                }
+                },
                 "NarSize" => {
-                    out.nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                        field: "NarSize",
-                        err: e,
+                    out.nar_size = val.parse::<u64>().map_err(|e| {
+                        NarInfoError::Int {
+                            field: "NarSize",
+                            err:   e,
+                        }
                     })?;
                     have_nar_size = true;
-                }
+                },
                 "References" => {
                     let refs = val
                         .split_whitespace()
@@ -283,27 +296,27 @@ impl std::str::FromStr for NarInfo {
                         .map(nix_utils::parse_store_path)
                         .collect::<Vec<_>>();
                     out.references = refs;
-                }
+                },
                 "Deriver" => {
                     out.deriver = if val.is_empty() {
                         None
                     } else {
                         Some(nix_utils::parse_store_path(val))
                     };
-                }
+                },
                 "CA" => {
                     out.ca = if val.is_empty() {
                         None
                     } else {
                         Some(val.to_string())
                     };
-                }
+                },
                 "Sig" => {
                     if !val.is_empty() {
                         out.sigs.push(val.to_string());
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
 

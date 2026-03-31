@@ -11,18 +11,18 @@ const MAX_PRESIGNED_URL_EXPIRY_SECS: u64 = 24 * 60 * 60;
 pub struct S3CacheConfig {
     pub client_config: S3ClientConfig,
 
-    pub compression: Compression,
-    pub write_nar_listing: bool,
-    pub write_debug_info: bool,
-    pub write_realisation: bool,
-    pub secret_key_files: SmallVec<[std::path::PathBuf; 4]>,
+    pub compression:          Compression,
+    pub write_nar_listing:    bool,
+    pub write_debug_info:     bool,
+    pub write_realisation:    bool,
+    pub secret_key_files:     SmallVec<[std::path::PathBuf; 4]>,
     pub parallel_compression: bool,
-    pub compression_level: Option<i32>,
+    pub compression_level:    Option<i32>,
 
     pub narinfo_compression: Compression,
-    pub ls_compression: Compression,
-    pub log_compression: Compression,
-    pub buffer_size: usize,
+    pub ls_compression:      Compression,
+    pub log_compression:     Compression,
+    pub buffer_size:         usize,
 
     pub presigned_url_expiry: std::time::Duration,
 }
@@ -302,11 +302,11 @@ impl std::str::FromStr for S3Scheme {
 
 #[derive(Debug, Clone)]
 pub struct S3ClientConfig {
-    pub region: String,
-    pub scheme: S3Scheme,
-    pub endpoint: Option<String>,
-    pub bucket: String,
-    pub profile: Option<String>,
+    pub region:             String,
+    pub scheme:             S3Scheme,
+    pub endpoint:           Option<String>,
+    pub bucket:             String,
+    pub profile:            Option<String>,
     pub(crate) credentials: Option<S3CredentialsConfig>,
 }
 
@@ -360,7 +360,7 @@ impl S3ClientConfig {
 
 #[derive(Debug, Clone)]
 pub struct S3CredentialsConfig {
-    pub access_key_id: String,
+    pub access_key_id:     String,
     pub secret_access_key: secrecy::SecretString,
 }
 
@@ -434,13 +434,20 @@ fn parse_aws_credentials_file(
 mod tests {
     #![allow(clippy::unwrap_used)]
 
+    use std::str::FromStr as _;
+
     use secrecy::ExposeSecret as _;
 
     use super::{
-        Compression, ConfigReadError, S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme,
-        UrlParseError, parse_aws_credentials_file,
+        Compression,
+        ConfigReadError,
+        S3CacheConfig,
+        S3ClientConfig,
+        S3CredentialsConfig,
+        S3Scheme,
+        UrlParseError,
+        parse_aws_credentials_file,
     };
-    use std::str::FromStr as _;
 
     #[test]
     fn test_parsing_default_profile_works() {
@@ -808,7 +815,11 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
 
     #[test]
     fn test_s3_cache_config_from_str_with_parameters() {
-        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bz2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
+        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.\
+                          com&profile=myprofile&compression=zstd&write-nar-listing=true&\
+                          write-debug-info=1&parallel-compression=true&compression-level=9&\
+                          narinfo-compression=bz2&ls-compression=br&log-compression=xz&\
+                          buffer-size=16777216&presigned-url-expiry=7200";
 
         let config = S3CacheConfig::from_str(config_str).unwrap();
 
@@ -891,7 +902,8 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert!(!config.write_debug_info);
         assert!(config.parallel_compression);
 
-        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZ2&ls-compression=BR&log-compression=ZSTD";
+        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZ2&\
+                          ls-compression=BR&log-compression=ZSTD";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(config.compression, Compression::Xz);
         assert_eq!(config.narinfo_compression, Compression::Bzip2);
@@ -979,7 +991,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .with_endpoint(Some("custom.example.com"))
             .with_profile(Some("myprofile"))
             .with_credentials(Some(S3CredentialsConfig {
-                access_key_id: "test-key".to_string(),
+                access_key_id:     "test-key".to_string(),
                 secret_access_key: "test-secret".into(),
             }));
 

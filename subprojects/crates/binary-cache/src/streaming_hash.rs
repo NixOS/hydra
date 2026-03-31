@@ -1,9 +1,23 @@
-use sha2::{Digest as _, Sha256};
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, ReadBuf};
-use tokio::sync::OnceCell;
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{
+        Context,
+        Poll,
+    },
+};
+
+use sha2::{
+    Digest as _,
+    Sha256,
+};
+use tokio::{
+    io::{
+        AsyncRead,
+        ReadBuf,
+    },
+    sync::OnceCell,
+};
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum Error {
@@ -30,9 +44,9 @@ impl HashResult {
 
 #[derive(Debug)]
 pub(crate) struct HashingReader<R> {
-    inner: R,
-    hasher: Option<Sha256>,
-    size: usize,
+    inner:       R,
+    hasher:      Option<Sha256>,
+    size:        usize,
     hash_result: HashResult,
 }
 
@@ -43,9 +57,9 @@ impl<R: AsyncRead + Unpin + Send> HashingReader<R> {
         let res = HashResult::new();
         (
             Self {
-                inner: reader,
-                hasher: Some(Sha256::new()),
-                size: 0,
+                inner:       reader,
+                hasher:      Some(Sha256::new()),
+                size:        0,
                 hash_result: res.clone(),
             },
             res,
@@ -80,7 +94,7 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for HashingReader<R> {
                     let _ = self.hash_result.inner.set((hasher.finalize(), self.size));
                 }
                 Poll::Ready(Ok(()))
-            }
+            },
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => Poll::Pending,
         }
@@ -91,11 +105,16 @@ impl<R: AsyncRead + Unpin + Send> AsyncRead for HashingReader<R> {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use super::*;
-    use bytes::Bytes;
-    use sha2::{Digest, Sha256};
     use std::io::Cursor;
+
+    use bytes::Bytes;
+    use sha2::{
+        Digest,
+        Sha256,
+    };
     use tokio::io::AsyncReadExt;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_hashing_reader_empty_data() {

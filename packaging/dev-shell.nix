@@ -5,6 +5,7 @@
   hydra-manual,
   hydra-linters,
   hydra-queue-runner,
+  nightly-rustfmt,
 }:
 
 let
@@ -40,14 +41,12 @@ hydra.overrideAttrs (
     src = null;
     sourceRoot = null;
 
-    nativeBuildInputs =
-      collectInputs "nativeBuildInputs"
-      ++ (with pkgs; [
-        clippy
-        nixfmt
-        rustfmt
-        taplo
-      ]);
+    nativeBuildInputs = collectInputs "nativeBuildInputs" ++ [
+      pkgs.clippy
+      pkgs.nixfmt
+      nightly-rustfmt
+      pkgs.taplo
+    ];
     buildInputs = collectInputs "buildInputs";
 
     inherit (hydra-tests) OPENLDAP_ROOT;

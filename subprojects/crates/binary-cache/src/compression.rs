@@ -1,6 +1,11 @@
 use async_compression::{
     Level,
-    tokio::bufread::{BrotliEncoder, BzEncoder, XzEncoder, ZstdEncoder},
+    tokio::bufread::{
+        BrotliEncoder,
+        BzEncoder,
+        XzEncoder,
+        ZstdEncoder,
+    },
 };
 
 pub(crate) type CompressorFn<C> =
@@ -62,7 +67,7 @@ impl Compression {
                 } else {
                     Box::new(move |s| Box::new(XzEncoder::with_quality(s, level)))
                 }
-            }
+            },
             Self::Bzip2 => Box::new(move |s| Box::new(BzEncoder::with_quality(s, level))),
             Self::Brotli => Box::new(move |s| Box::new(BrotliEncoder::with_quality(s, level))),
             Self::Zstd => Box::new(move |s| Box::new(ZstdEncoder::with_quality(s, level))),

@@ -1,24 +1,61 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::time::Instant;
+use std::{
+    collections::BTreeMap,
+    sync::{
+        Arc,
+        atomic::{
+            AtomicBool,
+            AtomicU32,
+            Ordering,
+        },
+    },
+    time::Instant,
+};
 
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
-use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
+use binary_cache::{
+    Compression,
+    PresignedUpload,
+    PresignedUploadClient,
+    harmonia_utils_hash::fmt::CommonHash as _,
+};
 use futures::TryFutureExt as _;
 use hashbrown::HashMap;
+use nix_utils::{
+    BaseStore as _,
+    OutputName,
+};
+use runner_v1::{
+    AbortMessage,
+    BuildMessage,
+    BuildMetric,
+    BuildProduct,
+    BuildResultInfo,
+    BuildResultState,
+    FetchRequisitesRequest,
+    JoinMessage,
+    LogChunk,
+    NarData,
+    NixSupport,
+    Output,
+    OutputNameOnly,
+    OutputWithPath,
+    PingMessage,
+    PressureState,
+    StepStatus,
+    StepUpdate,
+    StorePaths,
+    output,
+};
 use tonic::Request;
 use tracing::Instrument as _;
 
-use crate::grpc::{BuilderClient, runner_v1};
-use crate::types::BuildTimings;
-use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
-use nix_utils::{BaseStore as _, OutputName};
-use runner_v1::{
-    AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
-    FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
-    OutputWithPath, PingMessage, PressureState, StepStatus, StepUpdate, StorePaths, output,
+use crate::{
+    grpc::{
+        BuilderClient,
+        runner_v1,
+    },
+    types::BuildTimings,
 };
 
 include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
@@ -51,7 +88,7 @@ pub enum JobFailure {
 #[serde(rename_all = "camelCase")]
 struct NixBuildOutputs {
     drv_path: String,
-    outputs: BTreeMap<OutputName, String>,
+    outputs:  BTreeMap<OutputName, String>,
 }
 
 impl From<JobFailure> for BuildResultState {
@@ -68,8 +105,8 @@ impl From<JobFailure> for BuildResultState {
 
 #[derive(Debug)]
 pub struct BuildInfo {
-    drv_path: nix_utils::StorePath,
-    handle: tokio::task::JoinHandle<()>,
+    drv_path:      nix_utils::StorePath,
+    handle:        tokio::task::JoinHandle<()>,
     was_cancelled: Arc<AtomicBool>,
 }
 
@@ -82,34 +119,34 @@ impl BuildInfo {
 
 #[derive(Debug)]
 pub struct Config {
-    pub ping_interval: u64,
-    pub speed_factor: f32,
-    pub max_jobs: u32,
+    pub ping_interval:             u64,
+    pub speed_factor:              f32,
+    pub max_jobs:                  u32,
     pub build_dir_avail_threshold: f32,
-    pub store_avail_threshold: f32,
-    pub load1_threshold: f32,
-    pub cpu_psi_threshold: f32,
-    pub mem_psi_threshold: f32,
-    pub io_psi_threshold: Option<f32>,
-    pub gcroots: std::path::PathBuf,
-    pub systems: Vec<String>,
-    pub supported_features: Vec<String>,
-    pub mandatory_features: Vec<String>,
-    pub cgroups: bool,
-    pub use_substitutes: bool,
+    pub store_avail_threshold:     f32,
+    pub load1_threshold:           f32,
+    pub cpu_psi_threshold:         f32,
+    pub mem_psi_threshold:         f32,
+    pub io_psi_threshold:          Option<f32>,
+    pub gcroots:                   std::path::PathBuf,
+    pub systems:                   Vec<String>,
+    pub supported_features:        Vec<String>,
+    pub mandatory_features:        Vec<String>,
+    pub cgroups:                   bool,
+    pub use_substitutes:           bool,
 }
 
 #[derive(Debug)]
 pub struct State {
-    pub id: uuid::Uuid,
-    pub hostname: String,
-    pub config: Config,
+    pub id:                       uuid::Uuid,
+    pub hostname:                 String,
+    pub config:                   Config,
     pub max_concurrent_downloads: AtomicU32,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
-    pub client: BuilderClient,
-    pub halt: AtomicBool,
-    pub metrics: Arc<crate::metrics::Metrics>,
+    pub client:    BuilderClient,
+    pub halt:      AtomicBool,
+    pub metrics:   Arc<crate::metrics::Metrics>,
     upload_client: PresignedUploadClient,
 }
 
@@ -154,15 +191,15 @@ impl State {
         fs_err::tokio::create_dir_all(&gcroots).await?;
 
         let state = Arc::new(Self {
-            id: uuid::Uuid::new_v4(),
-            hostname: gethostname::gethostname().into_string().map_err(|v| {
+            id:                       uuid::Uuid::new_v4(),
+            hostname:                 gethostname::gethostname().into_string().map_err(|v| {
                 anyhow::anyhow!(
                     "Couldn't convert hostname to string! OsString={}",
                     v.display()
                 )
             })?,
-            active_builds: parking_lot::RwLock::new(HashMap::with_capacity(10)),
-            config: Config {
+            active_builds:            parking_lot::RwLock::new(HashMap::with_capacity(10)),
+            config:                   Config {
                 ping_interval: cli.ping_interval,
                 speed_factor: cli.speed_factor,
                 max_jobs: cli.max_jobs,
@@ -191,10 +228,10 @@ impl State {
                 use_substitutes: cli.use_substitutes,
             },
             max_concurrent_downloads: 5.into(),
-            client: crate::grpc::init_client(cli).await?,
-            halt: false.into(),
-            metrics: Arc::new(crate::metrics::Metrics::default()),
-            upload_client: PresignedUploadClient::new(),
+            client:                   crate::grpc::init_client(cli).await?,
+            halt:                     false.into(),
+            metrics:                  Arc::new(crate::metrics::Metrics::default()),
+            upload_client:            PresignedUploadClient::new(),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -215,26 +252,26 @@ impl State {
         let sys = crate::system::BaseSystemInfo::new()?;
 
         Ok(JoinMessage {
-            machine_id: self.id.to_string(),
-            systems: self.config.systems.clone(),
-            hostname: self.hostname.clone(),
-            cpu_count: u32::try_from(sys.cpu_count)?,
-            bogomips: sys.bogomips,
-            speed_factor: self.config.speed_factor,
-            max_jobs: self.config.max_jobs,
+            machine_id:                self.id.to_string(),
+            systems:                   self.config.systems.clone(),
+            hostname:                  self.hostname.clone(),
+            cpu_count:                 u32::try_from(sys.cpu_count)?,
+            bogomips:                  sys.bogomips,
+            speed_factor:              self.config.speed_factor,
+            max_jobs:                  self.config.max_jobs,
             build_dir_avail_threshold: self.config.build_dir_avail_threshold,
-            store_avail_threshold: self.config.store_avail_threshold,
-            load1_threshold: self.config.load1_threshold,
-            cpu_psi_threshold: self.config.cpu_psi_threshold,
-            mem_psi_threshold: self.config.mem_psi_threshold,
-            io_psi_threshold: self.config.io_psi_threshold,
-            total_mem: sys.total_memory,
-            supported_features: self.config.supported_features.clone(),
-            mandatory_features: self.config.mandatory_features.clone(),
-            cgroups: self.config.cgroups,
-            substituters: nix_utils::get_substituters(),
-            use_substitutes: self.config.use_substitutes,
-            nix_version: nix_utils::get_nix_version(),
+            store_avail_threshold:     self.config.store_avail_threshold,
+            load1_threshold:           self.config.load1_threshold,
+            cpu_psi_threshold:         self.config.cpu_psi_threshold,
+            mem_psi_threshold:         self.config.mem_psi_threshold,
+            io_psi_threshold:          self.config.io_psi_threshold,
+            total_mem:                 sys.total_memory,
+            supported_features:        self.config.supported_features.clone(),
+            mandatory_features:        self.config.mandatory_features.clone(),
+            cgroups:                   self.config.cgroups,
+            substituters:              nix_utils::get_substituters(),
+            use_substitutes:           self.config.use_substitutes,
+            nix_version:               nix_utils::get_nix_version(),
         })
     }
 
@@ -243,24 +280,26 @@ impl State {
         let sysinfo = crate::system::SystemLoad::new(&nix_utils::get_build_dir())?;
 
         Ok(PingMessage {
-            machine_id: self.id.to_string(),
-            load1: sysinfo.load_avg_1,
-            load5: sysinfo.load_avg_5,
-            load15: sysinfo.load_avg_15,
-            mem_usage: sysinfo.mem_usage,
-            pressure: sysinfo.pressure.map(|p| PressureState {
-                cpu_some: p.cpu_some.map(Into::into),
-                mem_some: p.mem_some.map(Into::into),
-                mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
-                irq_full: p.irq_full.map(Into::into),
+            machine_id:                      self.id.to_string(),
+            load1:                           sysinfo.load_avg_1,
+            load5:                           sysinfo.load_avg_5,
+            load15:                          sysinfo.load_avg_15,
+            mem_usage:                       sysinfo.mem_usage,
+            pressure:                        sysinfo.pressure.map(|p| {
+                PressureState {
+                    cpu_some: p.cpu_some.map(Into::into),
+                    mem_some: p.mem_some.map(Into::into),
+                    mem_full: p.mem_full.map(Into::into),
+                    io_some:  p.io_some.map(Into::into),
+                    io_full:  p.io_full.map(Into::into),
+                    irq_full: p.irq_full.map(Into::into),
+                }
             }),
-            build_dir_free_percent: sysinfo.build_dir_free_percent,
-            store_free_percent: sysinfo.store_free_percent,
+            build_dir_free_percent:          sysinfo.build_dir_free_percent,
+            store_free_percent:              sysinfo.store_free_percent,
             current_substituting_path_count: self.metrics.get_substituting_path_count(),
-            current_uploading_path_count: self.metrics.get_uploading_path_count(),
-            current_downloading_path_count: self.metrics.get_downloading_path_count(),
+            current_uploading_path_count:    self.metrics.get_uploading_path_count(),
+            current_downloading_path_count:  self.metrics.get_downloading_path_count(),
         })
     }
 
@@ -289,7 +328,7 @@ impl State {
                     Ok(()) => {
                         tracing::info!("Successfully completed build process for {drv}");
                         self_.remove_build(build_id);
-                    }
+                    },
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
@@ -301,47 +340,49 @@ impl State {
                         tracing::error!("Build of {drv} failed with {e}");
                         self_.remove_build(build_id);
                         let failed_build = BuildResultInfo {
-                            build_id: build_id.to_string(),
-                            machine_id: self_.id.to_string(),
+                            build_id:       build_id.to_string(),
+                            machine_id:     self_.id.to_string(),
                             import_time_ms: u64::try_from(timings.import_elapsed.as_millis())
                                 .unwrap_or_default(),
-                            build_time_ms: u64::try_from(timings.build_elapsed.as_millis())
+                            build_time_ms:  u64::try_from(timings.build_elapsed.as_millis())
                                 .unwrap_or_default(),
                             upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())
                                 .unwrap_or_default(),
-                            result_state: BuildResultState::from(e) as i32,
-                            nix_support: None,
-                            outputs: vec![],
+                            result_state:   BuildResultState::from(e) as i32,
+                            nix_support:    None,
+                            outputs:        vec![],
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
+                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| {
+                            async {
+                                let (mut client, body) = tuple;
+                                let res = client.complete_build(body.clone()).await;
+                                ((client, body), res)
+                            }
                         })
                         .retry(retry_strategy())
                         .sleep(tokio::time::sleep)
                         .context((self_.client.clone(), failed_build))
                         .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
+                            tracing::error!(
+                                "Failed to submit build failure info: err={err}, retrying \
+                                 in={dur:?}"
+                            );
                         })
                         .await
                         {
                             tracing::error!("Failed to submit build failure info: {e}");
                         }
-                    }
+                    },
                 }
             }
         });
 
-        self.insert_new_build(
-            build_id,
-            BuildInfo {
-                drv_path: drv,
-                handle: task_handle,
-                was_cancelled,
-            },
-        );
+        self.insert_new_build(build_id, BuildInfo {
+            drv_path: drv,
+            handle: task_handle,
+            was_cancelled,
+        });
         Ok(())
     }
 
@@ -392,8 +433,8 @@ impl State {
         m: BuildMessage,
         timings: &mut BuildTimings,
     ) -> Result<(), JobFailure> {
-        // we dont use anyhow here because we manually need to write the correct build status
-        // to the queue runner.
+        // we dont use anyhow here because we manually need to write the correct build
+        // status to the queue runner.
         use tokio_stream::StreamExt as _;
 
         let store = nix_utils::LocalStore::init();
@@ -415,14 +456,14 @@ impl State {
         let mut client = self.client.clone();
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id:    m.build_id.clone(),
+                machine_id:  machine_id.to_string(),
                 step_status: StepStatus::SeningInputs as i32,
             })
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: maybe_resolved_drv.to_string().to_owned(),
+                path:            maybe_resolved_drv.to_string().to_owned(),
                 include_outputs: false,
             })
             .await
@@ -448,8 +489,8 @@ impl State {
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id:    m.build_id.clone(),
+                machine_id:  machine_id.to_string(),
                 step_status: StepStatus::Building as i32,
             })
             .await;
@@ -490,8 +531,8 @@ impl State {
         )
         .map_err(|e| JobFailure::Build(e.into()))?;
 
-        // The process has already finished by this point, so if it takes more than 100ms
-        // then there probably was no line.
+        // The process has already finished by this point, so if it takes more than
+        // 100ms then there probably was no line.
         // No need for a loop, since `nix build` only ever prints one line.
         let outputs_line = std::pin::pin!(stdout.timeout(tokio::time::Duration::from_millis(100)))
             .next()
@@ -545,8 +586,8 @@ impl State {
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id:    m.build_id.clone(),
+                machine_id:  machine_id.to_string(),
                 step_status: StepStatus::ReceivingOutputs as i32,
             })
             .await;
@@ -565,8 +606,8 @@ impl State {
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id:    m.build_id.clone(),
+                machine_id:  machine_id.to_string(),
                 step_status: StepStatus::PostProcessing as i32,
             })
             .await;
@@ -581,12 +622,14 @@ impl State {
         .await
         .map_err(JobFailure::PostProcessing)?;
 
-        // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
-        // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
+        // This part is stupid, if writing doesnt work, we try to write a failure, maybe
+        // that works. We retry to ensure that this almost never happens.
+        (|tuple: (BuilderClient, BuildResultInfo)| {
+            async {
+                let (mut client, body) = tuple;
+                let res = client.complete_build(body.clone()).await;
+                ((client, body), res)
+            }
         })
         .retry(retry_strategy())
         .sleep(tokio::time::sleep)
@@ -814,7 +857,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     let full_requisites = client
         .clone()
         .fetch_drv_requisites(FetchRequisitesRequest {
-            path: drv.to_string().to_owned(),
+            path:            drv.to_string().to_owned(),
             include_outputs: true,
         })
         .await?
@@ -1021,14 +1064,14 @@ async fn upload_single_nar_presigned(
         .ok_or_else(|| anyhow::anyhow!("nar_upload information is missing"))?;
 
     let presigned_request = binary_cache::PresignedUploadResponse {
-        nar_url: presigned_response.nar_url.clone(),
-        nar_upload: PresignedUpload::new(
+        nar_url:           presigned_response.nar_url.clone(),
+        nar_upload:        PresignedUpload::new(
             nar_upload.path.clone(),
             nar_upload.url.clone(),
             nar_upload.compression.parse().unwrap_or(Compression::None),
             nar_upload.compression_level,
         ),
-        ls_upload: presigned_response.ls_upload.as_ref().map(|ls| {
+        ls_upload:         presigned_response.ls_upload.as_ref().map(|ls| {
             PresignedUpload::new(
                 ls.path.clone(),
                 ls.url.clone(),
@@ -1109,16 +1152,20 @@ async fn new_success_build_result_info(
     for (name, path) in outputs {
         build_outputs.push(Output {
             output: Some(match pathinfos.get(path) {
-                Some(info) => output::Output::Withpath(OutputWithPath {
-                    name: name.to_string(),
-                    closure_size: store.compute_closure_size(path).await,
-                    path: path.to_string(),
-                    nar_size: info.nar_size,
-                    nar_hash: info.nar_hash.clone(),
-                }),
-                None => output::Output::Nameonly(OutputNameOnly {
-                    name: name.to_string(),
-                }),
+                Some(info) => {
+                    output::Output::Withpath(OutputWithPath {
+                        name:         name.to_string(),
+                        closure_size: store.compute_closure_size(path).await,
+                        path:         path.to_string(),
+                        nar_size:     info.nar_size,
+                        nar_hash:     info.nar_hash.clone(),
+                    })
+                },
+                None => {
+                    output::Output::Nameonly(OutputNameOnly {
+                        name: name.to_string(),
+                    })
+                },
             }),
         });
     }
@@ -1132,30 +1179,34 @@ async fn new_success_build_result_info(
         result_state: BuildResultState::Success as i32,
         outputs: build_outputs,
         nix_support: Some(NixSupport {
-            metrics: nix_support
+            metrics:            nix_support
                 .metrics
                 .into_iter()
-                .map(|m| BuildMetric {
-                    path: m.path,
-                    name: m.name,
-                    unit: m.unit,
-                    value: m.value,
+                .map(|m| {
+                    BuildMetric {
+                        path:  m.path,
+                        name:  m.name,
+                        unit:  m.unit,
+                        value: m.value,
+                    }
                 })
                 .collect(),
-            failed: nix_support.failed,
+            failed:             nix_support.failed,
             hydra_release_name: nix_support.hydra_release_name,
-            products: nix_support
+            products:           nix_support
                 .products
                 .into_iter()
-                .map(|p| BuildProduct {
-                    path: p.path,
-                    default_path: p.default_path,
-                    r#type: p.r#type,
-                    subtype: p.subtype,
-                    name: p.name,
-                    is_regular: p.is_regular,
-                    sha256hash: p.sha256hash,
-                    file_size: p.file_size,
+                .map(|p| {
+                    BuildProduct {
+                        path:         p.path,
+                        default_path: p.default_path,
+                        r#type:       p.r#type,
+                        subtype:      p.subtype,
+                        name:         p.name,
+                        is_regular:   p.is_regular,
+                        sha256hash:   p.sha256hash,
+                        file_size:    p.file_size,
+                    }
                 })
                 .collect(),
         }),

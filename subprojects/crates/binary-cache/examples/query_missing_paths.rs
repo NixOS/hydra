@@ -26,7 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let stats = client.s3_stats();
     tracing::info!(
-        "stats: put={}, put_bytes={}, put_time_ms={}, get={}, get_bytes={}, get_time_ms={}, head={}",
+        "stats: put={}, put_bytes={}, put_time_ms={}, get={}, get_bytes={}, get_time_ms={}, \
+         head={}",
         stats.put,
         stats.put_bytes,
         stats.put_time_ms,

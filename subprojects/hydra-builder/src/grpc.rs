@@ -1,12 +1,20 @@
-use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::{
+    Arc,
+    atomic::Ordering,
+};
 
 use anyhow::Context as _;
-use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
-
 use runner_v1::{
-    BuilderRequest, VersionCheckRequest, builder_request, runner_request,
+    BuilderRequest,
+    VersionCheckRequest,
+    builder_request,
+    runner_request,
     runner_service_client::RunnerServiceClient,
+};
+use tonic::{
+    Request,
+    service::interceptor::InterceptedService,
+    transport::Channel,
 };
 
 pub mod runner_v1 {
@@ -48,14 +56,19 @@ impl BuilderClient {
         machine_id: &str,
         store_paths: Vec<(nix_utils::StorePath, String, Vec<String>)>,
     ) -> anyhow::Result<Vec<runner_v1::PresignedNarResponse>> {
-        use runner_v1::{PresignedNarRequest, PresignedUrlRequest};
+        use runner_v1::{
+            PresignedNarRequest,
+            PresignedUrlRequest,
+        };
 
         let request = store_paths
             .into_iter()
-            .map(|(path, nar_hash, build_ids)| PresignedNarRequest {
-                store_path: path.to_string().to_owned(),
-                nar_hash,
-                debug_info_build_ids: build_ids,
+            .map(|(path, nar_hash, build_ids)| {
+                PresignedNarRequest {
+                    store_path: path.to_string().to_owned(),
+                    nar_hash,
+                    debug_info_build_ids: build_ids,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -76,8 +89,8 @@ impl BuilderClient {
 pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClient> {
     if !cli.mtls_configured_correctly() {
         tracing::error!(
-            "mtls configured inproperly, please pass all options: \
-            server_root_ca_cert_path, client_cert_path, client_key_path and domain_name!"
+            "mtls configured inproperly, please pass all options: server_root_ca_cert_path, \
+             client_cert_path, client_key_path and domain_name!"
         );
         return Err(anyhow::anyhow!("Configuration issue"));
     }
@@ -163,19 +176,19 @@ async fn handle_request(
             state
                 .max_concurrent_downloads
                 .store(m.max_concurrent_downloads, Ordering::Relaxed);
-        }
+        },
         runner_request::Message::ConfigUpdate(m) => {
             state
                 .max_concurrent_downloads
                 .store(m.max_concurrent_downloads, Ordering::Relaxed);
-        }
+        },
         runner_request::Message::Ping(_) => (),
         runner_request::Message::Build(m) => {
             state.schedule_build(m)?;
-        }
+        },
         runner_request::Message::Abort(m) => {
             state.abort_build(&m)?;
-        }
+        },
     }
     Ok(())
 }
@@ -186,9 +199,9 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
 
     let response = client
         .check_version(Request::new(VersionCheckRequest {
-            version: crate::state::PROTO_API_VERSION.to_string(),
+            version:    crate::state::PROTO_API_VERSION.to_string(),
             machine_id: state.id.to_string(),
-            hostname: state.hostname.clone(),
+            hostname:   state.hostname.clone(),
         }))
         .await?;
     let response = response.into_inner();
@@ -255,7 +268,7 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
                 return Err(anyhow::anyhow!("API version mismatch: {error_str}"));
             }
             return Err(e.into());
-        }
+        },
     };
 
     let mut consecutive_failure_count = 0;
@@ -266,20 +279,20 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
                 if let Err(err) = handle_request(state2.clone(), v).await {
                     tracing::error!("Failed to correctly handle request: {err}");
                 }
-            }
+            },
             Ok(None) => {
                 consecutive_failure_count = 0;
-            }
+            },
             Err(e) => {
                 consecutive_failure_count += 1;
                 tracing::error!("stream message delivery failed: {e}");
                 if consecutive_failure_count == 10 {
                     return Err(anyhow::anyhow!(
-                        "Failed to communicate {consecutive_failure_count} times over the channel. \
-                        Terminating the application."
+                        "Failed to communicate {consecutive_failure_count} times over the \
+                         channel. Terminating the application."
                     ));
                 }
-            }
+            },
         }
     }
     Ok(())

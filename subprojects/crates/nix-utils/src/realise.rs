@@ -1,27 +1,35 @@
 use std::sync::Arc;
 
-use tokio::io::{AsyncBufReadExt as _, BufReader};
+use tokio::io::{
+    AsyncBufReadExt as _,
+    BufReader,
+};
 use tokio_stream::wrappers::LinesStream;
 
-use crate::BaseStore as _;
-use crate::{DerivedPath, OutputSpec, SingleDerivedPath, StorePath};
+use crate::{
+    BaseStore as _,
+    DerivedPath,
+    OutputSpec,
+    SingleDerivedPath,
+    StorePath,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildOptions {
-    max_log_size: u64,
+    max_log_size:    u64,
     max_silent_time: i32,
-    build_timeout: i32,
-    check: bool,
+    build_timeout:   i32,
+    check:           bool,
 }
 
 impl BuildOptions {
     #[must_use]
     pub fn new(max_log_size: Option<u64>) -> Self {
         Self {
-            max_log_size: max_log_size.unwrap_or(64u64 << 20),
+            max_log_size:    max_log_size.unwrap_or(64u64 << 20),
             max_silent_time: 0,
-            build_timeout: 0,
-            check: false,
+            build_timeout:   0,
+            check:           false,
         }
     }
 
@@ -114,7 +122,7 @@ pub async fn realise_drvs(
                 .store_dir()
                 .display(&DerivedPath::Built {
                     drv_path: Arc::new(SingleDerivedPath::Opaque((*v).clone())),
-                    outputs: OutputSpec::All,
+                    outputs:  OutputSpec::All,
                 })
                 .to_string()
         }))

@@ -48,15 +48,43 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 }
 
-pub use drv::{Derivation, output_paths, query_drv};
-pub use harmonia_store_core::derivation::{BasicDerivation, DerivationOutput, DerivationOutputs};
-pub use harmonia_store_core::derived_path::{
-    DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
+pub use drv::{
+    Derivation,
+    output_paths,
+    query_drv,
 };
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
-pub use realise::{BuildOptions, realise_drv, realise_drvs};
+pub use harmonia_store_core::{
+    derivation::{
+        BasicDerivation,
+        DerivationOutput,
+        DerivationOutputs,
+    },
+    derived_path::{
+        DerivedPath,
+        OutputName,
+        OutputSpec,
+        SingleDerivedPath,
+    },
+};
+pub use realisation::{
+    DrvOutput,
+    FfiRealisation,
+    Realisation,
+    RealisationOperations,
+    Signature,
+};
+pub use realise::{
+    BuildOptions,
+    realise_drv,
+    realise_drvs,
+};
 pub use store_path::{
-    ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
+    ParseStorePathError,
+    StoreDir,
+    StoreDirDisplay,
+    StorePath,
+    StorePathHash,
+    StorePathName,
     parse_store_path,
 };
 
@@ -86,47 +114,47 @@ mod ffi {
 
     #[derive(Debug, Clone)]
     struct InternalPathInfo {
-        deriver: String,
-        nar_hash: String,
+        deriver:           String,
+        nar_hash:          String,
         registration_time: i64,
-        nar_size: u64,
-        refs: Vec<String>,
-        sigs: Vec<String>,
-        ca: String,
+        nar_size:          u64,
+        refs:              Vec<String>,
+        sigs:              Vec<String>,
+        ca:                String,
     }
 
     #[derive(Debug, Clone, Copy)]
     struct StoreStats {
-        nar_info_read: u64,
-        nar_info_read_averted: u64,
-        nar_info_missing: u64,
-        nar_info_write: u64,
-        path_info_cache_size: u64,
-        nar_read: u64,
-        nar_read_bytes: u64,
-        nar_read_compressed_bytes: u64,
-        nar_write: u64,
-        nar_write_averted: u64,
-        nar_write_bytes: u64,
-        nar_write_compressed_bytes: u64,
+        nar_info_read:                 u64,
+        nar_info_read_averted:         u64,
+        nar_info_missing:              u64,
+        nar_info_write:                u64,
+        path_info_cache_size:          u64,
+        nar_read:                      u64,
+        nar_read_bytes:                u64,
+        nar_read_compressed_bytes:     u64,
+        nar_write:                     u64,
+        nar_write_averted:             u64,
+        nar_write_bytes:               u64,
+        nar_write_compressed_bytes:    u64,
         nar_write_compression_time_ms: u64,
     }
 
     #[derive(Debug, Clone, Copy)]
     struct S3Stats {
-        put: u64,
-        put_bytes: u64,
+        put:         u64,
+        put_bytes:   u64,
         put_time_ms: u64,
-        get: u64,
-        get_bytes: u64,
+        get:         u64,
+        get_bytes:   u64,
         get_time_ms: u64,
-        head: u64,
+        head:        u64,
     }
 
     #[derive(Debug)]
     struct DerivationHash {
         output_name: String,
-        drv_hash: String,
+        drv_hash:    String,
     }
 
     unsafe extern "C++" {
@@ -221,7 +249,10 @@ mod ffi {
     }
 }
 
-pub use ffi::{S3Stats, StoreStats};
+pub use ffi::{
+    S3Stats,
+    StoreStats,
+};
 
 impl StoreStats {
     #[must_use]
@@ -366,29 +397,29 @@ pub async fn copy_paths(
 
 #[derive(Debug)]
 pub struct PathInfo {
-    pub deriver: Option<StorePath>,
-    pub nar_hash: String,
+    pub deriver:           Option<StorePath>,
+    pub nar_hash:          String,
     pub registration_time: i64,
-    pub nar_size: u64,
-    pub refs: Vec<StorePath>,
-    pub sigs: Vec<String>,
-    pub ca: Option<String>,
+    pub nar_size:          u64,
+    pub refs:              Vec<StorePath>,
+    pub sigs:              Vec<String>,
+    pub ca:                Option<String>,
 }
 
 impl From<ffi::InternalPathInfo> for PathInfo {
     fn from(val: ffi::InternalPathInfo) -> Self {
         Self {
-            deriver: if val.deriver.is_empty() {
+            deriver:           if val.deriver.is_empty() {
                 None
             } else {
                 Some(parse_store_path(&val.deriver))
             },
-            nar_hash: val.nar_hash,
+            nar_hash:          val.nar_hash,
             registration_time: val.registration_time,
-            nar_size: val.nar_size,
-            refs: val.refs.iter().map(|v| parse_store_path(v)).collect(),
-            sigs: val.sigs,
-            ca: if val.ca.is_empty() {
+            nar_size:          val.nar_size,
+            refs:              val.refs.iter().map(|v| parse_store_path(v)).collect(),
+            sigs:              val.sigs,
+            ca:                if val.ca.is_empty() {
                 None
             } else {
                 Some(val.ca)
@@ -455,12 +486,14 @@ pub trait BaseStore {
     where
         Fd: std::os::fd::AsFd + std::os::fd::AsRawFd;
 
-    /// Export a store path in NAR format. The data is passed in chunks to callback
+    /// Export a store path in NAR format. The data is passed in chunks to
+    /// callback
     fn export_paths<F>(&self, paths: &[StorePath], callback: F) -> Result<(), cxx::Exception>
     where
         F: FnMut(&[u8]) -> bool;
 
-    /// Export a store path in NAR format. The data is passed in chunks to callback
+    /// Export a store path in NAR format. The data is passed in chunks to
+    /// callback
     fn nar_from_path<F>(&self, path: &StorePath, callback: F) -> Result<(), cxx::Exception>
     where
         F: FnMut(&[u8]) -> bool;
@@ -501,7 +534,7 @@ impl FFIStore {
 #[derive(Clone)]
 #[allow(missing_debug_implementations)]
 pub struct BaseStoreImpl {
-    wrapper: std::sync::Arc<FFIStore>,
+    wrapper:   std::sync::Arc<FFIStore>,
     store_dir: StoreDir,
 }
 
@@ -846,10 +879,12 @@ impl LocalStore {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|(name, path)| async move {
-                match path {
-                    Some(p) if self.is_valid_path(&p).await => None,
-                    other => Some((name, other)),
+            .map(|(name, path)| {
+                async move {
+                    match path {
+                        Some(p) if self.is_valid_path(&p).await => None,
+                        other => Some((name, other)),
+                    }
                 }
             })
             .buffered(50)
@@ -1029,7 +1064,7 @@ impl BaseStore for LocalStore {
 pub struct RemoteStore {
     base: BaseStoreImpl,
 
-    pub uri: String,
+    pub uri:      String,
     pub base_uri: String,
 }
 
@@ -1077,11 +1112,13 @@ impl RemoteStore {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(paths)
-            .map(|p| async move {
-                if self.is_valid_path(&p).await {
-                    None
-                } else {
-                    Some(p)
+            .map(|p| {
+                async move {
+                    if self.is_valid_path(&p).await {
+                        None
+                    } else {
+                        Some(p)
+                    }
                 }
             })
             .buffered(50)
@@ -1098,10 +1135,12 @@ impl RemoteStore {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
-            .map(|(name, path)| async move {
-                match path {
-                    Some(p) if self.is_valid_path(&p).await => None,
-                    other => Some((name, other)),
+            .map(|(name, path)| {
+                async move {
+                    match path {
+                        Some(p) if self.is_valid_path(&p).await => None,
+                        other => Some((name, other)),
+                    }
                 }
             })
             .buffered(50)

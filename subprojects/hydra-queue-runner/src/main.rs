@@ -22,7 +22,6 @@ pub mod state;
 pub mod utils;
 
 use anyhow::Context as _;
-
 use state::State;
 
 #[cfg(not(target_env = "msvc"))]
@@ -62,11 +61,11 @@ fn spawn_config_reloader(
                     let _ = s.recv().await;
                     tracing::info!("Reloading...");
                     config::reload(&current_config, &filepath, &state).await;
-                }
+                },
                 Err(e) => {
                     tracing::error!("Failed to create signal listener for SIGHUP: {e}");
                     break;
-                }
+                },
             }
         }
     });
@@ -79,8 +78,8 @@ async fn main() -> anyhow::Result<()> {
 
     #[cfg(debug_assertions)]
     {
-        // If we have a debug build we want to crash on a panic, because we use some debug_asserts,
-        // and that helps validating those!
+        // If we have a debug build we want to crash on a panic, because we use some
+        // debug_asserts, and that helps validating those!
         let default_panic = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
             default_panic(info);
@@ -103,7 +102,8 @@ async fn main() -> anyhow::Result<()> {
 
     if !state.cli.mtls_configured_correctly() {
         tracing::error!(
-            "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
+            "mtls configured inproperly, please pass all options: server_cert_path, \
+             server_key_path and client_ca_cert_path!"
         );
         return Err(anyhow::anyhow!("Configuration issue"));
     }
@@ -122,9 +122,11 @@ async fn main() -> anyhow::Result<()> {
             (Ok(()), Ok(())) => Ok(()),
             (Ok(()), Err(e)) => Err(anyhow::anyhow!("hyper error while awaiting handle: {e}")),
             (Err(e), Ok(())) => Err(anyhow::anyhow!("tonic error while awaiting handle: {e}")),
-            (Err(e1), Err(e2)) => Err(anyhow::anyhow!(
-                "tonic and hyper error while awaiting handle: {e1} | {e2}"
-            )),
+            (Err(e1), Err(e2)) => {
+                Err(anyhow::anyhow!(
+                    "tonic and hyper error while awaiting handle: {e1} | {e2}"
+                ))
+            },
         }
     });
 

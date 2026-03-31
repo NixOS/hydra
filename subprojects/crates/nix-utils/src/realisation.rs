@@ -1,5 +1,10 @@
-pub use harmonia_store_core::realisation::{DrvOutput, Realisation};
-pub use harmonia_store_core::signature::Signature;
+pub use harmonia_store_core::{
+    realisation::{
+        DrvOutput,
+        Realisation,
+    },
+    signature::Signature,
+};
 
 #[cxx::bridge(namespace = "nix_utils")]
 mod ffi {

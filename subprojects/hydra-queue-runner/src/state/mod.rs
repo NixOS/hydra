@@ -10,31 +10,71 @@ mod step;
 mod step_info;
 mod uploader;
 
+use std::{
+    sync::{
+        Arc,
+        atomic::{
+            AtomicI64,
+            Ordering,
+        },
+    },
+    time::Instant,
+};
+
 pub use atomic::AtomicDateTime;
-pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
-pub use jobset::{Jobset, JobsetID, Jobsets};
-pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
-pub use queue::{BuildQueueStats, Queues};
-pub use step::{Step, Steps};
+pub use build::{
+    Build,
+    BuildOutput,
+    BuildResultState,
+    BuildTimings,
+    Builds,
+    RemoteBuild,
+};
+use db::models::{
+    BuildID,
+    BuildStatus,
+};
+use futures::TryStreamExt as _;
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
+use inspectable_channel::InspectableChannel;
+pub use jobset::{
+    Jobset,
+    JobsetID,
+    Jobsets,
+};
+pub use machine::{
+    Machine,
+    Message as MachineMessage,
+    Pressure,
+    Stats as MachineStats,
+};
+use nix_utils::BaseStore as _;
+pub use queue::{
+    BuildQueueStats,
+    Queues,
+};
+use secrecy::ExposeSecret as _;
+pub use step::{
+    Step,
+    Steps,
+};
 pub use step_info::StepInfo;
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicI64, Ordering};
-use std::time::Instant;
-
-use futures::TryStreamExt as _;
-use hashbrown::{HashMap, HashSet};
-use secrecy::ExposeSecret as _;
-
-use db::models::{BuildID, BuildStatus};
-use inspectable_channel::InspectableChannel;
-use nix_utils::BaseStore as _;
-
-use crate::config::{App, Cli};
-use crate::state::build::get_mark_build_sccuess_data;
 pub use crate::state::fod_checker::FodChecker;
-use crate::state::machine::Machines;
-use crate::utils::finish_build_step;
+use crate::{
+    config::{
+        App,
+        Cli,
+    },
+    state::{
+        build::get_mark_build_sccuess_data,
+        machine::Machines,
+    },
+    utils::finish_build_step,
+};
 
 pub type System = String;
 
@@ -59,28 +99,28 @@ pub enum RemoteStoreBackend {
 
 #[allow(missing_debug_implementations)]
 pub struct State {
-    pub store: nix_utils::LocalStore,
+    pub store:         nix_utils::LocalStore,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
-    pub config: App,
-    pub cli: Cli,
-    pub db: db::Database,
+    pub config:        App,
+    pub cli:           Cli,
+    pub db:            db::Database,
 
     pub machines: Machines,
 
     pub log_dir: std::path::PathBuf,
 
-    pub builds: Builds,
+    pub builds:  Builds,
     pub jobsets: Jobsets,
-    pub steps: Steps,
-    pub queues: Queues,
+    pub steps:   Steps,
+    pub queues:  Queues,
 
     pub fod_checker: Option<Arc<FodChecker>>,
 
     pub started_at: jiff::Timestamp,
 
-    pub metrics: metrics::PromMetrics,
+    pub metrics:         metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
-    pub uploader: uploader::Uploader,
+    pub uploader:        uploader::Uploader,
 }
 
 impl State {
@@ -115,11 +155,11 @@ impl State {
                     remote_stores.push(RemoteStoreBackend::S3(
                         binary_cache::S3BinaryCacheClient::new(cfg).await?,
                     ));
-                }
+                },
                 Err(_) => {
                     tracing::info!("Opening FFI store for: {uri}");
                     remote_stores.push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(&uri)));
-                }
+                },
             }
         }
 
@@ -156,8 +196,8 @@ impl State {
         new_config: &crate::config::PreparedApp,
     ) -> anyhow::Result<()> {
         // IF this gets more complex we need a way to trap the state and revert.
-        // right now it doesnt matter because only reconfigure_pool can fail and this is the first
-        // thing we do.
+        // right now it doesnt matter because only reconfigure_pool can fail and this is
+        // the first thing we do.
 
         let curr_db_url = self.config.get_db_url();
         let curr_machine_sort_fn = self.config.get_machine_sort_fn();
@@ -172,12 +212,12 @@ impl State {
                         new_remote_stores.push(RemoteStoreBackend::S3(
                             binary_cache::S3BinaryCacheClient::new(cfg).await?,
                         ));
-                    }
+                    },
                     Err(_) => {
                         tracing::info!("Opening FFI store for: {uri}");
                         new_remote_stores
                             .push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(uri)));
-                    }
+                    },
                 }
             }
         }
@@ -287,12 +327,14 @@ impl State {
             step_info.step.get_dependents(&mut dependents, &mut steps);
 
             if dependents.is_empty() {
-                // Apparently all builds that depend on this derivation are gone (e.g. cancelled). So
-                // don't bother. This is very unlikely to happen, because normally Steps are only kept
-                // alive by being reachable from a Build. However, it's possible that a new Build just
-                // created a reference to this step. So to handle that possibility, we retry this step
-                // (putting it back in the runnable queue). If there are really no strong pointers to
-                // the step, it will be deleted.
+                // Apparently all builds that depend on this derivation are gone (e.g.
+                // cancelled). So don't bother. This is very unlikely to happen,
+                // because normally Steps are only kept alive by being reachable
+                // from a Build. However, it's possible that a new Build just
+                // created a reference to this step. So to handle that possibility, we retry
+                // this step (putting it back in the runnable queue). If there
+                // are really no strong pointers to the step, it will be
+                // deleted.
                 tracing::info!("maybe cancelling build step {drv}");
                 return Ok(RealiseStepResult::MaybeCancelled);
             }
@@ -302,12 +344,14 @@ impl State {
                 .find(|b| &b.drv_path == drv)
                 .or_else(|| dependents.iter().next())
             else {
-                // this should never happen, as we checked is_empty above and fallback is just any build
+                // this should never happen, as we checked is_empty above and fallback is just
+                // any build
                 return Ok(RealiseStepResult::MaybeCancelled);
             };
 
-            // We want the biggest timeout otherwise we could build a step like llvm with a timeout
-            // of 180 because a nixostest with a timeout got scheduled and needs this step
+            // We want the biggest timeout otherwise we could build a step like llvm with a
+            // timeout of 180 because a nixostest with a timeout got scheduled
+            // and needs this step
             let biggest_max_silent_time = dependents.iter().map(|x| x.max_silent_time).max();
             let biggest_build_timeout = dependents.iter().map(|x| x.timeout).max();
 
@@ -374,7 +418,8 @@ impl State {
             tx.commit().await?;
         }
         tracing::info!(
-            "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} step_nr={step_nr}",
+            "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} \
+             step_nr={step_nr}",
             machine.id,
             machine.hostname
         );
@@ -394,11 +439,15 @@ impl State {
                 // TODO: cleanup
                 if self.config.use_presigned_uploads() {
                     let remote_stores = self.remote_stores.read();
-                    remote_stores.iter().find_map(|s| match s {
-                        RemoteStoreBackend::S3(s) => Some(machine::PresignedUrlOpts {
-                            upload_debug_info: s.cfg.write_debug_info,
-                        }),
-                        _ => None,
+                    remote_stores.iter().find_map(|s| {
+                        match s {
+                            RemoteStoreBackend::S3(s) => {
+                                Some(machine::PresignedUrlOpts {
+                                    upload_debug_info: s.cfg.write_debug_info,
+                                })
+                            },
+                            _ => None,
+                        }
                     })
                 } else {
                     None
@@ -504,11 +553,12 @@ impl State {
         }
 
         // This is here to ensure that we dont have any deps to finished steps
-        // This can happen because step creation is async and is_new can return a step that is
-        // still undecided if its finished or not.
+        // This can happen because step creation is async and is_new can return a step
+        // that is still undecided if its finished or not.
         self.steps.make_rdeps_runnable();
 
-        // we can just always trigger dispatch as we might have a free machine and its cheap
+        // we can just always trigger dispatch as we might have a free machine and its
+        // cheap
         self.metrics.queue_checks_finished.inc();
         self.trigger_dispatch();
         if let Some(fod_checker) = &self.fod_checker {
@@ -703,7 +753,7 @@ impl State {
                     Err(e) => {
                         tracing::warn!("PgListener failed with e={e}");
                         continue;
-                    }
+                    },
                 }
             };
             self.metrics.nr_queue_wakeups.inc();
@@ -712,14 +762,14 @@ impl State {
             match notification.as_ref() {
                 "builds_added" => {
                     tracing::debug!("got notification: new builds added to the queue");
-                }
+                },
                 "builds_restarted" => tracing::debug!("got notification: builds restarted"),
                 "builds_cancelled" | "builds_deleted" | "builds_bumped" => {
                     tracing::info!("got notification: builds cancelled or bumped");
                     if let Err(e) = self.process_queue_change().await {
                         tracing::error!("Failed to process queue change. e={e}");
                     }
-                }
+                },
                 "jobset_shares_changed" => {
                     tracing::info!("got notification: jobset shares changed");
                     match self.db.get().await {
@@ -727,14 +777,15 @@ impl State {
                             if let Err(e) = self.jobsets.handle_change(&mut conn).await {
                                 tracing::error!("Failed to handle jobset change. e={e}");
                             }
-                        }
+                        },
                         Err(e) => {
                             tracing::error!(
-                                "Failed to get db connection for event 'jobset_shares_changed'. e={e}"
+                                "Failed to get db connection for event 'jobset_shares_changed'. \
+                                 e={e}"
                             );
-                        }
+                        },
                     }
-                }
+                },
                 _ => (),
             }
 
@@ -800,7 +851,7 @@ impl State {
                 Err(e) => {
                     tracing::warn!("PgListener failed with e={e}");
                     continue;
-                }
+                },
             };
 
             let state = state.clone();
@@ -823,9 +874,11 @@ impl State {
                 let stores = state.remote_stores.read();
                 stores
                     .iter()
-                    .filter_map(|s| match s {
-                        RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        _ => None,
+                    .filter_map(|s| {
+                        match s {
+                            RemoteStoreBackend::S3(s) => Some(s.clone()),
+                            _ => None,
+                        }
                     })
                     .collect()
             };
@@ -848,7 +901,7 @@ impl State {
                     Err(e) => {
                         tracing::error!("Failed to update status in database: {e}");
                         continue;
-                    }
+                    },
                 };
                 if let Err(e) = tx.upsert_status(&dump_status).await {
                     tracing::error!("Failed to update status in database: {e}");
@@ -886,9 +939,11 @@ impl State {
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
                         r.iter()
-                            .filter_map(|s| match s {
-                                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                                _ => None,
+                            .filter_map(|s| {
+                                match s {
+                                    RemoteStoreBackend::S3(s) => Some(s.clone()),
+                                    _ => None,
+                                }
                             })
                             .collect()
                     };
@@ -921,17 +976,17 @@ impl State {
             tokio::time::timeout(tokio::time::Duration::from_secs(5), listener.try_next()).await;
 
         match notification {
-            Ok(Ok(Some(_))) => {}
+            Ok(Ok(Some(_))) => {},
             Ok(Ok(None)) => return Ok(()),
             Ok(Err(e)) => {
                 tracing::warn!("PgListener failed with e={e}");
                 return Ok(());
-            }
+            },
             Err(_) => {
                 // No response from queue-runner daemon — print a down status.
                 println!(r#"{{"status":"down"}}"#);
                 return Ok(());
-            }
+            },
         }
 
         if let Some(status) = db.get_status().await? {
@@ -1019,7 +1074,8 @@ impl State {
 
         let Some((build_id, step_nr)) = build_id_and_step_nr else {
             tracing::warn!(
-                "Failed to find job with build_id and step_nr for build_id={build_id:?} machine_id={machine_id:?}."
+                "Failed to find job with build_id and step_nr for build_id={build_id:?} \
+                 machine_id={machine_id:?}."
             );
             return Ok(());
         };
@@ -1092,11 +1148,13 @@ impl State {
                 let stores = self.remote_stores.read();
                 stores
                     .iter()
-                    .filter_map(|s| match s {
-                        RemoteStoreBackend::Nix(s) => {
-                            Some((s.uri.clone(), s.as_base_store().clone()))
+                    .filter_map(|s| {
+                        match s {
+                            RemoteStoreBackend::Nix(s) => {
+                                Some((s.uri.clone(), s.as_base_store().clone()))
+                            },
+                            _ => None,
                         }
-                        _ => None,
                     })
                     .collect()
             };
@@ -1357,9 +1415,9 @@ impl State {
                 break;
             }
 
-            // Create failed build steps for every build that depends on this, except when this
-            // step is cached and is the top-level of that build (since then it's redundant with
-            // the build's isCachedBuild field).
+            // Create failed build steps for every build that depends on this, except when
+            // this step is cached and is the top-level of that build (since
+            // then it's redundant with the build's isCachedBuild field).
             {
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
@@ -1620,12 +1678,14 @@ impl State {
                         if let Err(e) = conn.abort_build(build.id).await {
                             tracing::error!("Failed to abort the build={} e={}", build.id, e);
                         }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
+                    },
+                    Err(e) => {
+                        tracing::error!(
+                            "Failed to get database connection so we can abort the build={} e={}",
+                            build.id,
+                            e
+                        )
+                    },
                 }
             }
 
@@ -1656,7 +1716,7 @@ impl State {
                     tracing::error!("Failed to handle previous failure: {e}");
                 }
                 return;
-            }
+            },
         };
 
         {
@@ -1784,9 +1844,11 @@ impl State {
         // TODO: check all remote stores
         let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
             let r = self.remote_stores.read();
-            r.iter().find_map(|s| match s {
-                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                _ => None,
+            r.iter().find_map(|s| {
+                match s {
+                    RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    _ => None,
+                }
             })
         };
         let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
@@ -1850,14 +1912,14 @@ impl State {
                     Ok(v) if v => {
                         self.metrics.nr_substitutes_succeeded.inc();
                         substituted += 1;
-                    }
+                    },
                     Ok(_) => {
                         self.metrics.nr_substitutes_failed.inc();
-                    }
+                    },
                     Err(e) => {
                         self.metrics.nr_substitutes_failed.inc();
                         tracing::warn!("Failed to substitute path: {e}");
-                    }
+                    },
                 }
             }
             substituted == missing_outputs_len
@@ -1912,10 +1974,10 @@ impl State {
                         // self.steps and is currently being processed for completion
                         step.add_dep(dep);
                     }
-                }
+                },
                 CreateStepResult::PreviousFailure(step) => {
                     return CreateStepResult::PreviousFailure(step);
-                }
+                },
             }
         }
 
@@ -2086,7 +2148,8 @@ impl State {
                 .find(|b| &b.drv_path == drv)
                 .or_else(|| dependents.iter().next())
             else {
-                // this should never happen, as we checked is_empty above and fallback is just any build
+                // this should never happen, as we checked is_empty above and fallback is just
+                // any build
                 continue;
             };
 

@@ -18,7 +18,10 @@ pub mod models;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{
+    Connection,
+    Transaction,
+};
 pub use sqlx::Error;
 
 #[derive(Debug, Clone)]
@@ -43,7 +46,8 @@ impl Database {
 
     #[tracing::instrument(skip(self, url), err)]
     pub fn reconfigure_pool(&self, url: &str) -> anyhow::Result<()> {
-        // TODO: ability to change max_connections by dropping the pool and recreating it
+        // TODO: ability to change max_connections by dropping the pool and recreating
+        // it
         self.pool
             .set_connect_options(sqlx::postgres::PgConnectOptions::from_str(url)?);
         Ok(())

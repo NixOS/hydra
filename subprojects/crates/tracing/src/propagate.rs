@@ -1,7 +1,10 @@
 // Based on https://heikoseeberger.de/2023-08-28-dist-tracing-3/
 
 #[cfg(feature = "otel")]
-use opentelemetry::{global, propagation::Injector};
+use opentelemetry::{
+    global,
+    propagation::Injector,
+};
 #[cfg(feature = "otel")]
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -22,15 +25,22 @@ struct MetadataInjector<'a>(&'a mut tonic::metadata::MetadataMap);
 #[cfg(feature = "otel")]
 impl Injector for MetadataInjector<'_> {
     fn set(&mut self, key: &str, value: String) {
-        use tonic::metadata::{MetadataKey, MetadataValue};
+        use tonic::metadata::{
+            MetadataKey,
+            MetadataValue,
+        };
         use tracing::warn;
 
         match MetadataKey::from_bytes(key.as_bytes()) {
-            Ok(key) => match MetadataValue::try_from(&value) {
-                Ok(value) => {
-                    self.0.insert(key, value);
+            Ok(key) => {
+                match MetadataValue::try_from(&value) {
+                    Ok(value) => {
+                        self.0.insert(key, value);
+                    },
+                    Err(error) => {
+                        warn!(value, error = format!("{error:#}"), "parse metadata value")
+                    },
                 }
-                Err(error) => warn!(value, error = format!("{error:#}"), "parse metadata value"),
             },
             Err(error) => warn!(key, error = format!("{error:#}"), "parse metadata key"),
         }

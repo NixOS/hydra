@@ -1,6 +1,9 @@
+use binary_cache::{
+    PresignedUploadClient,
+    S3BinaryCacheClient,
+    path_to_narinfo,
+};
 use futures::stream::StreamExt as _;
-
-use binary_cache::{PresignedUploadClient, S3BinaryCacheClient, path_to_narinfo};
 use harmonia_utils_hash::fmt::CommonHash as _;
 use nix_utils::BaseStore as _;
 

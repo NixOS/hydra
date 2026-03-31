@@ -3,23 +3,23 @@ use anyhow::Context as _;
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BuildQueueStats {
-    active_runnable: u64,
-    total_runnable: u64,
-    nr_runnable_waiting: u64,
+    active_runnable:      u64,
+    total_runnable:       u64,
+    nr_runnable_waiting:  u64,
     nr_runnable_disabled: u64,
-    avg_runnable_time: u64,
-    wait_time_ms: u64,
+    avg_runnable_time:    u64,
+    wait_time_ms:         u64,
 }
 
 impl From<crate::state::BuildQueueStats> for BuildQueueStats {
     fn from(v: crate::state::BuildQueueStats) -> Self {
         Self {
-            active_runnable: v.active_runnable,
-            total_runnable: v.total_runnable,
-            nr_runnable_waiting: v.nr_runnable_waiting,
+            active_runnable:      v.active_runnable,
+            total_runnable:       v.total_runnable,
+            nr_runnable_waiting:  v.nr_runnable_waiting,
             nr_runnable_disabled: v.nr_runnable_disabled,
-            avg_runnable_time: v.avg_runnable_time,
-            wait_time_ms: v.wait_time,
+            avg_runnable_time:    v.avg_runnable_time,
+            wait_time_ms:         v.wait_time,
         }
     }
 }
@@ -28,9 +28,9 @@ impl From<crate::state::BuildQueueStats> for BuildQueueStats {
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::struct_field_names)]
 pub struct MemoryStats {
-    current_bytes: u64,
-    peak_bytes: u64,
-    swap_current_bytes: u64,
+    current_bytes:       u64,
+    peak_bytes:          u64,
+    swap_current_bytes:  u64,
     zswap_current_bytes: u64,
 }
 
@@ -38,15 +38,15 @@ impl MemoryStats {
     #[tracing::instrument(err)]
     fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
         Ok(Self {
-            current_bytes: fs_err::read_to_string(cgroups_path.join("memory.current"))?
+            current_bytes:       fs_err::read_to_string(cgroups_path.join("memory.current"))?
                 .trim()
                 .parse()
                 .context("memory current parsing failed")?,
-            peak_bytes: fs_err::read_to_string(cgroups_path.join("memory.peak"))?
+            peak_bytes:          fs_err::read_to_string(cgroups_path.join("memory.peak"))?
                 .trim()
                 .parse()
                 .context("memory peak parsing failed")?,
-            swap_current_bytes: fs_err::read_to_string(cgroups_path.join("memory.swap.current"))?
+            swap_current_bytes:  fs_err::read_to_string(cgroups_path.join("memory.swap.current"))?
                 .trim()
                 .parse()
                 .context("swap parsing failed")?,
@@ -61,7 +61,7 @@ impl MemoryStats {
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IoStats {
-    total_read_bytes: u64,
+    total_read_bytes:  u64,
     total_write_bytes: u64,
 }
 
@@ -101,8 +101,8 @@ impl IoStats {
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::struct_field_names)]
 pub struct CpuStats {
-    usage_usec: u128,
-    user_usec: u128,
+    usage_usec:  u128,
+    user_usec:   u128,
     system_usec: u128,
 }
 
@@ -148,8 +148,8 @@ impl CpuStats {
 #[serde(rename_all = "camelCase")]
 pub struct CgroupStats {
     memory: MemoryStats,
-    io: IoStats,
-    cpu: CpuStats,
+    io:     IoStats,
+    cpu:    CpuStats,
 }
 
 impl CgroupStats {
@@ -170,8 +170,8 @@ impl CgroupStats {
 
         Ok(Self {
             memory: MemoryStats::new(cgroups_path)?,
-            io: IoStats::new(cgroups_path)?,
-            cpu: CpuStats::new(cgroups_path)?,
+            io:     IoStats::new(cgroups_path)?,
+            cpu:    CpuStats::new(cgroups_path)?,
         })
     }
 }
@@ -179,11 +179,11 @@ impl CgroupStats {
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Process {
-    pid: i32,
-    vsize_bytes: u64,
-    rss_bytes: u64,
+    pid:          i32,
+    vsize_bytes:  u64,
+    rss_bytes:    u64,
     shared_bytes: u64,
-    cgroup: Option<CgroupStats>,
+    cgroup:       Option<CgroupStats>,
 }
 
 impl Process {
@@ -195,16 +195,16 @@ impl Process {
         let rss = statm.resident * page_size;
         let shared = statm.shared * page_size;
         Some(Self {
-            pid: me.pid,
-            vsize_bytes: vsize,
-            rss_bytes: rss,
+            pid:          me.pid,
+            vsize_bytes:  vsize,
+            rss_bytes:    rss,
             shared_bytes: shared,
-            cgroup: match CgroupStats::new(&me) {
+            cgroup:       match CgroupStats::new(&me) {
                 Ok(v) => Some(v),
                 Err(e) => {
                     tracing::error!("failed to cgroups stats: {e}");
                     None
-                }
+                },
             },
         })
     }
@@ -213,42 +213,42 @@ impl Process {
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStats {
-    nar_info_read: u64,
-    nar_info_read_averted: u64,
-    nar_info_missing: u64,
-    nar_info_write: u64,
-    path_info_cache_size: u64,
-    nar_read: u64,
-    nar_read_bytes: u64,
-    nar_read_compressed_bytes: u64,
-    nar_write: u64,
-    nar_write_averted: u64,
-    nar_write_bytes: u64,
-    nar_write_compressed_bytes: u64,
+    nar_info_read:                 u64,
+    nar_info_read_averted:         u64,
+    nar_info_missing:              u64,
+    nar_info_write:                u64,
+    path_info_cache_size:          u64,
+    nar_read:                      u64,
+    nar_read_bytes:                u64,
+    nar_read_compressed_bytes:     u64,
+    nar_write:                     u64,
+    nar_write_averted:             u64,
+    nar_write_bytes:               u64,
+    nar_write_compressed_bytes:    u64,
     nar_write_compression_time_ms: u64,
-    nar_compression_savings: f64,
-    nar_compression_speed: f64,
+    nar_compression_savings:       f64,
+    nar_compression_speed:         f64,
 }
 
 impl StoreStats {
     #[must_use]
     pub fn new(v: &nix_utils::StoreStats) -> Self {
         Self {
-            nar_info_read: v.nar_info_read,
-            nar_info_read_averted: v.nar_info_read_averted,
-            nar_info_missing: v.nar_info_missing,
-            nar_info_write: v.nar_info_write,
-            path_info_cache_size: v.path_info_cache_size,
-            nar_read: v.nar_read,
-            nar_read_bytes: v.nar_read_bytes,
-            nar_read_compressed_bytes: v.nar_read_compressed_bytes,
-            nar_write: v.nar_write,
-            nar_write_averted: v.nar_write_averted,
-            nar_write_bytes: v.nar_write_bytes,
-            nar_write_compressed_bytes: v.nar_write_compressed_bytes,
+            nar_info_read:                 v.nar_info_read,
+            nar_info_read_averted:         v.nar_info_read_averted,
+            nar_info_missing:              v.nar_info_missing,
+            nar_info_write:                v.nar_info_write,
+            path_info_cache_size:          v.path_info_cache_size,
+            nar_read:                      v.nar_read,
+            nar_read_bytes:                v.nar_read_bytes,
+            nar_read_compressed_bytes:     v.nar_read_compressed_bytes,
+            nar_write:                     v.nar_write,
+            nar_write_averted:             v.nar_write_averted,
+            nar_write_bytes:               v.nar_write_bytes,
+            nar_write_compressed_bytes:    v.nar_write_compressed_bytes,
             nar_write_compression_time_ms: v.nar_write_compression_time_ms,
-            nar_compression_savings: v.nar_compression_savings(),
-            nar_compression_speed: v.nar_compression_speed(),
+            nar_compression_savings:       v.nar_compression_savings(),
+            nar_compression_speed:         v.nar_compression_speed(),
         }
     }
 }
@@ -256,15 +256,15 @@ impl StoreStats {
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct S3Stats {
-    put: u64,
-    put_bytes: u64,
-    put_time_ms: u64,
-    put_speed: f64,
-    get: u64,
-    get_bytes: u64,
-    get_time_ms: u64,
-    get_speed: f64,
-    head: u64,
+    put:                u64,
+    put_bytes:          u64,
+    put_time_ms:        u64,
+    put_speed:          f64,
+    get:                u64,
+    get_bytes:          u64,
+    get_time_ms:        u64,
+    get_speed:          f64,
+    head:               u64,
     cost_dollar_approx: f64,
 }
 
@@ -272,15 +272,15 @@ impl S3Stats {
     #[must_use]
     pub fn new(v: &binary_cache::S3Stats) -> Self {
         Self {
-            put: v.put,
-            put_bytes: v.put_bytes,
-            put_time_ms: v.put_time_ms,
-            put_speed: v.put_speed(),
-            get: v.get,
-            get_bytes: v.get_bytes,
-            get_time_ms: v.get_time_ms,
-            get_speed: v.get_speed(),
-            head: v.head,
+            put:                v.put,
+            put_bytes:          v.put_bytes,
+            put_time_ms:        v.put_time_ms,
+            put_speed:          v.put_speed(),
+            get:                v.get,
+            get_bytes:          v.get_bytes,
+            get_time_ms:        v.get_time_ms,
+            get_speed:          v.get_speed(),
+            head:               v.head,
             cost_dollar_approx: v.cost_dollar_approx(),
         }
     }

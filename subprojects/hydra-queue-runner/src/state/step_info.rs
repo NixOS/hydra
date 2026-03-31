@@ -1,15 +1,23 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{
+        AtomicBool,
+        Ordering,
+    },
+};
 
 use db::models::BuildID;
-use nix_utils::BaseStore as _;
-use nix_utils::SingleDerivedPath;
+use nix_utils::{
+    BaseStore as _,
+    SingleDerivedPath,
+};
 
 use super::Step;
 
-/// Flatten a [`SingleDerivedPath`] + output name into `(root_drv_path, [outputs...])`.
-/// The output chain is in resolution order: for `Built { Opaque(A), "out" }` with
-/// final output `"dev"`, returns `(A, ["out", "dev"])`.
+/// Flatten a [`SingleDerivedPath`] + output name into `(root_drv_path,
+/// [outputs...])`. The output chain is in resolution order: for `Built {
+/// Opaque(A), "out" }` with final output `"dev"`, returns `(A, ["out",
+/// "dev"])`.
 fn flatten_chain(
     store_dir: &nix_utils::StoreDir,
     drv_path: &SingleDerivedPath,
@@ -26,7 +34,7 @@ fn flatten_chain(
             } => {
                 outputs.push(output.to_string());
                 current = parent;
-            }
+            },
         }
     };
     outputs.reverse();
@@ -36,12 +44,12 @@ fn flatten_chain(
 
 #[derive(Debug)]
 pub struct StepInfo {
-    pub step: Arc<Step>,
+    pub step:              Arc<Step>,
     pub resolved_drv_path: Option<nix_utils::StorePath>,
-    already_scheduled: AtomicBool,
-    cancelled: AtomicBool,
-    pub runnable_since: jiff::Timestamp,
-    lowest_share_used: atomic_float::AtomicF64,
+    already_scheduled:     AtomicBool,
+    cancelled:             AtomicBool,
+    pub runnable_since:    jiff::Timestamp,
+    lowest_share_used:     atomic_float::AtomicF64,
 }
 
 impl StepInfo {
@@ -55,7 +63,7 @@ impl StepInfo {
                         Some(ref basic_drv) => store.write_derivation(basic_drv).await.ok(),
                         None => None,
                     }
-                }
+                },
                 None => None,
             },
             already_scheduled: false.into(),
@@ -69,21 +77,23 @@ impl StepInfo {
     /// Resolve a derivation's inputs into concrete store paths, returning a
     /// [`BasicDerivation`](nix_utils::BasicDerivation).
     ///
-    /// Returns [`None`] if the derivation is input-addressed (shouldn't be resolved),
-    /// or if resolution fails because required outputs haven't been built yet.
+    /// Returns [`None`] if the derivation is input-addressed (shouldn't be
+    /// resolved), or if resolution fails because required outputs haven't
+    /// been built yet.
     ///
-    /// If the derivation has no [`Built`](SingleDerivedPath::Built) inputs, it is
-    /// already resolved; the inputs are simply flattened to a [`StorePathSet`].
+    /// If the derivation has no [`Built`](SingleDerivedPath::Built) inputs, it
+    /// is already resolved; the inputs are simply flattened to a
+    /// [`StorePathSet`].
     ///
-    /// We only need a store dir, not a store, because all the info we need comes from the Hydra
-    /// database.
+    /// We only need a store dir, not a store, because all the info we need
+    /// comes from the Hydra database.
     async fn try_resolve(
         store_dir: &nix_utils::StoreDir,
         db: &db::Database,
         drv: &nix_utils::Derivation,
     ) -> Option<nix_utils::BasicDerivation> {
-        // Input-addressed derivations should not be resolved because this would change their
-        // output paths.
+        // Input-addressed derivations should not be resolved because this would change
+        // their output paths.
         let all_input_addressed = drv
             .outputs
             .values()
@@ -101,9 +111,11 @@ impl StepInfo {
             return Some(drv.clone().map_inputs(|inputs| {
                 inputs
                     .into_iter()
-                    .map(|sdp| match sdp {
-                        SingleDerivedPath::Opaque(p) => p,
-                        SingleDerivedPath::Built { .. } => unreachable!(),
+                    .map(|sdp| {
+                        match sdp {
+                            SingleDerivedPath::Opaque(p) => p,
+                            SingleDerivedPath::Built { .. } => unreachable!(),
+                        }
                     })
                     .collect()
             }));
@@ -268,8 +280,9 @@ impl StepInfo {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use db::models::BuildID;
+
+    use super::*;
 
     fn create_test_step(
         highest_global_priority: i32,
@@ -420,7 +433,8 @@ mod tests {
     #[test]
     fn test_difference_between_compare_functions() {
         // Same global priority, share used, local priority, and build ID
-        // But different rdeps_len - this should affect compare_with_rdeps but not legacy_compare
+        // But different rdeps_len - this should affect compare_with_rdeps but not
+        // legacy_compare
         let step1 = create_test_step(5, 1, 1, 1.0, 10);
         let step2 = create_test_step(5, 1, 1, 1.0, 5);
 

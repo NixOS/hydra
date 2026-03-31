@@ -1,4 +1,7 @@
-use nix_utils::{self, BaseStore as _};
+use nix_utils::{
+    self,
+    BaseStore as _,
+};
 
 #[tokio::main]
 async fn main() {

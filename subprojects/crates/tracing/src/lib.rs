@@ -13,14 +13,12 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+#[cfg(feature = "otel")]
+use opentelemetry::trace::TracerProvider as _;
 pub use tracing_subscriber::filter::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt as _;
 
-#[cfg(feature = "otel")]
-use opentelemetry::trace::TracerProvider as _;
-
-#[cfg(feature = "tonic")]
-pub mod propagate;
+#[cfg(feature = "tonic")] pub mod propagate;
 
 #[cfg(feature = "otel")]
 fn resource() -> opentelemetry_sdk::Resource {
