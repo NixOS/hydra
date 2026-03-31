@@ -655,7 +655,7 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(runner_v1::PresignedNarResponse {
-                store_path: store_path.to_string().to_owned(),
+                store_path: store_path.to_string().clone(),
                 nar_url: presigned_response.nar_url,
                 nar_upload: Some(runner_v1::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),

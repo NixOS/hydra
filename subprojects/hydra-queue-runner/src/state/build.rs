@@ -16,7 +16,7 @@ pub(super) type AtomicBuildID = AtomicI32;
 pub struct Build {
     pub id: BuildID,
     pub drv_path: nix_utils::StorePath,
-    pub outputs: BTreeMap<String, nix_utils::StorePath>,
+    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
     pub jobset_id: JobsetID,
     pub name: String,
     pub timestamp: jiff::Timestamp,
@@ -71,7 +71,7 @@ impl Build {
     pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> anyhow::Result<Arc<Self>> {
         Ok(Arc::new(Self {
             id: v.id,
-            drv_path: nix_utils::parse_store_path(&v.drvpath),
+            drv_path: v.drvpath,
             outputs: BTreeMap::new(),
             jobset_id: v.jobset_id,
             name: v.job,
@@ -388,15 +388,12 @@ pub struct BuildProduct {
 }
 
 impl BuildProduct {
-    pub fn from_db(
-        store_dir: &nix_utils::StoreDir,
-        v: db::models::OwnedBuildProduct,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            path: v
-                .path
-                .map(|p| RelativeStorePath::from_path(store_dir, &p))
-                .transpose()?,
+    pub fn from_db(v: db::models::OwnedBuildProduct) -> Self {
+        Self {
+            path: v.path.map(|p| RelativeStorePath {
+                base_path: p,
+                relative_path: "".into(),
+            }),
             default_path: v.defaultpath,
             r#type: v.r#type,
             subtype: v.subtype,
@@ -405,7 +402,7 @@ impl BuildProduct {
             sha256hash: v.sha256hash,
             #[allow(clippy::cast_sign_loss)]
             file_size: v.filesize.map(|v| v as u64),
-        })
+        }
     }
 
     pub fn from_grpc(
@@ -491,7 +488,7 @@ pub struct BuildOutput {
     pub size: u64,
 
     pub products: Vec<BuildProduct>,
-    pub outputs: BTreeMap<String, nix_utils::StorePath>,
+    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
     pub metrics: Vec<BuildMetric>,
 }
 
@@ -534,7 +531,7 @@ impl BuildOutput {
                     // We dont care about outputs that dont have a path,
                 }
                 Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
-                    outputs.insert(o.name, nix_utils::parse_store_path(&o.path));
+                    outputs.insert(o.name.parse()?, nix_utils::parse_store_path(&o.path));
                     closure_size += o.closure_size;
                     nar_size += o.nar_size;
                 }
@@ -599,7 +596,7 @@ impl BuildOutput {
             if let Some(info) = pathinfos.get(&path) {
                 closure_size += store.compute_closure_size(&path).await;
                 nar_size += info.nar_size;
-                outputs_map.insert(name.to_string(), path);
+                outputs_map.insert(name, path);
             }
         }
 
@@ -647,7 +644,7 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
         outputs: res
             .outputs
             .iter()
-            .map(|(name, path)| (name.clone(), store.print_store_path(path)))
+            .map(|(name, path)| (name.clone(), path.clone()))
             .collect(),
         products: res
             .products

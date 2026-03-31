@@ -212,7 +212,7 @@ impl Step {
     ) -> Option<BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>> {
         let drv = self.drv.load_full();
         drv.as_ref()
-            .map(|drv| nix_utils::output_paths(&drv, store_dir))
+            .map(|drv| nix_utils::output_paths(drv, store_dir))
     }
 
     // TODO: properly parse derivation options instead of reading env vars directly
