@@ -531,22 +531,20 @@ impl Transaction<'_> {
         .and_then(|v| v.max))
     }
 
-    #[tracing::instrument(skip(self), err)]
-    pub async fn alloc_build_step(&mut self, build_id: i32) -> sqlx::Result<i32> {
-        Ok(sqlx::query!(
-            "SELECT MAX(stepnr) FROM buildsteps WHERE build = $1",
-            build_id
-        )
-        .fetch_optional(&mut *self.tx)
-        .await?
-        .and_then(|v| v.max)
-        .map_or(1, |v| v + 1))
-    }
-
     #[tracing::instrument(skip(self, step), err)]
-    pub async fn insert_build_step(&mut self, step: InsertBuildStep<'_>) -> sqlx::Result<bool> {
+    pub async fn insert_build_step(
+        &mut self,
+        step: InsertBuildStep<'_>,
+    ) -> sqlx::Result<Option<i32>> {
         let success = sqlx::query!(
             r#"
+              WITH max AS (SELECT MAX(stepnr) AS val FROM buildsteps WHERE build = $1),
+                new_stepnr AS (SELECT
+                    CASE
+                        WHEN val IS NULL THEN 1
+                        ELSE val + 1
+                    END
+                    AS val FROM max)
               INSERT INTO buildsteps (
                 build,
                 stepnr,
@@ -561,12 +559,12 @@ impl Transaction<'_> {
                 errorMsg,
                 machine
               ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
               )
               ON CONFLICT DO NOTHING
+              RETURNING stepnr
             "#,
             step.build_id,
-            step.step_nr,
             step.r#type as i32,
             step.drv_path,
             i32::from(step.busy),
@@ -582,10 +580,9 @@ impl Transaction<'_> {
             step.error_msg,
             step.machine,
         )
-        .execute(&mut *self.tx)
+        .fetch_optional(&mut *self.tx)
         .await?
-        .rows_affected()
-            != 0;
+        .map(|v| v.stepnr);
         Ok(success)
     }
 
@@ -820,11 +817,9 @@ impl Transaction<'_> {
         outputs: Vec<(String, Option<String>)>,
     ) -> sqlx::Result<i32> {
         let step_nr = loop {
-            let step_nr = self.alloc_build_step(build_id).await?;
-            if self
+            if let Some(step_nr) = self
                 .insert_build_step(InsertBuildStep {
                     build_id,
-                    step_nr,
                     r#type: crate::models::BuildType::Build,
                     drv_path,
                     status,
@@ -880,11 +875,9 @@ impl Transaction<'_> {
         output: (String, Option<String>),
     ) -> anyhow::Result<i32> {
         let step_nr = loop {
-            let step_nr = self.alloc_build_step(build_id).await?;
-            if self
+            if let Some(step_nr) = self
                 .insert_build_step(InsertBuildStep {
                     build_id,
-                    step_nr,
                     r#type: crate::models::BuildType::Substitution,
                     drv_path,
                     status: BuildStatus::Success,

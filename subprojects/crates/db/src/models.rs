@@ -109,7 +109,6 @@ pub struct UpdateBuild<'a> {
 #[derive(Debug)]
 pub struct InsertBuildStep<'a> {
     pub build_id: BuildID,
-    pub step_nr: i32,
     pub r#type: BuildType,
     pub drv_path: &'a str,
     pub status: BuildStatus,
