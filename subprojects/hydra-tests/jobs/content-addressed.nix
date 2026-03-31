@@ -34,4 +34,28 @@ rec {
     builder = ./dir-with-file-builder.sh;
     FOO = empty_dir;
   };
+
+  multiOutput = cfg.mkContentAddressedDerivation {
+    name = "multi-output";
+    builder = ./multi-out.sh;
+    outputs = [
+      "out"
+      "bin"
+      "lib"
+    ];
+  };
+
+  caRewrite = cfg.mkContentAddressedDerivation {
+    name = "ca-rewrite";
+    builder = ./ca-rewrite.sh;
+  };
+
+  caRewriteMulti = cfg.mkContentAddressedDerivation {
+    name = "ca-rewrite-multi";
+    builder = ./ca-rewrite-multi.sh;
+    outputs = [
+      "out"
+      "lib"
+    ];
+  };
 }
