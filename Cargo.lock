@@ -3475,6 +3475,7 @@ dependencies = [
  "anyhow",
  "fs-err",
  "nix-utils",
+ "prost",
  "regex",
  "sha2",
  "tokio",

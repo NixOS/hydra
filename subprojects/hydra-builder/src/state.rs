@@ -20,6 +20,7 @@ use runner_v1::{
     FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
     OutputWithPath, PingMessage, PressureState, StepStatus, StepUpdate, StorePaths, output,
 };
+use shared::proto::ProtoStorePath;
 
 include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
 
@@ -264,14 +265,18 @@ impl State {
         })
     }
 
-    #[tracing::instrument(skip(self, m), fields(drv=%m.drv))]
+    #[tracing::instrument(skip(self, m), fields(drv=?m.drv))]
     pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> anyhow::Result<()> {
         if self.halt.load(Ordering::SeqCst) {
             tracing::warn!("State is set to halt, will no longer accept new builds!");
             return Err(anyhow::anyhow!("State set to halt."));
         }
 
-        let drv = nix_utils::parse_store_path(&m.drv);
+        let drv = m
+            .drv
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("missing drv"))?
+            .0;
         if self.contains_build(&drv) {
             return Ok(());
         }
@@ -385,7 +390,7 @@ impl State {
         active.clear();
     }
 
-    #[tracing::instrument(skip(self, m), fields(drv=%m.drv), err)]
+    #[tracing::instrument(skip(self, m), fields(drv=?m.drv), err)]
     #[allow(clippy::too_many_lines)]
     async fn process_build(
         &self,
@@ -399,11 +404,11 @@ impl State {
         let store = nix_utils::LocalStore::init();
 
         let machine_id = self.id;
-        let drv = nix_utils::parse_store_path(&m.drv);
-        let resolved_drv = m
-            .resolved_drv
-            .as_ref()
-            .map(|v| nix_utils::parse_store_path(v));
+        let drv = m
+            .drv
+            .ok_or(JobFailure::Preparing(anyhow::anyhow!("missing drv")))?
+            .0;
+        let resolved_drv = m.resolved_drv.map(|v| v.0);
         let maybe_resolved_drv = resolved_drv.as_ref().unwrap_or(&drv);
 
         let before_import = Instant::now();
@@ -422,7 +427,7 @@ impl State {
             .await;
         let requisites = client
             .fetch_drv_requisites(FetchRequisitesRequest {
-                path: maybe_resolved_drv.to_string().clone(),
+                path: Some(ProtoStorePath::from(maybe_resolved_drv.clone())),
                 include_outputs: false,
             })
             .await
@@ -436,9 +441,7 @@ impl State {
             self.metrics.clone(),
             &gcroot,
             maybe_resolved_drv,
-            requisites
-                .into_iter()
-                .map(|s| nix_utils::parse_store_path(&s)),
+            requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
         )
@@ -467,7 +470,7 @@ impl State {
             while let Some(chunk) = stderr.next().await {
                 match chunk {
                     Ok(chunk) => yield LogChunk {
-                        drv: drv2.to_string().clone(),
+                        drv: Some(ProtoStorePath::from(drv2.clone())),
                         data: format!("{chunk}\n").into(),
                     },
                     Err(e) => {
@@ -735,7 +738,10 @@ async fn import_paths(
     tracing::debug!("Start importing paths");
     let stream = client
         .stream_files(StorePaths {
-            paths: paths.iter().map(|p| p.to_string().clone()).collect(),
+            paths: paths
+                .iter()
+                .map(|p| ProtoStorePath::from(p.clone()))
+                .collect(),
         })
         .await?
         .into_inner();
@@ -815,14 +821,14 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     let full_requisites = client
         .clone()
         .fetch_drv_requisites(FetchRequisitesRequest {
-            path: drv.to_string().clone(),
+            path: Some(ProtoStorePath::from(drv.clone())),
             include_outputs: true,
         })
         .await?
         .into_inner()
         .requisites
         .into_iter()
-        .map(|s| nix_utils::parse_store_path(&s))
+        .map(|s| s.0)
         .collect::<Vec<_>>();
     let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
         filter_missing(&store, gcroot, p)
@@ -863,9 +869,7 @@ async fn upload_nars_regular(
             let mut client = client.clone();
             async move {
                 if client
-                    .has_path(runner_v1::StorePath {
-                        path: p.to_string().clone(),
-                    })
+                    .has_path(ProtoStorePath::from(p.clone()))
                     .await
                     .is_ok_and(|r| r.into_inner().has_path)
                 {
@@ -1113,7 +1117,7 @@ async fn new_success_build_result_info(
                 Some(info) => output::Output::Withpath(OutputWithPath {
                     name: name.to_string(),
                     closure_size: store.compute_closure_size(path).await,
-                    path: path.to_string(),
+                    path: Some(ProtoStorePath::from(path.clone())),
                     nar_size: info.nar_size,
                     nar_hash: info.nar_hash.clone(),
                 }),

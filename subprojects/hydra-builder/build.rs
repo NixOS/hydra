@@ -23,6 +23,7 @@ pub const PROTO_API_VERSION: &str = "{version}";
     )?;
 
     tonic_prost_build::configure()
+        .extern_path(".runner.v1.StorePath", "::shared::proto::ProtoStorePath")
         .build_server(false)
         .file_descriptor_set_path(out_dir.join("streaming_descriptor.bin"))
         .compile_protos(&["../proto/v1/streaming.proto"], &["../proto"])?;

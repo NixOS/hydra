@@ -18,9 +18,9 @@ use runner_v1::runner_service_server::{RunnerService, RunnerServiceServer};
 use runner_v1::{
     BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
     PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StorePath, StorePaths, VersionCheckRequest, VersionCheckResponse,
-    builder_request,
+    SimplePingMessage, StorePaths, VersionCheckRequest, VersionCheckResponse, builder_request,
 };
+use shared::proto::ProtoStorePath;
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
@@ -375,8 +375,11 @@ impl RunnerService for Server {
             if let Some(ref mut file) = out_file {
                 file.write_all(&chunk.data).await?;
             } else {
+                let drv = chunk
+                    .drv
+                    .ok_or_else(|| tonic::Status::invalid_argument("missing drv"))?;
                 let mut file = state
-                    .new_log_file(&nix_utils::parse_store_path(&chunk.drv))
+                    .new_log_file(&drv)
                     .await
                     .map_err(|_| tonic::Status::internal("Failed to create log file."))?;
                 file.write_all(&chunk.data).await?;
@@ -516,7 +519,10 @@ impl RunnerService for Server {
     ) -> BuilderResult<runner_v1::DrvRequisitesMessage> {
         let state = self.state.clone();
         let req = req.into_inner();
-        let drv = nix_utils::parse_store_path(&req.path);
+        let drv = req
+            .path
+            .ok_or_else(|| tonic::Status::invalid_argument("missing path"))?
+            .0;
 
         let requisites = state
             .store
@@ -527,7 +533,7 @@ impl RunnerService for Server {
                 tonic::Status::internal("failed to toposort drv.")
             })?
             .into_iter()
-            .map(|p| p.to_string())
+            .map(ProtoStorePath::from)
             .collect();
 
         Ok(tonic::Response::new(runner_v1::DrvRequisitesMessage {
@@ -538,9 +544,9 @@ impl RunnerService for Server {
     #[tracing::instrument(skip(self, req), err)]
     async fn has_path(
         &self,
-        req: tonic::Request<StorePath>,
+        req: tonic::Request<ProtoStorePath>,
     ) -> BuilderResult<runner_v1::HasPathResponse> {
-        let path = nix_utils::parse_store_path(&req.into_inner().path);
+        let path = req.into_inner().0;
         let state = self.state.clone();
         let has_path = state.store.is_valid_path(&path).await;
 
@@ -552,9 +558,9 @@ impl RunnerService for Server {
     #[tracing::instrument(skip(self, req), err)]
     async fn stream_file(
         &self,
-        req: tonic::Request<StorePath>,
+        req: tonic::Request<ProtoStorePath>,
     ) -> BuilderResult<Self::StreamFileStream> {
-        let path = nix_utils::parse_store_path(&req.into_inner().path);
+        let path = req.into_inner().0;
         let store = nix_utils::LocalStore::init();
         let (tx, rx) = mpsc::unbounded_channel::<Result<NarData, tonic::Status>>();
 
@@ -579,11 +585,7 @@ impl RunnerService for Server {
         req: tonic::Request<StorePaths>,
     ) -> BuilderResult<Self::StreamFilesStream> {
         let req = req.into_inner();
-        let paths = req
-            .paths
-            .into_iter()
-            .map(|p| nix_utils::parse_store_path(&p))
-            .collect::<Vec<_>>();
+        let paths = req.paths.into_iter().map(|p| p.0).collect::<Vec<_>>();
 
         let store = nix_utils::LocalStore::init();
         let (tx, rx) = mpsc::unbounded_channel::<Result<NarData, tonic::Status>>();
