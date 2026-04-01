@@ -531,7 +531,11 @@ impl BuildOutput {
                     // We dont care about outputs that dont have a path,
                 }
                 Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
-                    outputs.insert(o.name.parse()?, nix_utils::parse_store_path(&o.path));
+                    let path = o
+                        .path
+                        .ok_or_else(|| anyhow::anyhow!("output missing path"))?
+                        .0;
+                    outputs.insert(o.name.parse()?, path);
                     closure_size += o.closure_size;
                     nar_size += o.nar_size;
                 }

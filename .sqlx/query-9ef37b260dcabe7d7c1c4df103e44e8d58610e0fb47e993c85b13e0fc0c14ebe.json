@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n              WITH max AS (SELECT MAX(stepnr) AS val FROM buildsteps WHERE build = $1),\n                new_stepnr AS (SELECT\n                    CASE\n                        WHEN val IS NULL THEN 1\n                        ELSE val + 1\n                    END\n                    AS val FROM max)\n              INSERT INTO buildsteps (\n                build,\n                stepnr,\n                type,\n                drvPath,\n                busy,\n                startTime,\n                stopTime,\n                system,\n                status,\n                propagatedFrom,\n                errorMsg,\n                machine\n              ) VALUES (\n                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11\n              )\n              ON CONFLICT DO NOTHING\n              RETURNING stepnr\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stepnr",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9ef37b260dcabe7d7c1c4df103e44e8d58610e0fb47e993c85b13e0fc0c14ebe"
+}

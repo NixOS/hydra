@@ -13,6 +13,8 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+pub mod proto;
+
 use std::{os::unix::fs::MetadataExt as _, sync::LazyLock};
 
 use std::collections::BTreeMap;
