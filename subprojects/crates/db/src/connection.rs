@@ -338,12 +338,14 @@ impl Connection {
                 CROSS JOIN LATERAL (
                     SELECT o.path
                     FROM buildsteps s
+                    LEFT JOIN buildsteps sr
+                        ON s.build = sr.build AND s.resolvedToStep = sr.stepnr
                     JOIN buildstepoutputs o
-                        ON s.build = o.build AND s.stepnr = o.stepnr
+                        ON s.build = o.build AND (s.stepnr = o.stepnr OR sr.stepnr = o.stepnr)
                     WHERE s.drvPath = r.drv_path
                       AND o.name = i.chain[r.step]
                       AND o.path IS NOT NULL
-                      AND s.status = 0
+                      AND (s.status = 0 OR (s.status = 13 AND sr.status = 0))
                     ORDER BY s.build DESC
                     LIMIT 1
                 ) sub
