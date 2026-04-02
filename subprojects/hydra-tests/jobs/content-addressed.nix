@@ -23,6 +23,12 @@ rec {
     FOO = empty_dir;
   };
 
+  caDependingOnCADependingOnCA = cfg.mkContentAddressedDerivation {
+    name = "ca-depending-on-ca-depending-on-ca";
+    builder = ./dir-with-file-builder.sh;
+    FOO = caDependingOnCA;
+  };
+
   caDependingOnFailingCA = cfg.mkContentAddressedDerivation {
     name = "ca-depending-on-failing-ca";
     builder = ./dir-with-file-builder.sh;
