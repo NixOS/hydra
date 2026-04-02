@@ -362,18 +362,45 @@ impl State {
         // Try to resolve CA derivation inputs. If resolution yields a
         // different drv, mark this step as Resolved in the DB and create a new
         // step for the resolved drv that the builder will actually build.
-        let resolved = if let Some(guard) = step_info.step.get_drv() {
-            let drv_ref = guard.as_ref().unwrap();
-            if let Some(basic_drv) =
-                StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref).await
-            {
-                let resolved_path = self.store.write_derivation(&basic_drv).await?;
-                (&resolved_path != drv).then_some(resolved_path)
+        let resolved = {
+            if let Some(guard) = step_info.step.get_drv() {
+                let drv_ref = guard.as_ref().unwrap();
+                let resolved = if let Some(basic_drv) =
+                    StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref).await
+                {
+                    let resolved_path = self.store.write_derivation(&basic_drv).await?;
+                    (&resolved_path != drv).then_some(resolved_path)
+                } else {
+                    None
+                };
+
+                // If we try to build an unresolved CA derivation it might work, but it might not.
+                // Make sure it always fails for consistency.
+                let is_ca = drv_ref
+                    .outputs
+                    .iter()
+                    .all(|output| matches!(output.1, nix_utils::DerivationOutput::CAFloating(_)));
+
+                let needs_resolution = drv_ref.inputs.iter().any(|input| {
+                    matches!(
+                        input,
+                        nix_utils::SingleDerivedPath::Built {
+                            drv_path: _,
+                            output: _
+                        }
+                    )
+                });
+
+                if is_ca && needs_resolution && resolved.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "Failed to resolve CAFloating derivation {drv}"
+                    ));
+                }
+
+                resolved
             } else {
                 None
             }
-        } else {
-            None
         };
 
         let effective_drv = if let Some(resolved_path) = resolved {
