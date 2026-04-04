@@ -92,7 +92,7 @@ subtest "jobsets" => sub {
 
 subtest "evaluation" => sub {
     subtest "initial evaluaton" => sub {
-        ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
+        ok(evalSucceeds($ctx{context}, $db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
 
         my $result = request_json({ uri => '/jobset/sample/default/evals' });
         is($result->code(), 200, "Can get evals of a jobset");
@@ -105,7 +105,7 @@ subtest "evaluation" => sub {
         open(my $fh, ">>", "${jobsetdir}/default.nix") or die "didn't open?";
         say $fh "\n";
         close $fh;
-        ok(evalSucceeds($db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
+        ok(evalSucceeds($ctx{context}, $db->resultset('Jobsets')->find({ name => 'default' })), "Evaluating should exit with return code 0");
 
         my $evals = decode_json(request_json({ uri => '/jobset/sample/default/evals' })->content())->{evals};
         is(scalar(@$evals), 2, "Changing a jobset source creates the second evaluation");

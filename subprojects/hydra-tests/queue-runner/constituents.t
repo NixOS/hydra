@@ -15,7 +15,7 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 
 my $jobset = createBaseJobset($db, "broken-constituent", "broken-constituent.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/broken-constituent.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset),               "Evaluating jobs/broken-constituent.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 0, "Evaluating jobs/broken-constituent.nix should not queue any builds");
 
 like(

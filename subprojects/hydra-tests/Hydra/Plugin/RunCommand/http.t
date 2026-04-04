@@ -23,7 +23,7 @@ my $builds = $ctx->makeAndEvaluateJobset(
 );
 my $build = $builds->{"metrics"};
 
-ok(sendNotifications(), "Notifications execute successfully.");
+ok(sendNotifications($ctx), "Notifications execute successfully.");
 
 my $runlog = $build->runcommandlogs->find({});
 ok($runlog->uuid, "The log's uuid is saved.");

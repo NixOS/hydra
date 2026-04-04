@@ -54,7 +54,7 @@ subtest "Building the dependent job should now succeed, even though we're missin
         expression => "dependencies/dependentOnly.nix"
     );
 
-    ok(runBuild($builds->{"dependentJob"}), "building the job should succeed");
+    ok(runBuild($ctx, $builds->{"dependentJob"}), "building the job should succeed");
 };
 
 

@@ -24,11 +24,11 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 # Most basic test case, no parameters
 my $jobset = createBaseJobset($db, "nested-attributes", "nested-attributes.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset));
+ok(evalSucceeds($ctx{context}, $jobset));
 is(nrQueuedBuildsForJobset($jobset), 4);
 
 my @builds = queuedBuildsForJobset($jobset);
-ok(runBuilds(@builds), "Building jobs should exit with return code 0");
+ok(runBuilds($ctx{context}, @builds), "Building jobs should exit with return code 0");
 for my $build (@builds) {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' should be finished.");

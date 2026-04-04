@@ -31,11 +31,11 @@ close($fh);
 # Create a jobset that uses the simple build
 my $jobset = createBaseJobset($db, "simple", "simple.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset), "Evaluating simple.nix should succeed");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating simple.nix should succeed");
 is(nrQueuedBuildsForJobset($jobset), 1, "Should have 1 build queued");
 
 my $build = (queuedBuildsForJobset($jobset))[0];
-ok(runBuild($build), "Build should succeed");
+ok(runBuild($ctx{context}, $build), "Build should succeed");
 
 $build->discard_changes();
 

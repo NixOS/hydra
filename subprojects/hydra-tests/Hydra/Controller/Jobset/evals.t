@@ -18,7 +18,7 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 
 my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 
 subtest "/jobset/PROJECT/JOBSET" => sub {
     my $jobset = request(GET '/jobset/' . $project->name . '/' . $jobset->name);
