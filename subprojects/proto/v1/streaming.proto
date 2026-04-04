@@ -27,6 +27,7 @@ message VersionCheckRequest {
   string version = 1;
   string machine_id = 2;
   string hostname = 3;
+  string store_dir = 4;
 }
 
 message VersionCheckResponse {
