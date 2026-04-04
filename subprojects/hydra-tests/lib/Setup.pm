@@ -81,9 +81,8 @@ sub nrQueuedBuildsForJobset {
 }
 
 sub createBaseJobset {
-    my ($jobsetName, $nixexprpath, $jobspath) = @_;
+    my ($db, $jobsetName, $nixexprpath, $jobspath) = @_;
 
-    my $db = Hydra::Model::DB->new;
     my $project = $db->resultset('Projects')->update_or_create({name => "tests", displayname => "", owner => "root"});
     my $jobset = $project->jobsets->create({name => $jobsetName, nixexprinput => "jobs", nixexprpath => $nixexprpath, emailoverride => ""});
 
@@ -97,8 +96,8 @@ sub createBaseJobset {
 }
 
 sub createJobsetWithOneInput {
-    my ($jobsetName, $nixexprpath, $name, $type, $uri, $jobspath) = @_;
-    my $jobset = createBaseJobset($jobsetName, $nixexprpath, $jobspath);
+    my ($db, $jobsetName, $nixexprpath, $name, $type, $uri, $jobspath) = @_;
+    my $jobset = createBaseJobset($db, $jobsetName, $nixexprpath, $jobspath);
 
     my $jobsetinput;
     my $jobsetinputals;

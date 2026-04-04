@@ -12,12 +12,11 @@ my %ctx = test_init();
 
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
-my $jobset = createBaseJobset("aggregate", "aggregate.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "aggregate", "aggregate.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),               "Evaluating jobs/aggregate.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/aggregate.nix should result in 3 builds");

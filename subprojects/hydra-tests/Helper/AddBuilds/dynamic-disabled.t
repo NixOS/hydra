@@ -11,8 +11,7 @@ my $ctx = test_context();
 
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx->db();
 
 my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
 $user->setPassword('foobar');

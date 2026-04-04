@@ -7,12 +7,10 @@ use Hydra::Helper::Exec;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-send-stats", "--once"));
 is($stdout, "", "hydra-send-stats stdout should be empty");

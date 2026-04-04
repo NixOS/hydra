@@ -4,15 +4,13 @@ use Setup;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 
 use Data::Dumper;
 use Test2::V0;
 use Test2::Compare qw(compare strict_convert);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # This test checks a matrix of jobset configuration options for constraint violations.
 

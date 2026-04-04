@@ -9,8 +9,7 @@ my %ctx = test_init();
 
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
@@ -30,7 +29,7 @@ EOF
 close($fh);
 
 # Create a jobset that uses the simple build
-my $jobset = createBaseJobset("simple", "simple.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "simple", "simple.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating simple.nix should succeed");
 is(nrQueuedBuildsForJobset($jobset), 1, "Should have 1 build queued");

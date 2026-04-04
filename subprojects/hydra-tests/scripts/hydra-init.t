@@ -7,12 +7,10 @@ use Hydra::Helper::Exec;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 subtest "hydra-init upgrades user's password hashes from sha1 to sha1 inside Argon2" => sub {
     my $alice = $db->resultset('Users')->create({
