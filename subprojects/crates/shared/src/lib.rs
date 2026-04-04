@@ -101,7 +101,7 @@ struct FilesystemOperations {
 impl FilesystemOperations {
     fn new() -> Self {
         Self {
-            store_dir: nix_utils::StoreDir::new(nix_utils::get_store_dir()).unwrap_or_default(),
+            store_dir: nix_utils::get_store_dir(),
         }
     }
 }

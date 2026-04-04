@@ -216,19 +216,7 @@ impl RunnerService for Server {
         let req = req.into_inner();
         let server_version = PROTO_API_VERSION;
 
-        if req.version == server_version {
-            tracing::info!(
-                "Version check passed: machine_id={}, hostname={}, client={}, server={}",
-                req.machine_id,
-                req.hostname,
-                req.version,
-                server_version
-            );
-            Ok(tonic::Response::new(VersionCheckResponse {
-                compatible: true,
-                server_version: server_version.to_string(),
-            }))
-        } else {
+        if req.version != server_version {
             tracing::warn!(
                 "Version check failed: machine_id={}, hostname={}, client={}, server={}",
                 req.machine_id,
@@ -236,11 +224,31 @@ impl RunnerService for Server {
                 req.version,
                 server_version
             );
-            Ok(tonic::Response::new(VersionCheckResponse {
+            return Ok(tonic::Response::new(VersionCheckResponse {
                 compatible: false,
                 server_version: server_version.to_string(),
-            }))
+            }));
         }
+
+        let our_store_dir = self.state.store.store_dir().to_string();
+        if req.store_dir != our_store_dir {
+            return Err(tonic::Status::failed_precondition(format!(
+                "Store dir mismatch: builder has `{}`, server has `{}`",
+                req.store_dir, our_store_dir
+            )));
+        }
+
+        tracing::info!(
+            "Version check passed: machine_id={}, hostname={}, client={}, server={}",
+            req.machine_id,
+            req.hostname,
+            req.version,
+            server_version
+        );
+        Ok(tonic::Response::new(VersionCheckResponse {
+            compatible: true,
+            server_version: server_version.to_string(),
+        }))
     }
 
     #[tracing::instrument(skip(self, req), err)]

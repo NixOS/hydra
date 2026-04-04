@@ -258,8 +258,8 @@ pub fn init_nix() {
 
 #[inline]
 #[must_use]
-pub fn get_store_dir() -> String {
-    ffi::get_store_dir()
+pub fn get_store_dir() -> StoreDir {
+    StoreDir::new(ffi::get_store_dir()).unwrap_or_default()
 }
 
 #[inline]
