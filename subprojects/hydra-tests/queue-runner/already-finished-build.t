@@ -6,8 +6,8 @@ use Test2::V0;
 my $ctx = test_context();
 
 # Regression test: when a build is already finished in the DB (e.g. cached
-# derivation from a parallel test job), queue-runner-build-one.sh should
-# succeed rather than failing on the 404 from /build_one.
+# derivation from a parallel test job), `runBuild` should
+# succeed rather than failing on the 404 from `/build_one`.
 
 my $builds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",
