@@ -1,6 +1,11 @@
 [workspace]
 
-members  = [ "subprojects/hydra-builder", "subprojects/hydra-queue-runner", "subprojects/crates/*" ]
+members = [
+    "subprojects/hydra-builder",
+    "subprojects/hydra-evaluator",
+    "subprojects/hydra-queue-runner",
+    "subprojects/crates/*",
+]
 resolver = "2"
 
 [workspace.package]

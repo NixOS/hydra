@@ -7,6 +7,9 @@ rec {
       _file = ./default.nix;
       imports = [ ./web-app.nix ];
       services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
+      services.hydra-dev.evaluatorExecutable = lib.mkDefault "${
+        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator
+      }/bin/hydra-evaluator";
     };
 
   postgresql = ./postgresql.nix;
@@ -28,7 +31,7 @@ rec {
       imports = [ ./linux-builder-module.nix ];
       services.hydra-queue-builder-dev.package =
         lib.mkDefault
-          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-builder;
     };
 
   darwin-builder =
@@ -38,7 +41,7 @@ rec {
       imports = [ ./darwin-builder-module.nix ];
       services.hydra-queue-builder-dev.package =
         lib.mkDefault
-          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-builder;
     };
 
   hydra =
