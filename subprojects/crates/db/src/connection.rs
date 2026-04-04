@@ -338,12 +338,14 @@ impl Connection {
                 CROSS JOIN LATERAL (
                     SELECT o.path
                     FROM buildsteps s
+                    LEFT JOIN buildsteps sr
+                        ON s.build = sr.build AND s.resolvedToStep = sr.stepnr
                     JOIN buildstepoutputs o
-                        ON s.build = o.build AND s.stepnr = o.stepnr
+                        ON s.build = o.build AND (s.stepnr = o.stepnr OR sr.stepnr = o.stepnr)
                     WHERE s.drvPath = r.drv_path
                       AND o.name = i.chain[r.step]
                       AND o.path IS NOT NULL
-                      AND s.status = 0
+                      AND (s.status = 0 OR (s.status = 13 AND sr.status = 0))
                     ORDER BY s.build DESC
                     LIMIT 1
                 ) sub
@@ -877,6 +879,30 @@ impl Transaction<'_> {
         }
 
         Ok(step_nr)
+    }
+
+    /// Set resolvedToBuild/resolvedToStep on a dependency step after the
+    /// resolved step has been created, linking the dependency to its resolution.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn set_resolved_to(
+        &mut self,
+        origin_build_id: crate::models::BuildID,
+        origin_step_nr: i32,
+        resolved_step_nr: i32,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            r"
+              UPDATE buildsteps
+              SET resolvedToStep = $3
+              WHERE build = $1 AND stepnr = $2
+            ",
+        )
+        .bind(origin_build_id)
+        .bind(origin_step_nr)
+        .bind(resolved_step_nr)
+        .execute(&mut *self.tx)
+        .await?;
+        Ok(())
     }
 
     #[tracing::instrument(
