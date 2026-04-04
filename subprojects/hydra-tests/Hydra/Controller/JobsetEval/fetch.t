@@ -7,7 +7,6 @@ use JSON::MaybeXS qw(decode_json encode_json);
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 
 use Test2::V0;
@@ -15,10 +14,9 @@ require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
 ok(evalSucceeds($jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 
 my ($eval, @evals) = $jobset->jobsetevals;

@@ -5,15 +5,13 @@ use Setup;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Test jobset with 2 jobs, one has parameter of succeeded build of the other
-my $jobset = createJobsetWithOneInput("build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1", $ctx{jobsdir});
+my $jobset = createJobsetWithOneInput($db, "build-output-as-input", "build-output-as-input.nix", "build1", "build", "build1", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/build-output-as-input.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 1 , "Evaluation should result in 1 build in queue");

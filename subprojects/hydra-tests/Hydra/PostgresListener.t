@@ -4,12 +4,11 @@ use Setup;
 
 my %ctx = test_init();
 
-require Hydra::Model::DB;
 
 use Hydra::PostgresListener;
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
+my $db = $ctx{context}->db();
 my $dbh = $db->storage->dbh;
 
 my $listener = Hydra::PostgresListener->new($dbh);

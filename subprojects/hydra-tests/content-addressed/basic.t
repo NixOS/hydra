@@ -10,7 +10,6 @@ my %ctx = test_init(
 );
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use JSON::MaybeXS;
 
@@ -19,12 +18,11 @@ use Test2::V0;
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
-my $jobset = createBaseJobset("content-addressed", "content-addressed.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 9, "Evaluating jobs/content-addressed.nix should result in 6 builds");

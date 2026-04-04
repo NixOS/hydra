@@ -7,7 +7,6 @@ use JSON::MaybeXS qw(decode_json encode_json);
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 
 use Test2::V0;
@@ -18,8 +17,7 @@ use HTTP::Request::Common qw(POST PUT GET DELETE);
 # This test verifies that creating, reading, updating, and deleting a jobset via
 # the HTTP API works as expected.
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Create a user to log in to
 my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });

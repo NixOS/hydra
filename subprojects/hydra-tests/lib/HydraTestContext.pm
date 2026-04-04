@@ -114,8 +114,7 @@ sub db {
 
     if (!defined $self->{_db}) {
         require Hydra::Schema;
-        require Hydra::Model::DB;
-        $self->{_db} = Hydra::Model::DB->new();
+        $self->{_db} = Hydra::Schema->connect($ENV{'HYDRA_DBI'});
 
         if (!(defined $setup && $setup == 0)) {
             $self->{_db}->resultset('Users')->create({
@@ -285,7 +284,7 @@ sub makeJobset {
 sub DESTROY
 {
     my ($self) = @_;
-    $self->db(0)->schema->storage->disconnect();
+    $self->db(0)->storage->disconnect();
     $self->{db_handle}->stop();
 }
 

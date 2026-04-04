@@ -5,7 +5,6 @@ use Data::Dumper;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 
 use Test2::V0;
@@ -13,12 +12,11 @@ require Catalyst::Test;
 use HTTP::Request::Common;
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");

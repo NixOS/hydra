@@ -38,6 +38,8 @@ sub testScmInput {
   my $datadir = $args{datadir} // die "required arg 'datadir' missing";
   my $jobsdir = $args{jobsdir} // die "required arg 'jobsdir' missing";
 
+  my $db = $args{db} // die "required arg 'db' missing";
+
   my $update = $args{update} // die "required arg 'update' missing";
   $update = "$testdir/$update";
 
@@ -50,7 +52,7 @@ sub testScmInput {
   $uri = "file://$scratchdir/$uri";
 
   subtest "With the SCM input named $name" => sub {
-    my $jobset = createJobsetWithOneInput($name, $expr, 'src', $type, $uri, $jobsdir);
+    my $jobset = createJobsetWithOneInput($db, $name, $expr, 'src', $type, $uri, $jobsdir);
 
     my ($mutations, $queueSize) = (0, 0);
 
