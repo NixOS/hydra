@@ -3,6 +3,7 @@ use strict;
 
 package CliRunners;
 use Hydra::Helper::Exec;
+use QueueRunnerBuildOne;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     evalFails
@@ -40,22 +41,6 @@ sub evalFails {
         print STDERR "STDERR: $stderr\n" if $stderr ne "";
     }
     return !!$res;
-}
-
-sub runBuilds {
-    my @builds = @_;
-    my @ids = map { $_->id } @builds;
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60 * scalar(@builds), ("queue-runner-build-one.sh", @ids));
-    utf8::decode($stdout) or die "Invalid unicode in stdout.";
-    utf8::decode($stderr) or die "Invalid unicode in stderr.";
-    print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
-    print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
-    return !$res;
-}
-
-sub runBuild {
-    my ($build) = @_;
-    return runBuilds($build);
 }
 
 sub sendNotifications() {
