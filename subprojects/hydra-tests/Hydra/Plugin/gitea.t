@@ -12,19 +12,17 @@ my %ctx = test_init(
 |);
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $scratch = "$ctx{tmpdir}/scratch";
 mkdir $scratch;
 
 my $uri = "file://$scratch/git-repo";
 
-my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
+my $jobset = createJobsetWithOneInput($db, 'gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
 
 sub addStringInput {
     my ($jobset, $name, $value) = @_;

@@ -7,12 +7,10 @@ my %ctx = test_init();
 use Hydra::Event;
 use Hydra::Task;
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $taskretries = $db->resultset('TaskRetries');
 

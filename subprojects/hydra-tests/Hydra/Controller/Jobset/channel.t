@@ -12,19 +12,17 @@ my %ctx = test_init(
 );
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("nested-attributes", "nested-attributes.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "nested-attributes", "nested-attributes.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($jobset));
 is(nrQueuedBuildsForJobset($jobset), 4);

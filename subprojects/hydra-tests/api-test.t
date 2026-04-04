@@ -24,8 +24,7 @@ use Test2::V0;
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 {
     my $user = $db->resultset('Users')->find({ username => 'root' });

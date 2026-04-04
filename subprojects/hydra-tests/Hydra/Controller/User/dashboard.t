@@ -7,7 +7,6 @@ use Test2::V0;
 use Catalyst::Test ();
 Catalyst::Test->import('Hydra');
 require Hydra::Schema;
-require Hydra::Model::DB;
 my $db = $ctx->db();
 my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'alice@invalid.org', password => '!' });
 $user->setPassword('foobar');

@@ -20,7 +20,7 @@ my ($_request, $c) = ctx_request('/');
 
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("example", "bogus.nix", $ctx->jobsdir);
+my $jobset = createBaseJobset($db, "example", "bogus.nix", $ctx->jobsdir);
 my $job = "myjob";
 
 

@@ -5,16 +5,13 @@ use TestScmInput;
 
 my %ctx = test_init();
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Tests the creation of a Hydra jobset using a darcs repo as input.
 testScmInput(
+  db => $db,
   type => 'darcs',
   expr => 'darcs-input.nix',
   uri => 'darcs-repo',

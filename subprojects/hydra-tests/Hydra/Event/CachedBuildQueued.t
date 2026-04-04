@@ -5,7 +5,6 @@ use Setup;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 use Hydra::Event;
 use Hydra::Event::CachedBuildQueued;
 
@@ -13,8 +12,7 @@ use Test2::V0;
 use Test2::Tools::Exception;
 use Test2::Tools::Mock qw(mock_obj);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 subtest "Parsing" => sub {
     like(
@@ -51,7 +49,7 @@ subtest "Parsing" => sub {
 };
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
 ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 

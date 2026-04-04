@@ -7,7 +7,6 @@ use JSON::MaybeXS qw(decode_json encode_json);
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 use HTTP::Request::Common;
 
@@ -15,8 +14,7 @@ use Test2::V0;
 require Catalyst::Test;
 Catalyst::Test->import('Hydra');
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 request(GET '/');
 my $metrics = request(GET '/metrics');
