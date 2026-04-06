@@ -12,12 +12,11 @@ path_input_cache_validity_seconds = 0
 |
 );
 
+use Test2::V0;
+setup_catalyst_test($ctx{context});
+
 require Hydra::Schema;
 require Hydra::Helper::Nix;
-
-use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 
 my $db = $ctx{context}->db();
@@ -51,7 +50,7 @@ subtest "Create and evaluate our job at version 1" => sub {
 EOF
     close($fh);
 
-    ok(evalSucceeds($jobset),               "Evaluating our default.nix should exit with return code 0");
+    ok(evalSucceeds($ctx{context}, $jobset), "Evaluating our default.nix should exit with return code 0");
     is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating our default.nix should result in 1 builds");
 };
 
@@ -70,7 +69,7 @@ EOF
     close($fh);
 
 
-    ok(evalSucceeds($jobset),               "Evaluating our default.nix should exit with return code 0");
+    ok(evalSucceeds($ctx{context}, $jobset), "Evaluating our default.nix should exit with return code 0");
     is(nrQueuedBuildsForJobset($jobset), 2, "Evaluating our default.nix should result in 1 more build, resulting in 2 queued builds");
 };
 

@@ -8,6 +8,8 @@ my $ctx = test_context();
 my $db = $ctx->db();
 
 subtest "Handling password and password hash creation" => sub {
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+
     subtest "Creating a user with a plain text password (insecure) stores the password securely" => sub {
         my ($res, $stdout, $stderr) = captureStdoutStderr(15, ("hydra-create-user", "plain-text-user", "--password", "foobar"));
         is($res, 0, "hydra-create-user should exit zero");

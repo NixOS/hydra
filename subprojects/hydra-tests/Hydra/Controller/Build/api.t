@@ -5,12 +5,11 @@ use JSON::MaybeXS qw(decode_json encode_json);
 use Data::Dumper;
 use URI;
 use Test2::V0;
-use Catalyst::Test ();
 use HTTP::Request::Common;
 
 my %ctx = test_init();
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx{context});
 
 my $db = $ctx{context}->db();
 
@@ -18,10 +17,10 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 
 my $jobset = createBaseJobset($db, "aggregate", "aggregate.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/aggregate.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/aggregate.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/aggregate.nix should result in 3 builds");
 my @builds = queuedBuildsForJobset($jobset);
-ok(runBuilds(@builds), "Building jobs/aggregate.nix should exit with return code 0");
+ok(runBuilds($ctx{context}, @builds), "Building jobs/aggregate.nix should exit with return code 0");
 my ($aggregateBuild) = grep { $_->nixname eq "aggregate" } @builds;
 $aggregateBuild->discard_changes();
 

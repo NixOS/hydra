@@ -13,7 +13,10 @@ my %ctx = test_init(hydra_config => q|
 require Hydra::Helper::Nix;
 use Test2::V0;
 
-is(Hydra::Helper::Nix::getStatsdConfig(getHydraConfig()), {
+is(Hydra::Helper::Nix::getStatsdConfig(do {
+    local $ENV{HYDRA_CONFIG} = $ctx{context}->{central}{hydra_config_file};
+    getHydraConfig()
+}), {
     'host' => "foo.bar",
     'port' => 18125
 }, "Reading specific configuration from the hydra.conf works");

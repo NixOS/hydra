@@ -6,16 +6,16 @@ use Test2::V0;
 
 my $ctx = test_context();
 
-require Hydra; # calls setup()
-require Hydra::View::TT;
-require Catalyst::Test;
-
 my $db = $ctx->db;
 
 
 # The following lines are a cheap and hacky trick to get $c,
 # there is no other reason to call /.
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
+
+require Hydra; # calls setup()
+require Hydra::View::TT;
+
 my ($_request, $c) = ctx_request('/');
 
 

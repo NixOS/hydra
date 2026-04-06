@@ -22,6 +22,7 @@ testScmInput(
   datadir => $ctx{tmpdir},
   testdir => $ctx{testdir},
   jobsdir => $ctx{jobsdir},
+  ctx => $ctx{context},
 );
 
 done_testing;

@@ -15,7 +15,10 @@ my %ctx = test_init(hydra_config => q|
 require Hydra::Helper::Nix;
 use Test2::V0;
 
-is(Hydra::Helper::Nix::getHydraNotifyPrometheusConfig(getHydraConfig()), {
+is(Hydra::Helper::Nix::getHydraNotifyPrometheusConfig(do {
+    local $ENV{HYDRA_CONFIG} = $ctx{context}->{central}{hydra_config_file};
+    getHydraConfig()
+}), {
     'listen_address' => "127.0.0.1",
     'port' => 9199
 }, "Reading specific configuration from the hydra.conf works");

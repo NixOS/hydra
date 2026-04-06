@@ -13,8 +13,6 @@ use Test2::V0;
 my $dir = File::Temp->newdir();
 my $machines = "$dir/machines";
 
-local $ENV{'NIX_REMOTE_SYSTEMS'} = $machines;
-
 open(my $fh, '>', $machines) or die "Could not open file '$machines' $!";
 print $fh q|
 # foobar
@@ -30,7 +28,14 @@ root@lotsofspace    i686-linux,x86_64-linux    /var/sshkey   1   1  kvm,nixos-te
 |;
 close $fh;
 
-is(Hydra::Helper::Nix::getMachines(), {
+# getMachines -> getHydraConfig -> getHydraPath needs HYDRA_CONFIG
+my $got_machines = do {
+    local $ENV{HYDRA_CONFIG} = $ctx->{central}{hydra_config_file};
+    local $ENV{NIX_REMOTE_SYSTEMS} = $machines;
+    Hydra::Helper::Nix::getMachines();
+};
+
+is($got_machines, {
     'root@ip' => {
         'systemTypes' => ["x86_64-darwin"],
         'maxJobs' => 15,
@@ -73,6 +78,8 @@ subtest "constructRunCommandLogPath" => sub {
         command => "bogus",
     });
 
+    # constructRunCommandLogPath -> getHydraPath reads $ENV{HYDRA_DATA}
+    local $ENV{HYDRA_DATA} = $ctx->{central}{hydra_data};
     like(
         Hydra::Helper::Nix::constructRunCommandLogPath($runlog),
         qr@/runcommand-logs/[0-9a-f]{2}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@,

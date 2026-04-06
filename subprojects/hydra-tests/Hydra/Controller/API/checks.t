@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
-use Catalyst::Test ();
 use HTTP::Request;
 use HTTP::Request::Common;
 use JSON::MaybeXS qw(decode_json encode_json);
@@ -29,7 +28,7 @@ my $ctx = test_context(hydra_config => qq|
         </github>
     </webhooks>
 |);
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 # Create a user to log in to
 my $user = $ctx->db->resultset('Users')->create({ username => 'alice', emailaddress => 'alice@example.com', password => '!' });

@@ -4,12 +4,11 @@ use Setup;
 use Data::Dumper;
 use Test2::V0;
 use JSON::MaybeXS qw(decode_json);
-use Catalyst::Test ();
 use HTTP::Request::Common;
 
 my $ctx = test_context();
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 my $doneBuilds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",

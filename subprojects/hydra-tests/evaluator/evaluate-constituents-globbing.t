@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
-use Hydra::Helper::Exec;
 use Data::Dumper;
 
 my $ctx = test_context();
@@ -13,8 +12,8 @@ subtest "general glob testing" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
     is($res, 0, "hydra-eval-jobset exits zero");
 
@@ -48,8 +47,8 @@ subtest "* selects all except current aggregate" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     subtest "no eval errors" => sub {
@@ -90,8 +89,8 @@ subtest "trivial cycle check" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     ok(
@@ -117,8 +116,8 @@ subtest "cycle check with globbing" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");

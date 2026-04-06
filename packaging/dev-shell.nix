@@ -57,18 +57,5 @@ hydra.overrideAttrs (
     mesonFlags = [ ];
 
     RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
-
-    shellHook = ''
-      pushd $(git rev-parse --show-toplevel) >/dev/null
-
-      PATH=$(pwd)/build/subprojects/hydra/hydra-evaluator:$(pwd)/subprojects/hydra/script:$PATH
-      PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
-      export HYDRA_HOME="$(pwd)/subprojects/hydra/"
-      mkdir -p .hydra-data
-      export HYDRA_DATA="$(pwd)/.hydra-data"
-      export HYDRA_DBI='dbi:Pg:dbname=hydra;host=localhost;port=64444'
-
-      popd >/dev/null
-    '';
   }
 )

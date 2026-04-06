@@ -47,40 +47,38 @@ sub new {
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
 
-    $ENV{'HYDRA_DATA'} = "$dir/hydra-data";
-    mkdir $ENV{'HYDRA_DATA'};
-    $ENV{'NIX_CONF_DIR'} = "$dir/nix/etc/nix";
-    make_path($ENV{'NIX_CONF_DIR'});
-    my $nixconf = "$ENV{'NIX_CONF_DIR'}/nix.conf";
-    my $nix_config = "sandbox = false\n" . ($opts{'nix_config'} || "");
-    write_file($nixconf, $nix_config);
-    $ENV{'HYDRA_CONFIG'} = "$dir/hydra.conf";
+    # Physical dirs for centralized services (queue runner, main web app, etc.)
+    my $central = { root => "$dir/central" };
+    $central->{hydra_data} = "$dir/hydra-data";
+    $central->{nix_conf_dir} = "$dir/nix/etc/nix";
+    $central->{hydra_config_file} = "$dir/hydra.conf";
+    $central->{nix_store_dir} = "$central->{root}/nix/store";
+    $central->{nix_state_dir} = "$central->{root}/nix/var/nix";
+    $central->{nix_log_dir} = "$central->{root}/nix/var/log/nix";
+    $central->{nix_store_uri} = "local?root=$central->{root}&store=$central->{nix_store_dir}";
 
-    my $hydra_config = $opts{'hydra_config'} || "";
-    $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
-    if ($opts{'use_external_destination_store'} // 1) {
-        $deststoredir = "$dir/nix/dest-store";
-        $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
+    {
+        mkdir $central->{hydra_data};
+        make_path($central->{nix_conf_dir});
+        my $nixconf = "$central->{nix_conf_dir}/nix.conf";
+        my $nix_config = "sandbox = false\n" . ($opts{'nix_config'} || "");
+        write_file($nixconf, $nix_config);
+
+        my $hydra_config = $opts{'hydra_config'} || "";
+        $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
+        if ($opts{'use_external_destination_store'} // 1) {
+            $deststoredir = "$dir/nix/dest-store";
+            $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
+        }
+
+        write_file($central->{hydra_config_file}, $hydra_config);
     }
-
-    write_file($ENV{'HYDRA_CONFIG'}, $hydra_config);
-
-    my $nix_store_dir = "$dir/nix/store";
-    my $nix_state_dir = "$dir/nix/var/nix";
-    my $nix_log_dir = "$dir/nix/var/log/nix";
-
-    $ENV{'NIX_REMOTE_SYSTEMS'} = '';
-    $ENV{'NIX_REMOTE'} = "local?store=$nix_store_dir&state=$nix_state_dir&log=$nix_log_dir";
-    $ENV{'NIX_STATE_DIR'} = $nix_state_dir; # FIXME: remove
-    $ENV{'NIX_STORE_DIR'} = $nix_store_dir; # FIXME: remove
 
     my $pgsql = Test::PostgreSQL->new(
         extra_initdb_args => "--locale C.UTF-8"
     );
-    $ENV{'HYDRA_DBI'} = $pgsql->dsn;
-    # $ENV{'HYDRA_DATABASE_URL'} = "postgres://" . $pgsql->user() . '@' . $pgsql->host() . ':' . $pgsql->port() . '/' $pgsql->;
-    $ENV{'HYDRA_DATABASE_URL'} = $pgsql->uri;
-    # 'HYDRA_DATABASE_URL': 'postgres://hydra@localhost:6433/hydra-test-suite',
+    $central->{hydra_dbi} = $pgsql->dsn;
+    $central->{hydra_database_url} = $pgsql->uri;
 
     my $jobsdir = "$dir/jobs";
     rcopy(abs_path(dirname(__FILE__) . "/../jobs"), $jobsdir);
@@ -93,20 +91,48 @@ sub new {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
-        nix_state_dir => $nix_state_dir,
-        nix_log_dir => $nix_log_dir,
+        central => $central,
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => $jobsdir,
         deststoredir => $deststoredir,
+
+        # Env vars for central services (evaluator, hydra-init, hydra-notify, etc.).
+        # Applied via local %ENV right before each process spawn.
+        central_env => {
+            'HYDRA_DATA'         => $central->{hydra_data},
+            'HYDRA_CONFIG'       => $central->{hydra_config_file},
+            'HYDRA_DBI'          => $central->{hydra_dbi},
+            'HYDRA_DATABASE_URL' => $central->{hydra_database_url},
+            'NIX_CONF_DIR'       => $central->{nix_conf_dir},
+            'NIX_REMOTE_SYSTEMS' => '',
+            'NIX_REMOTE'         => $central->{nix_store_uri},
+            'NIX_STATE_DIR'      => $central->{nix_state_dir}, # FIXME: remove
+            'NIX_STORE_DIR'      => $central->{nix_store_dir}, # FIXME: remove
+        },
     }, $class;
 
     if ($opts{'before_init'}) {
         $opts{'before_init'}->($self);
     }
 
-    expectOkay(30, ("hydra-init"));
+    $self->run_cmd(30, "hydra-init");
 
     return $self;
+}
+
+# Run a command with central_env applied.
+# Dies on non-zero exit.
+sub run_cmd {
+    my ($self, $timeout, @cmd) = @_;
+    local @ENV{keys %{$self->{central_env}}} = values %{$self->{central_env}};
+    expectOkay($timeout, @cmd);
+}
+
+# Like run_cmd but returns ($exit, $stdout, $stderr) instead of dying.
+sub capture_cmd {
+    my ($self, $timeout, @cmd) = @_;
+    local @ENV{keys %{$self->{central_env}}} = values %{$self->{central_env}};
+    return captureStdoutStderr($timeout, @cmd);
 }
 
 sub db {
@@ -114,7 +140,7 @@ sub db {
 
     if (!defined $self->{_db}) {
         require Hydra::Schema;
-        $self->{_db} = Hydra::Schema->connect($ENV{'HYDRA_DBI'});
+        $self->{_db} = Hydra::Schema->connect($self->{central}{hydra_dbi});
 
         if (!(defined $setup && $setup == 0)) {
             $self->{_db}->resultset('Users')->create({
@@ -149,7 +175,7 @@ sub jobsdir {
 sub nix_state_dir {
     my ($self) = @_;
 
-    return $self->{nix_state_dir};
+    return $self->{central}{nix_state_dir};
 }
 
 # Create a jobset, evaluate it, and optionally build the jobs.
@@ -201,7 +227,7 @@ sub evaluateJobset {
 
     my $expression = $opts{'expression'} // $opts{'flake'};
 
-    evalSucceeds($jobset) or die "Evaluating jobs/$expression should exit with return code 0.\n";
+    evalSucceeds($self, $jobset) or die "Evaluating jobs/$expression should exit with return code 0.\n";
 
     my $builds = {};
 
@@ -210,7 +236,7 @@ sub evaluateJobset {
     my @all_builds = $jobset->builds;
 
     if ($should_build) {
-        runBuilds(@all_builds) or die "Building jobs/$expression should exit with return code 0.\n";
+        runBuilds($self, @all_builds) or die "Building jobs/$expression should exit with return code 0.\n";
     }
 
     for my $build (@all_builds) {

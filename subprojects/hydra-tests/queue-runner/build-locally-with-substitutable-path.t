@@ -3,7 +3,6 @@ use warnings;
 use Setup;
 use Data::Dumper;
 use Test2::V0;
-use Hydra::Helper::Exec;
 
 my $ctx = test_context(
     use_external_destination_store => 1
@@ -45,7 +44,7 @@ subtest "Building, caching, and then garbage collecting the underlying job" => s
 
     # ok(unlink(Hydra::Helper::Nix::gcRootFor($path)), "Unlinking the GC root for underlying Dependency succeeds");
 
-    (my $ret, my $stdout, my $stderr) = captureStdoutStderr(15, "nix-store", "--delete", $path);
+    (my $ret, my $stdout, my $stderr) = $ctx->capture_cmd(15, "nix-store", "--delete", $path);
     is($ret, 0, "Deleting the underlying dependency should succeed");
 };
 
@@ -54,7 +53,7 @@ subtest "Building the dependent job should now succeed, even though we're missin
         expression => "dependencies/dependentOnly.nix"
     );
 
-    ok(runBuild($builds->{"dependentJob"}), "building the job should succeed");
+    ok(runBuild($ctx, $builds->{"dependentJob"}), "building the job should succeed");
 };
 
 

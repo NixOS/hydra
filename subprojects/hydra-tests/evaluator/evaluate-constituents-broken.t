@@ -2,7 +2,6 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
-use Hydra::Helper::Exec;
 
 my $ctx = test_context();
 
@@ -12,8 +11,8 @@ subtest "broken constituents expression" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
     isnt($res, 0, "hydra-eval-jobset exits non-zero");
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
@@ -37,8 +36,8 @@ subtest "no matches" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-        ("hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name)
+    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
     );
     isnt($res, 0, "hydra-eval-jobset exits non-zero");
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");

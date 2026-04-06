@@ -3,12 +3,11 @@ use warnings;
 use Setup;
 use Test2::V0;
 
-require Catalyst::Test;
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 use JSON::MaybeXS qw(decode_json encode_json);
 
 my $ctx = test_context();
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 # Create a user to log in to
 my $user = $ctx->db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });

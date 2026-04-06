@@ -24,6 +24,7 @@ our @EXPORT = qw(
     runBuild
     runBuilds
     sendNotifications
+    setup_catalyst_test
     test_context
     test_init
     updateRepository
@@ -51,6 +52,40 @@ sub test_init {
         testdir => $ctx->testdir,
         jobsdir => $ctx->jobsdir
     )
+}
+
+# Set up Catalyst::Test with central_env applied. Exports wrapped `request()`,
+# `get()`, etc. into the caller's namespace that apply central_env around each
+# call.
+#
+# This is a really ugly trick, but I am not sure what else to do.
+# `Catalyst::Test` uses `Sub::Exporter` to dynamically create these functions
+# and inject them into the caller's scope (the idea is for `use Catalyst::Test
+# 'MyApp';` to look deceptively simple). So instead of just calling a function
+# that gets us a data structure with functions (object with methods, hash with
+# function values, etc.) we are stuck doing this.
+sub setup_catalyst_test {
+    my ($ctx) = @_;
+    my $caller = caller;
+    my $central_env = $ctx->{central_env};
+
+    # Import into a temporary namespace so we can capture the generated functions.
+    {
+        local @ENV{keys %$central_env} = values %$central_env;
+        require Catalyst::Test;
+        eval "package Setup::_catalyst_tmp; Catalyst::Test->import('Hydra');";
+        die $@ if $@;
+    }
+
+    # Wrap all imported functions so central_env is applied around each call.
+    for my $fn (qw(request ctx_request get content_like action_ok action_redirect action_notfound contenttype_is)) {
+        no strict 'refs';
+        my $orig = \&{"Setup::_catalyst_tmp::${fn}"};
+        *{"${caller}::${fn}"} = sub {
+            local @ENV{keys %$central_env} = values %$central_env;
+            $orig->(@_);
+        };
+    }
 }
 
 sub write_file {

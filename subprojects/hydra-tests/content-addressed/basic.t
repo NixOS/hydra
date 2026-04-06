@@ -9,14 +9,13 @@ my %ctx = test_init(
     |,
 );
 
-require Hydra::Schema;
-
 use JSON::MaybeXS;
 
 use HTTP::Request::Common;
 use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx{context});
+
+require Hydra::Schema;
 
 my $db = $ctx{context}->db();
 
@@ -24,11 +23,11 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 
 my $jobset = createBaseJobset($db, "content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 9, "Evaluating jobs/content-addressed.nix should result in 6 builds");
 
 for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($build), "Build '".$build->job."' from jobs/content-addressed.nix should exit with code 0");
+    ok(runBuild($ctx{context}, $build), "Build '".$build->job."' from jobs/content-addressed.nix should exit with code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/content-addressed.nix should be finished.");
     my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : $build->job =~ /FailingCA/ ? 2 : 0;

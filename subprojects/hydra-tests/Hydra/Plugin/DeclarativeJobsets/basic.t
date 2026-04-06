@@ -28,18 +28,18 @@ subtest "Evaluating and building the top .jobsets jobset" => sub {
         triggertime => time,
     });
 
-    ok(evalSucceeds($jobset), "Evaluating the declarative jobsets with return code 0");
+    ok(evalSucceeds($ctx, $jobset), "Evaluating the declarative jobsets with return code 0");
     is(nrQueuedBuildsForJobset($jobset), 1, "We should have exactly 1 build queued, to build the jobsets data");
 
     (my $build) = queuedBuildsForJobset($jobset);
 
     is($build->job, "jobsets", "The only job should be jobsets");
-    ok(runBuild($build), "Build should exit with return code 0");
+    ok(runBuild($ctx, $build), "Build should exit with return code 0");
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build should be finished.");
     is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
 
-    ok(sendNotifications(), "Notifications execute successfully.");
+    ok(sendNotifications($ctx), "Notifications execute successfully.");
 };
 
 subtest "Validating a new jobset appears" => sub {
@@ -48,13 +48,13 @@ subtest "Validating a new jobset appears" => sub {
     is($jobset->description, "my-declarative-jobset", "The jobset's description matches");
 
     subtest "Evaluating and building that jobset works" => sub {
-        ok(evalSucceeds($jobset), "Evaluating the new jobset with return code 0");
+        ok(evalSucceeds($ctx, $jobset), "Evaluating the new jobset with return code 0");
         is(nrQueuedBuildsForJobset($jobset), 1, "We should have exactly 1 build queued");
 
         (my $build) = queuedBuildsForJobset($jobset);
 
         is($build->job, "one_job", "The only job should be jobsets");
-        ok(runBuild($build), "Build should exit with return code 0");
+        ok(runBuild($ctx, $build), "Build should exit with return code 0");
         my $newbuild = $db->resultset('Builds')->find($build->id);
         is($newbuild->finished, 1, "Build should be finished.");
         is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");

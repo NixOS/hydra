@@ -16,7 +16,7 @@ my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 subtest "Parsing build_started" => sub {
