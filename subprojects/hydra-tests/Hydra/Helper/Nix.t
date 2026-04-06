@@ -13,7 +13,7 @@ use Test2::V0;
 my $dir = File::Temp->newdir();
 my $machines = "$dir/machines";
 
-$ENV{'NIX_REMOTE_SYSTEMS'} = $machines;
+local $ENV{'NIX_REMOTE_SYSTEMS'} = $machines;
 
 open(my $fh, '>', $machines) or die "Could not open file '$machines' $!";
 print $fh q|

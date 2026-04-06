@@ -46,9 +46,9 @@ sub fetchInput {
 
         # Then download this revision into the store.
         print STDERR "checking out Bazaar input ", $name, " from $uri revision $revision\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-        $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = $type eq "bzr-checkout" ? "1" : "0";
+        local $ENV{"NIX_HASH_ALGO"} = "sha256";
+        local $ENV{"PRINT_PATH"} = "1";
+        local $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = $type eq "bzr-checkout" ? "1" : "0";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(1200,
             "nix-prefetch-bzr", $uri, $revision);
