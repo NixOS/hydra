@@ -47,7 +47,6 @@ endif
 
 testenv = environment(
   {
-    'BZR_HOME': meson.current_build_dir() / 'data',
     'HYDRA_DBI': 'dbi:Pg:dbname=hydra-test-suite;port=6433',
     'HYDRA_DATA': meson.current_build_dir() / 'data',
     'HYDRA_HOME': hydra_home,

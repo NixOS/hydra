@@ -9,6 +9,10 @@ use Test2::V0;
 
 my $db = $ctx{context}->db();
 
+# bzr needs BZR_HOME to avoid writing to $HOME.
+local $ENV{BZR_HOME} = "$ctx{tmpdir}/bzr-home";
+mkdir $ENV{BZR_HOME};
+
 # Tests the creation of a Hydra jobset using a bzr checkout as input.
 testScmInput(
   db => $db,
