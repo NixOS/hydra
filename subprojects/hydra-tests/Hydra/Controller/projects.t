@@ -6,13 +6,13 @@ use JSON::MaybeXS qw(decode_json encode_json);
 
 my %ctx = test_init();
 
-require Hydra::Schema;
-require Hydra::Helper::Nix;
 use HTTP::Request::Common;
 
 use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx{context});
+
+require Hydra::Schema;
+require Hydra::Helper::Nix;
 
 my $db = $ctx{context}->db();
 

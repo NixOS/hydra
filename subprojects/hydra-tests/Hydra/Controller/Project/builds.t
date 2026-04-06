@@ -2,12 +2,11 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
-use Catalyst::Test ();
 use HTTP::Request::Common;
 
 my $ctx = test_context();
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 my $builds = $ctx->makeAndEvaluateJobset(
     expression => "basic.nix",

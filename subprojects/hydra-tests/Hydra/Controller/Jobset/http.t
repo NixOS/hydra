@@ -6,12 +6,12 @@ use JSON::MaybeXS qw(decode_json encode_json);
 
 my %ctx = test_init();
 
+use Test2::V0;
+setup_catalyst_test($ctx{context});
+
 require Hydra::Schema;
 require Hydra::Helper::Nix;
 
-use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 
 # This test verifies that creating, reading, updating, and deleting a jobset via
