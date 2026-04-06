@@ -59,7 +59,7 @@ store:
         deref: always
 YAML
 
-$ENV{'HYDRA_LDAP_CONFIG'} = $hydra_ldap_config;
+local $ENV{'HYDRA_LDAP_CONFIG'} = $hydra_ldap_config;
 my $ctx = test_context();
 
 Catalyst::Test->import('Hydra');
