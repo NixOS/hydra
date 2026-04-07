@@ -127,12 +127,14 @@ sub runBuilds {
         _wait_for($ua, "$base_url/status")
             or die "Timed out waiting for queue-runner REST server\n";
 
-        # TODO Start the builder with its own store settings.
+        # Start the builder with its own store settings.
         {
-            local $ENV{NIX_REMOTE} = $ctx->{central}{nix_store_uri};
-            local $ENV{NIX_CONF_DIR} = $ctx->{central}{nix_conf_dir};
-            local $ENV{NIX_STATE_DIR} = $ctx->{central}{nix_state_dir};
-            local $ENV{NIX_STORE_DIR} = $ctx->{central}{nix_store_dir};
+            local $ENV{NIX_REMOTE} = $ctx->{builder}{nix_store_uri};
+            local $ENV{NIX_CONF_DIR} = $ctx->{builder}{nix_conf_dir};
+            local $ENV{NIX_STATE_DIR} = $ctx->{builder}{nix_state_dir};
+            # TODO: hydra-builder reads NIX_STORE_DIR to report its
+            # store dir to the queue runner; should use the store URI instead.
+            local $ENV{NIX_STORE_DIR} = $ctx->{builder}{nix_store_dir};
             local $ENV{RUST_LOG} = "hydra_builder=debug,info";
             local $ENV{NO_COLOR} = "1";
             $bl_harness = IPC::Run::start(
