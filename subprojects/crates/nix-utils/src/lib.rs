@@ -213,6 +213,7 @@ mod ffi {
         fn list_nar_deep(store: &StoreWrapper, path: &str) -> Result<String>;
 
         fn ensure_path(store: &StoreWrapper, path: &str) -> Result<()>;
+        fn to_real_path(store: &StoreWrapper, path: &str) -> Result<String>;
         fn write_derivation(store: &StoreWrapper, json: &str) -> Result<String>;
         fn static_output_hashes(
             store: &StoreWrapper,
@@ -882,6 +883,17 @@ impl LocalStore {
             Ok(parse_store_path(&path))
         })
         .await
+    }
+
+    /// Resolve a store path to its physical filesystem location.
+    ///
+    /// For stores where the physical store directory differs from the
+    /// logical `storeDir` (e.g. `local?root=X&store=Y`), this returns the
+    /// actual on-disk path rather than the logical store path.
+    pub async fn to_real_path(&self, path: &StorePath) -> Result<String, Error> {
+        let printed = self.base.store_dir.display(path).to_string();
+        let store = self.base.wrapper.clone();
+        asyncify(move || ffi::to_real_path(store.as_raw(), &printed)).await
     }
 }
 
