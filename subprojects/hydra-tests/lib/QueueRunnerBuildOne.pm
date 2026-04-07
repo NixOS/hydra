@@ -43,16 +43,26 @@ sub _wait_for {
     return 0;
 }
 
-sub _dump_harness {
-    my ($label, $stdout, $stderr) = @_;
-    if (defined $stdout && $stdout ne "") {
-        utf8::decode($stdout) or warn "Invalid unicode in $label stdout.";
-        print STDERR "$label stdout: $stdout\n";
+sub _flush_stream {
+    my ($label, $stream, $buf_ref, $final) = @_;
+    return if $$buf_ref eq "";
+    utf8::decode($$buf_ref) or warn "Invalid unicode in $label $stream.";
+    # Print each complete line with a label prefix. Leave any trailing
+    # partial line in the buffer so it can be flushed together with the
+    # rest of its line on a subsequent call.
+    while ($$buf_ref =~ s/^([^\n]*)\n//) {
+        print STDERR "[$label $stream] $1\n";
     }
-    if (defined $stderr && $stderr ne "") {
-        utf8::decode($stderr) or warn "Invalid unicode in $label stderr.";
-        print STDERR "$label stderr: $stderr\n";
+    if ($final && $$buf_ref ne "") {
+        print STDERR "[$label $stream] $$buf_ref\n";
+        $$buf_ref = "";
     }
+}
+
+sub _flush_harness {
+    my ($label, $out_ref, $err_ref, $final) = @_;
+    _flush_stream($label, "stdout", $out_ref, $final);
+    _flush_stream($label, "stderr", $err_ref, $final);
 }
 
 sub runBuilds {
@@ -152,7 +162,11 @@ sub runBuilds {
         while (1) {
             # If the builder crashed, fail fast instead of waiting for the
             # queue-runner to time out the orphaned builds.
+            $qr_harness->pump_nb;
             $bl_harness->pump_nb;
+            # Flush accumulated output so logs are visible while waiting.
+            _flush_harness("Queue runner", \$qr_out, \$qr_err);
+            _flush_harness("Builder", \$bl_out, \$bl_err);
             if (!$bl_harness->pumpable) {
                 $bl_harness->finish;
                 my $rc = $bl_harness->result;
@@ -178,13 +192,14 @@ sub runBuilds {
     my $err = $@;
     alarm 0;
 
-    # Always clean up child processes.
+    # Always clean up child processes, then flush any trailing stderr
+    # that arrived after the last poll iteration.
     if ($bl_harness) {
         $bl_harness->kill_kill;
-        _dump_harness("Builder", $bl_out, $bl_err);
+        _flush_harness("Builder", \$bl_out, \$bl_err, 1);
     }
     $qr_harness->kill_kill;
-    _dump_harness("Queue runner", $qr_out, $qr_err);
+    _flush_harness("Queue runner", \$qr_out, \$qr_err, 1);
 
     if (!$ok) {
         print STDERR "runBuilds failed: $err" if $err;
