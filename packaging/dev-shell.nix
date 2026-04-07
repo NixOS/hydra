@@ -52,6 +52,11 @@ hydra.overrideAttrs (
 
     inherit (hydra-tests) OPENLDAP_ROOT;
 
+    # Better default for local development: build with debug info and
+    # without optimizations. Foreman scripts also read this to pick the
+    # right cargo target directory.
+    mesonBuildType = "debug";
+
     # TODO: use factored-out Nix packaging infra to combine mesonFlags
     # from each component (transforming `-Dfoo=bar` to `-Dsubproject:foo=bar`)
     mesonFlags = [ ];
