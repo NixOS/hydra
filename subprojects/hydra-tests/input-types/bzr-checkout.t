@@ -5,16 +5,17 @@ use TestScmInput;
 
 my %ctx = test_init();
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
+
+# bzr needs BZR_HOME to avoid writing to $HOME.
+local $ENV{BZR_HOME} = "$ctx{tmpdir}/bzr-home";
+mkdir $ENV{BZR_HOME};
 
 # Tests the creation of a Hydra jobset using a bzr checkout as input.
 testScmInput(
+  db => $db,
   type => 'bzr-checkout',
   expr => 'bzr-checkout-input.nix',
   uri => 'bzr-checkout-repo',
@@ -24,6 +25,7 @@ testScmInput(
   datadir => $ctx{tmpdir},
   testdir => $ctx{testdir},
   jobsdir => $ctx{jobsdir},
+  ctx => $ctx{context},
 );
 
 done_testing;

@@ -11,26 +11,23 @@ my %ctx = test_init(
   use_external_destination_store => 0
 );
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx{context});
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+require Hydra::Schema;
+
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("nested-attributes", "nested-attributes.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "nested-attributes", "nested-attributes.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset));
+ok(evalSucceeds($ctx{context}, $jobset));
 is(nrQueuedBuildsForJobset($jobset), 4);
 
 my @builds = queuedBuildsForJobset($jobset);
-ok(runBuilds(@builds), "Building jobs should exit with return code 0");
+ok(runBuilds($ctx{context}, @builds), "Building jobs should exit with return code 0");
 for my $build (@builds) {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' should be finished.");

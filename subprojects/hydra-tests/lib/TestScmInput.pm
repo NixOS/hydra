@@ -38,6 +38,8 @@ sub testScmInput {
   my $datadir = $args{datadir} // die "required arg 'datadir' missing";
   my $jobsdir = $args{jobsdir} // die "required arg 'jobsdir' missing";
 
+  my $db = $args{db} // die "required arg 'db' missing";
+  my $ctx = $args{ctx};
   my $update = $args{update} // die "required arg 'update' missing";
   $update = "$testdir/$update";
 
@@ -50,19 +52,19 @@ sub testScmInput {
   $uri = "file://$scratchdir/$uri";
 
   subtest "With the SCM input named $name" => sub {
-    my $jobset = createJobsetWithOneInput($name, $expr, 'src', $type, $uri, $jobsdir);
+    my $jobset = createJobsetWithOneInput($db, $name, $expr, 'src', $type, $uri, $jobsdir);
 
     my ($mutations, $queueSize) = (0, 0);
 
     my ($loop, $updated) = updateRepository($name, $update, $scratchdir);
     while ($loop) {
       subtest "Mutation number $mutations" => sub {
-        ok(evalSucceeds($jobset), "Evaluating nix-expression.");
+        ok(evalSucceeds($ctx, $jobset), "Evaluating nix-expression.");
 
         if ($updated) {
           $queueSize++;
           is(nrQueuedBuildsForJobset($jobset), $queueSize, "Expect $queueSize jobs in the queue.");
-          ok(evalSucceeds($jobset), "Evaluating nix-expression again.");
+          ok(evalSucceeds($ctx, $jobset), "Evaluating nix-expression again.");
         }
 
         is(nrQueuedBuildsForJobset($jobset), $queueSize, "Expect deterministic evaluation.");

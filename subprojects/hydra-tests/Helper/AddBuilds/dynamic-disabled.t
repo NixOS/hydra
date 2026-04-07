@@ -3,16 +3,14 @@ use warnings;
 use Setup;
 use Test2::V0;
 
-require Catalyst::Test;
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 use JSON::MaybeXS qw(decode_json encode_json);
 
 my $ctx = test_context();
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx->db();
 
 my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
 $user->setPassword('foobar');

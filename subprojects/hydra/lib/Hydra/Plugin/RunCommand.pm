@@ -229,7 +229,7 @@ sub buildFinished {
 
     my $tmp = File::Temp->new(SUFFIX => '.json');
     print $tmp encode_json(makeJsonPayload($event, $build)) or die;
-    $ENV{"HYDRA_JSON"} = $tmp->filename;
+    local $ENV{"HYDRA_JSON"} = $tmp->filename;
 
     foreach my $commandToRun (@{$commandsToRun}) {
         my $command = $commandToRun->{command};

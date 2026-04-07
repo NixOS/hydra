@@ -44,9 +44,8 @@ my $ctx = test_context(
 |
 );
 
-# Import Catalyst::Test after test context is set up
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+# Set up Catalyst::Test after test context is set up
+setup_catalyst_test($ctx);
 
 # Create a project and jobset for testing
 my $user = $ctx->db()->resultset('Users')->create({

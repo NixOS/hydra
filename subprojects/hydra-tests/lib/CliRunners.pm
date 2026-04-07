@@ -3,6 +3,7 @@ use strict;
 
 package CliRunners;
 use Hydra::Helper::Exec;
+use QueueRunnerBuildOne;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     evalFails
@@ -13,7 +14,8 @@ our @EXPORT = qw(
 );
 
 sub evalSucceeds {
-    my ($jobset) = @_;
+    my ($ctx, $jobset) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
@@ -28,7 +30,8 @@ sub evalSucceeds {
 }
 
 sub evalFails {
-    my ($jobset) = @_;
+    my ($ctx, $jobset) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
@@ -42,23 +45,9 @@ sub evalFails {
     return !!$res;
 }
 
-sub runBuilds {
-    my @builds = @_;
-    my @ids = map { $_->id } @builds;
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60 * scalar(@builds), ("queue-runner-build-one.sh", @ids));
-    utf8::decode($stdout) or die "Invalid unicode in stdout.";
-    utf8::decode($stderr) or die "Invalid unicode in stderr.";
-    print STDERR "Queue runner stdout: $stdout\n" if $stdout ne "";
-    print STDERR "Queue runner stderr: $stderr\n" if $stderr ne "";
-    return !$res;
-}
-
-sub runBuild {
-    my ($build) = @_;
-    return runBuilds($build);
-}
-
-sub sendNotifications() {
+sub sendNotifications {
+    my ($ctx) = @_;
+    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-notify", "--queued-only"));
     if ($res) {
         utf8::decode($stdout) or die "Invalid unicode in stdout.";

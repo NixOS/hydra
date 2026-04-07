@@ -12,19 +12,17 @@ my %ctx = test_init(
 |);
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $scratch = "$ctx{tmpdir}/scratch";
 mkdir $scratch;
 
 my $uri = "file://$scratch/git-repo";
 
-my $jobset = createJobsetWithOneInput('gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
+my $jobset = createJobsetWithOneInput($db, 'gitea', 'git-input.nix', 'src', 'git', $uri, $ctx{jobsdir});
 
 sub addStringInput {
     my ($jobset, $name, $value) = @_;
@@ -39,13 +37,13 @@ addStringInput($jobset, "gitea_http_url", "http://localhost:8282/gitea");
 
 updateRepository('gitea', "$ctx{testdir}/jobs/git-update.sh", $scratch);
 
-ok(evalSucceeds($jobset), "Evaluating nix expression");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating nix expression");
 is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should result in 1 build1");
 
 (my $build) = queuedBuildsForJobset($jobset);
-ok(runBuild($build), "Build should succeed with exit code 0");
+ok(runBuild($ctx{context}, $build), "Build should succeed with exit code 0");
 
-my $filename = $ENV{'HYDRA_DATA'} . "/giteaout.json";
+my $filename = $ctx{context}->{central}{hydra_data} . "/giteaout.json";
 my $pid;
 if (!defined($pid = fork())) {
     die "Cannot fork(): $!";
@@ -55,7 +53,7 @@ if (!defined($pid = fork())) {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build should be finished.");
     is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
-    ok(sendNotifications(), "Sent notifications");
+    ok(sendNotifications($ctx{context}), "Sent notifications");
 
     kill('INT', $pid);
     waitpid($pid, 0);

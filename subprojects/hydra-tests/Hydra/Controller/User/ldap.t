@@ -3,7 +3,6 @@ use warnings;
 use Setup;
 use LDAPContext;
 use Test2::V0;
-use Catalyst::Test ();
 use HTTP::Request::Common;
 use JSON::MaybeXS;
 
@@ -88,7 +87,7 @@ my $ctx = test_context(
 CFG
 );
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 subtest "Valid login attempts" => sub {
     my %users_to_roles = (

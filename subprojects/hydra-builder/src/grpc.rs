@@ -189,6 +189,7 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
             version: crate::state::PROTO_API_VERSION.to_string(),
             machine_id: state.id.to_string(),
             hostname: state.hostname.clone(),
+            store_dir: nix_utils::get_store_dir().to_string(),
         }))
         .await?;
     let response = response.into_inner();

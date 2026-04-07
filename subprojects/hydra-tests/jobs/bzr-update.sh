@@ -10,7 +10,7 @@ else
     state=0;
 fi
 
-export BZR_HOME; # Set by the Makefile
+export BZR_HOME; # Set by the test (.t file)
 case $state in
     (0) echo "::Create repo. -- continue -- updated::"
     bzr init bzr-repo

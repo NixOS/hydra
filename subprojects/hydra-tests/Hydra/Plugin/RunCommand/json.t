@@ -11,26 +11,24 @@ my %ctx = test_init(
 |);
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 use Hydra::Plugin::RunCommand;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("basic", "runcommand.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "runcommand.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset), "Evaluating jobs/runcommand.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/runcommand.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should result in 1 build1");
 
 (my $build) = queuedBuildsForJobset($jobset);
 
 is($build->job, "metrics", "The only job should be metrics");
-ok(runBuild($build), "Build should exit with return code 0");
+ok(runBuild($ctx{context}, $build), "Build should exit with return code 0");
 my $newbuild = $db->resultset('Builds')->find($build->id);
 is($newbuild->finished, 1, "Build should be finished.");
 is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");

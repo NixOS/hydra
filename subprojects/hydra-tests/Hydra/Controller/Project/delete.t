@@ -2,14 +2,13 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
-use Catalyst::Test ();
 use HTTP::Request;
 use HTTP::Request::Common qw(GET POST DELETE);
 use JSON::MaybeXS qw(decode_json encode_json);
 
 my $ctx = test_context();
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 my $user = $ctx->db()->resultset('Users')->create({
     username => 'alice',

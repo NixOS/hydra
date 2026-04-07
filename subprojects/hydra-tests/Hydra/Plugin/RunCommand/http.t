@@ -11,8 +11,7 @@ my $ctx = test_context(
     </runcommand>
 |);
 
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 use HTTP::Request::Common qw(GET);
 
 my $db = $ctx->db();
@@ -23,7 +22,7 @@ my $builds = $ctx->makeAndEvaluateJobset(
 );
 my $build = $builds->{"metrics"};
 
-ok(sendNotifications(), "Notifications execute successfully.");
+ok(sendNotifications($ctx), "Notifications execute successfully.");
 
 my $runlog = $build->runcommandlogs->find({});
 ok($runlog->uuid, "The log's uuid is saved.");

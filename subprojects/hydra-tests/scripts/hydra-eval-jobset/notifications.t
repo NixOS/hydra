@@ -77,7 +77,7 @@ subtest "on the initial evaluation" => sub {
 };
 
 subtest "on a subsequent, totally cached / unchanged evaluation" => sub {
-    ok(evalSucceeds($jobset), "evaluating for the second time");
+    ok(evalSucceeds($ctx, $jobset), "evaluating for the second time");
     my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
     my $traceID;
@@ -101,11 +101,11 @@ subtest "on a fresh evaluation with changed sources" => sub {
     say $fh "\n";
     close $fh;
 
-    ok(runBuilds($builds->{"stable-job-passing"}, $builds->{"stable-job-failing"}), "building the stable jobs");
+    ok(runBuilds($ctx, $builds->{"stable-job-passing"}, $builds->{"stable-job-failing"}), "building the stable jobs");
     $builds->{"stable-job-passing"}->discard_changes();
     $builds->{"stable-job-failing"}->discard_changes();
 
-    ok(evalSucceeds($builds->{"variable-job"}->jobset), "evaluating for the third time");
+    ok(evalSucceeds($ctx, $builds->{"variable-job"}->jobset), "evaluating for the third time");
     expectEvent($listener, "eval_started", sub {
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
     });
@@ -146,7 +146,7 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
     say $fh "this is not valid nix code!\n";
     close $fh;
 
-    ok(evalFails($builds->{"variable-job"}->jobset), "evaluating the corrupted job");
+    ok(evalFails($ctx, $builds->{"variable-job"}->jobset), "evaluating the corrupted job");
 
     my $traceID;
     expectEvent($listener, "eval_started", sub {

@@ -6,17 +6,14 @@ use JSON::MaybeXS qw(decode_json encode_json);
 
 my %ctx = test_init();
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-require Hydra::Helper::Nix;
-
 use Test2::V0;
-require Catalyst::Test;
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx{context});
+
+require Hydra::Schema;
+require Hydra::Helper::Nix;
 use HTTP::Request::Common qw(POST PUT GET DELETE);
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Create a user to log in to
 my $user = $db->resultset('Users')->create({ username => 'alice', emailaddress => 'root@invalid.org', password => '!' });
@@ -25,9 +22,9 @@ $user->userroles->update_or_create({ role => 'admin' });
 
 my $project = $db->resultset('Projects')->create({name => 'tests', displayname => 'Tests', owner => 'alice'});
 
-my $jobset = createBaseJobset("basic", "basic.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "basic.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/basic.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/basic.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 3, "Evaluating jobs/basic.nix should result in 3 builds");
 
 my ($eval, @evals) = $jobset->jobsetevals;

@@ -12,35 +12,33 @@ my %ctx = test_init(
 |);
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 require Hydra::Helper::Nix;
 
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
 # Most basic test case, no parameters
-my $jobset = createBaseJobset("basic", "runcommand.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "basic", "runcommand.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset), "Evaluating jobs/runcommand.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/runcommand.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 1, "Evaluating jobs/runcommand.nix should result in 1 build1");
 
 (my $build) = queuedBuildsForJobset($jobset);
 
 is($build->job, "metrics", "The only job should be metrics");
-ok(runBuild($build), "Build should exit with return code 0");
+ok(runBuild($ctx{context}, $build), "Build should exit with return code 0");
 my $newbuild = $db->resultset('Builds')->find($build->id);
 is($newbuild->finished, 1, "Build should be finished.");
 is($newbuild->buildstatus, 0, "Build should have buildstatus 0.");
 
-ok(sendNotifications(), "Notifications execute successfully.");
+ok(sendNotifications($ctx{context}), "Notifications execute successfully.");
 
 my $dat = do {
-    my $filename = $ENV{'HYDRA_DATA'} . "/joboutput.json";
+    my $filename = $ctx{context}->{central}{hydra_data} . "/joboutput.json";
     open(my $json_fh, "<", $filename)
         or die("Can't open \"$filename\": $!\n");
     local $/;
@@ -62,6 +60,8 @@ subtest "Validate a run log was created" => sub {
     is($runlog->exit_code, 0, "This command should have succeeded.");
 
     subtest "Validate the run log file exists" => sub {
+        # constructRunCommandLogPath -> getHydraPath reads $ENV{HYDRA_DATA}
+        local $ENV{HYDRA_DATA} = $ctx{context}->{central}{hydra_data};
         my $logPath = Hydra::Helper::Nix::constructRunCommandLogPath($runlog);
         ok(-f $logPath, "The run log was saved to a file.");
         ok(-z $logPath, "The run log was empty.");

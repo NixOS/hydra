@@ -6,18 +6,16 @@ use Setup;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
-my $jobset = createBaseJobset("broken-constituent", "broken-constituent.nix", $ctx{jobsdir});
+my $jobset = createBaseJobset($db, "broken-constituent", "broken-constituent.nix", $ctx{jobsdir});
 
-ok(evalSucceeds($jobset),               "Evaluating jobs/broken-constituent.nix should exit with return code 0");
+ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/broken-constituent.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 0, "Evaluating jobs/broken-constituent.nix should not queue any builds");
 
 like(

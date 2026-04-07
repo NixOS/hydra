@@ -195,11 +195,14 @@ sub fetchInput {
     } else {
         # Then download this revision into the store.
         print STDERR "checking out Git branch $branch from $uri\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
-        $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "0";
-        $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "";
 
+        local $ENV{"NIX_HASH_ALGO"} = "sha256";
+        local $ENV{"PRINT_PATH"} = "1";
+        local $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"} = "0";
+        local $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"} = "";
+
+        local $ENV{"NIX_PREFETCH_GIT_LEAVE_DOT_GIT"};
+        local $ENV{"NIX_PREFETCH_GIT_DEEP_CLONE"};
         if (defined $deepClone) {
             # Checked out code often wants to be able to run `git
             # describe', e.g., code that uses Gnulib's `git-version-gen'

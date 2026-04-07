@@ -5,16 +5,13 @@ use TestScmInput;
 
 my %ctx = test_init();
 
-require Hydra::Schema;
-require Hydra::Model::DB;
-
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Tests the creation of a Hydra jobset using a deep git clone as input.
 testScmInput(
+  db => $db,
   type => 'git',
   name => 'deepgit',
   expr => 'deepgit-input.nix',
@@ -25,6 +22,7 @@ testScmInput(
   datadir => $ctx{tmpdir},
   testdir => $ctx{testdir},
   jobsdir => $ctx{jobsdir},
+  ctx => $ctx{context},
 );
 
 done_testing;

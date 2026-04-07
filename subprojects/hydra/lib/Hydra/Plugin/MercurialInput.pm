@@ -74,8 +74,8 @@ sub fetchInput {
         $sha256 = $cachedInput->sha256hash;
     } else {
         print STDERR "checking out Mercurial input from $uri $branch revision $revision\n";
-        $ENV{"NIX_HASH_ALGO"} = "sha256";
-        $ENV{"PRINT_PATH"} = "1";
+        local $ENV{"NIX_HASH_ALGO"} = "sha256";
+        local $ENV{"PRINT_PATH"} = "1";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
             "nix-prefetch-hg", $clonePath, $revision);

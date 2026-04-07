@@ -5,12 +5,10 @@ use Setup;
 my %ctx = test_init();
 
 require Hydra::Schema;
-require Hydra::Model::DB;
 
 use Test2::V0;
 
-my $db = Hydra::Model::DB->new;
-hydra_setup($db);
+my $db = $ctx{context}->db();
 
 # Hydra used to store passwords, by default, as plain unsalted sha1 hashes.
 # We now upgrade these badly stored passwords with much stronger algorithms
