@@ -141,7 +141,17 @@ sub gcRootFor {
 sub registerRoot {
     my ($path) = @_;
     my $link = gcRootFor $path;
-    return if -e $link;
+    # A pre-existing symlink (e.g. from nix-eval-jobs --gc-roots-dir) may
+    # point at a logical store path whose physical location is elsewhere,
+    # so `-e` would return false even though the target is a valid store
+    # object. Read the symlink and ask the store whether the target is
+    # valid, rather than testing the path on this filesystem.
+    if (-l $link) {
+        my $target = readlink $link;
+        return if defined $target && $MACHINE_LOCAL_STORE->isValidPath($target);
+        # Stale symlink: remove it so we can replace it below.
+        unlink $link;
+    }
     open(my $root, ">", $link) or die "cannot create GC root `$link' to `$path'";
     close $root;
 }
