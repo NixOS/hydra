@@ -21,11 +21,6 @@ rustPlatform.buildRustPackage {
       ../../Cargo.toml
       ../../Cargo.lock
       ../../.cargo
-      ../../.sqlx
-      ../../subprojects/hydra-queue-runner/Cargo.toml
-      ../../subprojects/hydra-queue-runner/build.rs
-      ../../subprojects/hydra-queue-runner/src
-      ../../subprojects/hydra-queue-runner/examples
       ../../subprojects/hydra-builder/Cargo.toml
       ../../subprojects/hydra-builder/build.rs
       ../../subprojects/hydra-builder/src
@@ -42,6 +37,13 @@ rustPlatform.buildRustPackage {
       "harmonia-store-core-0.0.0-alpha.0" = "sha256-BbxquEFuDYobtCEIEiIsf1D0A1CK/szCwkgCyzSCWMY=";
     };
   };
+
+  # The source fileset above intentionally excludes hydra-queue-runner,
+  # so drop it from the workspace members to keep cargo from trying to
+  # load its (absent) manifest.
+  postPatch = ''
+    sed -i 's|"subprojects/hydra-queue-runner", ||' Cargo.toml
+  '';
 
   buildAndTestSubdir = "subprojects/hydra-builder";
   buildFeatures = lib.optional withOtel "otel";
