@@ -47,12 +47,26 @@ sub new {
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
 
+    # Logical store dir — shared between evaluator and builder so store
+    # paths are compatible.  The builder's physical store matches this
+    # (physical = logical), which is required on Darwin where we cannot
+    # use sandboxed builds.
+    my $builder = { root => "$dir/builder" };
+    make_path($builder->{root});
+    $builder->{nix_store_dir} = "$builder->{root}/nix/store";
+    $builder->{nix_state_dir} = "$builder->{root}/nix/var/nix";
+    $builder->{nix_log_dir} = "$builder->{root}/nix/var/log/nix";
+    $builder->{nix_store_uri} = "local?root=$builder->{root}&store=$builder->{nix_store_dir}";
+    $builder->{nix_conf_dir} = "$dir/nix/etc/nix";
+
     # Physical dirs for centralized services (queue runner, main web app, etc.)
     my $central = { root => "$dir/central" };
+    make_path($central->{root});
     $central->{hydra_data} = "$dir/hydra-data";
-    $central->{nix_conf_dir} = "$dir/nix/etc/nix";
     $central->{hydra_config_file} = "$dir/hydra.conf";
-    $central->{nix_store_dir} = "$central->{root}/nix/store";
+    $central->{nix_conf_dir} = "$dir/nix/etc/nix";
+    # Builder and central must agree on logical store dir.
+    $central->{nix_store_dir} = $builder->{nix_store_dir};
     $central->{nix_state_dir} = "$central->{root}/nix/var/nix";
     $central->{nix_log_dir} = "$central->{root}/nix/var/log/nix";
     $central->{nix_store_uri} = "local?root=$central->{root}&store=$central->{nix_store_dir}";
@@ -91,6 +105,7 @@ sub new {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
+        builder => $builder,
         central => $central,
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => $jobsdir,
