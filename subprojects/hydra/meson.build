@@ -1,27 +1,11 @@
-project('hydra', 'cpp',
+project('hydra',
   version: files('version.txt'),
   license: 'GPL-3.0',
   default_options: [
     'debug=true',
     'optimization=2',
-    'cpp_std=c++23',
   ],
 )
-
-nix_util_dep = dependency('nix-util', required: true)
-nix_store_dep = dependency('nix-store', required: true)
-nix_main_dep = dependency('nix-main', required: true)
-
-pqxx_dep = dependency('libpqxx', required: true)
-
-prom_cpp_core_dep = dependency('prometheus-cpp-core', required: true)
-prom_cpp_pull_dep = dependency('prometheus-cpp-pull', required: true)
-
-# Native code
-subdir('hydra-evaluator')
-
-# Make executables available to sibling subprojects (e.g. hydra-tests)
-meson.override_find_program('hydra-evaluator', hydra_evaluator)
 
 hydra_libexecdir = get_option('libexecdir') / 'hydra'
 
