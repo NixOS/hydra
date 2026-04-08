@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <nix/store/derivations.hh>
+#include <nix/store/local-fs-store.hh>
 #include <nix/store/remote-store.hh>
 #include <nix/store/store-api.hh>
 #include <nix/store/store-open.hh>
@@ -322,6 +323,19 @@ rust::String list_nar_deep(const StoreWrapper &wrapper, rust::Str path) {
 void ensure_path(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
   store->ensurePath(store->followLinksToStorePath(AS_VIEW(path)));
+}
+
+rust::String to_real_path(const StoreWrapper &wrapper, rust::Str path) {
+  auto store = wrapper._store;
+  auto *lfs = dynamic_cast<nix::LocalFSStore *>(&*store);
+  if (!lfs) {
+    throw nix::Error(
+        "toRealPath: store '%s' is not a local filesystem store",
+        store->config.getHumanReadableURI());
+  }
+  auto storePath = store->parseStorePath(AS_VIEW(path));
+  auto s = lfs->toRealPath(storePath).string();
+  return rust::String(s.data(), s.size());
 }
 
 rust::String write_derivation(const StoreWrapper &wrapper, rust::Str json) {
