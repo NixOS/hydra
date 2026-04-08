@@ -12,7 +12,7 @@
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "hydra-queue-runner";
+  pname = "hydra-builder";
   inherit version;
 
   src = lib.fileset.toSource {
@@ -43,7 +43,7 @@ rustPlatform.buildRustPackage {
     };
   };
 
-  buildAndTestSubdir = "subprojects/hydra-queue-runner";
+  buildAndTestSubdir = "subprojects/hydra-builder";
   buildFeatures = lib.optional withOtel "otel";
 
   nativeBuildInputs = [
@@ -60,5 +60,5 @@ rustPlatform.buildRustPackage {
   # FIXME: get these passing in a prod build
   doCheck = false;
 
-  meta.description = "Hydra queue runner (Rust)";
+  meta.description = "Hydra builder (Rust)";
 }

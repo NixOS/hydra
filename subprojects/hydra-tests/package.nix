@@ -5,14 +5,13 @@
 
   hydra,
   hydra-queue-runner,
+  hydra-builder,
 
   meson,
   ninja,
 
-  perlPackages,
   perl,
   nixComponents,
-  git,
 
   bzip2,
   top-git,
@@ -60,6 +59,7 @@ stdenv.mkDerivation (finalAttrs: {
     ninja
     hydra
     hydra-queue-runner
+    hydra-builder
     hydra.perlDeps
     perl
     nixComponents.nix-cli
