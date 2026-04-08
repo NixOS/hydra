@@ -5,10 +5,11 @@
   hydra-manual,
   hydra-linters,
   hydra-queue-runner,
+  hydra-builder,
 }:
 
 let
-  lib = pkgs.lib;
+  inherit (pkgs) lib;
 
   components = [
     hydra
@@ -16,6 +17,7 @@ let
     hydra-manual
     hydra-linters
     hydra-queue-runner
+    hydra-builder
   ];
 
   # Collect and deduplicate build inputs from all components,
@@ -34,7 +36,7 @@ let
 in
 
 hydra.overrideAttrs (
-  finalAttrs: prevAttrs: {
+  _: _: {
     pname = "shell-for-hydra";
 
     src = null;

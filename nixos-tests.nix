@@ -52,7 +52,7 @@ let
     { ... }:
     {
       imports = [
-        nixosModules.linux-builder
+        nixosModules.builder
       ];
 
       services.hydra-queue-builder-dev.enable = true;
