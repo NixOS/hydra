@@ -1,38 +1,38 @@
 #!/bin/sh
 
-export PATH=$(pwd)/subprojects/hydra/script:$PATH
-export PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
-export HYDRA_HOME=$(pwd)/subprojects/hydra
+. ./foreman/common.sh
 
-export HYDRA_DATA=$(pwd)/.hydra-data
-export HYDRA_DBI="dbi:Pg:dbname=hydra;host=localhost;port=64444"
+export HYDRA_HOME
+export HYDRA_DATA
+export HYDRA_DBI
 
-# wait for postgresql to listen
-while ! pg_isready -h $(pwd)/.hydra-data/postgres -p 64444; do sleep 1; done
+wait_for_postgres
 
-createdb -h $(pwd)/.hydra-data/postgres -p 64444 hydra
+createdb -h "$HYDRA_PG_SOCKET_DIR" -p "$HYDRA_PG_PORT" hydra
 
 # create a db for the default user. Not sure why, but
 # the terminal is otherwise spammed with:
 #
 #     FATAL:  database "USERNAME" does not exist
-createdb -h $(pwd)/.hydra-data/postgres -p 64444 "$(whoami)" || true
+createdb -h "$HYDRA_PG_SOCKET_DIR" -p "$HYDRA_PG_PORT" "$(whoami)" || true
+
+ln -sf ../../../../build/subprojects/hydra/{bootstrap,fontawesome} subprojects/hydra/root/static
 
 hydra-init
 hydra-create-user alice --password foobar --role admin
 
-if [ ! -f ./.hydra-data/hydra.conf ]; then
+if [ ! -f "$HYDRA_DATA/hydra.conf" ]; then
     echo "Creating a default hydra.conf"
-    cat << EOF > .hydra-data/hydra.conf
+    cat << EOF > "$HYDRA_DATA/hydra.conf"
 # test-time instances likely don't want to bootstrap nixpkgs from scratch
 use-substitutes = true
 
 <hydra_notify>
   <prometheus>
     listen_address = 127.0.0.1
-    port = 64445
+    port = $HYDRA_PROMETHEUS_PORT
   </prometheus>
 </hydra_notify>
 EOF
 fi
-HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-dev-server --port 63333 --restart --debug
+HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-dev-server --port "$HYDRA_SERVER_PORT" --restart --debug
