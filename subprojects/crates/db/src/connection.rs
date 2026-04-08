@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use sqlx::Acquire;
 
 use harmonia_store_core::store_path::StoreDir;
@@ -650,6 +652,16 @@ impl Transaction<'_> {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), err)]
+    pub async fn find_build_step_outputs(
+        &mut self,
+        drv_path: &str,
+    ) -> sqlx::Result<BTreeMap<String, String>> {
+        let items: Vec<(String, String)> = sqlx::query_as("SELECT o.name, o.path FROM buildstepoutputs o JOIN buildsteps s ON s.stepnr = o.stepnr WHERE s.drvpath = ? AND o.path IS NOT NULL").bind(drv_path).fetch_all(&mut *self.tx).await?;
+
+        Ok(items.into_iter().collect())
+    }
+
     #[tracing::instrument(skip(self, res), err)]
     pub async fn update_build_step_in_finish(
         &mut self,
@@ -903,6 +915,55 @@ impl Transaction<'_> {
         .execute(&mut *self.tx)
         .await?;
         Ok(())
+    }
+
+    #[tracing::instrument(
+        skip(self, start_time, stop_time, build_id, drv_path, outputs,),
+        err,
+        ret
+    )]
+    pub async fn create_local_step(
+        &mut self,
+        start_time: i32,
+        stop_time: i32,
+        build_id: crate::models::BuildID,
+        drv_path: &str,
+        outputs: BTreeMap<String, String>,
+    ) -> anyhow::Result<i32> {
+        let step_nr = loop {
+            if let Some(step_nr) = self
+                .insert_build_step(InsertBuildStep {
+                    build_id,
+                    r#type: crate::models::BuildType::Substitution,
+                    drv_path,
+                    status: BuildStatus::Success,
+                    busy: false,
+                    start_time: Some(start_time),
+                    stop_time: Some(stop_time),
+                    platform: None,
+                    propagated_from: None,
+                    error_msg: None,
+                    machine: "",
+                })
+                .await?
+            {
+                break step_nr;
+            }
+        };
+
+        let output_items: Vec<_> = outputs
+            .into_iter()
+            .map(|(name, path)| InsertBuildStepOutput::<String> {
+                build_id,
+                step_nr,
+                name,
+                path: Some(path),
+            })
+            .collect();
+
+        self.insert_build_step_outputs(&output_items).await?;
+
+        Ok(step_nr)
     }
 
     #[tracing::instrument(

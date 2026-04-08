@@ -19,6 +19,8 @@ pub use queue::{BuildQueueStats, Queues};
 pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
+use std::collections::BTreeMap;
+use std::str::FromStr as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
@@ -1928,17 +1930,46 @@ impl State {
             })
         };
         let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
+        let known_outputs = self
+            .query_known_drv_outputs(&drv_path)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("Could not query known outputs, continuing: {e}");
+                BTreeMap::new()
+            });
+        let missing_local_outputs = self.store.query_missing_outputs(output_paths.clone()).await;
+        // Handle paths that aren't in the database (for resolution)
+        // existing_local_outputs = output_paths - missing_local_outputs
+        // unregistered_local_outputs = existing_local_outputs - known_outputs
+        let unregistered_local_outputs = output_paths
+            .iter()
+            .filter(|(name, path)| {
+                path.is_some()
+                    && !missing_local_outputs.contains_key(&name)
+                    && !known_outputs.contains_key(&name)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect::<BTreeMap<_, _>>();
+        if !unregistered_local_outputs.is_empty() {
+            if let Err(e) = crate::utils::make_local_step(
+                &self.db,
+                &self.store,
+                build.id,
+                &drv_path,
+                &unregistered_local_outputs,
+            )
+            .await
+            {
+                tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
+            }
+        }
+
+        // Handle paths that aren't in the remote store (for pushing)
         let missing_outputs = if let Some(ref remote_store) = remote_store {
             let mut missing = remote_store
                 .query_missing_remote_outputs(output_paths.clone())
                 .await;
-            if !missing.is_empty()
-                && self
-                    .store
-                    .query_missing_outputs(output_paths.clone())
-                    .await
-                    .is_empty()
-            {
+            if !missing.is_empty() && missing_local_outputs.is_empty() {
                 // we have all paths locally, so we can just upload them to the remote_store
                 if let Ok(log_file) = self.construct_log_file_path(&drv_path).await {
                     let missing_paths: Vec<nix_utils::StorePath> =
@@ -2070,6 +2101,26 @@ impl State {
             new_steps.insert(step.clone());
         }
         CreateStepResult::Valid(step)
+    }
+
+    #[tracing::instrument(skip(self))]
+    async fn query_known_drv_outputs(
+        &self,
+        drv_path: &nix_utils::StorePath,
+    ) -> anyhow::Result<BTreeMap<nix_utils::OutputName, nix_utils::StorePath>> {
+        let mut db = self.db.get().await?;
+        let mut tx = db.begin_transaction().await?;
+        tx.find_build_step_outputs(&self.store.print_store_path(drv_path))
+            .await?
+            .iter()
+            .map(|(name, path)| -> anyhow::Result<_> {
+                Ok((
+                    nix_utils::OutputName::from_str(name)?,
+                    self.store.get_store_dir().parse(path)?,
+                ))
+            })
+            .collect::<anyhow::Result<_>>()
+            .into()
     }
 
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
