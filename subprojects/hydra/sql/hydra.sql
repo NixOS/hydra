@@ -293,9 +293,14 @@ create table BuildSteps (
     -- Whether this build step produced different results when repeated.
     isNonDeterministic boolean,
 
+    -- If this step's outputs triggered CA resolution of a dependent, points
+    -- to the resolved step that was created.
+    resolvedToStep   integer,
+
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade,
-    foreign key   (propagatedFrom) references Builds(id) on delete cascade
+    foreign key   (propagatedFrom) references Builds(id) on delete cascade,
+    foreign key   (build, resolvedToStep) references BuildSteps(build, stepnr) on delete cascade
 );
 
 

@@ -25,7 +25,7 @@ pub struct Build {
     pub local_priority: i32,
     pub global_priority: AtomicI32,
 
-    toplevel: arc_swap::ArcSwapOption<Step>,
+    pub toplevel: arc_swap::ArcSwapOption<Step>,
     pub jobset: Arc<Jobset>,
 
     finished_in_db: AtomicBool,
