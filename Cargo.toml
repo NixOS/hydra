@@ -94,7 +94,13 @@ uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
 
 [patch.crates-io]
-harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-aterm         = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-store-core          = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-utils-base-encoding = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-utils-hash          = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+
+[patch."https://github.com/nix-community/harmonia.git"]
+harmonia-store-aterm         = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-store-core          = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-utils-base-encoding = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }
+harmonia-utils-hash          = { git = "https://github.com/obsidiansystems/harmonia.git", branch = "drv-with-version" }

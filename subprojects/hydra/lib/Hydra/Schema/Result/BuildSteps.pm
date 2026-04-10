@@ -146,6 +146,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "isnondeterministic",
   { data_type => "boolean", is_nullable => 1 },
+  "resolvedtostep",
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
