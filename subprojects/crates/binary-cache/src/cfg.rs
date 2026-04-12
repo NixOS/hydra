@@ -379,8 +379,16 @@ pub(crate) enum ConfigReadError {
 pub(crate) fn read_aws_credentials_file(
     profile: &str,
 ) -> Result<(String, secrecy::SecretString), ConfigReadError> {
-    let home_dir = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))?;
-    let credentials_path = format!("{home_dir}/.aws/credentials");
+    // Honour the standard AWS env var so callers (e.g. the NixOS module's
+    // `awsCredentialsFile` option) can point at a credentials file outside
+    // of $HOME. Falls back to the conventional ~/.aws/credentials location.
+    let credentials_path = match std::env::var("AWS_SHARED_CREDENTIALS_FILE") {
+        Ok(p) if !p.is_empty() => p,
+        _ => {
+            let home_dir = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))?;
+            format!("{home_dir}/.aws/credentials")
+        }
+    };
 
     let mut config = configparser::ini::Ini::new();
     let config_map = config
