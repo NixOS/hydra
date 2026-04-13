@@ -26,8 +26,10 @@ my $jobset = createBaseJobset($db, "content-addressed", "content-addressed.nix",
 ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
 is(nrQueuedBuildsForJobset($jobset), 10, "Evaluating jobs/content-addressed.nix should result in 6 builds");
 
-for my $build (queuedBuildsForJobset($jobset)) {
-    ok(runBuild($ctx{context}, $build), "Build '".$build->job."' from jobs/content-addressed.nix should exit with code 0");
+my @builds = queuedBuildsForJobset($jobset);
+ok(runBuilds($ctx{context}, @builds), "Building all jobs from jobs/content-addressed.nix should exit with code 0");
+
+for my $build (@builds) {
     my $newbuild = $db->resultset('Builds')->find($build->id);
     is($newbuild->finished, 1, "Build '".$build->job."' from jobs/content-addressed.nix should be finished.");
     my $expected = $build->job eq "fails" ? 1 : $build->job =~ /with_failed/ ? 6 : $build->job =~ /FailingCA/ ? 2 : 0;
