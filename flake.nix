@@ -153,6 +153,11 @@
         systemTests = hydraJobs.systemTests.${system};
         install = hydraJobs.nixosTests.install.${system};
         validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
+        dbix-up-to-date =
+          nixpkgs.legacyPackages.${system}.callPackage ./packaging/check-dbix-up-to-date.nix
+            {
+              inherit (packages.${system}) hydra;
+            };
         formatter = (treefmtEval system).config.build.check self;
       });
 
