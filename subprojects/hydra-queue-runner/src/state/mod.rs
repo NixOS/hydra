@@ -1045,6 +1045,30 @@ impl State {
             .ok_or_else(|| anyhow::anyhow!("Step is missing in queues.scheduled"))?;
 
         item.step_info.step.set_finished(true);
+
+        // Verify that for outputs with statically-known paths (input-addressed
+        // and fixed content-addressed), the paths reported by the builder match
+        // what we compute from the derivation.  A mismatch here would mean that
+        // the queue runner and builder are disagreeing on what the drv itself
+        // means (regardless of what it produces) which would be an "all bets
+        // are off" bug.
+        if let Some(expected) = item.step_info.step.get_output_paths(self.store.store_dir()) {
+            for (name, expected_path) in &expected {
+                let Some(expected_path) = expected_path else {
+                    continue; // path not statically known (Deferred/CAFloating/Impure)
+                };
+                if let Some(actual_path) = output.outputs.get(name) {
+                    anyhow::ensure!(
+                        expected_path == actual_path,
+                        "output path mismatch for output `{name}` of {drv_path}: \
+                         expected {}, got {}",
+                        self.store.print_store_path(expected_path),
+                        self.store.print_store_path(actual_path),
+                    );
+                }
+            }
+        }
+
         tracing::debug!(
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
