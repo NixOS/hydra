@@ -1,4 +1,6 @@
 #!/bin/sh
 
-initdb ./.hydra-data/postgres
-exec postgres -D ./.hydra-data/postgres -k $(pwd)/.hydra-data/postgres -p 64444
+. ./foreman/common.sh
+
+initdb "$HYDRA_PG_SOCKET_DIR"
+exec postgres -D "$HYDRA_PG_SOCKET_DIR" -k "$HYDRA_PG_SOCKET_DIR" -p "$HYDRA_PG_PORT"

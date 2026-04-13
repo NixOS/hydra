@@ -379,8 +379,16 @@ pub(crate) enum ConfigReadError {
 pub(crate) fn read_aws_credentials_file(
     profile: &str,
 ) -> Result<(String, secrecy::SecretString), ConfigReadError> {
-    let home_dir = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))?;
-    let credentials_path = format!("{home_dir}/.aws/credentials");
+    // Honour the standard AWS env var so callers (e.g. the NixOS module's
+    // `awsCredentialsFile` option) can point at a credentials file outside
+    // of $HOME. Falls back to the conventional ~/.aws/credentials location.
+    let credentials_path = match std::env::var("AWS_SHARED_CREDENTIALS_FILE") {
+        Ok(p) if !p.is_empty() => p,
+        _ => {
+            let home_dir = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))?;
+            format!("{home_dir}/.aws/credentials")
+        }
+    };
 
     let mut config = configparser::ini::Ini::new();
     let config_map = config
@@ -396,7 +404,6 @@ fn parse_aws_credentials_file(
     >,
     profile: &str,
 ) -> Result<(String, secrecy::SecretString), ConfigReadError> {
-    println!("config_map: {config_map:?}");
     let profile_map = if let Some(profile_map) = config_map.get(profile) {
         profile_map
     } else if let Some(profile_map) = config_map.get(&format!("profile {profile}")) {
@@ -494,11 +501,6 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvbSTAGINGKEY"
                     .into(),
             )
             .unwrap();
-
-        println!(
-            "Available profiles: {:?}",
-            config_map.keys().collect::<Vec<_>>()
-        );
 
         let (access_key, secret_key) = parse_aws_credentials_file(&config_map, "default").unwrap();
         assert_eq!(access_key, "AKIAIOSFODNN7EXAMPLE");
