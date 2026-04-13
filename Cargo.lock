@@ -1254,7 +1254,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-aterm"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c4b32cfb36a39d57d07ea254ebb926cc37f30e48"
+source = "git+https://github.com/nix-community/harmonia.git#2f09d761ed107b0f3079bc70a73dbfd240f846ee"
 dependencies = [
  "bytes",
  "harmonia-store-core",
@@ -1267,7 +1267,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-core"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c4b32cfb36a39d57d07ea254ebb926cc37f30e48"
+source = "git+https://github.com/nix-community/harmonia.git#2f09d761ed107b0f3079bc70a73dbfd240f846ee"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1288,7 +1288,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c4b32cfb36a39d57d07ea254ebb926cc37f30e48"
+source = "git+https://github.com/nix-community/harmonia.git#2f09d761ed107b0f3079bc70a73dbfd240f846ee"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1298,7 +1298,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-hash"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c4b32cfb36a39d57d07ea254ebb926cc37f30e48"
+source = "git+https://github.com/nix-community/harmonia.git#2f09d761ed107b0f3079bc70a73dbfd240f846ee"
 dependencies = [
  "data-encoding",
  "derive_more",

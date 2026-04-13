@@ -480,10 +480,27 @@ impl State {
                 }
             }
         };
+        // The build_log RPC streams stderr to the queue-runner and only
+        // resolves once the child closes stderr (i.e. the build finished).
+        // A transport error here (e.g. nginx sending an HTTP/2 GOAWAY after
+        // hitting keepalive_requests) says nothing about whether the
+        // derivation builds, so it must not be reported as a BuildFailure
+        // (which is non-retryable and cascades to every dependent build).
+        // Map it to Upload so the queue-runner retries the step instead.
+        //
+        // TODO: don't restart the build on a log-stream transport error.
+        // The child is `kill_on_drop`, so returning here aborts and re-runs
+        // the whole build. Instead, buffer stderr locally, reconnect the
+        // build_log stream (the queue-runner appends to the same log file
+        // keyed by drv path), and keep the child running.
         client
             .build_log(Request::new(log_stream))
             .await
-            .map_err(|e| JobFailure::Build(e.into()))?;
+            .map_err(|e| {
+                JobFailure::Upload(
+                    anyhow::Error::from(e).context("failed to stream build log to queue-runner"),
+                )
+            })?;
 
         nix_utils::validate_statuscode(
             child
