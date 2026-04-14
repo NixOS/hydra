@@ -49,13 +49,8 @@ pub async fn finish_build_step(
         && let Some(output_paths) = output_paths
     {
         for (name, path) in output_paths {
-            tx.update_build_step_output(
-                build_id,
-                step_nr,
-                name.as_ref(),
-                &store.print_store_path(path),
-            )
-            .await?;
+            tx.update_build_step_output(store.store_dir(), build_id, step_nr, name.as_ref(), path)
+                .await?;
         }
     }
 
@@ -100,11 +95,12 @@ pub async fn substitute_output(
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
     tx.create_substitution_step(
+        store.store_dir(),
         starttime,
         stoptime,
         build_id,
-        &store.print_store_path(drv_path),
-        (name.to_string(), Some(store.print_store_path(&path))),
+        drv_path,
+        (name.clone(), Some(path.clone())),
     )
     .await?;
     tx.commit().await?;

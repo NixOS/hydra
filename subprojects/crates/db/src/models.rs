@@ -1,5 +1,5 @@
 use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{ParseStorePathError, StoreDir};
+use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 use hashbrown::HashMap;
 
 pub type BuildID = i32;
@@ -130,7 +130,7 @@ pub struct UpdateBuild<'a> {
 pub struct InsertBuildStep<'a> {
     pub build_id: BuildID,
     pub r#type: BuildType,
-    pub drv_path: &'a str,
+    pub drv_path: &'a StorePath,
     pub status: BuildStatus,
     pub busy: bool,
     pub start_time: Option<i32>,
@@ -145,7 +145,7 @@ pub struct InsertBuildStep<'a> {
 pub struct InsertBuildStepOutput<StorePath = harmonia_store_core::store_path::StorePath> {
     pub build_id: BuildID,
     pub step_nr: i32,
-    pub name: String,
+    pub name: OutputName,
     pub path: Option<StorePath>,
 }
 

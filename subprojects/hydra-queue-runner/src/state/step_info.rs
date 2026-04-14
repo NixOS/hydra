@@ -11,26 +11,25 @@ use super::Step;
 /// The output chain is in resolution order: for `Built { Opaque(A), "out" }` with
 /// final output `"dev"`, returns `(A, ["out", "dev"])`.
 fn flatten_chain(
-    store_dir: &nix_utils::StoreDir,
     drv_path: &SingleDerivedPath,
     output_name: &nix_utils::OutputName,
-) -> (String, Vec<String>) {
-    let mut outputs = Vec::<String>::new();
+) -> (nix_utils::StorePath, Vec<nix_utils::OutputName>) {
+    let mut outputs = Vec::<nix_utils::OutputName>::new();
     let mut current = drv_path;
     let root = loop {
         match current {
-            SingleDerivedPath::Opaque(p) => break store_dir.display(p).to_string(),
+            SingleDerivedPath::Opaque(p) => break p.clone(),
             SingleDerivedPath::Built {
                 drv_path: parent,
                 output,
             } => {
-                outputs.push(output.to_string());
+                outputs.push(output.clone());
                 current = parent;
             }
         }
     };
     outputs.reverse();
-    outputs.push(output_name.to_string());
+    outputs.push(output_name.clone());
     (root, outputs)
 }
 
@@ -112,23 +111,17 @@ impl StepInfo {
         let mut conn = db.get().await.ok()?;
 
         drv.try_resolve(store_dir, &mut |inputs| {
-            let store_dir_str = store_dir.to_str();
             tokio::task::block_in_place(|| {
                 // Flatten each SingleDerivedPath chain into (root, [outputs...])
                 // and resolve everything in a single recursive SQL query.
                 let chains = inputs
                     .iter()
-                    .map(|(drv_path, output_name)| flatten_chain(store_dir, drv_path, output_name))
+                    .map(|(drv_path, output_name)| flatten_chain(drv_path, output_name))
                     .collect::<Vec<_>>();
 
                 let chain_refs = chains
                     .iter()
-                    .map(|(root, outputs)| {
-                        (
-                            root.as_str(),
-                            outputs.iter().map(String::as_str).collect::<Vec<_>>(),
-                        )
-                    })
+                    .map(|(root, outputs)| (root, outputs.iter().collect::<Vec<_>>()))
                     .collect::<Vec<_>>();
 
                 let sql_input = chain_refs
@@ -136,24 +129,12 @@ impl StepInfo {
                     .map(|(root, outputs)| (*root, outputs.as_slice()))
                     .collect::<Vec<_>>();
 
-                let db_results = tokio::runtime::Handle::current()
-                    .block_on(conn.resolve_drv_output_chains(&sql_input))
+                tokio::runtime::Handle::current()
+                    .block_on(conn.resolve_drv_output_chains(store_dir, &sql_input))
                     .unwrap_or_else(|e| {
                         tracing::warn!("resolve_drv_output_chains failed: {e}");
                         vec![None; inputs.len()]
-                    });
-
-                db_results
-                    .into_iter()
-                    .map(|path| {
-                        path.and_then(|p| {
-                            let base = p
-                                .strip_prefix(store_dir_str)
-                                .and_then(|s| s.strip_prefix('/'))?;
-                            Some(nix_utils::parse_store_path(base))
-                        })
                     })
-                    .collect()
             })
         })
     }

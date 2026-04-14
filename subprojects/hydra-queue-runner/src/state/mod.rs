@@ -335,9 +335,10 @@ impl State {
 
             let step_nr = tx
                 .create_build_step(
+                    self.store.store_dir(),
                     Some(job.result.get_start_time_as_i32()?),
                     build_id,
-                    &self.store.print_store_path(step_info.step.get_drv_path()),
+                    step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
                     machine.hostname.clone(),
                     BuildStatus::Busy,
@@ -348,12 +349,6 @@ impl State {
                         .get_output_paths(self.store.store_dir())
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|(name, path)| {
-                            (
-                                name.to_string(),
-                                path.map(|p| self.store.print_store_path(&p)),
-                            )
-                        })
                         .collect(),
                 )
                 .await?;
@@ -551,8 +546,9 @@ impl State {
             .await?
             .ok_or_else(|| anyhow::anyhow!("drv not found"))?;
         db.insert_debug_build(
+            self.store.store_dir(),
             jobset_id,
-            &self.store.print_store_path(drv_path),
+            drv_path,
             std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
         )
         .await?;
@@ -1394,9 +1390,10 @@ impl State {
                     }
 
                     tx.create_build_step(
+                        self.store.store_dir(),
                         None,
                         b.id,
-                        &self.store.print_store_path(step.get_drv_path()),
+                        step.get_drv_path(),
                         step.get_system().as_deref(),
                         machine
                             .as_deref()
@@ -1412,12 +1409,6 @@ impl State {
                         step.get_output_paths(self.store.store_dir())
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|(name, path)| {
-                                (
-                                    name.to_string(),
-                                    path.map(|p| self.store.print_store_path(&p)),
-                                )
-                            })
                             .collect(),
                     )
                     .await?;
@@ -1456,7 +1447,7 @@ impl State {
                         .unwrap_or_default()
                     {
                         if let Some(path) = path {
-                            tx.insert_failed_paths(&self.store.print_store_path(&path))
+                            tx.insert_failed_paths(self.store.store_dir(), &path)
                                 .await?;
                         }
                     }
@@ -1532,7 +1523,7 @@ impl State {
         // Find the previous build step record, first by derivation path, then by output
         // path.
         let mut propagated_from = tx
-            .get_last_build_step_id(&self.store.print_store_path(step.get_drv_path()))
+            .get_last_build_step_id(self.store.store_dir(), step.get_drv_path())
             .await?
             .unwrap_or_default();
 
@@ -1545,11 +1536,12 @@ impl State {
                 .unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(&self.store.print_store_path(path))
+                    tx.get_last_build_step_id_for_output_path(self.store.store_dir(), path)
                         .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
-                        &self.store.print_store_path(step.get_drv_path()),
+                        self.store.store_dir(),
+                        step.get_drv_path(),
                         name.as_ref(),
                     )
                     .await
@@ -1562,9 +1554,10 @@ impl State {
         }
 
         tx.create_build_step(
+            self.store.store_dir(),
             None,
             build.id,
-            &self.store.print_store_path(step.get_drv_path()),
+            step.get_drv_path(),
             step.get_system().as_deref(),
             String::new(),
             BuildStatus::CachedFailure,
@@ -1573,12 +1566,6 @@ impl State {
             step.get_output_paths(self.store.store_dir())
                 .unwrap_or_default()
                 .into_iter()
-                .map(|(name, path)| {
-                    (
-                        name.to_string(),
-                        path.map(|p| self.store.print_store_path(&p)),
-                    )
-                })
                 .collect(),
         )
         .await?;
@@ -1964,9 +1951,10 @@ impl State {
         };
 
         conn.check_if_paths_failed(
+            self.store.store_dir(),
             &drv_outputs
                 .iter()
-                .filter_map(|(_, path)| path.as_ref().map(|p| self.store.print_store_path(p)))
+                .filter_map(|(_, path)| path.clone())
                 .collect::<Vec<_>>(),
         )
         .await
@@ -2018,7 +2006,7 @@ impl State {
                     continue;
                 };
                 let Some(db_build_output) = db
-                    .get_build_output_for_path(&self.store.print_store_path(out_path))
+                    .get_build_output_for_path(self.store.store_dir(), out_path)
                     .await?
                 else {
                     continue;
