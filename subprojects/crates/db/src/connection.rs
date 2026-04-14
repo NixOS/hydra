@@ -7,7 +7,7 @@ use harmonia_store_core::derived_path::OutputName;
 use harmonia_store_core::store_path::{StoreDir, StorePath};
 
 use super::models::{
-    Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
+    Build, BuildID, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
     InsertBuildStep, InsertBuildStepOutput, Jobset, UpdateBuild, UpdateBuildStep,
     UpdateBuildStepInFinish,
 };
@@ -439,12 +439,159 @@ impl Connection {
                 .map(|v| v.status),
         )
     }
+
+    /// Return finished ids so reconnect sweep can wake waiters for missed notifications.
+    #[tracing::instrument(skip(self, ids), err)]
+    pub async fn finished_build_ids(&mut self, ids: &[BuildID]) -> sqlx::Result<Vec<BuildID>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_scalar::<_, i32>("SELECT id FROM builds WHERE id = ANY($1) AND finished = 1")
+            .bind(ids)
+            .fetch_all(&mut *self.conn)
+            .await
+    }
+
+    /// Ensure the hidden jobset used for daemon-submitted builds exists.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn ensure_adhoc_jobset(&mut self) -> sqlx::Result<i32> {
+        let mut tx = self.conn.begin().await?;
+
+        sqlx::query(
+            "INSERT INTO Users (userName, fullName, emailAddress, password)
+             VALUES ('adhoc', 'Ad-hoc', 'adhoc@localhost', '')
+             ON CONFLICT (userName) DO NOTHING",
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO Projects (name, displayName, description, owner, enabled, hidden)
+             VALUES ('adhoc', 'Ad-hoc', 'Ad-hoc builds via drv-daemon', 'adhoc', 1, 1)
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO Jobsets
+                (name, project, description, nixExprInput, nixExprPath, emailOverride, type, hidden)
+             VALUES ('adhoc', 'adhoc', 'Ad-hoc builds via drv-daemon', '', '', '', 0, 1)
+             ON CONFLICT (project, name) DO NOTHING",
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        let id: i32 =
+            sqlx::query_scalar("SELECT id FROM Jobsets WHERE project = 'adhoc' AND name = 'adhoc'")
+                .fetch_one(&mut *tx)
+                .await?;
+
+        tx.commit().await?;
+        Ok(id)
+    }
+
+    /// Read a finished Build and top-level outputs, falling back to prior accepted outputs for cached duplicates.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn get_finished_build(
+        &mut self,
+        build_id: BuildID,
+    ) -> sqlx::Result<Option<FinishedBuild>> {
+        let row = sqlx::query_as::<_, (Option<i32>, Option<i32>, Option<i32>, Option<String>)>(
+            "SELECT buildStatus, startTime, stopTime, drvPath
+             FROM builds
+             WHERE id = $1 AND finished = 1",
+        )
+        .bind(build_id)
+        .fetch_optional(&mut *self.conn)
+        .await?;
+        let Some((Some(status_int), start_time, stop_time, Some(drv_path))) = row else {
+            return Ok(None);
+        };
+        let Some(status) = BuildStatus::from_i32(status_int) else {
+            return Ok(None);
+        };
+
+        let mut outputs = sqlx::query_as::<_, (String, Option<String>)>(
+            "SELECT bso.name, bso.path
+             FROM buildstepoutputs bso
+             JOIN buildsteps bs ON bs.build = bso.build AND bs.stepnr = bso.stepnr
+             WHERE bso.build = $1
+               AND bs.drvPath = $2
+               AND bs.status = 0",
+        )
+        .bind(build_id)
+        .bind(&drv_path)
+        .fetch_all(&mut *self.conn)
+        .await?;
+
+        if outputs.is_empty() && status == BuildStatus::Success {
+            // Rejected builds can still have successful step rows; only reuse outputs from accepted builds.
+            outputs = sqlx::query_as::<_, (String, Option<String>)>(
+                "SELECT DISTINCT ON (bso.name) bso.name, bso.path
+                 FROM buildstepoutputs bso
+                 JOIN buildsteps bs ON bs.build = bso.build AND bs.stepnr = bso.stepnr
+                 JOIN builds b ON b.id = bs.build
+                 WHERE bs.drvPath = $1
+                   AND bs.status = 0
+                   AND b.finished = 1
+                   AND b.buildStatus = 0
+                 ORDER BY bso.name, bs.build DESC, bs.stepnr DESC",
+            )
+            .bind(&drv_path)
+            .fetch_all(&mut *self.conn)
+            .await?;
+        }
+
+        Ok(Some(FinishedBuild {
+            status,
+            start_time,
+            stop_time,
+            outputs,
+        }))
+    }
+}
+
+#[derive(Debug)]
+pub struct FinishedBuild {
+    pub status: BuildStatus,
+    pub start_time: Option<i32>,
+    pub stop_time: Option<i32>,
+    pub outputs: Vec<(String, Option<String>)>,
 }
 
 impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
     pub async fn commit(self) -> sqlx::Result<()> {
         self.tx.commit().await
+    }
+
+    /// Insert a kept ad-hoc Build; caller must register a waiter before commit.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn insert_adhoc_build(
+        &mut self,
+        jobset_id: i32,
+        nix_name: &str,
+        drv_path: &str,
+        system: &str,
+    ) -> sqlx::Result<BuildID> {
+        let id: BuildID = sqlx::query_scalar(
+            "INSERT INTO Builds (
+                finished, timestamp, jobset_id, job, nixname, drvPath, system,
+                maxsilent, timeout, ischannel, iscurrent, priority, globalpriority, keep
+             ) VALUES (
+                0, EXTRACT(EPOCH FROM NOW())::INT4, $1, $2, $3, $4, $5,
+                7200, 36000, 0, 0, 100, 0, 1
+             ) RETURNING id",
+        )
+        .bind(jobset_id)
+        .bind(nix_name)
+        .bind(nix_name)
+        .bind(drv_path)
+        .bind(system)
+        .fetch_one(&mut *self.tx)
+        .await?;
+        Ok(id)
     }
 
     #[tracing::instrument(skip(self, v), err)]
@@ -545,13 +692,15 @@ impl Transaction<'_> {
         path: &StorePath,
     ) -> sqlx::Result<()> {
         let path = store_dir.display(path).to_string();
-        // TODO: support inserting multiple at the same time
-        sqlx::query!(
-            "UPDATE buildoutputs SET path = $3 WHERE build = $1 AND name = $2",
-            build_id,
-            name,
-            path.as_str(),
+        // Ad-hoc builds lack preinserted BuildOutputs rows, but hydra-update-gc-roots reads this table.
+        sqlx::query(
+            "INSERT INTO buildoutputs (build, name, path)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
         )
+        .bind(build_id)
+        .bind(name)
+        .bind(path.as_str())
         .execute(&mut *self.tx)
         .await?;
         Ok(())
@@ -948,13 +1097,13 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         start_time: Option<i32>,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
         machine: String,
         status: BuildStatus,
         error_msg: Option<String>,
-        propagated_from: Option<crate::models::BuildID>,
+        propagated_from: Option<BuildID>,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> sqlx::Result<i32> {
         let step_nr = loop {
@@ -1016,7 +1165,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         start_time: i32,
         stop_time: i32,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
     ) -> anyhow::Result<i32> {
@@ -1070,7 +1219,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         start_time: i32,
         stop_time: i32,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
     ) -> anyhow::Result<i32> {
@@ -1334,6 +1483,38 @@ mod tests {
         .bind(stepnr)
         .bind(name)
         .bind(test_store_dir().display(path).to_string())
+        .execute(&mut *conn.conn)
+        .await
+        .unwrap();
+    }
+
+    async fn insert_build_row(
+        conn: &mut Connection,
+        id: i32,
+        drv_path: &StorePath,
+        finished: i32,
+        build_status: Option<i32>,
+    ) {
+        let sd = test_store_dir();
+        // Finished Builds need start/stop times to satisfy schema checks.
+        let (start_time, stop_time) = if finished == 1 {
+            (Some(1), Some(2))
+        } else {
+            (None, None)
+        };
+        sqlx::query(
+            "INSERT INTO Builds (
+                id, finished, timestamp, jobset_id, job, nixname, drvPath, system,
+                maxsilent, timeout, ischannel, iscurrent, priority, globalpriority, keep,
+                startTime, stopTime, buildStatus
+             ) VALUES ($1, $2, 0, 1, 'job', 'nix', $3, '', 0, 0, 0, 0, 0, 0, 0, $4, $5, $6)",
+        )
+        .bind(id)
+        .bind(finished)
+        .bind(sd.display(drv_path).to_string())
+        .bind(start_time)
+        .bind(stop_time)
+        .bind(build_status)
         .execute(&mut *conn.conn)
         .await
         .unwrap();
@@ -1633,5 +1814,133 @@ mod tests {
         )
         .await;
         assert_eq!(result, Some(sp("final-result")));
+    }
+
+    fn store_str(path: &StorePath) -> String {
+        test_store_dir().display(path).to_string()
+    }
+
+    #[tokio::test]
+    async fn get_finished_build_returns_none_while_unfinished() {
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("foo.drv"), 0, None).await;
+        assert!(conn.get_finished_build(1).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn get_finished_build_uses_own_step_outputs() {
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("foo.drv"), 1, Some(0)).await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("result")).await;
+
+        let r = conn.get_finished_build(1).await.unwrap().unwrap();
+        assert_eq!(r.status, BuildStatus::Success);
+        assert_eq!(
+            r.outputs,
+            vec![("out".to_owned(), Some(store_str(&sp("result"))))],
+        );
+    }
+
+    #[tokio::test]
+    async fn get_finished_build_falls_back_when_own_steps_missing() {
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("foo.drv"), 1, Some(0)).await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("result")).await;
+        insert_build_row(&mut conn, 2, &sp("foo.drv"), 1, Some(0)).await;
+
+        let r = conn.get_finished_build(2).await.unwrap().unwrap();
+        assert_eq!(
+            r.outputs,
+            vec![("out".to_owned(), Some(store_str(&sp("result"))))],
+        );
+    }
+
+    #[tokio::test]
+    async fn get_finished_build_skips_rejected_source_in_fallback() {
+        // Rejected source builds can still have successful step outputs.
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("foo.drv"), 1, Some(11)).await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("result-rejected")).await;
+        insert_build_row(&mut conn, 2, &sp("foo.drv"), 1, Some(0)).await;
+
+        let r = conn.get_finished_build(2).await.unwrap().unwrap();
+        assert_eq!(r.status, BuildStatus::Success);
+        assert!(
+            r.outputs.is_empty(),
+            "fallback should not surface outputs from rejected Build #1, got {:?}",
+            r.outputs
+        );
+    }
+
+    #[tokio::test]
+    async fn get_finished_build_fallback_picks_most_recent_successful() {
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("foo.drv"), 1, Some(0)).await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("result-v1")).await;
+        insert_build_row(&mut conn, 2, &sp("foo.drv"), 1, Some(0)).await;
+        insert_step(&mut conn, 2, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("result-v2")).await;
+        insert_build_row(&mut conn, 3, &sp("foo.drv"), 1, Some(0)).await;
+
+        let r = conn.get_finished_build(3).await.unwrap().unwrap();
+        assert_eq!(
+            r.outputs,
+            vec![("out".to_owned(), Some(store_str(&sp("result-v2"))))],
+        );
+    }
+
+    #[tokio::test]
+    async fn finished_build_ids_filters_to_finished() {
+        let (_pg, mut conn) = setup().await;
+        insert_build_row(&mut conn, 1, &sp("a.drv"), 0, None).await;
+        insert_build_row(&mut conn, 2, &sp("b.drv"), 1, Some(0)).await;
+        insert_build_row(&mut conn, 3, &sp("c.drv"), 1, Some(1)).await;
+
+        let mut got = conn.finished_build_ids(&[1, 2, 3, 999]).await.unwrap();
+        got.sort_unstable();
+        // Any terminal status is enough for waiter wakeup; result mapping happens later.
+        assert_eq!(got, vec![2, 3]);
+    }
+
+    #[tokio::test]
+    async fn finished_build_ids_handles_empty_input() {
+        let (_pg, mut conn) = setup().await;
+        let got = conn.finished_build_ids(&[]).await.unwrap();
+        assert!(got.is_empty());
+    }
+
+    #[tokio::test]
+    async fn ensure_adhoc_jobset_is_idempotent() {
+        let (_pg, mut conn) = setup().await;
+        let id1 = conn.ensure_adhoc_jobset().await.unwrap();
+        let id2 = conn.ensure_adhoc_jobset().await.unwrap();
+        assert_eq!(id1, id2);
+    }
+
+    #[tokio::test]
+    async fn insert_adhoc_build_sets_keep_and_starts_unfinished() {
+        let (_pg, mut conn) = setup().await;
+        let jobset_id = conn.ensure_adhoc_jobset().await.unwrap();
+        let mut tx = conn.begin_transaction().await.unwrap();
+        let build_id = tx
+            .insert_adhoc_build(jobset_id, "hello", "/nix/store/foo.drv", "x86_64-linux")
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let row: (i32, i32, String, String) =
+            sqlx::query_as("SELECT keep, finished, drvPath, system FROM Builds WHERE id = $1")
+                .bind(build_id)
+                .fetch_one(&mut *conn.conn)
+                .await
+                .unwrap();
+        assert_eq!(row.0, 1, "keep=1 so hydra-update-gc-roots retains outputs");
+        assert_eq!(row.1, 0, "build starts unfinished");
+        assert_eq!(row.2, "/nix/store/foo.drv");
+        assert_eq!(row.3, "x86_64-linux");
     }
 }

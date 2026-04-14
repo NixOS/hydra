@@ -18,7 +18,7 @@ pub mod models;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{Connection, FinishedBuild, Transaction};
 pub use harmonia_store_core::store_path::StoreDir;
 pub use sqlx::Error;
 

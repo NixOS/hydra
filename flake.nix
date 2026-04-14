@@ -75,6 +75,7 @@
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
             inherit nixComponents;
           };
+          hydra-drv-daemon = self'.callPackage ./subprojects/hydra-drv-daemon/package.nix { };
         });
       mkHydraBuilder =
         { pkgs, nixComponents }:
@@ -129,6 +130,7 @@
           hydra-linters
           hydra-queue-runner
           hydra-builder
+          hydra-drv-daemon
           ;
       };
 
@@ -144,6 +146,8 @@
         queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
         builder = forEachSystemIncDarwin (system: packages.${system}.hydra-builder);
+
+        drvDaemon = forEachSystem (system: packages.${system}.hydra-drv-daemon);
 
         nixosTests = import ./nixos-tests.nix {
           inherit forEachSystem nixpkgs nixosModules;
@@ -267,6 +271,7 @@
             hydra-linters
             hydra-queue-runner
             hydra-builder
+            hydra-drv-daemon
             ;
         };
       });
