@@ -1,3 +1,14 @@
+function copyToClipboard(text, el) {
+    navigator.clipboard.writeText(text).then(function() {
+        var $el = $(el);
+        var orig = $el.attr('title');
+        $el.attr('title', 'Copied!').tooltip('dispose').tooltip('show');
+        setTimeout(function() {
+            $el.tooltip('dispose').attr('title', orig);
+        }, 1200);
+    });
+}
+
 function makeTreeCollapsible(tab) {
     /*** Tree toggles in logfiles. ***/
 
