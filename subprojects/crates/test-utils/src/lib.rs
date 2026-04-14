@@ -21,8 +21,7 @@ pub struct TestPg {
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 impl TestPg {
-    /// Spin up a fresh PG instance and load the hydra schema.
-    pub async fn new() -> (Self, sqlx::PgPool) {
+    async fn init_cluster() -> Self {
         let id = COUNTER.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("hydra-test-pg-{}-{id}", std::process::id()));
         let _ = fs_err::remove_dir_all(&dir);
@@ -83,10 +82,26 @@ impl TestPg {
             "createdb failed"
         );
 
-        let pg = Self { dir, port };
+        Self { dir, port }
+    }
+
+    /// Spin up a fresh PG instance and load the hydra v1 schema.
+    pub async fn new() -> (Self, sqlx::PgPool) {
+        let pg = Self::init_cluster().await;
         let pool = sqlx::PgPool::connect(&pg.url()).await.unwrap();
         let schema = include_str!("../../../hydra/sql/hydra.sql");
         sqlx::raw_sql(schema).execute(&pool).await.unwrap();
+        (pg, pool)
+    }
+
+    /// Spin up a fresh PG instance and load the hydra v1 schema + drv-in-db tables.
+    pub async fn new_drv_in_db() -> (Self, sqlx::PgPool) {
+        let pg = Self::init_cluster().await;
+        let pool = sqlx::PgPool::connect(&pg.url()).await.unwrap();
+        let base = include_str!("../../../hydra/sql/hydra.sql");
+        let drv = include_str!("../../../hydra/sql/upgrade-86.sql");
+        sqlx::raw_sql(base).execute(&pool).await.unwrap();
+        sqlx::raw_sql(drv).execute(&pool).await.unwrap();
         (pg, pool)
     }
 
