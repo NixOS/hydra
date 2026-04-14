@@ -1,6 +1,7 @@
 hydra-evaluator: ./foreman/start-evaluator.sh
 hydra-queue-runner: ./foreman/start-queue-runner.sh
 hydra-builder: ./foreman/start-builder.sh
+hydra-drv-daemon: ./foreman/start-drv-daemon.sh
 hydra-notify: ./foreman/start-notify.sh
 hydra-server: ./foreman/start-hydra.sh
 manual: ./foreman/start-manual.sh

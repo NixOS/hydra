@@ -24,8 +24,13 @@ hydra-create-user alice --password foobar --role admin
 if [ ! -f "$HYDRA_DATA/hydra.conf" ]; then
     echo "Creating a default hydra.conf"
     cat << EOF > "$HYDRA_DATA/hydra.conf"
-# test-time instances likely don't want to bootstrap nixpkgs from scratch
+# Use substitutes in dev instances to avoid bootstrapping nixpkgs.
 use-substitutes = true
+
+# IFD evaluation is allowed in the dev shell so the Procfile drv-daemon
+# (started by start-evaluator.sh via NIX_REMOTE) actually sees those
+# builds. Drop this line to disable IFD entirely.
+allow_import_from_derivation = true
 
 <hydra_notify>
   <prometheus>
