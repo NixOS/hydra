@@ -2,6 +2,7 @@
 
 members = [
     "subprojects/hydra-builder",
+    "subprojects/hydra-drv-daemon",
     "subprojects/hydra-evaluator",
     "subprojects/hydra-queue-runner",
     "subprojects/crates/*",

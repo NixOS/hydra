@@ -1967,6 +1967,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "hydra-drv-daemon"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "db",
+ "fs-err",
+ "futures",
+ "harmonia-protocol",
+ "harmonia-store-content-address",
+ "harmonia-store-derivation",
+ "harmonia-store-path",
+ "harmonia-store-remote",
+ "harmonia-utils-io",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "hydra-evaluator"
 version = "0.1.0"
 dependencies = [
