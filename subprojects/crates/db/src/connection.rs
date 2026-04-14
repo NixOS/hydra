@@ -1,12 +1,42 @@
 use sqlx::Acquire;
 
+use harmonia_store_core::derivation::{Derivation, DerivationOutput};
+use harmonia_store_core::derived_path::SingleDerivedPath;
 use harmonia_store_core::store_path::StoreDir;
+use harmonia_utils_hash::fmt::CommonHash as _;
 
 use super::models::{
     Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
     InsertBuildStep, InsertBuildStepOutput, Jobset, UpdateBuild, UpdateBuildStep,
     UpdateBuildStepInFinish,
 };
+
+/// Serialize a SingleDerivedPath input into (path, outputs_json) for DerivationInputs.
+/// For Opaque inputs: path = store path, outputs = [].
+/// For Built inputs: path = root store path, outputs = ["out1", "out2", ...] chain.
+fn serialize_input(input: &SingleDerivedPath, store_dir: &StoreDir) -> (String, serde_json::Value) {
+    let mut outputs = Vec::new();
+    let mut current = input;
+    loop {
+        match current {
+            SingleDerivedPath::Opaque(sp) => {
+                let path = format!("{store_dir}/{sp}");
+                let json = serde_json::Value::Array(
+                    outputs
+                        .into_iter()
+                        .rev()
+                        .map(serde_json::Value::String)
+                        .collect(),
+                );
+                return (path, json);
+            }
+            SingleDerivedPath::Built { drv_path, output } => {
+                outputs.push(output.as_ref().to_owned());
+                current = drv_path.as_ref();
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Connection {
@@ -371,7 +401,134 @@ impl Connection {
         Ok(results)
     }
 
-    #[tracing::instrument(skip(self), err)]
+    /// Insert a fully decomposed derivation into the 6 drv-in-db tables.
+    /// Returns the Derivations.id primary key, or None if the path already exists.
+    pub async fn insert_derivation(
+        &mut self,
+        drv_path: &str,
+        drv: &Derivation,
+        store_dir: &StoreDir,
+    ) -> sqlx::Result<Option<i32>> {
+        let first_output = drv.outputs.values().next();
+        let output_type = match first_output {
+            Some(DerivationOutput::InputAddressed(_)) => 0,
+            Some(DerivationOutput::CAFixed(_)) => 1,
+            Some(DerivationOutput::CAFloating(_)) => 2,
+            Some(DerivationOutput::Deferred) => 3,
+            Some(DerivationOutput::Impure(_)) => 4,
+            None => 0,
+        };
+        let has_sa = drv.structured_attrs.is_some();
+        let platform = String::from_utf8_lossy(&drv.platform);
+        let builder = String::from_utf8_lossy(&drv.builder);
+        let args = drv
+            .args
+            .iter()
+            .map(|a| String::from_utf8_lossy(a).into_owned())
+            .collect::<Vec<_>>();
+
+        let mut tx = self.conn.begin().await?;
+
+        let row = sqlx::query_as::<_, (i32,)>(
+            "INSERT INTO Derivations (path, platform, builder, args, outputType, hasStructuredAttrs)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (path) DO NOTHING
+             RETURNING id",
+        )
+        .bind(drv_path)
+        .bind(platform.as_ref())
+        .bind(builder.as_ref())
+        .bind(&args)
+        .bind(output_type)
+        .bind(has_sa)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        let Some((drv_id,)) = row else {
+            tx.commit().await?;
+            return Ok(None);
+        };
+
+        for (name, output) in &drv.outputs {
+            let (path, method, hash_algo, hash) = match output {
+                DerivationOutput::InputAddressed(sp) => {
+                    (Some(format!("{store_dir}/{sp}")), None, None, None)
+                }
+                DerivationOutput::CAFixed(ca) => (
+                    None,
+                    Some(ca.method_algorithm().to_string()),
+                    Some(ca.algorithm().to_string()),
+                    Some(ca.hash().as_sri().to_string()),
+                ),
+                DerivationOutput::CAFloating(cam) => (
+                    None,
+                    Some(cam.to_string()),
+                    Some(cam.algorithm().to_string()),
+                    None,
+                ),
+                DerivationOutput::Deferred => (None, None, None, None),
+                DerivationOutput::Impure(cam) => (
+                    None,
+                    Some(cam.to_string()),
+                    Some(cam.algorithm().to_string()),
+                    None,
+                ),
+            };
+            sqlx::query(
+                "INSERT INTO DerivationOutputs (drv, id, outputType, path, method, hashAlgo, hash)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            )
+            .bind(drv_id)
+            .bind(name.as_ref())
+            .bind(output_type)
+            .bind(path.as_deref())
+            .bind(method.as_deref())
+            .bind(hash_algo.as_deref())
+            .bind(hash.as_deref())
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        for input in &drv.inputs {
+            // Encode the full SingleDerivedPath chain as jsonb.
+            // For Opaque: path is the store path, outputs is empty.
+            // For Built: path is the root store path, outputs encodes the chain.
+            let (path, outputs_json) = serialize_input(input, store_dir);
+            sqlx::query("INSERT INTO DerivationInputs (drv, path, outputs) VALUES ($1, $2, $3)")
+                .bind(drv_id)
+                .bind(&path)
+                .bind(&outputs_json)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        for (key, value) in &drv.env {
+            sqlx::query("INSERT INTO DerivationEnv (drv, key, value) VALUES ($1, $2, $3)")
+                .bind(drv_id)
+                .bind(String::from_utf8_lossy(key).as_ref())
+                .bind(String::from_utf8_lossy(value).as_ref())
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        if let Some(sa) = &drv.structured_attrs {
+            for (key, value) in &sa.attrs {
+                sqlx::query(
+                    "INSERT INTO DerivationStructuredAttrs (drv, hasStructuredAttrs, key, value)
+                     VALUES ($1, true, $2, $3)",
+                )
+                .bind(drv_id)
+                .bind(key)
+                .bind(value)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        tx.commit().await?;
+        Ok(Some(drv_id))
+    }
+
     pub async fn get_status(&mut self) -> sqlx::Result<Option<serde_json::Value>> {
         Ok(
             sqlx::query!("SELECT status FROM systemstatus WHERE what = 'queue-runner';",)

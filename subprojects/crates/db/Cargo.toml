@@ -9,10 +9,12 @@ rust-version.workspace = true
 anyhow.workspace              = true
 futures.workspace             = true
 harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
 hashbrown.workspace           = true
 tracing.workspace             = true
 
 jiff.workspace       = true
+serde.workspace      = true
 serde_json.workspace = true
 
 sqlx = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }

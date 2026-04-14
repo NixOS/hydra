@@ -1,0 +1,27 @@
+[package]
+name                   = "hydra-drv-daemon"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap             = { workspace = true, features = [ "derive", "env" ] }
+futures.workspace              = true
+tokio                          = { workspace = true, features = [ "full" ] }
+tracing.workspace              = true
+tracing-subscriber             = { workspace = true, features = [ "env-filter" ] }
+
+db                              = { path = "../crates/db" }
+harmonia-protocol.workspace     = true
+harmonia-store-aterm.workspace  = true
+harmonia-store-core.workspace   = true
+harmonia-store-remote.workspace = true
+harmonia-utils-io.workspace     = true
+
+[dev-dependencies]
+harmonia-utils-hash.workspace = true
+serde_json.workspace          = true
+sqlx                          = { workspace = true, features = [ "runtime-tokio", "postgres" ] }
+test-utils                    = { path = "../crates/test-utils" }
