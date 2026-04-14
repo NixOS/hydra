@@ -36,14 +36,13 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ../../Cargo.lock;
     outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-g7JJGrjWnnzBtxtxLaqL/wKehPBZAHh8C7U7ALYW6o0=";
+      "harmonia-store-core-0.0.0-alpha.0" = "sha256-EwOfW4esHMOaxoxgrguLJYLPQXoFjzOljR2+x+mmo3k=";
     };
   };
 
   # Drop the other Rust binary crates from the workspace; their sources
   # are excluded from the fileset above, so cargo would otherwise fail
   # trying to load their (absent) manifests.
-  postPatch = ''
     sed -i '/hydra-queue-runner/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 

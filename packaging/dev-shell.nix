@@ -7,6 +7,7 @@
   hydra-linters,
   hydra-queue-runner,
   hydra-builder,
+  hydra-drv-daemon,
   hydra-evaluator,
   foreman,
 }:
@@ -22,6 +23,7 @@ let
     hydra-linters
     hydra-queue-runner
     hydra-builder
+    hydra-drv-daemon
     hydra-evaluator
   ];
 
