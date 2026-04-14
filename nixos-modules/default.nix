@@ -44,6 +44,8 @@ rec {
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-drv-daemon;
     };
 
+  evaluator-drv-daemon = ./evaluator-drv-daemon.nix;
+
   hydra =
     { ... }:
     {
@@ -53,6 +55,7 @@ rec {
         queue-runner
         builder
         drv-daemon
+        evaluator-drv-daemon
       ];
     };
 
