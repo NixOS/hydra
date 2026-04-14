@@ -28,7 +28,6 @@ sub _parseValue {
     my ($value) = @_;
     my @parts = split ' ', $value;
     (my $uri, my $branch, my $deepClone) = @parts;
-    $branch = defined $branch ? $branch : "master";
     my $options = {};
     my $start_options = 3;
     # if deepClone has "=" then is considered an option
@@ -44,6 +43,23 @@ sub _parseValue {
     return ($uri, $branch, $deepClone, $options);
 }
 
+sub _getDefaultBranch {
+    my ($uri, $timeout) = @_;
+
+    my $res = runCommand(
+        cmd => ["git", "ls-remote", "--symref", $uri, "HEAD"],
+        timeout => $timeout,
+    );
+
+    return undef if $res->{status};
+
+    for (split /\n/, $res->{stdout}) {
+        return $1 if /^ref:\s+refs\/heads\/([^\s]+)/;
+    }
+
+    return undef;
+}
+
 sub _printIfDebug {
     my ($msg) = @_;
     print STDERR "GitInput: $msg" if $ENV{'HYDRA_DEBUG'};
@@ -55,7 +71,8 @@ Read the configuration from the main hydra config file.
 
 The configuration is loaded from the "git-input" block.
 
-Currently only the "timeout" variable is been looked up in the file.
+Currently the "fallback_branch" and a "timeout" variable are looked up in the
+file.
 
 The variables defined directly in the input value will override
 the ones on the configuration file, to define the variables
@@ -66,6 +83,9 @@ Expected configuration format in the hydra config file:
     <git-input>
       # general timeout
       timeout = 400
+
+      # branch, if no default branch can be determined and none is specified
+      fallback_branch = main
 
       <project:jobset:input-name>
         # specific timeout for a particular input
@@ -79,6 +99,7 @@ sub _pluginConfig {
     my $cfg = $main_config->{$CONFIG_SECTION};
     # default values
     my $values = {
+        fallback_branch => "master",
         timeout => 600,
     };
     my $input_block = "$project_name:$jobset_name:$input_name";
@@ -124,6 +145,11 @@ sub fetchInput {
         }
         $cfg->{$opt_name} = $opt_value;
         _printIfDebug "'$name': override '$opt_name' with input value: $opt_value\n";
+    }
+
+    # Determine a branch to check out, if none is explicitly defined
+    if (!defined $branch) {
+        $branch = _getDefaultBranch($uri, $cfg->{timeout}) // $cfg->{fallback_branch} // "master";
     }
 
     # Clone or update a branch of the repository into our SCM cache.
