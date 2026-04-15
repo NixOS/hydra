@@ -25,6 +25,15 @@ sub buildStep :Chained('buildStepChain') :PathPart('') :Args(0) :ActionClass('RE
 sub buildStep_GET {
     my ($self, $c) = @_;
 
+    my $step = $c->stash->{step};
+    if (defined $step->status && $step->status == 13 && $step->resolveddrvpath) {
+        # Same shape as build_GET's stash, so renderStepStatus works here too.
+        $c->stash->{resolvedTerminals} = { $step->stepnr => $step->resolved_terminal };
+    } else {
+        # Real steps may be the target of Resolved steps; link back to them.
+        $c->stash->{resolutionOrigins} = $step->resolution_origins;
+    }
+
     $c->stash->{template} = 'build-step.tt';
 
     $self->status_ok(
@@ -37,8 +46,16 @@ sub buildStep_GET {
 sub view_nixlog : Chained('buildStepChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
-    my $drvPath = $c->stash->{step}->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
+    my $step = $c->stash->{step};
+
+    # Resolved steps are pure redirections: they never build, so they have
+    # no log. The step detail page links to the terminal step, whose own
+    # log endpoint serves the actual build output.
+    if (defined $step->status && $step->status == 13 && $step->resolveddrvpath) {
+        notFound($c, "Build step " . $step->stepnr . " was resolved to another derivation and has no log of its own.");
+    }
+
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($step->drvpath))]);
     showLog($c, $mode, $log_uri);
 }
 

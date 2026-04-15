@@ -117,6 +117,12 @@ sub build_GET {
 
     $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
 
+    $c->stash->{resolvedTerminals} = {};
+    for my $step (@{$c->stash->{steps}}) {
+        my $terminal = $step->resolved_terminal;
+        $c->stash->{resolvedTerminals}->{$step->stepnr} = $terminal if $terminal;
+    }
+
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
@@ -563,6 +569,26 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     $c->stash->{json}->{drvPath} = $build->drvpath;
     my $out = getMainOutput($build);
     $c->stash->{json}->{outPath} = $out->path if defined $out;
+
+    my @resolved;
+    for my $step ($build->buildsteps->search({ status => 13 })) {
+        next unless $step->resolveddrvpath;
+        my $entry = {
+            stepnr           => $step->stepnr,
+            resolvedDrvPath  => $step->resolveddrvpath,
+        };
+        if (my $terminal = $step->resolved_terminal) {
+            $entry->{terminal} = {
+                buildId => $terminal->get_column('build'),
+                stepnr  => $terminal->stepnr,
+                status  => $terminal->status,
+                busy    => $terminal->busy,
+            };
+        }
+        push @resolved, $entry;
+    }
+    $c->stash->{json}->{resolvedSteps} = \@resolved if @resolved;
+
     $c->forward('View::JSON');
 }
 
