@@ -14,48 +14,109 @@
 [% logUrl = c.uri_for('/build' build.id 'step' step.stepnr 'log') %]
 [% has_log = buildStepLogExists(step) %]
 
-<table class="info-table">
-  <tr>
-    <th>Type:</th>
-    <td>[% IF step.type == 0 %]Build[% ELSE %]Substitution[% END %]</td>
-  </tr>
-  <tr>
-    <th>Derivation:</th>
-    <td><tt>[% step.drvpath | html %]</tt></td>
-  </tr>
-  <tr>
-    <th>Output store paths:</th>
-    <td>[% INCLUDE renderOutputsTable outputs=step.buildstepoutputs %]</td>
-  </tr>
-  [% IF step.system %]
+[% IF step.status == 13 && step.resolveddrvpath %]
+  [% INCLUDE renderResolvedStep %]
+[% ELSE %]
+  <table class="info-table">
     <tr>
-      <th>System:</th>
-      <td><tt>[% step.system | html %]</tt></td>
+      <th>Type:</th>
+      <td>[% IF step.type == 0 %]Build[% ELSE %]Substitution[% END %]</td>
     </tr>
-  [% END %]
-  <tr>
-    <th>Machine:</th>
-    <td>[% INCLUDE renderStepMachine %]</td>
-  </tr>
-  <tr>
-    <th>Duration:</th>
-    <td>[% INCLUDE renderStepDuration %]</td>
-  </tr>
-  <tr>
-    <th>Status:</th>
-    <td>
-      [% INCLUDE renderStepStatus %]
-      [% IF step.propagatedfrom %]
-        (propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])
-      [% END %]
-    </td>
-  </tr>
-  [% IF has_log %]
     <tr>
-      <th>Logfile:</th>
-      <td>[% INCLUDE renderLogButtons url=logUrl %]</td>
+      <th>Derivation:</th>
+      <td><tt>[% step.drvpath | html %]</tt></td>
     </tr>
-  [% END %]
-</table>
+    <tr>
+      <th>Output store paths:</th>
+      <td>[% INCLUDE renderOutputsTable outputs=step.buildstepoutputs %]</td>
+    </tr>
+    [% IF step.system %]
+      <tr>
+        <th>System:</th>
+        <td><tt>[% step.system | html %]</tt></td>
+      </tr>
+    [% END %]
+    <tr>
+      <th>Machine:</th>
+      <td>[% INCLUDE renderStepMachine %]</td>
+    </tr>
+    <tr>
+      <th>Duration:</th>
+      <td>[% INCLUDE renderStepDuration %]</td>
+    </tr>
+    <tr>
+      <th>Status:</th>
+      <td>
+        [% INCLUDE renderStepStatus %]
+        [% IF step.propagatedfrom %]
+          (propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])
+        [% END %]
+      </td>
+    </tr>
+    [% IF has_log %]
+      <tr>
+        <th>Logfile:</th>
+        <td>[% INCLUDE renderLogButtons url=logUrl %]</td>
+      </tr>
+    [% END %]
+  </table>
+[% END %]
+
+[% BLOCK renderResolvedStep;
+     pending  = resolvedPending;
+     terminal = pending.terminal;
+     chain    = pending.chain;
+     state    = pending.state %]
+  <table class="info-table">
+    <tr>
+      <th>Type:</th>
+      <td>Resolution</td>
+    </tr>
+    <tr>
+      <th>Original derivation:</th>
+      <td><tt>[% step.drvpath | html %]</tt></td>
+    </tr>
+    <tr>
+      <th>Resolved to:</th>
+      <td><tt>[% step.resolveddrvpath | html %]</tt></td>
+    </tr>
+    [% IF chain && chain.size > 1 %]
+      <tr>
+        <th>Resolution chain:</th>
+        <td>
+          <ol>
+            [% FOREACH hop IN chain %]
+              <li><tt>[% HTML.escape(hop) %]</tt></li>
+            [% END %]
+          </ol>
+        </td>
+      </tr>
+    [% END %]
+    <tr>
+      <th>Status:</th>
+      <td>
+        <span class="text-muted"><em>Resolved</em></span>
+        [% IF terminal %]
+          -- terminal step is [%+ INCLUDE renderBuildIdLink id=terminal.get_column('build') %], step #[% HTML.escape(terminal.stepnr) %]
+          [% IF terminal.busy != 0 %]
+            (<em>Running</em>)
+          [% ELSIF terminal.status == 0 %]
+            (Succeeded)
+          [% ELSIF terminal.status == 13 %]
+            (<em>Resolved, pending</em>)
+          [% ELSE %]
+            (<span class="error">Failed</span>)
+          [% END %]
+        [% ELSIF state == 'cycle' %]
+          -- <span class="error">resolution chain cycles back to this step</span>
+        [% ELSIF state == 'dead-end' %]
+          -- terminal step is itself unresolved, no log available yet
+        [% ELSE %]
+          -- terminal step not yet scheduled, reload to follow once it lands
+        [% END %]
+      </td>
+    </tr>
+  </table>
+[% END %]
 
 [% END %]
