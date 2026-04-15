@@ -232,6 +232,7 @@ my %hint = (
         "stepnr",
         "drvpath",
         "starttime",
+        "resolveddrvpath",
     ],
     eager_relations => {
         build => 'id'

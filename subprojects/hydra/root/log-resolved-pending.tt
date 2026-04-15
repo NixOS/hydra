@@ -1,0 +1,49 @@
+[% WRAPPER layout.tt
+  titleHTML="Step $step.stepnr of build ${build.id}: resolved, log pending"
+  title="Step $step.stepnr of build ${build.id}: resolved, log pending"
+%]
+[% PROCESS common.tt %]
+
+[% # Only poll states that can still make progress.
+   canProgress = resolvedPending.state == 'running' || resolvedPending.state == 'unscheduled';
+%]
+[% IF canProgress %]
+  <meta http-equiv="refresh" content="10">
+[% END %]
+
+<div class="alert alert-warning">
+  <p>
+    Step #[% HTML.escape(step.stepnr) %] of [%+ INCLUDE renderBuildIdLink id=build.id %] was marked <em>Resolved</em>:
+    its derivation <tt>[% HTML.escape(step.drvpath) %]</tt> was redirected to
+    <tt>[% HTML.escape(step.resolveddrvpath) %]</tt>.
+  </p>
+
+  [% IF resolvedPending.chain.size > 1 %]
+    <p>Resolution chain so far ([% resolvedPending.chain.size %] hops):</p>
+    <ol>
+    [% FOREACH hop IN resolvedPending.chain %]
+      <li><tt>[% HTML.escape(hop) %]</tt></li>
+    [% END %]
+    </ol>
+  [% END %]
+
+  [% IF resolvedPending.state == 'running' %]
+    <p>
+      The resolved step is currently running: [%+ INCLUDE renderBuildIdLink id=resolvedPending.terminal.get_column('build') %], step #[% HTML.escape(resolvedPending.terminal.stepnr) %]. This page will refresh automatically.
+    </p>
+  [% ELSIF resolvedPending.state == 'dead-end' %]
+    <p>
+      The chain ends at [%+ INCLUDE renderBuildIdLink id=resolvedPending.terminal.get_column('build') %], step #[% HTML.escape(resolvedPending.terminal.stepnr) %], which is itself still <em>Resolved</em>. The resolution graph appears truncated (maximum hop count reached); the actual build step is not reachable from here.
+    </p>
+  [% ELSIF resolvedPending.state == 'cycle' %]
+    <p>
+      This step's resolution graph is self-referential and will never produce a build log. This is likely a queue-runner bug &mdash; please file an issue.
+    </p>
+  [% ELSE %]
+    <p>
+      No build step for the resolved derivation has been scheduled yet. This page will refresh automatically once it lands.
+    </p>
+  [% END %]
+</div>
+
+[% END %]

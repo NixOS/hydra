@@ -116,6 +116,19 @@ sub build_GET {
 
     $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
 
+    $c->stash->{resolvedTerminals} = {};
+    for my $step (@{$c->stash->{steps}}) {
+        next unless defined $step->status && $step->status == 13 && $step->resolveddrvpath;
+        my ($terminal, $chain) = followResolvedChain($c, $step);
+        next unless $terminal;
+        next if $terminal->get_column('build') == $step->get_column('build')
+                && $terminal->stepnr == $step->stepnr;
+        $c->stash->{resolvedTerminals}->{$step->stepnr} = {
+            terminal => $terminal,
+            chain    => $chain,
+        };
+    }
+
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
@@ -139,9 +152,70 @@ sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
     my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
     notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
 
+    # Resolved steps have no log of their own.
+    if (defined $step->status && $step->status == 13 && $step->resolveddrvpath) {
+        my ($terminal, $chain) = followResolvedChain($c, $step);
+        my $isSelf = $terminal &&
+            $terminal->get_column('build') == $c->stash->{build}->id &&
+            $terminal->stepnr == $step->stepnr;
+        if ($terminal && !$isSelf
+            && defined $terminal->status && $terminal->status != 13
+            && $terminal->busy == 0)
+        {
+            my @args = ($terminal->get_column('build'), 'nixlog', $terminal->stepnr);
+            push @args, $mode if defined $mode;
+            $c->res->redirect($c->uri_for('/build', @args));
+            return;
+        }
+        $c->stash->{step} = $step;
+        my $pendingState;
+        if (!$isSelf) {
+            if ($terminal && $terminal->busy) {
+                $pendingState = 'running';
+            } elsif ($terminal
+                     && defined $terminal->status && $terminal->status == 13) {
+                $pendingState = 'dead-end';
+            } else {
+                $pendingState = 'unscheduled';
+            }
+        } else {
+            my $chainSize = scalar @{ $chain // [] };
+            my $directSelfCycle = $chainSize == 1
+                && $step->drvpath && $step->resolveddrvpath
+                && basename($step->drvpath) eq $step->resolveddrvpath;
+            if ($chainSize >= 2 || $directSelfCycle) {
+                $pendingState = 'cycle';
+            } else {
+                $pendingState = 'unscheduled';
+            }
+        }
+        $c->stash->{resolvedPending} = {
+            chain    => $chain,
+            terminal => (!$isSelf ? $terminal : undef),
+            state    => $pendingState,
+        };
+        $c->stash->{template} = 'log-resolved-pending.tt';
+        return;
+    }
+
     $c->stash->{step} = $step;
 
     my $drvPath = $step->drvpath;
+
+    # Pretty log pages derive this from the DB instead of request-local flash.
+    if (!defined $mode) {
+        my ($origin, $forwardChain) =
+            findRedirectingChain($c, $c->stash->{build}->id, $drvPath);
+        if ($origin) {
+            $c->stash->{redirectedFromStep} = {
+                build       => $origin->get_column('build'),
+                stepnr      => $origin->stepnr,
+                chain       => $forwardChain,
+                origDrvPath => $origin->drvpath,
+            };
+        }
+    }
+
     my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
     showLog($c, $mode, $log_uri);
 }
@@ -592,6 +666,31 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     $c->stash->{json}->{drvPath} = $build->drvpath;
     my $out = getMainOutput($build);
     $c->stash->{json}->{outPath} = $out->path if defined $out;
+
+    my @resolved;
+    for my $step ($build->buildsteps->search({ status => 13 })) {
+        next unless $step->resolveddrvpath;
+        my ($terminal, $chain) = followResolvedChain($c, $step);
+        my $entry = {
+            stepnr           => $step->stepnr,
+            resolvedDrvPath  => $step->resolveddrvpath,
+            chain            => $chain,
+        };
+        if ($terminal
+            && !($terminal->get_column('build') == $build->id
+                 && $terminal->stepnr == $step->stepnr))
+        {
+            $entry->{terminal} = {
+                buildId => $terminal->get_column('build'),
+                stepnr  => $terminal->stepnr,
+                status  => $terminal->status,
+                busy    => $terminal->busy,
+            };
+        }
+        push @resolved, $entry;
+    }
+    $c->stash->{json}->{resolvedSteps} = \@resolved if @resolved;
+
     $c->forward('View::JSON');
 }
 

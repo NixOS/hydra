@@ -87,6 +87,24 @@ END;
                 <span class="error">Output limit exceeded</span>
               [% ELSIF step.status == 12 %]
                 <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% HTML.escape(step.timesbuilt) %] times[% END %]
+              [% ELSIF step.status == 13 %]
+                <span class="text-muted"><em>Resolved</em></span>
+                [% resolvedTerm = resolvedTerminals.${step.stepnr};
+                   IF resolvedTerm;
+                     t = resolvedTerm.terminal; %]
+                  -- resolved to [%+ INCLUDE renderBuildIdLink id=t.get_column('build') %], step #[% HTML.escape(t.stepnr) %]
+                  [% IF t.busy != 0 %]
+                    (<em>Running</em>)
+                  [% ELSIF t.status == 0 %]
+                    (Succeeded)
+                  [% ELSIF t.status == 13 %]
+                    (<em>Resolved, pending</em>)
+                  [% ELSE %]
+                    (<span class="error">Failed</span>)
+                  [% END;
+                 ELSIF step.resolveddrvpath; %]
+                  -- resolved drv <tt>[% HTML.escape(step.resolveddrvpath) %]</tt> not yet scheduled
+                [% END %]
               [% ELSIF step.errormsg %]
                 <span class="error">Failed</span>: <em>[% HTML.escape(step.errormsg) %]</em>
               [% ELSE %]
