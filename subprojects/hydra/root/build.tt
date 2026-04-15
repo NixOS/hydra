@@ -35,7 +35,12 @@ END;
           <tr>
             <td><a class="row-link" [% HTML.attributes(href => stepUrl) %]>[% HTML.escape(step.stepnr) %]</a></td>
             <td>
-              [% IF step.type == 0 %]
+              [% IF step.status == 13 %]
+                [%# Resolved steps never ran: buildstepoutputs is empty, so %]
+                [%# "Build of" would render with nothing after it. Show the %]
+                [%# drv that was resolved instead. %]
+                Resolution of <tt>[% HTML.escape(step.drvpath) %]</tt>
+              [% ELSIF step.type == 0 %]
                 Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
               [% ELSE %]
                 Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
