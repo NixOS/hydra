@@ -38,11 +38,11 @@ rustPlatform.buildRustPackage {
     };
   };
 
-  # The source fileset above intentionally excludes hydra-queue-runner,
-  # so drop it from the workspace members to keep cargo from trying to
-  # load its (absent) manifest.
+  # Drop the other Rust binary crates from the workspace; their sources
+  # are excluded from the fileset above, so cargo would otherwise fail
+  # trying to load their (absent) manifests.
   postPatch = ''
-    sed -i 's|"subprojects/hydra-queue-runner", ||' Cargo.toml
+    sed -i '/hydra-builder/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
   buildAndTestSubdir = "subprojects/hydra-builder";
