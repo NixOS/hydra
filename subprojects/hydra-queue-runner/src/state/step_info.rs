@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use nix_utils::BaseStore as _;
 use nix_utils::SingleDerivedPath;
 
 use super::Step;
@@ -36,7 +35,6 @@ fn flatten_chain(
 #[derive(Debug)]
 pub struct StepInfo {
     pub step: Arc<Step>,
-    pub resolved_drv_path: Option<nix_utils::StorePath>,
     already_scheduled: AtomicBool,
     cancelled: AtomicBool,
     pub runnable_since: jiff::Timestamp,
@@ -44,19 +42,8 @@ pub struct StepInfo {
 }
 
 impl StepInfo {
-    pub async fn new(store: &nix_utils::LocalStore, db: &db::Database, step: Arc<Step>) -> Self {
+    pub fn new(step: Arc<Step>) -> Self {
         Self {
-            resolved_drv_path: match step.get_drv() {
-                Some(guard) => {
-                    let resolved =
-                        Self::try_resolve(store.store_dir(), db, guard.as_ref().unwrap()).await;
-                    match resolved {
-                        Some(ref basic_drv) => store.write_derivation(basic_drv).await.ok(),
-                        None => None,
-                    }
-                }
-                None => None,
-            },
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: step.get_runnable_since(),
@@ -76,7 +63,7 @@ impl StepInfo {
     ///
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
-    async fn try_resolve(
+    pub(super) async fn try_resolve(
         store_dir: &nix_utils::StoreDir,
         db: &db::Database,
         drv: &nix_utils::Derivation,
@@ -278,7 +265,6 @@ mod tests {
 
         StepInfo {
             step,
-            resolved_drv_path: None,
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: jiff::Timestamp::now(),
