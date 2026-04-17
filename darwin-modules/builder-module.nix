@@ -39,8 +39,8 @@ in
         default = 4;
       };
 
-      tmpAvailThreshold = lib.mkOption {
-        description = "Threshold in percent for /tmp before jobs are no longer scheduled on the machine";
+      buildDirAvailThreshold = lib.mkOption {
+        description = "Threshold in percent for nix build dir before jobs are no longer scheduled on the machine";
         type = lib.types.float;
         default = 10.0;
       };
@@ -160,8 +160,8 @@ in
               cfg.speedFactor
               "--max-jobs"
               cfg.maxJobs
-              "--tmp-avail-threshold"
-              cfg.tmpAvailThreshold
+              "--build-dir-avail-threshold"
+              cfg.buildDirAvailThreshold
               "--store-avail-threshold"
               cfg.storeAvailThreshold
               "--load1-threshold"
