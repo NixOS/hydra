@@ -1,8 +1,21 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
+
+/// HTTP/2 keep-alive interval.  Tonic sends HTTP/2 PING frames at this
+/// cadence so both sides detect a dead TCP connection promptly.
+const HTTP2_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// How long to wait for an HTTP/2 PING ACK before considering the
+/// connection dead.
+const HTTP2_KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// If no message arrives from the queue runner within this window the
+/// stream is considered dead and the builder will reconnect.
+const STREAM_RECV_TIMEOUT: Duration = Duration::from_secs(90);
 
 use runner_v1::{
     BuilderRequest, VersionCheckRequest, builder_request, runner_request,
@@ -95,6 +108,9 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
             .identity(client_identity);
 
         Channel::builder(cli.gateway_endpoint.parse()?)
+            .http2_keep_alive_interval(HTTP2_KEEPALIVE_INTERVAL)
+            .keep_alive_timeout(HTTP2_KEEPALIVE_TIMEOUT)
+            .keep_alive_while_idle(true)
             .tls_config(tls)
             .context("Failed to attach tls config")?
             .connect()
@@ -126,6 +142,9 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
             )
             .with_enabled_roots();
         Channel::builder(cli.gateway_endpoint.parse()?)
+            .http2_keep_alive_interval(HTTP2_KEEPALIVE_INTERVAL)
+            .keep_alive_timeout(HTTP2_KEEPALIVE_TIMEOUT)
+            .keep_alive_while_idle(true)
             .tls_config(tls)
             .context("Failed to attach tls config")?
             .connect()
@@ -133,6 +152,9 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
             .context("Failed to establish connection with Channel")?
     } else {
         Channel::builder(cli.gateway_endpoint.parse()?)
+            .http2_keep_alive_interval(HTTP2_KEEPALIVE_INTERVAL)
+            .keep_alive_timeout(HTTP2_KEEPALIVE_TIMEOUT)
+            .keep_alive_while_idle(true)
             .connect()
             .await
             .context("Failed to establish connection with Channel")?
@@ -218,27 +240,59 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
 
     let join_msg = state.get_join_message().await?;
     let state2 = state.clone();
+
+    // Subscribe a fresh receiver for this stream connection.  Using a
+    // broadcast channel means each reconnection gets its own receiver
+    // without needing to recreate the sender or the State.
+    let mut slot_freed_rx = state.slot_freed_tx.subscribe();
+
+    // The outbound stream merges periodic ping messages with SlotFreed
+    // notifications from build tasks.  Using `tokio::select!` inside an
+    // `async_stream` lets us yield whichever is ready first while keeping
+    // a single ordered stream for the gRPC tunnel.
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
             message: Some(builder_request::Message::Join(join_msg))
         };
 
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(state.config.ping_interval));
+        let mut interval = tokio::time::interval(Duration::from_secs(state.config.ping_interval));
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    let ping = match state.get_ping_message() {
+                        Ok(v) => builder_request::Message::Ping(v),
+                        Err(e) => {
+                            tracing::error!("Failed to construct ping message: {e}");
+                            continue
+                        },
+                    };
+                    tracing::debug!("sending ping: {ping:?}");
 
-            let ping = match state.get_ping_message() {
-                Ok(v) => builder_request::Message::Ping(v),
-                Err(e) => {
-                    tracing::error!("Failed to construct ping message: {e}");
-                    continue
-                },
-            };
-            tracing::debug!("sending ping: {ping:?}");
-
-            yield BuilderRequest {
-                message: Some(ping)
-            };
+                    yield BuilderRequest {
+                        message: Some(ping)
+                    };
+                }
+                msg = slot_freed_rx.recv() => {
+                    match msg {
+                        Ok(msg) => {
+                            tracing::info!(
+                                "sending slot_freed: build_id={} machine_id={}",
+                                msg.build_id, msg.machine_id
+                            );
+                            yield BuilderRequest {
+                                message: Some(builder_request::Message::SlotFreed(msg))
+                            };
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("slot_freed receiver lagged by {n} messages");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            // Sender dropped -- no more SlotFreed messages,
+                            // but keep pinging.
+                        }
+                    }
+                }
+            }
         }
     };
 
@@ -260,26 +314,40 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
     };
 
     let mut consecutive_failure_count = 0;
-    while let Some(item) = stream.next().await {
-        match item.map(|v| v.message) {
-            Ok(Some(v)) => {
-                consecutive_failure_count = 0;
-                if let Err(err) = handle_request(state2.clone(), v).await {
-                    tracing::error!("Failed to correctly handle request: {err}");
+    loop {
+        match tokio::time::timeout(STREAM_RECV_TIMEOUT, stream.next()).await {
+            Ok(Some(item)) => match item.map(|v| v.message) {
+                Ok(Some(v)) => {
+                    consecutive_failure_count = 0;
+                    if let Err(err) = handle_request(state2.clone(), v).await {
+                        tracing::error!("Failed to correctly handle request: {err}");
+                    }
                 }
-            }
+                Ok(None) => {
+                    consecutive_failure_count = 0;
+                }
+                Err(e) => {
+                    consecutive_failure_count += 1;
+                    tracing::error!("stream message delivery failed: {e}");
+                    if consecutive_failure_count == 10 {
+                        return Err(anyhow::anyhow!(
+                            "Failed to communicate {consecutive_failure_count} times over the channel. \
+                            Terminating the application."
+                        ));
+                    }
+                }
+            },
             Ok(None) => {
-                consecutive_failure_count = 0;
+                // Stream ended cleanly
+                tracing::info!("gRPC stream ended");
+                break;
             }
-            Err(e) => {
-                consecutive_failure_count += 1;
-                tracing::error!("stream message delivery failed: {e}");
-                if consecutive_failure_count == 10 {
-                    return Err(anyhow::anyhow!(
-                        "Failed to communicate {consecutive_failure_count} times over the channel. \
-                        Terminating the application."
-                    ));
-                }
+            Err(_) => {
+                // No message received within STREAM_RECV_TIMEOUT — connection is likely dead.
+                return Err(anyhow::anyhow!(
+                    "No message from queue runner in {}s — assuming dead connection",
+                    STREAM_RECV_TIMEOUT.as_secs()
+                ));
             }
         }
     }
