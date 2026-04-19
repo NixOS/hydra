@@ -92,6 +92,15 @@ pub struct Cli {
     #[clap(long, default_value_t = 1800)]
     pub upload_timeout: u64,
 
+    /// Prefetch factor: how many extra builds (beyond max_jobs) the builder
+    /// accepts for input pre-fetching.  With the default of 2, a builder
+    /// with max_jobs=4 reports 4 prefetch slots, for 8 total.  Builds
+    /// beyond max_jobs import inputs immediately but wait for a build
+    /// semaphore before running `nix build`.  Set to 1 to disable prefetch
+    /// (total capacity == max_jobs).
+    #[clap(long, default_value_t = 2)]
+    pub prefetch_factor: u32,
+
     /// File to Authorization token, can be use as an alternative to mTLS
     #[clap(long)]
     pub authorization_file: Option<std::path::PathBuf>,
