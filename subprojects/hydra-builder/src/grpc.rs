@@ -182,6 +182,12 @@ impl BuilderClient {
     }
 }
 
+/// If no message arrives from the queue runner within this window the
+/// stream is considered dead and the builder will reconnect.  The runner
+/// sends pings every BACKWARDS_PING_INTERVAL (30s), so 90s without any
+/// message is a reliable signal that the connection is dead.
+const STREAM_RECV_TIMEOUT: Duration = Duration::from_secs(90);
+
 /// Apply HTTP/2 keepalive pings to the channel. The builder holds a single
 /// long-lived channel and the queue runner sits behind nginx, which recycles
 /// idle HTTP/2 connections; keepalive pings keep the connection healthy and let
@@ -398,23 +404,35 @@ pub async fn start_bidirectional_stream(
     };
 
     let mut consecutive_failure_count = 0;
-    while let Some(item) = stream.next().await {
-        match item.map(|v| v.message) {
-            Ok(Some(v)) => {
-                consecutive_failure_count = 0;
-                if let Err(err) = handle_request(state2.clone(), v).await {
-                    tracing::error!("Failed to correctly handle request: {err}");
+    loop {
+        match tokio::time::timeout(STREAM_RECV_TIMEOUT, stream.next()).await {
+            Ok(Some(item)) => match item.map(|v| v.message) {
+                Ok(Some(v)) => {
+                    consecutive_failure_count = 0;
+                    if let Err(err) = handle_request(state2.clone(), v).await {
+                        tracing::error!("Failed to correctly handle request: {err}");
+                    }
                 }
-            }
+                Ok(None) => {
+                    consecutive_failure_count = 0;
+                }
+                Err(e) => {
+                    consecutive_failure_count += 1;
+                    tracing::error!("stream message delivery failed: {e}");
+                    if consecutive_failure_count == 10 {
+                        return Err(BuilderError::RepeatedFailure(consecutive_failure_count));
+                    }
+                }
+            },
             Ok(None) => {
-                consecutive_failure_count = 0;
+                // Stream ended cleanly.
+                tracing::info!("gRPC stream ended");
+                break;
             }
-            Err(e) => {
-                consecutive_failure_count += 1;
-                tracing::error!("stream message delivery failed: {e}");
-                if consecutive_failure_count == 10 {
-                    return Err(BuilderError::RepeatedFailure(consecutive_failure_count));
-                }
+            Err(_) => {
+                // No message received within STREAM_RECV_TIMEOUT — the
+                // connection is likely dead; the caller reconnects.
+                return Err(BuilderError::StreamTimeout(STREAM_RECV_TIMEOUT.as_secs()));
             }
         }
     }
