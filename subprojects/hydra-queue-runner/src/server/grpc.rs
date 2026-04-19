@@ -90,6 +90,25 @@ fn handle_message(state: &Arc<State>, msg: builder_request::Message) {
                 m.stats.store_ping(&msg);
             }
         }
+        // The builder finished `nix build` and released its local slot.
+        // Decrement the machine's slot counter so the queue runner
+        // considers the slot free for new dispatches.  The job metadata
+        // is kept in the list so that the subsequent `CompleteBuild` RPC
+        // can still look up build_id / step_nr for DB finalisation.
+        builder_request::Message::SlotFreed(msg) => {
+            tracing::info!("slot freed: build_id={} machine_id={}", msg.build_id, msg.machine_id);
+            let Ok(machine_id) = uuid::Uuid::parse_str(&msg.machine_id) else {
+                return;
+            };
+            let Ok(build_id) = uuid::Uuid::parse_str(&msg.build_id) else {
+                return;
+            };
+            if let Some(m) = state.machines.get_machine_by_id(machine_id) {
+                m.free_slot_for_build_id(build_id);
+            }
+            // Trigger dispatch so a queued step can be sent to the now-free slot.
+            state.trigger_dispatch();
+        }
     }
 }
 
@@ -733,8 +752,11 @@ impl RunnerService for Server {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| tonic::Status::not_found("Machine not found"))?;
+        // Check both active jobs and freed jobs (the upload phase runs
+        // after the builder sends SlotFreed, so the job may have been
+        // moved to freed_jobs already).
         let _job = machine
-            .get_job_drv_for_build_id(build_id)
+            .get_job_drv_for_build_id_or_freed(build_id)
             .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
 
         let remote_store = {

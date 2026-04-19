@@ -223,6 +223,7 @@ impl State {
     #[tracing::instrument(skip(self))]
     pub async fn remove_machine(&self, machine_id: uuid::Uuid) {
         if let Some(m) = self.machines.remove_machine(machine_id) {
+            // Fail all active jobs (slot still held).
             let jobs = {
                 let jobs = m.jobs.read();
                 jobs.clone()
@@ -242,6 +243,32 @@ impl State {
                     tracing::error!(
                         "Failed to fail step machine_id={machine_id} drv={} e={e}",
                         job.path
+                    );
+                }
+            }
+
+            // Also fail jobs whose slot was already freed (SlotFreed sent,
+            // CompleteBuild not yet received).  Without this, these builds
+            // would stay "Busy" in the DB forever.
+            //
+            // We drain the freed_jobs, then re-insert each one before calling
+            // fail_step — fail_step's internal lookup expects to find the job
+            // via take_freed_job_by_drv on the same machine.
+            let freed = m.drain_freed_jobs();
+            for job in freed {
+                let drv = job.path.clone();
+                m.reinsert_freed_job(job);
+                if let Err(e) = self
+                    .fail_step(
+                        machine_id,
+                        &drv,
+                        BuildResultState::PreparingFailure,
+                        BuildTimings::default(),
+                    )
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to fail freed step machine_id={machine_id} drv={drv} e={e}",
                     );
                 }
             }
@@ -1069,10 +1096,13 @@ impl State {
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
         );
+        // Try to remove from active jobs first.  If the job was already moved
+        // to freed_jobs by a SlotFreed message, fall back to take_freed_job_by_drv.
         let mut job = item
             .machine
             .remove_job(drv_path)
-            .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs m={}", item.machine,))?;
+            .or_else(|| item.machine.take_freed_job_by_drv(drv_path))
+            .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs and freed_jobs m={}", item.machine))?;
         self.queues
             .remove_job(&item.step_info, &item.build_queue)
             .await;
@@ -1227,10 +1257,13 @@ impl State {
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
         );
+        // Try active jobs first, then freed_jobs (SlotFreed may have
+        // already moved the job before this failure was reported).
         let mut job = item
             .machine
             .remove_job(drv_path)
-            .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs m={}", item.machine))?;
+            .or_else(|| item.machine.take_freed_job_by_drv(drv_path))
+            .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs and freed_jobs m={}", item.machine))?;
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
@@ -1312,8 +1345,10 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| anyhow::anyhow!("Machine with machine_id not found"))?;
+        // Check both active jobs and freed jobs (where the build slot was
+        // already released via SlotFreed but CompleteBuild hasn't arrived yet).
         let drv_path = machine
-            .get_job_drv_for_build_id(build_id)
+            .get_job_drv_for_build_id_or_freed(build_id)
             .ok_or_else(|| anyhow::anyhow!("Job with build_id not found"))?;
 
         self.succeed_step(machine_id, &drv_path, output).await
@@ -1331,8 +1366,10 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| anyhow::anyhow!("Machine with machine_id not found"))?;
+        // Check both active jobs and freed jobs (SlotFreed may have already
+        // moved the job before this failure was reported).
         let drv_path = machine
-            .get_job_drv_for_build_id(build_id)
+            .get_job_drv_for_build_id_or_freed(build_id)
             .ok_or_else(|| anyhow::anyhow!("Job with build_id not found"))?;
 
         self.fail_step(machine_id, &drv_path, state, timings).await
