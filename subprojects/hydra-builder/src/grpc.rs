@@ -366,6 +366,16 @@ pub async fn start_bidirectional_stream(
         .await
         .map_err(BuilderError::ReadingSystemInfo)?;
     let state2 = state.clone();
+
+    // Subscribe a fresh receiver for this stream connection.  Using a
+    // broadcast channel means each reconnection gets its own receiver
+    // without needing to recreate the sender or the State.
+    let mut slot_freed_rx = state.slot_freed_tx.subscribe();
+
+    // The outbound stream merges periodic ping messages with SlotFreed
+    // notifications from build tasks.  Using `tokio::select!` inside an
+    // `async_stream` lets us yield whichever is ready first while keeping
+    // a single ordered stream for the gRPC tunnel.
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
             message: Some(builder_request::Message::Join(join_msg))
@@ -373,20 +383,42 @@ pub async fn start_bidirectional_stream(
 
         let mut interval = tokio::time::interval(Duration::from_secs(state.config.ping_interval));
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    let ping = match state.get_ping_message() {
+                        Ok(v) => builder_request::Message::Ping(v),
+                        Err(e) => {
+                            tracing::error!("Failed to construct ping message: {e}");
+                            continue
+                        },
+                    };
+                    tracing::debug!("sending ping: {ping:?}");
 
-            let ping = match state.get_ping_message() {
-                Ok(v) => builder_request::Message::Ping(v),
-                Err(e) => {
-                    tracing::error!("Failed to construct ping message: {e}");
-                    continue
-                },
-            };
-            tracing::debug!("sending ping: {ping:?}");
-
-            yield BuilderRequest {
-                message: Some(ping)
-            };
+                    yield BuilderRequest {
+                        message: Some(ping)
+                    };
+                }
+                msg = slot_freed_rx.recv() => {
+                    match msg {
+                        Ok(msg) => {
+                            tracing::info!(
+                                "sending slot_freed: build_id={} machine_id={}",
+                                msg.build_id, msg.machine_id
+                            );
+                            yield BuilderRequest {
+                                message: Some(builder_request::Message::SlotFreed(msg))
+                            };
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("slot_freed receiver lagged by {n} messages");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            // Sender dropped -- no more SlotFreed messages,
+                            // but keep pinging.
+                        }
+                    }
+                }
+            }
         }
     };
 

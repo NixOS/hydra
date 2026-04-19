@@ -624,6 +624,33 @@ impl State {
                     }
                 }
             }
+
+            // Also fail jobs whose slot was already freed (SlotFreed sent,
+            // CompleteBuild not yet received).  Without this, these builds
+            // would stay "Busy" in the DB forever.
+            //
+            // We drain the freed_jobs, then re-insert each one before calling
+            // fail_step — fail_step's internal lookup expects to find the job
+            // via take_freed_job_by_drv on the same machine.
+            let freed = m.drain_freed_jobs();
+            for job in freed {
+                let drv = job.path.clone();
+                m.reinsert_freed_job(job);
+                if let Err(e) = self
+                    .fail_step(
+                        machine_id,
+                        &drv,
+                        BuildResultState::Aborted,
+                        BuildTimings::default(),
+                        None,
+                    )
+                    .await
+                {
+                    tracing::error!(
+                        "Failed to fail freed step machine_id={machine_id} drv={drv} e={e}",
+                    );
+                }
+            }
         }
     }
 
@@ -685,9 +712,16 @@ impl State {
                 reporting: machine_id,
             }));
         }
-        let job = item.machine.get_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
+        // Try to remove from active jobs first.  If the job was already moved
+        // to freed_jobs by a SlotFreed message, fall back to
+        // take_freed_job_by_drv.
+        let job = item
+            .machine
+            .get_job(drv_path)
+            .or_else(|| item.machine.take_freed_job_by_drv(drv_path))
+            .ok_or_else(|| {
+                StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
+            })?;
         let guard = StepGuard {
             db: self.db.clone(),
             queues: self.queues.clone(),
@@ -2313,8 +2347,10 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or(StateError::from(MachineLookupError::MachineNotFound))?;
+        // Check both active jobs and freed jobs (where the build slot was
+        // already released via SlotFreed but CompleteBuild hasn't arrived yet).
         let drv_path = machine
-            .get_job_drv_for_build_id(build_id)
+            .get_job_drv_for_build_id_or_freed(build_id)
             .ok_or(StateError::from(MachineLookupError::JobNotFound))?;
 
         self.succeed_step(machine_id, &drv_path, output).await
@@ -2333,8 +2369,10 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or(StateError::from(MachineLookupError::MachineNotFound))?;
+        // Check both active jobs and freed jobs (SlotFreed may have already
+        // moved the job before this failure was reported).
         let drv_path = machine
-            .get_job_drv_for_build_id(build_id)
+            .get_job_drv_for_build_id_or_freed(build_id)
             .ok_or(StateError::from(MachineLookupError::JobNotFound))?;
 
         self.fail_step(machine_id, &drv_path, state, timings, error_msg)

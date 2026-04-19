@@ -99,6 +99,12 @@ const fn default_cpu_psi_threshold() -> f32 {
 const fn default_mem_psi_threshold() -> f32 {
     80.0
 }
+const fn default_import_timeout() -> u64 {
+    3600
+}
+const fn default_upload_timeout() -> u64 {
+    1800
+}
 
 /// Reloadable builder settings read from the TOML config file. Connection
 /// and security options (gateway endpoint, mTLS, auth token) stay on the
@@ -166,6 +172,18 @@ pub struct AppConfig {
     /// Use substitution over pulling inputs via queue runner
     #[serde(default)]
     pub use_substitutes: bool,
+
+    /// Timeout in seconds for the import (input fetching) phase of a build.
+    /// If importing requisites takes longer than this, the build fails with
+    /// an ImportFailure.  Set to 0 to disable.
+    #[serde(default = "default_import_timeout")]
+    pub import_timeout: u64,
+
+    /// Timeout in seconds for the upload (output transfer) phase of a build.
+    /// If uploading build outputs takes longer than this, the build fails
+    /// with an UploadFailure.  Set to 0 to disable.
+    #[serde(default = "default_upload_timeout")]
+    pub upload_timeout: u64,
 }
 
 /// Load the builder settings from `filepath`. A missing file yields the

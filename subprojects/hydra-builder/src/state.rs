@@ -24,7 +24,7 @@ use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
-    PingMessage, StepStatus, StepUpdate,
+    PingMessage, SlotFreedMessage, StepStatus, StepUpdate,
 };
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
@@ -101,6 +101,10 @@ pub struct Config {
     pub mandatory_features: Vec<String>,
     pub cgroups: bool,
     pub use_substitutes: bool,
+    /// Timeout for the import phase (0 = disabled).
+    pub import_timeout: std::time::Duration,
+    /// Timeout for the upload phase (0 = disabled).
+    pub upload_timeout: std::time::Duration,
     pub substituters: Vec<String>,
     pub nix_version: String,
     pub build_dir: String,
@@ -132,6 +136,31 @@ pub struct State {
     /// than per-build because a single build rarely has enough new paths to
     /// keep the link busy.
     nar_upload_semaphore: Arc<tokio::sync::Semaphore>,
+    /// Broadcast channel for `SlotFreedMessage` notifications.  Build tasks
+    /// send on `slot_freed_tx`; each gRPC tunnel stream subscribes a new
+    /// receiver so that reconnections work transparently.
+    pub slot_freed_tx: tokio::sync::broadcast::Sender<SlotFreedMessage>,
+    /// Semaphore that limits the number of concurrent background upload
+    /// tasks.  Without this, rapid build completions could spawn unbounded
+    /// uploads that exhaust memory and network sockets.
+    upload_semaphore: Arc<tokio::sync::Semaphore>,
+}
+
+/// Data produced by a successful import + build phase that the background
+/// upload task needs to finish the job.
+///
+/// The `roots` connection pins the build outputs (and inputs) via temp
+/// roots.  It is held alive until the upload completes so that a concurrent
+/// garbage collection cannot delete the outputs mid-upload.
+struct BuildPhaseResult {
+    roots: TempRoots,
+    drv: StorePath,
+    outputs: BTreeMap<OutputName, StorePath>,
+    build_id: String,
+    machine_id: uuid::Uuid,
+    max_output_size: u64,
+    presigned_url_opts: Option<hydra_proto::PresignedUploadOpts>,
+    client: BuilderClient,
 }
 
 /// A daemon connection whose temporary roots keep a build's paths alive for
@@ -156,6 +185,8 @@ impl State {
 
         let store = DaemonStoreReader::new(connector.clone());
         let read_pool = DaemonConnPool::new(store.clone(), MAX_DAEMON_READ_CONNS);
+
+        let (slot_freed_tx, _) = tokio::sync::broadcast::channel(128);
 
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
@@ -187,6 +218,8 @@ impl State {
                 mandatory_features: app_config.mandatory_features.clone(),
                 cgroups: nix_config.use_cgroups(),
                 use_substitutes: app_config.use_substitutes,
+                import_timeout: std::time::Duration::from_secs(app_config.import_timeout),
+                upload_timeout: std::time::Duration::from_secs(app_config.upload_timeout),
                 substituters: nix_config.substituters(),
                 nix_version: nix_config.nix_version(),
                 build_dir: nix_config.build_dir(),
@@ -203,6 +236,12 @@ impl State {
             upload_client: PresignedUploadClient::new(),
             nar_upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
                 GLOBAL_NAR_UPLOAD_CONCURRENCY,
+            )),
+            slot_freed_tx,
+            // Allow up to 2× max_jobs concurrent background uploads.
+            // This provides back-pressure without blocking the build slots.
+            upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
+                (app_config.max_jobs as usize).saturating_mul(2).max(4),
             )),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
@@ -296,9 +335,73 @@ impl State {
             async move {
                 let mut timings = BuildTimings::default();
                 match Box::pin(self_.process_build(m, &mut timings)).await {
-                    Ok(()) => {
-                        tracing::info!("Successfully completed build process for {drv}");
+                    Ok(result) => {
+                        // Build phase (import + nix build) succeeded.
+                        // Signal the queue runner that our slot is free, and
+                        // release the local build slot immediately so we can
+                        // accept new work while the outputs upload in the
+                        // background.
+                        let _ = self_.slot_freed_tx.send(SlotFreedMessage {
+                            build_id: build_id.to_string(),
+                            machine_id: self_.id.to_string(),
+                        });
                         self_.remove_build(build_id);
+                        tracing::info!(
+                            "Slot freed for {drv}, spawning background upload"
+                        );
+
+                        // Upload outputs and call CompleteBuild in the
+                        // background -- this no longer holds a build slot.
+                        // Acquire the upload semaphore to bound concurrency.
+                        let self_bg = self_.clone();
+                        let drv_bg = drv.clone();
+                        let upload_permit = self_.upload_semaphore.clone();
+                        tokio::spawn(async move {
+                            let _permit = upload_permit.acquire().await;
+
+                            let mut bg_timings = timings;
+                            match Box::pin(self_bg.upload_and_complete(result, &mut bg_timings)).await {
+                                Ok(()) => {
+                                    tracing::info!(
+                                        "Successfully completed upload for {drv_bg}"
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "Background upload for {drv_bg} failed with {e}"
+                                    );
+                                    // Report the failure via CompleteBuild so the
+                                    // queue runner knows the step did not succeed.
+                                    // `complete_build` retries internally via
+                                    // `call_with_retry`.
+                                    let failed_build = BuildResultInfo {
+                                        build_id: build_id.to_string(),
+                                        machine_id: self_bg.id.to_string(),
+                                        import_time_ms: u64::try_from(
+                                            bg_timings.import_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        build_time_ms: u64::try_from(
+                                            bg_timings.build_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        upload_time_ms: u64::try_from(
+                                            bg_timings.upload_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        result_state: BuildResultState::from(&e) as i32,
+                                        output_infos: std::collections::HashMap::new(),
+                                        error_msg: Some(format_failure(&e)),
+                                    };
+
+                                    if let Err(e) = self_bg.client.complete_build(failed_build).await {
+                                        tracing::error!(
+                                            "Failed to submit upload failure info: {e}"
+                                        );
+                                    }
+                                }
+                            }
+                        });
                     }
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
@@ -495,13 +598,18 @@ impl State {
         })
     }
 
+    /// Run the import and build phases for a derivation.
+    ///
+    /// On success, returns a [`BuildPhaseResult`] containing everything the
+    /// background upload task needs.  The build slot can be released
+    /// immediately after this returns.
     #[tracing::instrument(skip(self, m, timings), fields(drv = m.drv.as_ref().map(tracing::field::display)), err)]
     #[allow(clippy::too_many_lines)]
     async fn process_build(
         &self,
         m: BuildMessage,
         timings: &mut BuildTimings,
-    ) -> Result<(), JobFailure> {
+    ) -> Result<BuildPhaseResult, JobFailure> {
         let machine_id = self.id;
         let drv = m
             .drv
@@ -540,29 +648,47 @@ impl State {
                 JobFailure::Import(eyre::eyre!("failed to decode resolved derivation: {e}"))
             })?;
 
-        // Fetch the transitive closure of the resolved inputs.
-        let requisites = client
-            .fetch_requisites(hydra_proto::StorePaths {
-                paths: basic_drv.inputs.iter().map(ProtoStorePath::from).collect(),
-            })
-            .await
-            .map_err(|e| JobFailure::Import(e.into()))?
-            .into_inner()
-            .requisites;
+        // The entire import phase (fetch requisites + import paths) is wrapped
+        // in an optional timeout so that stuck downloads don't hold a build
+        // slot indefinitely.
+        let import_fut = async {
+            // Fetch the transitive closure of the resolved inputs.
+            let requisites = client
+                .fetch_requisites(hydra_proto::StorePaths {
+                    paths: basic_drv.inputs.iter().map(ProtoStorePath::from).collect(),
+                })
+                .await
+                .map_err(|e| JobFailure::Import(e.into()))?
+                .into_inner()
+                .requisites;
 
-        import_requisites(
-            &mut client,
-            &self.read_pool,
-            self.connector.clone(),
-            self.metrics.clone(),
-            &roots,
-            &drv,
-            requisites.into_iter().map(|s| s.0),
-            usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
-            self.config.use_substitutes,
-        )
-        .await
-        .map_err(JobFailure::Import)?;
+            import_requisites(
+                &mut client,
+                &self.read_pool,
+                self.connector.clone(),
+                self.metrics.clone(),
+                &roots,
+                &drv,
+                requisites.into_iter().map(|s| s.0),
+                usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
+                self.config.use_substitutes,
+            )
+            .await
+            .map_err(JobFailure::Import)
+        };
+
+        if self.config.import_timeout.is_zero() {
+            import_fut.await?;
+        } else {
+            tokio::time::timeout(self.config.import_timeout, import_fut)
+                .await
+                .map_err(|_| {
+                    JobFailure::Import(eyre::eyre!(
+                        "import phase timed out after {}s",
+                        self.config.import_timeout.as_secs()
+                    ))
+                })??;
+        }
         timings.import_elapsed = before_import.elapsed();
 
         let _ = client // we ignore the error here, as this step status has no prio
@@ -596,6 +722,51 @@ impl State {
         timings.build_elapsed = before_build.elapsed();
         tracing::info!("Finished building {drv}");
 
+        Ok(BuildPhaseResult {
+            roots,
+            drv,
+            outputs,
+            build_id: m.build_id,
+            machine_id,
+            max_output_size: m.max_output_size,
+            presigned_url_opts: m.presigned_url_opts,
+            client,
+        })
+    }
+
+    /// Upload outputs and send `CompleteBuild` to the queue runner.
+    ///
+    /// This runs as a background task after the build slot has been freed.
+    /// Failures here are reported via `CompleteBuild` with the appropriate
+    /// failure state.
+    #[tracing::instrument(skip(self, result), fields(build_id=%result.build_id), err)]
+    #[allow(clippy::too_many_lines)]
+    async fn upload_and_complete(
+        &self,
+        result: BuildPhaseResult,
+        timings: &mut BuildTimings,
+    ) -> Result<(), JobFailure> {
+        // Destructure so the temp-roots connection (`_roots`) stays alive
+        // until the upload completes.
+        let BuildPhaseResult {
+            roots: _roots,
+            drv,
+            outputs,
+            build_id,
+            machine_id,
+            max_output_size,
+            presigned_url_opts,
+            mut client,
+        } = result;
+
+        let _ = client // we ignore the error here, as this step status has no prio
+            .build_step_update(StepUpdate {
+                build_id: build_id.clone(),
+                machine_id: machine_id.to_string(),
+                step_status: StepStatus::ReceivingOutputs as i32,
+            })
+            .await;
+
         // Query path info for each output up front — these are needed both
         // for building the result message and are expected to exist for a
         // successful build.
@@ -614,41 +785,49 @@ impl State {
         }
 
         // Enforce the per-output NAR size limit before uploading anything.
-        if m.max_output_size > 0 {
+        if max_output_size > 0 {
             for (name, vpi) in &output_infos {
-                if vpi.info.nar_size > m.max_output_size {
+                if vpi.info.nar_size > max_output_size {
                     return Err(JobFailure::OutputLimit(eyre::eyre!(
                         "output `{name}` NAR size {} exceeds limit {}",
                         vpi.info.nar_size,
-                        m.max_output_size,
+                        max_output_size,
                     )));
                 }
             }
         }
 
-        let _ = client // we ignore the error here, as this step status has no prio
-            .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
-                step_status: StepStatus::ReceivingOutputs as i32,
-            })
-            .await;
-
+        // The upload phase is wrapped in an optional timeout so that stuck
+        // uploads don't leak resources indefinitely (the build slot itself
+        // was already freed before this background task was spawned).
         let before_upload = Instant::now();
-        self.upload_nars(
+        let machine_id_str = machine_id.to_string();
+        let upload_fut = self.upload_nars(
             self.connector.clone(),
             outputs.values().cloned().collect::<Vec<_>>(),
-            &m.build_id,
-            &machine_id.to_string(),
-            m.presigned_url_opts,
-        )
-        .await
-        .map_err(JobFailure::Upload)?;
+            &build_id,
+            &machine_id_str,
+            presigned_url_opts,
+        );
+
+        if self.config.upload_timeout.is_zero() {
+            upload_fut.await.map_err(JobFailure::Upload)?;
+        } else {
+            tokio::time::timeout(self.config.upload_timeout, upload_fut)
+                .await
+                .map_err(|_| {
+                    JobFailure::Upload(eyre::eyre!(
+                        "upload phase timed out after {}s",
+                        self.config.upload_timeout.as_secs()
+                    ))
+                })?
+                .map_err(JobFailure::Upload)?;
+        }
         timings.upload_elapsed = before_upload.elapsed();
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
+                build_id: build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::PostProcessing as i32,
             })
@@ -660,7 +839,7 @@ impl State {
             &drv,
             &output_infos,
             *timings,
-            m.build_id.clone(),
+            build_id,
         ))
         .await
         .map_err(JobFailure::PostProcessing)?;
