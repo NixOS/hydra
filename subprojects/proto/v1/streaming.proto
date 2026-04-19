@@ -39,7 +39,13 @@ message BuilderRequest {
   oneof message {
     JoinMessage join = 1;
     PingMessage ping = 2;
+    SlotFreedMessage slot_freed = 3;
   }
+}
+
+message SlotFreedMessage {
+  string build_id = 1;
+  string machine_id = 2;
 }
 
 message JoinMessage {

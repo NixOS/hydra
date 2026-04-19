@@ -80,6 +80,18 @@ pub struct Cli {
     #[clap(long, default_value_t = false)]
     pub use_substitutes: bool,
 
+    /// Timeout in seconds for the import (input fetching) phase of a build.
+    /// If importing requisites takes longer than this, the build fails with
+    /// an ImportFailure.  Set to 0 to disable.
+    #[clap(long, default_value_t = 3600)]
+    pub import_timeout: u64,
+
+    /// Timeout in seconds for the upload (output transfer) phase of a build.
+    /// If uploading build outputs takes longer than this, the build fails
+    /// with an UploadFailure.  Set to 0 to disable.
+    #[clap(long, default_value_t = 1800)]
+    pub upload_timeout: u64,
+
     /// File to Authorization token, can be use as an alternative to mTLS
     #[clap(long)]
     pub authorization_file: Option<std::path::PathBuf>,
