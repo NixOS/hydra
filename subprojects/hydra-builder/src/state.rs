@@ -121,6 +121,8 @@ pub struct Config {
     pub import_timeout: std::time::Duration,
     /// Timeout for the upload phase (0 = disabled).
     pub upload_timeout: std::time::Duration,
+    /// Extra prefetch slots beyond max_jobs.
+    pub prefetch_slots: u32,
 }
 
 #[derive(Debug)]
@@ -143,6 +145,12 @@ pub struct State {
     /// tasks.  Without this, rapid build completions could spawn unbounded
     /// uploads that exhaust memory and network sockets.
     upload_semaphore: Arc<tokio::sync::Semaphore>,
+    /// Semaphore that gates the actual `nix build` phase.  The queue runner
+    /// may dispatch up to (max_jobs + prefetch_slots) builds; builds beyond
+    /// max_jobs import inputs immediately but acquire this semaphore before
+    /// starting `nix build`.  This keeps builders always busy: while N
+    /// builds are running, up to N more can be importing inputs in parallel.
+    build_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Debug)]
@@ -226,6 +234,7 @@ impl State {
                 use_substitutes: cli.use_substitutes,
                 import_timeout: std::time::Duration::from_secs(cli.import_timeout),
                 upload_timeout: std::time::Duration::from_secs(cli.upload_timeout),
+                prefetch_slots: cli.max_jobs.saturating_mul(cli.prefetch_factor.saturating_sub(1)),
             },
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
@@ -234,10 +243,13 @@ impl State {
             upload_client: PresignedUploadClient::new(),
             slot_freed_tx,
             // Allow up to 2× max_jobs concurrent background uploads.
-            // This provides back-pressure without blocking the build slots.
             upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
                 (cli.max_jobs as usize).saturating_mul(2).max(4),
             )),
+            // Gate actual `nix build` on max_jobs permits.  The queue runner
+            // dispatches up to (max_jobs + prefetch_slots) builds; extras
+            // import inputs immediately but wait here before building.
+            build_semaphore: Arc::new(tokio::sync::Semaphore::new(cli.max_jobs as usize)),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -278,6 +290,7 @@ impl State {
             substituters: nix_utils::get_substituters(),
             use_substitutes: self.config.use_substitutes,
             nix_version: nix_utils::get_nix_version(),
+            prefetch_slots: self.config.prefetch_slots,
         })
     }
 
@@ -591,6 +604,21 @@ impl State {
                 })??;
         }
         timings.import_elapsed = before_import.elapsed();
+
+        // Acquire a build permit.  With prefetch_factor > 1 the queue runner
+        // dispatches more builds than max_jobs.  The extra builds complete
+        // their import phase above and then wait here until a build slot is
+        // free.  This keeps builders saturated: while N builds run, N more
+        // can be importing inputs in parallel.
+        let _ = client
+            .build_step_update(StepUpdate {
+                build_id: m.build_id.clone(),
+                machine_id: machine_id.to_string(),
+                step_status: StepStatus::WaitingForLocalSlot as i32,
+            })
+            .await;
+        let _build_permit = self.build_semaphore.acquire().await
+            .map_err(|e| JobFailure::Preparing(anyhow::anyhow!("build semaphore closed: {e}")))?;
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {

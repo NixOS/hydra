@@ -592,6 +592,10 @@ pub struct Machine {
     pub bogomips: f32,
     pub speed_factor: f32,
     pub max_jobs: u32,
+    /// Extra capacity for input pre-fetching.  The dispatcher may send up to
+    /// `max_jobs + prefetch_slots` builds to this machine; the builder gates
+    /// the actual `nix build` on `max_jobs` internally.
+    pub prefetch_slots: u32,
     pub build_dir_avail_threshold: f64,
     pub store_avail_threshold: f64,
     pub load1_threshold: f32,
@@ -670,6 +674,7 @@ impl Machine {
             bogomips: msg.bogomips,
             speed_factor: msg.speed_factor,
             max_jobs: msg.max_jobs,
+            prefetch_slots: msg.prefetch_slots,
             build_dir_avail_threshold: msg.build_dir_avail_threshold.into(),
             store_avail_threshold: msg.store_avail_threshold.into(),
             load1_threshold: msg.load1_threshold,
@@ -774,7 +779,11 @@ impl Machine {
 
     #[must_use]
     pub fn has_static_capacity(&self) -> bool {
-        self.stats.get_current_jobs() < u64::from(self.max_jobs)
+        // Total capacity includes prefetch slots so the dispatcher can
+        // keep the pipeline full: builds beyond max_jobs import inputs
+        // while existing builds run.
+        let total = u64::from(self.max_jobs.saturating_add(self.prefetch_slots));
+        self.stats.get_current_jobs() < total
     }
 
     #[must_use]
