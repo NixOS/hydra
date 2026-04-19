@@ -1761,6 +1761,24 @@ impl State {
             self.steps
                 .create(&drv_path, referring_build.as_ref(), referring_step.as_ref());
         if !is_new {
+            // Re-check whether the step's outputs have appeared in the store
+            // since it was first created. This handles the case where outputs
+            // became available between poll cycles (e.g. built by a concurrent
+            // step, substituted, or uploaded externally). Without this check,
+            // builds whose outputs are now cached get stuck in an infinite
+            // re-load loop: the DB says finished=0, the step already exists
+            // in memory, and create_build never reaches handle_cached_build.
+            if step.get_finished() {
+                return CreateStepResult::None;
+            }
+            if let Some(output_paths) = step.get_output_paths(self.store.store_dir()) {
+                let missing = self.store.query_missing_outputs(output_paths).await;
+                if missing.is_empty() {
+                    finished_drvs.write().insert(drv_path.clone());
+                    step.set_finished(true);
+                    return CreateStepResult::None;
+                }
+            }
             return CreateStepResult::Valid(step);
         }
         self.metrics.queue_steps_created.inc();
