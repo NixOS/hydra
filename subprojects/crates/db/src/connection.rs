@@ -708,8 +708,11 @@ impl Transaction<'_> {
               stopTime = $6,
               machine = $7,
               overhead = $8,
-              timesBuilt = $9,
-              isNonDeterministic = $10
+              import_time_ms = $9,
+              build_time_ms = $10,
+              upload_time_ms = $11,
+              timesBuilt = $12,
+              isNonDeterministic = $13
             WHERE
               build = $2 AND stepnr = $3
             "#,
@@ -721,6 +724,9 @@ impl Transaction<'_> {
             res.stop_time,
             res.machine,
             res.overhead,
+            res.import_time_ms,
+            res.build_time_ms,
+            res.upload_time_ms,
             res.times_built,
             res.is_non_deterministic,
         )

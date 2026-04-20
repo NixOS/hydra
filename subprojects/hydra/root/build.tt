@@ -49,6 +49,13 @@ END;
               [% IF step.busy == 0;
                    IF step.stoptime;
                      INCLUDE renderDuration duration = step.stoptime - step.starttime;
+                     IF step.import_time_ms || step.build_time_ms || step.upload_time_ms %]
+                       <br/><small class="text-muted">
+                         [% IF step.import_time_ms %]Import: [% INCLUDE renderDuration duration = (step.import_time_ms / 1000) %][% END %]
+                         [% IF step.build_time_ms %] | Build: [% INCLUDE renderDuration duration = (step.build_time_ms / 1000) %][% END %]
+                         [% IF step.upload_time_ms %] | Upload: [% INCLUDE renderDuration duration = (step.upload_time_ms / 1000) %][% END %]
+                       </small>
+                     [% END;
                    ELSE;
                      %]<em>n/a</em>[%
                    END;

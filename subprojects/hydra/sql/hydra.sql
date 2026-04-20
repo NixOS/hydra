@@ -263,13 +263,14 @@ create table BuildSteps (
 
     drvPath       text,
 
-    -- 0 = not busy
-    -- 1 = building
-    -- 2 = preparing to build
-    -- 3 = connecting
-    -- 4 = sending inputs
-    -- 5 = receiving outputs
-    -- 6 = analysing build result
+    -- 0  = not busy
+    -- 1  = preparing
+    -- 10 = connecting
+    -- 20 = sending inputs
+    -- 30 = building
+    -- 35 = waiting for local slot
+    -- 40 = receiving outputs
+    -- 50 = post-processing
     busy          integer not null,
 
     status        integer, -- see Builds.buildStatus
@@ -284,8 +285,14 @@ create table BuildSteps (
 
     propagatedFrom integer,
 
-    -- Time in milliseconds spend copying stuff from/to build machines.
+    -- Time in milliseconds spend copying stuff from/to build machines
+    -- (import_time_ms + upload_time_ms).  Kept for backward compatibility.
     overhead      integer,
+
+    -- Per-phase durations in milliseconds (populated on completion).
+    import_time_ms integer,
+    build_time_ms  integer,
+    upload_time_ms integer,
 
     -- How many times this build step was done (for checking determinism).
     timesBuilt    integer,
