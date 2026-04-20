@@ -918,8 +918,18 @@ async fn substitute_paths(
     store: &nix_utils::LocalStore,
     paths: &[nix_utils::StorePath],
 ) -> anyhow::Result<()> {
-    for p in paths {
-        store.ensure_path(p).await?;
+    let total = paths.len();
+    for (i, p) in paths.iter().enumerate() {
+        let before = Instant::now();
+        let result = store.ensure_path(p).await;
+        let elapsed = before.elapsed();
+        if elapsed > std::time::Duration::from_secs(5) {
+            tracing::warn!(
+                "Slow substitution {}/{}: {} took {:.1}s",
+                i + 1, total, p, elapsed.as_secs_f64()
+            );
+        }
+        result?;
     }
     Ok(())
 }
@@ -967,7 +977,7 @@ async fn import_paths(
         paths
     };
 
-    tracing::debug!("Start importing paths");
+    tracing::info!("Streaming {} paths from queue runner", paths.len());
     let stream = client
         .stream_files(StorePaths {
             paths: paths
@@ -990,7 +1000,7 @@ async fn import_paths(
         .await;
     metrics.sub_downloading_path(paths.len() as u64);
     import_result?;
-    tracing::debug!("Finished importing paths");
+    tracing::info!("Finished streaming {} paths from queue runner", paths.len());
 
     for p in paths {
         nix_utils::add_root(&store, &gcroot.root, &p);
@@ -1024,6 +1034,14 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
         .into_iter()
         .partition(nix_utils::StorePath::is_derivation);
 
+    tracing::info!(
+        "Import plan for {drv}: {srcs} sources + {drvs} derivations to fetch (already local paths filtered out)",
+        srcs = input_srcs.len(),
+        drvs = input_drvs.len(),
+    );
+
+    let src_total = input_srcs.len();
+    let mut src_imported = 0usize;
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -1035,8 +1053,16 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             use_substitutes,
         )
         .await?;
+        src_imported += srcs.len();
+        tracing::info!(
+            "Imported sources {imported}/{total} for {drv}",
+            imported = src_imported,
+            total = src_total,
+        );
     }
 
+    let drv_total = input_drvs.len();
+    let mut drv_imported = 0usize;
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -1048,6 +1074,12 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             false, // never use substitute for drvs
         )
         .await?;
+        drv_imported += drvs.len();
+        tracing::info!(
+            "Imported derivations {imported}/{total} for {drv}",
+            imported = drv_imported,
+            total = drv_total,
+        );
     }
 
     let full_requisites = client
@@ -1062,6 +1094,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
         .into_iter()
         .map(|s| s.0)
         .collect::<Vec<_>>();
+    let full_req_total = full_requisites.len();
     let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
         filter_missing(&store, gcroot, p)
     })
@@ -1070,6 +1103,16 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
+    if !full_requisites.is_empty() {
+        tracing::info!(
+            "Importing {missing}/{total} remaining requisites (with outputs) for {drv}",
+            missing = full_requisites.len(),
+            total = full_req_total,
+        );
+    }
+
+    let remaining_total = full_requisites.len();
+    let mut remaining_imported = 0usize;
     for other in full_requisites.chunks(max_concurrent_downloads) {
         // we can skip filtering here as we already done that
         import_paths(
@@ -1082,8 +1125,17 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             use_substitutes,
         )
         .await?;
+        remaining_imported += other.len();
+        if remaining_total > max_concurrent_downloads {
+            tracing::info!(
+                "Imported remaining requisites {imported}/{total} for {drv}",
+                imported = remaining_imported,
+                total = remaining_total,
+            );
+        }
     }
 
+    tracing::info!("Import complete for {drv}");
     Ok(())
 }
 
