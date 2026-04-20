@@ -1088,9 +1088,19 @@ async fn substitute_paths(
     connector: &daemon_client_utils::DaemonConnector,
     paths: &[StorePath],
 ) -> eyre::Result<()> {
+    let total = paths.len();
     let mut conn = connector.connect().await?;
-    for p in paths {
-        daemon_client_utils::ensure_path(&mut conn, p).await?;
+    for (i, p) in paths.iter().enumerate() {
+        let before = Instant::now();
+        let result = daemon_client_utils::ensure_path(&mut conn, p).await;
+        let elapsed = before.elapsed();
+        if elapsed > std::time::Duration::from_secs(5) {
+            tracing::warn!(
+                "Slow substitution {}/{}: {} took {:.1}s",
+                i + 1, total, p, elapsed.as_secs_f64()
+            );
+        }
+        result?;
     }
     Ok(())
 }
@@ -1130,7 +1140,7 @@ async fn import_paths(
     }
 
     let num_paths = paths.len() as u64;
-    tracing::debug!("Start importing {num_paths} paths");
+    tracing::info!("Streaming {num_paths} paths from queue runner");
     metrics.add_downloading_path(num_paths);
 
     let stream = client
@@ -1153,7 +1163,7 @@ async fn import_paths(
     drop(conn);
 
     metrics.sub_downloading_path(num_paths);
-    tracing::debug!("Finished importing {} paths", imported.len());
+    tracing::info!("Finished streaming {} paths from queue runner", imported.len());
     Ok(())
 }
 
@@ -1175,6 +1185,14 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
 
+    tracing::info!(
+        "Import plan for {drv}: {srcs} sources + {drvs} derivations to fetch (already local paths filtered out)",
+        srcs = input_srcs.len(),
+        drvs = input_drvs.len(),
+    );
+
+    let src_total = input_srcs.len();
+    let mut src_imported = 0usize;
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -1187,8 +1205,16 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             use_substitutes,
         )
         .await?;
+        src_imported += srcs.len();
+        tracing::info!(
+            "Imported sources {imported}/{total} for {drv}",
+            imported = src_imported,
+            total = src_total,
+        );
     }
 
+    let drv_total = input_drvs.len();
+    let mut drv_imported = 0usize;
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -1201,8 +1227,15 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             false, // never use substitute for drvs
         )
         .await?;
+        drv_imported += drvs.len();
+        tracing::info!(
+            "Imported derivations {imported}/{total} for {drv}",
+            imported = drv_imported,
+            total = drv_total,
+        );
     }
 
+    tracing::info!("Import complete for {drv}");
     Ok(())
 }
 
