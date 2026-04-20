@@ -652,6 +652,8 @@ impl State {
                 build_id: m.build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::SeningInputs as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
 
@@ -690,6 +692,8 @@ impl State {
                 requisites.into_iter().map(|s| s.0),
                 usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
                 self.config.use_substitutes,
+                &m.build_id,
+                &machine_id.to_string(),
             )
             .await
             .map_err(JobFailure::Import)
@@ -718,6 +722,8 @@ impl State {
             build_id: m.build_id.clone(),
             machine_id: machine_id.to_string(),
             step_status: StepStatus::WaitingForLocalSlot as i32,
+            progress_current: 0,
+            progress_total: 0,
         }).await;
         let _build_permit = self
             .build_semaphore
@@ -732,6 +738,8 @@ impl State {
                 build_id: m.build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::Building as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
         let before_build = Instant::now();
@@ -800,6 +808,8 @@ impl State {
                 build_id: build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::ReceivingOutputs as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
 
@@ -866,6 +876,8 @@ impl State {
                 build_id: build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::PostProcessing as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
@@ -1179,6 +1191,8 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
+    build_id: &str,
+    machine_id: &str,
 ) -> eyre::Result<()> {
     let requisites = filter_missing(pool, roots, requisites.into_iter().collect(), 50).await?;
 
@@ -1192,6 +1206,8 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     );
 
     let src_total = input_srcs.len();
+    let drv_total = input_drvs.len();
+    let import_total = src_total + drv_total;
     let mut src_imported = 0usize;
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -1211,9 +1227,15 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             imported = src_imported,
             total = src_total,
         );
+        let _ = client.build_step_update(StepUpdate {
+            build_id: build_id.to_owned(),
+            machine_id: machine_id.to_owned(),
+            step_status: StepStatus::SeningInputs as i32,
+            progress_current: src_imported as u32,
+            progress_total: import_total as u32,
+        }).await;
     }
 
-    let drv_total = input_drvs.len();
     let mut drv_imported = 0usize;
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -1233,6 +1255,13 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             imported = drv_imported,
             total = drv_total,
         );
+        let _ = client.build_step_update(StepUpdate {
+            build_id: build_id.to_owned(),
+            machine_id: machine_id.to_owned(),
+            step_status: StepStatus::SeningInputs as i32,
+            progress_current: (src_imported + drv_imported) as u32,
+            progress_total: import_total as u32,
+        }).await;
     }
 
     tracing::info!("Import complete for {drv}");

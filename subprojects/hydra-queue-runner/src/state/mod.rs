@@ -1975,6 +1975,7 @@ impl State {
             &job.result,
             Some(&item.machine.hostname),
             Some(&output.outputs),
+            output.timings,
         )
         .await?;
 
@@ -2294,6 +2295,7 @@ impl State {
                     &job.result,
                     Some(&item.machine.hostname),
                     None,
+                    timings,
                 )
                 .await?;
                 step.set_finished(false);
@@ -2401,6 +2403,7 @@ impl State {
                 &job.result,
                 machine.as_ref().map(|m| m.hostname.as_str()),
                 None,
+                BuildTimings::default(),
             )
             .await?;
         }
