@@ -123,7 +123,7 @@ in
             };
             tokenListPath = lib.mkOption {
               description = "Path to a list of allowed authentication tokens.";
-              type = lib.types.nullOr lib.types.path;
+              type = lib.types.nullOr (lib.types.listOf lib.types.path);
               default = null;
             };
             enableFodChecker = lib.mkOption {
