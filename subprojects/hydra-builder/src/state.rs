@@ -926,24 +926,58 @@ async fn filter_missing(
     }
 }
 
+/// Try to substitute paths in parallel using nix's configured substituters
+/// (peernix, nix-serve, etc.).  Returns (succeeded, failed) counts.
 async fn substitute_paths(
-    store: &nix_utils::LocalStore,
-    paths: &[nix_utils::StorePath],
-) -> anyhow::Result<()> {
+    store: nix_utils::LocalStore,
+    paths: Vec<nix_utils::StorePath>,
+) -> (usize, usize) {
+    use futures::StreamExt as _;
+
     let total = paths.len();
-    for (i, p) in paths.iter().enumerate() {
-        let before = Instant::now();
-        let result = store.ensure_path(p).await;
-        let elapsed = before.elapsed();
-        if elapsed > std::time::Duration::from_secs(5) {
-            tracing::warn!(
-                "Slow substitution {}/{}: {} took {:.1}s",
-                i + 1, total, p, elapsed.as_secs_f64()
-            );
+
+    // Run up to 10 concurrent ensure_path calls.  Nix's flock on
+    // store paths prevents redundant downloads — concurrent calls for
+    // the same path will serialize at the lock, not duplicate work.
+    let results: Vec<_> = futures::stream::iter(paths.into_iter().enumerate())
+        .map(|(i, path)| {
+            let store = store.clone();
+            async move {
+                let before = Instant::now();
+                let result = store.ensure_path(&path).await;
+                let elapsed = before.elapsed();
+                if elapsed > std::time::Duration::from_secs(5) {
+                    tracing::warn!(
+                        "Slow substitution {}/{}: {} took {:.1}s",
+                        i + 1, total, path, elapsed.as_secs_f64()
+                    );
+                }
+                (path, result)
+            }
+        })
+        .buffer_unordered(10)
+        .collect()
+        .await;
+
+    let mut ok = 0usize;
+    let mut err = 0usize;
+    for (path, result) in &results {
+        match result {
+            Ok(()) => ok += 1,
+            Err(e) => {
+                err += 1;
+                tracing::debug!("Substitution failed for {path}: {e}");
+            }
         }
-        result?;
     }
-    Ok(())
+    if err > 0 {
+        tracing::info!(
+            "Substitution: {ok}/{total} succeeded, {err} failed (will fetch via gRPC)"
+        );
+    } else if total > 0 {
+        tracing::info!("Substitution: all {total} paths resolved locally or via substituters");
+    }
+    (ok, err)
 }
 
 #[tracing::instrument(skip(client, store, metrics), fields(%gcroot), err)]
@@ -970,9 +1004,8 @@ async fn import_paths(
         paths
     };
     let paths = if use_substitutes {
-        // we can ignore the error
         metrics.add_substituting_path(paths.len() as u64);
-        let _ = substitute_paths(&store, &paths).await;
+        let (_ok, _err) = substitute_paths(store.clone(), paths.clone()).await;
         metrics.sub_substituting_path(paths.len() as u64);
         let paths = futures::StreamExt::map(tokio_stream::iter(paths), |p| {
             filter_missing(&store, gcroot, p)
