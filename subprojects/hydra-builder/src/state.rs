@@ -1096,25 +1096,65 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
+/// Try to substitute paths in parallel using nix's configured substituters
+/// (peernix, nix-serve, etc.).  Returns (succeeded, failed) counts.
 async fn substitute_paths(
-    connector: &daemon_client_utils::DaemonConnector,
-    paths: &[StorePath],
-) -> eyre::Result<()> {
+    connector: daemon_client_utils::DaemonConnector,
+    paths: Vec<StorePath>,
+) -> (usize, usize) {
+    use futures::StreamExt as _;
+
     let total = paths.len();
-    let mut conn = connector.connect().await?;
-    for (i, p) in paths.iter().enumerate() {
-        let before = Instant::now();
-        let result = daemon_client_utils::ensure_path(&mut conn, p).await;
-        let elapsed = before.elapsed();
-        if elapsed > std::time::Duration::from_secs(5) {
-            tracing::warn!(
-                "Slow substitution {}/{}: {} took {:.1}s",
-                i + 1, total, p, elapsed.as_secs_f64()
-            );
+
+    // Run up to 10 concurrent ensure_path calls.  Nix's flock on
+    // store paths prevents redundant downloads — concurrent calls for
+    // the same path will serialize at the lock, not duplicate work.
+    let results: Vec<_> = futures::stream::iter(paths.into_iter().enumerate())
+        .map(|(i, path)| {
+            let connector = connector.clone();
+            async move {
+                let before = Instant::now();
+                let mut conn = connector.connect().await?;
+                let result = daemon_client_utils::ensure_path(&mut conn, &path).await;
+                let elapsed = before.elapsed();
+                if elapsed > std::time::Duration::from_secs(5) {
+                    tracing::warn!(
+                        "Slow substitution {}/{}: {} took {:.1}s",
+                        i + 1, total, path, elapsed.as_secs_f64()
+                    );
+                }
+                eyre::Result::<_>::Ok((path, result))
+            }
+        })
+        .buffer_unordered(10)
+        .collect()
+        .await;
+
+    let mut ok = 0usize;
+    let mut err = 0usize;
+    for result in &results {
+        match result {
+            Ok((path, inner)) => match inner {
+                Ok(()) => ok += 1,
+                Err(e) => {
+                    err += 1;
+                    tracing::debug!("Substitution failed for {path}: {e}");
+                }
+            },
+            Err(e) => {
+                err += 1;
+                tracing::debug!("Substitution connection failed: {e:#}");
+            }
         }
-        result?;
     }
-    Ok(())
+    if err > 0 {
+        tracing::info!(
+            "Substitution: {ok}/{total} succeeded, {err} failed (will fetch via gRPC)"
+        );
+    } else if total > 0 {
+        tracing::info!("Substitution: all {total} paths resolved locally or via substituters");
+    }
+    (ok, err)
 }
 
 #[tracing::instrument(skip(client, pool, connector, metrics, roots), err)]
@@ -1136,7 +1176,8 @@ async fn import_paths(
     };
     let paths = if use_substitutes {
         metrics.add_substituting_path(paths.len() as u64);
-        let _ = substitute_paths(&connector, &paths).await;
+        // we can ignore the failed count: failures fall through to gRPC fetch below.
+        let (_ok, _err) = substitute_paths(connector.clone(), paths.clone()).await;
         metrics.sub_substituting_path(paths.len() as u64);
         let paths = filter_missing(pool, roots, paths, 10).await?;
         if paths.is_empty() {
