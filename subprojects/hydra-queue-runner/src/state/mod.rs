@@ -510,7 +510,7 @@ impl State {
                 // original step's drv path differs from the resolved one, so
                 // completing the resolved step wouldn't clear the dep).
                 for rdep in step_info.step.clone_rdeps() {
-                    if let Some(rdep) = rdep.upgrade() {
+                    if let Some(rdep) = rdep.step.upgrade() {
                         rdep.remove_dep(&step_info.step);
                         resolved_step.make_rdep(&rdep);
                     }
@@ -1377,6 +1377,74 @@ impl State {
             tx.commit().await?;
         }
 
+        // Process dynamic rdeps first, as we must add new step dependencies for dynamically
+        // generated derivations
+        {
+            for (dep_step, output_name, relation) in item.step_info.step.pop_dynamic_rdeps() {
+                let Some(dependent_step) = dep_step.upgrade() else {
+                    continue;
+                };
+
+                let resolved_drv = output.outputs.get(&output_name).cloned().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Dynamic rdep references output `{output_name}` not produced by {drv_path}"
+                    )
+                })?;
+
+                // Find a build associated with this step. For intermediate steps
+                // (not top-level), `direct` is empty, so we walk the dependency
+                // chain via `get_dependents` to find the owning build.
+                let build = if let Some(b) = direct.get(0) {
+                    b.clone()
+                } else {
+                    let mut dependents = HashSet::new();
+                    let mut visited_steps = HashSet::new();
+                    item.step_info
+                        .step
+                        .get_dependents(&mut dependents, &mut visited_steps);
+                    let Some(b) = dependents.into_iter().next() else {
+                        tracing::warn!("Finished step does not have associated build");
+                        continue;
+                    };
+                    b
+                };
+
+                // Create the actual step for the new derivation.
+                // finished_drvs is not necessary as it is only a memoization table to reduce
+                // checks if a dependency is finished from the database.
+                // new_steps is not necessary either as
+                let new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>> = Default::default();
+                let new_step = match self
+                    .create_step(
+                        build.clone(),
+                        resolved_drv.clone(),
+                        None,
+                        Some((dependent_step.clone(), relation)),
+                        Default::default(),
+                        Default::default(),
+                        new_runnable.clone(),
+                    )
+                    .await
+                {
+                    CreateStepResult::None => continue,
+                    CreateStepResult::Valid(step) => step,
+                    CreateStepResult::PreviousFailure(step) => {
+                        if let Err(e) = self.handle_previous_failure(build.clone(), step).await {
+                            tracing::error!("Failed to handle previous failure: {e}");
+                        }
+                        // TODO: figure out what to do here
+                        continue;
+                    }
+                };
+
+                for r in new_runnable.read().iter() {
+                    r.make_runnable();
+                }
+
+                // create_step already added rdeps, but we need to add a forward dep as well
+                dependent_step.add_dep(new_step);
+            }
+        }
         item.step_info.step.make_rdeps_runnable();
 
         // always trigger dispatch, as we now might have a free machine again
@@ -1922,7 +1990,7 @@ impl State {
         build: Arc<Build>,
         drv_path: nix_utils::StorePath,
         referring_build: Option<Arc<Build>>,
-        referring_step: Option<Arc<Step>>,
+        referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<nix_utils::StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
@@ -1936,9 +2004,13 @@ impl State {
             }
         }
 
-        let (step, is_new) =
-            self.steps
-                .create(&drv_path, referring_build.as_ref(), referring_step.as_ref());
+        let (step, is_new) = self.steps.create(
+            &drv_path,
+            referring_build.as_ref(),
+            referring_step
+                .as_ref()
+                .map(|(step, relation)| (step, relation.clone())),
+        );
         if !is_new {
             return CreateStepResult::Valid(step);
         }
@@ -2034,6 +2106,7 @@ impl State {
             self.store.query_missing_outputs(output_paths).await
         };
 
+        let input_drvs = drv::input_drvs(&drv);
         step.set_drv(drv);
 
         if self.check_cached_failure(step.clone()).await {
@@ -2091,35 +2164,32 @@ impl State {
         }
 
         tracing::debug!("creating build step '{drv_path}");
-        let Some(input_drvs) = step.get_input_drvs() else {
-            // this should never happen because we always a a drv set at this point in time
-            return CreateStepResult::None;
-        };
 
         let step2 = step.clone();
-        let mut stream = futures::StreamExt::map(tokio_stream::iter(input_drvs), |i| {
-            let build = build.clone();
-            let step = step2.clone();
-            let finished_drvs = finished_drvs.clone();
-            let new_steps = new_steps.clone();
-            let new_runnable = new_runnable.clone();
-            async move {
-                Box::pin(self.create_step(
-                    // conn,
-                    build,
-                    i,
-                    None,
-                    Some(step),
-                    finished_drvs,
-                    new_steps,
-                    new_runnable,
-                ))
-                .await
-            }
-        })
-        .buffered(25);
-        while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
-            match v {
+        let mut stream =
+            futures::StreamExt::map(tokio_stream::iter(input_drvs), |(input_path, relation)| {
+                let build = build.clone();
+                let step = step2.clone();
+                let finished_drvs = finished_drvs.clone();
+                let new_steps = new_steps.clone();
+                let new_runnable = new_runnable.clone();
+
+                async move {
+                    Box::pin(self.create_step(
+                        build,
+                        input_path,
+                        None,
+                        Some((step, relation)),
+                        finished_drvs,
+                        new_steps,
+                        new_runnable,
+                    ))
+                    .await
+                }
+            })
+            .buffered(25);
+        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+            match result {
                 CreateStepResult::None => (),
                 CreateStepResult::Valid(dep) => {
                     if !dep.get_finished() && !dep.get_previous_failure() {

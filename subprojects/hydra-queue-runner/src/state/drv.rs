@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use nix_utils::SingleDerivedPath;
 
 /// Output names of intermediate derivations for a dynamic derivation
@@ -41,4 +43,22 @@ pub fn flatten_chain(
     let (root, mut chain) = flatten_path(drv_path);
     chain.0.push(output_name.clone());
     (root, chain)
+}
+
+/// Extract `Built` input dependencies from a derivation.
+///
+/// Returns `(root_drv_path, relation)` pairs. `Opaque` (source) inputs are
+/// skipped — only derivation build dependencies are returned. For each
+/// `Built` input, the outermost output name (what we consume) is discarded;
+/// intermediate output names form the [`OutputNameChain`].
+pub fn input_drvs(
+    drv: &nix_utils::Derivation,
+) -> BTreeSet<(nix_utils::StorePath, OutputNameChain)> {
+    drv.inputs
+        .iter()
+        .filter_map(|sdp| match sdp {
+            SingleDerivedPath::Opaque(_) => None,
+            SingleDerivedPath::Built { drv_path, .. } => Some(flatten_path(drv_path)),
+        })
+        .collect()
 }
