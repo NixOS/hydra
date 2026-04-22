@@ -955,7 +955,14 @@ async fn substitute_paths(
                 (path, result)
             }
         })
-        .buffer_unordered(10)
+        // Keep concurrency low: each ensure_path occupies a tokio
+        // spawn_blocking thread for the entire substitution duration.
+        // With prefetch_factor=2 and max_jobs=4, up to 8 builds import
+        // concurrently.  At 3 per build = 24 blocking threads, safe
+        // within tokio's default pool of 512.  Higher values (10+)
+        // caused pool exhaustion, starving the async ping generator
+        // and killing gRPC streams with "broken pipe".
+        .buffer_unordered(3)
         .collect()
         .await;
 
