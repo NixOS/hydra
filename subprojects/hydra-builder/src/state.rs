@@ -1106,7 +1106,7 @@ async fn substitute_paths(
 
     let total = paths.len();
 
-    // Run up to 10 concurrent ensure_path calls.  Nix's flock on
+    // Run up to 3 concurrent ensure_path calls.  Nix's flock on
     // store paths prevents redundant downloads — concurrent calls for
     // the same path will serialize at the lock, not duplicate work.
     let results: Vec<_> = futures::stream::iter(paths.into_iter().enumerate())
@@ -1126,7 +1126,14 @@ async fn substitute_paths(
                 eyre::Result::<_>::Ok((path, result))
             }
         })
-        .buffer_unordered(10)
+        // Keep concurrency low: each ensure_path occupies a tokio
+        // spawn_blocking thread for the entire substitution duration.
+        // With prefetch_factor=2 and max_jobs=4, up to 8 builds import
+        // concurrently.  At 3 per build = 24 blocking threads, safe
+        // within tokio's default pool of 512.  Higher values (10+)
+        // caused pool exhaustion, starving the async ping generator
+        // and killing gRPC streams with "broken pipe".
+        .buffer_unordered(3)
         .collect()
         .await;
 
