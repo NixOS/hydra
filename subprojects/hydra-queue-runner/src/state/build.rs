@@ -806,4 +806,69 @@ mod tests {
             assert_eq!(rel.print(&dir), original);
         }
     }
+
+    /// Helper to construct an `OwnedBuildProduct` with a given path, leaving
+    /// other fields at harmless defaults.
+    fn make_db_product(path: Option<&str>) -> db::models::OwnedBuildProduct {
+        db::models::OwnedBuildProduct {
+            r#type: "doc".into(),
+            subtype: "manual".into(),
+            filesize: None,
+            sha256hash: None,
+            path: path.map(Into::into),
+            name: "test-product".into(),
+            defaultpath: Some("index.html".into()),
+        }
+    }
+
+    // Regression test: `BuildProduct::from_db` used to feed the full
+    // `buildproducts.path` value (e.g. `/nix/store/…/share/doc/nix/manual`)
+    // to `StoreDir::parse`, which rejected the trailing `/…` with
+    // `invalid store path / symbol at 50`. This wedged every cached build
+    // whose products included a sub-path.
+    #[test]
+    fn from_db_parses_subpath_product() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(
+            &dir,
+            make_db_product(Some(
+                "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+            )),
+        )
+        .expect("subpath product must parse via from_db");
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*rel.relative_path, "share/doc/nix/manual");
+    }
+
+    #[test]
+    fn from_db_parses_bare_store_path() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(
+            &dir,
+            make_db_product(Some(
+                "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+            )),
+        )
+        .expect("bare store path must parse via from_db");
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
+        );
+        assert!(rel.relative_path.is_empty());
+    }
+
+    #[test]
+    fn from_db_handles_none_path() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(&dir, make_db_product(None))
+            .expect("None path must not error");
+        assert!(bp.path.is_none());
+    }
 }
