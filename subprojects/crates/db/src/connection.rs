@@ -281,7 +281,7 @@ impl Connection {
         .fetch_all(&mut *self.conn)
         .await?;
         rows.into_iter()
-            .map(|r| Ok(r.parse_paths(store_dir)?))
+            .map(|r| Ok(r.parse_path(store_dir)?))
             .collect()
     }
 

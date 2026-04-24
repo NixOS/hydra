@@ -227,19 +227,27 @@ pub struct BuildOutput {
     pub size: Option<i64>,
 }
 
+/// A build product row from the `buildproducts` table.
+///
+/// `buildproducts.path` is a filesystem path that may include a sub-path below
+/// a store output (e.g. `doc manual $doc/share/doc/nix/manual index.html`).
+/// The type parameter `Path` controls how that column is represented:
+///
+/// - `String` — raw DB value, used by `sqlx::query_as!`.
+/// - `RelativeStorePath` — parsed store path + relative suffix (default).
 #[derive(Debug)]
-pub struct OwnedBuildProduct<StorePath = harmonia_store_core::store_path::StorePath> {
+pub struct OwnedBuildProduct<Path = store_path_utils::RelativeStorePath> {
     pub r#type: String,
     pub subtype: String,
     pub filesize: Option<i64>,
     pub sha256hash: Option<String>,
-    pub path: Option<StorePath>,
+    pub path: Option<Path>,
     pub name: String,
     pub defaultpath: Option<String>,
 }
 
 impl OwnedBuildProduct<String> {
-    pub fn parse_paths(
+    pub fn parse_path(
         self,
         store_dir: &StoreDir,
     ) -> Result<OwnedBuildProduct, ParseStorePathError> {
@@ -248,7 +256,10 @@ impl OwnedBuildProduct<String> {
             subtype: self.subtype,
             filesize: self.filesize,
             sha256hash: self.sha256hash,
-            path: self.path.map(|p| store_dir.parse(&p)).transpose()?,
+            path: self
+                .path
+                .map(|p| store_path_utils::RelativeStorePath::from_path(store_dir, &p))
+                .transpose()?,
             name: self.name,
             defaultpath: self.defaultpath,
         })
