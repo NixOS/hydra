@@ -98,8 +98,9 @@ sub new {
     rcopy(abs_path(dirname(__FILE__) . "/../jobs"), $jobsdir);
 
     my $coreutils_path = dirname(which 'install');
-    replace_variable_in_file($jobsdir . "/config.nix", '@testPath@', $coreutils_path);
-    replace_variable_in_file($jobsdir . "/declarative/project.json", '@jobsPath@', $jobsdir);
+    my $nix_bin_dir = dirname(which 'nix');
+    replace_variable_in_file($jobsdir . "/config.nix", '@testPath@' => $coreutils_path, '@nixBinDir@' => $nix_bin_dir);
+    replace_variable_in_file($jobsdir . "/declarative/project.json", '@jobsPath@' => $jobsdir);
 
     my $self = bless {
         _db => undef,
@@ -337,13 +338,16 @@ sub write_file {
 }
 
 sub replace_variable_in_file {
-    my ($fn, $var, $val) = @_;
+    my ($fn, %subs) = @_;
 
     open (my $input, '<', "$fn.in") or die $!;
     open (my $output, '>', $fn) or die $!;
 
     while (my $line = <$input>) {
-        $line =~ s/$var/$val/g;
+        for my $var (keys %subs) {
+            my $val = $subs{$var};
+            $line =~ s/\Q$var\E/$val/g;
+        }
         print $output $line;
     }
 }

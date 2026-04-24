@@ -4,6 +4,37 @@
 %]
 [% PROCESS common.tt %]
 
+[% IF redirectedFromStep;
+     info = redirectedFromStep %]
+<div class="alert alert-info">
+  <p>
+    Redirected here from [%+ INCLUDE renderBuildIdLink id=info.build %] step #[% HTML.escape(info.stepnr) %], which was marked <em>Resolved</em>.
+  </p>
+  [% IF info.origDrvPath %]
+    <p>
+      Original derivation: <tt>[% HTML.escape(info.origDrvPath) %]</tt>
+    </p>
+  [% END %]
+  [% IF info.chain.size %]
+    <p>
+      Resolved
+      [% IF info.chain.size == 1 %]
+        to <tt>[% HTML.escape(info.chain.0) %]</tt>.
+      [% ELSE %]
+        through [% info.chain.size %] hops:
+      [% END %]
+    </p>
+    [% IF info.chain.size > 1 %]
+      <ol>
+      [% FOREACH hop IN info.chain %]
+        <li><tt>[% HTML.escape(hop) %]</tt></li>
+      [% END %]
+      </ol>
+    [% END %]
+  [% END %]
+</div>
+[% END %]
+
 <p>
   Below
   [% IF tail %]

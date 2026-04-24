@@ -8,6 +8,7 @@ use File::Basename;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
+use Nix::Config;
 use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
@@ -23,6 +24,8 @@ our @EXPORT = qw(
     cancelBuilds
     constructRunCommandLogPath
     findLog
+    findRedirectingChain
+    followResolvedChain
     gcRootFor
     getBaseUrl
     getDrvLogPath
@@ -234,6 +237,69 @@ sub getMainOutput {
     return
         $build->buildoutputs->find({name => "out"}) //
         $build->buildoutputs->find({}, {limit => 1, order_by => ["name"]});
+}
+
+
+# Returns the terminal step and the resolveddrvpath basenames followed.
+# The terminal may still be Resolved when the chain dead-ends.
+sub followResolvedChain {
+    my ($c, $step) = @_;
+    my %seen;
+    my @chain;
+    while ($step && (($step->status // -1) == 13) && $step->resolveddrvpath) {
+        # Track source rows; distinct resolved steps may share a target.
+        my $rowKey = $step->get_column('build') . ':' . $step->stepnr;
+        last if $seen{$rowKey}++;
+        last if scalar @chain >= 32;
+        my $basename = $step->resolveddrvpath;
+        # resolveddrvpath is a store-path basename, not a path.
+        last if $basename =~ m{/};
+        push @chain, $basename;
+        # Resolution hops stay within the build that requested the work.
+        my $next = $c->model('DB::BuildSteps')->search(
+            {
+                build   => $step->get_column('build'),
+                drvpath => $Nix::Config::storeDir . "/" . $basename,
+            },
+            { order_by => [{ -asc => 'status' }, { -desc => 'stoptime' }],
+              rows     => 1,
+            }
+        )->single;
+        last unless $next;
+        $step = $next;
+    }
+    return ($step, \@chain);
+}
+
+# Find the resolved step that eventually redirected to $drvpath.
+sub findRedirectingChain {
+    my ($c, $build_id, $drvpath) = @_;
+    my $basename = File::Basename::basename($drvpath);
+    my @reverseRows;
+    my %seen;
+    my $cursor = $basename;
+    while (1) {
+        my $prev = $c->model('DB::BuildSteps')->search(
+            {
+                build           => $build_id,
+                status          => 13,
+                resolveddrvpath => $cursor,
+            },
+            { order_by => [{ -desc => 'stepnr' }], rows => 1 }
+        )->single;
+        last unless $prev;
+        my $rowKey = $prev->get_column('build') . ':' . $prev->stepnr;
+        last if $seen{$rowKey}++;
+        last if scalar @reverseRows >= 32;
+        push @reverseRows, $prev;
+        my $prevDrv = $prev->drvpath;
+        last unless defined $prevDrv;
+        $cursor = File::Basename::basename($prevDrv);
+    }
+    return (undef, []) unless @reverseRows;
+    my $origin = $reverseRows[-1];
+    my @forwardChain = map { $_->resolveddrvpath } reverse @reverseRows;
+    return ($origin, \@forwardChain);
 }
 
 
