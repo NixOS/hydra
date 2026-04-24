@@ -2057,11 +2057,11 @@ impl State {
                 };
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id, self.store.store_dir())
+                    .get_build_products_for_build_id(build_id)
                     .await?
                     .into_iter()
-                    .map(build::BuildProduct::from_db)
-                    .collect();
+                    .map(|p| build::BuildProduct::from_db(self.store.store_dir(), p))
+                    .collect::<anyhow::Result<_>>()?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?

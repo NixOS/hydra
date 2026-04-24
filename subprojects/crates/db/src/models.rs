@@ -227,32 +227,20 @@ pub struct BuildOutput {
     pub size: Option<i64>,
 }
 
+// `buildproducts.path` is an opaque filesystem path, not a store path: Hydra's
+// `$out/nix-support/hydra-build-products` lets a product point at a sub-path of
+// an output (e.g. `doc manual $doc/share/doc/nix/manual index.html`), so the
+// value can legitimately contain a trailing `/...` after the store path. Keep
+// it as a raw `String` here; splitting into base + relative is the caller's job.
 #[derive(Debug)]
-pub struct OwnedBuildProduct<StorePath = harmonia_store_core::store_path::StorePath> {
+pub struct OwnedBuildProduct {
     pub r#type: String,
     pub subtype: String,
     pub filesize: Option<i64>,
     pub sha256hash: Option<String>,
-    pub path: Option<StorePath>,
+    pub path: Option<String>,
     pub name: String,
     pub defaultpath: Option<String>,
-}
-
-impl OwnedBuildProduct<String> {
-    pub fn parse_paths(
-        self,
-        store_dir: &StoreDir,
-    ) -> Result<OwnedBuildProduct, ParseStorePathError> {
-        Ok(OwnedBuildProduct {
-            r#type: self.r#type,
-            subtype: self.subtype,
-            filesize: self.filesize,
-            sha256hash: self.sha256hash,
-            path: self.path.map(|p| store_dir.parse(&p)).transpose()?,
-            name: self.name,
-            defaultpath: self.defaultpath,
-        })
-    }
 }
 
 #[derive(Debug)]

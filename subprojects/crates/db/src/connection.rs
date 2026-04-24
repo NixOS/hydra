@@ -261,10 +261,9 @@ impl Connection {
     pub async fn get_build_products_for_build_id(
         &mut self,
         build_id: i32,
-        store_dir: &StoreDir,
-    ) -> anyhow::Result<Vec<crate::models::OwnedBuildProduct>> {
-        let rows = sqlx::query_as!(
-            crate::models::OwnedBuildProduct::<String>,
+    ) -> sqlx::Result<Vec<crate::models::OwnedBuildProduct>> {
+        sqlx::query_as!(
+            crate::models::OwnedBuildProduct,
             r#"
             SELECT
               type,
@@ -279,10 +278,7 @@ impl Connection {
             build_id
         )
         .fetch_all(&mut *self.conn)
-        .await?;
-        rows.into_iter()
-            .map(|r| Ok(r.parse_paths(store_dir)?))
-            .collect()
+        .await
     }
 
     pub async fn get_build_metrics_for_build_id(
