@@ -596,8 +596,10 @@ pub struct Machine {
     pub store_avail_threshold: f64,
     pub load1_threshold: f32,
     pub cpu_psi_threshold: f32,
-    pub mem_psi_threshold: f32,        // If None, dont consider this value
-    pub io_psi_threshold: Option<f32>, // If None, dont consider this value
+    /// If None, dont consider this value (TODO no option, make this make sense)
+    pub mem_psi_threshold: f32,
+    /// If None, dont consider this value
+    pub io_psi_threshold: Option<f32>,
     pub total_mem: u64,
     pub supported_features: SmallVec<[String; 8]>,
     pub mandatory_features: SmallVec<[String; 4]>,

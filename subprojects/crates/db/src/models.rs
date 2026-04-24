@@ -9,17 +9,21 @@ pub type BuildID = i32;
 pub enum BuildStatus {
     Success = 0,
     Failed = 1,
-    DepFailed = 2, // builds only
+    /// builds only
+    DepFailed = 2,
     Aborted = 3,
     Cancelled = 4,
-    FailedWithOutput = 6, // builds only
+    /// builds only
+    FailedWithOutput = 6,
     TimedOut = 7,
-    CachedFailure = 8, // steps only
+    /// steps only
+    CachedFailure = 8,
     Unsupported = 9,
     LogLimitExceeded = 10,
     NarSizeLimitExceeded = 11,
     NotDeterministic = 12,
-    Busy = 100, // not stored
+    /// not stored
+    Busy = 100,
 }
 
 impl BuildStatus {
@@ -77,8 +81,10 @@ pub struct Build<StorePath = harmonia_store_core::store_path::StorePath> {
     pub jobset: String,
     pub job: String,
     pub drvpath: StorePath,
-    pub maxsilent: Option<i32>, // maxsilent integer default 3600
-    pub timeout: Option<i32>,   // timeout integer default 36000
+    /// maxsilent integer default 3600
+    pub maxsilent: Option<i32>,
+    /// timeout integer default 36000
+    pub timeout: Option<i32>,
     pub timestamp: i64,
     pub globalpriority: i32,
     pub priority: i32,
