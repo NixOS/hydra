@@ -2060,8 +2060,18 @@ impl State {
                     .get_build_products_for_build_id(build_id)
                     .await?
                     .into_iter()
-                    .map(|p| build::BuildProduct::from_db(self.store.store_dir(), p))
-                    .collect::<anyhow::Result<_>>()?;
+                    .filter_map(|p| {
+                        match build::BuildProduct::from_db(self.store.store_dir(), p) {
+                            Ok(bp) => Some(bp),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "Skipping build product with unparseable path: {e:#}"
+                                );
+                                None
+                            }
+                        }
+                    })
+                    .collect();
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::Arc;
 
 use anyhow::Context;
 use hashbrown::{HashMap, HashSet};
@@ -748,6 +748,7 @@ impl Builds {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 
