@@ -1,5 +1,7 @@
 rec {
   path = "@testPath@";
+  nixBinDir = "@nixBinDir@";
+  bash = "@bash@";
 
   mkDerivation = args:
     derivation ({

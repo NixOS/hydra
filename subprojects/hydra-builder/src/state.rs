@@ -879,6 +879,14 @@ async fn upload_nars_regular(
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<nix_utils::StorePath>,
 ) -> anyhow::Result<()> {
+    // Compute the full closure of output paths so that all referenced
+    // store paths (e.g. dynamically-created derivations from recursive-nix)
+    // are uploaded alongside the direct outputs.
+    let nars = store
+        .query_requisites(&nars.iter().collect::<Vec<_>>(), true)
+        .await
+        .unwrap_or(nars);
+
     let nars = {
         use futures::stream::StreamExt as _;
 
