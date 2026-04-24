@@ -10,16 +10,24 @@ use db::models::BuildID;
 
 #[derive(Debug)]
 pub struct StepAtomicState {
-    created: AtomicBool,  // Whether the step has finished initialisation.
-    pub tries: AtomicU32, // Number of times we've tried this step.
-    pub highest_global_priority: AtomicI32, // The highest global priority of any build depending on this step.
-    pub highest_local_priority: AtomicI32, // The highest local priority of any build depending on this step.
+    /// Whether the step has finished initialisation.
+    created: AtomicBool,
+    /// Number of times we've tried this step.
+    pub tries: AtomicU32,
+    /// The highest global priority of any build depending on this step.
+    pub highest_global_priority: AtomicI32,
+    /// The highest local priority of any build depending on this step.
+    pub highest_local_priority: AtomicI32,
 
-    pub lowest_build_id: super::build::AtomicBuildID, // The lowest ID of any build depending on this step.
+    /// The lowest ID of any build depending on this step.
+    pub lowest_build_id: super::build::AtomicBuildID,
 
-    pub after: super::AtomicDateTime, // Point in time after which the step can be retried.
-    pub runnable_since: super::AtomicDateTime, // The time at which this step became runnable.
-    pub last_supported: super::AtomicDateTime, // The time that we last saw a machine that supports this step
+    /// Point in time after which the step can be retried.
+    pub after: super::AtomicDateTime,
+    /// The time at which this step became runnable.
+    pub runnable_since: super::AtomicDateTime,
+    /// The time that we last saw a machine that supports this step
+    pub last_supported: super::AtomicDateTime,
 
     pub deps_len: AtomicU64,
     pub rdeps_len: AtomicU64,
@@ -58,10 +66,14 @@ impl StepAtomicState {
 
 #[derive(Debug)]
 pub(super) struct StepState {
-    deps: HashSet<Arc<Step>>,      // The build steps on which this step depends.
-    rdeps: Vec<Weak<Step>>,        // The build steps that depend on this step.
-    builds: Vec<Weak<Build>>,      // Builds that have this step as the top-level derivation.
-    jobsets: HashSet<Arc<Jobset>>, // Jobsets to which this step belongs. Used for determining scheduling priority.
+    /// The build steps on which this step depends.
+    deps: HashSet<Arc<Step>>,
+    /// The build steps that depend on this step.
+    rdeps: Vec<Weak<Step>>,
+    /// Builds that have this step as the top-level derivation.
+    builds: Vec<Weak<Build>>,
+    /// Jobsets to which this step belongs. Used for determining scheduling priority.
+    jobsets: HashSet<Arc<Jobset>>,
 }
 
 impl Default for StepState {
