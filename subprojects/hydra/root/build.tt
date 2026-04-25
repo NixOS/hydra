@@ -319,7 +319,7 @@ END;
       </tr>
       <tr>
         <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
+        <td>[% INCLUDE renderOutputsTable outputs=build.buildoutputs %]</td>
       </tr>
       [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job) _ "#tabs-charts" %]
       [% IF build.finished && build.closuresize %]

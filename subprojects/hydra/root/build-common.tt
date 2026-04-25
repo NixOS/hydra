@@ -10,6 +10,17 @@
   [% END %]
 [% END %]
 
+[% BLOCK renderOutputsTable %]
+  <table class="info-table">
+    [% FOREACH output IN outputs %]
+      <tr>
+        <th><tt>[% output.name | html %]</tt></th>
+        <td><tt>[% IF output.path; output.path | html; ELSE %]<em>n/a</em>[% END %]</tt></td>
+      </tr>
+    [% END %]
+  </table>
+[% END; %]
+
 [% BLOCK renderStepDuration %]
   [% IF step.busy == 0 %]
     [% IF step.stoptime %]
