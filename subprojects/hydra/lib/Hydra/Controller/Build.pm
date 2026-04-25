@@ -134,17 +134,13 @@ sub constituents_GET {
 }
 
 
-sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
+# Redirect old /build/:id/nixlog/:stepnr[/:mode] URLs to new canonical paths
+sub nixlog_redirect : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
 
-    my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
-    notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
-
-    $c->stash->{step} = $step;
-
-    my $drvPath = $step->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
-    showLog($c, $mode, $log_uri);
+    my @path = ('/build', $c->stash->{id}, 'step', $stepnr, 'log');
+    push @path, $mode if defined $mode;
+    $c->res->redirect($c->uri_for(@path), 301);
 }
 
 
@@ -165,7 +161,6 @@ sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
     $c->stash->{template} = 'runcommand-log.tt';
     $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
 }
-
 
 
 sub defaultUriForProduct {
