@@ -121,8 +121,8 @@ in
               type = lib.types.ints.positive;
               default = 5;
             };
-            tokenListPath = lib.mkOption {
-              description = "Path to a list of allowed authentication tokens.";
+            tokenPaths = lib.mkOption {
+              description = "List of paths of allowed authentication tokens.";
               type = lib.types.nullOr (lib.types.listOf lib.types.path);
               default = null;
             };

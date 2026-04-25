@@ -249,7 +249,7 @@ struct AppConfig {
     #[serde(default = "default_concurrent_upload_limit")]
     concurrent_upload_limit: usize,
 
-    token_list_path: Option<std::path::PathBuf>,
+    token_paths: Option<Vec<std::path::PathBuf>>,
 
     #[serde(default = "default_enable_fod_checker")]
     enable_fod_checker: bool,
@@ -323,10 +323,17 @@ impl TryFrom<AppConfig> for PreparedApp {
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");
         let lockfile = val.hydra_data_dir.join("queue-runner/lock");
 
-        let token_list = val.token_list_path.and_then(|p| {
-            fs_err::read_to_string(p)
-                .map(|s| s.lines().map(|t| t.trim().to_string()).collect())
-                .ok()
+        let token_list = val.token_paths.and_then(|l| {
+            l.iter()
+                .map(|p| {
+                    fs_err::read_to_string(p)
+                        .map(|s| s.trim().to_string())
+                        .inspect_err(|e| {
+                            tracing::warn!("Failed to load token file, skipping file. Err={e}");
+                        })
+                        .ok()
+                })
+                .collect()
         });
 
         Ok(Self {
