@@ -4,12 +4,15 @@
     logUrl = c.uri_for('/build', build.id, 'nixlog', step.stepnr);
     drvpath = step.drvpath;
     titleText = "Log of step ${step.stepnr} of build ${build.id} of job " _ makeNameTextForJob(build.jobset, job);
-    titleLink = "Log of step ${step.stepnr} of build ${build.id} of job " _ linkToJob(build.jobset, job);
+    titleLink = "Log of step ${step.stepnr}"
+              _ " of <a href=\"$buildUrl\">build ${build.id}</a>"
+              _ " of job " _ linkToJob(build.jobset, job);
   ELSE;
     logUrl = c.uri_for('/build', build.id, 'log');
     drvpath = build.drvpath;
     titleText = "Log of build ${build.id} of job " _ makeNameTextForJob(build.jobset, job);
-    titleLink = "Log of build ${build.id} of job " _ linkToJob(build.jobset, job);
+    titleLink = "Log of <a href=\"$buildUrl\">build ${build.id}</a>"
+              _ " of job " _ linkToJob(build.jobset, job);
   END;
   rawUrl = logUrl _ '/raw';
 %]
