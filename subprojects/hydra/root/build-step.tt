@@ -1,0 +1,61 @@
+[%
+  buildUrl = c.uri_for('/build', build.id);
+%]
+[% WRAPPER layout.tt
+  title="Step ${step.stepnr} of build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+  titleHTML="Step ${step.stepnr}"
+           _ " of <a href=\"$buildUrl\">build ${build.id}</a>"
+           _ " of job " _ linkToJob(build.jobset, job)
+%]
+[% PROCESS common.tt %]
+[% PROCESS "build-common.tt" %]
+[% USE HTML %]
+
+[% logUrl = c.uri_for('/build' build.id 'step' step.stepnr 'log') %]
+[% has_log = buildStepLogExists(step) %]
+
+<table class="info-table">
+  <tr>
+    <th>Type:</th>
+    <td>[% IF step.type == 0 %]Build[% ELSE %]Substitution[% END %]</td>
+  </tr>
+  <tr>
+    <th>Derivation:</th>
+    <td><tt>[% step.drvpath | html %]</tt></td>
+  </tr>
+  <tr>
+    <th>Output store paths:</th>
+    <td>[% INCLUDE renderOutputsTable outputs=step.buildstepoutputs %]</td>
+  </tr>
+  [% IF step.system %]
+    <tr>
+      <th>System:</th>
+      <td><tt>[% step.system | html %]</tt></td>
+    </tr>
+  [% END %]
+  <tr>
+    <th>Machine:</th>
+    <td>[% INCLUDE renderStepMachine %]</td>
+  </tr>
+  <tr>
+    <th>Duration:</th>
+    <td>[% INCLUDE renderStepDuration %]</td>
+  </tr>
+  <tr>
+    <th>Status:</th>
+    <td>
+      [% INCLUDE renderStepStatus %]
+      [% IF step.propagatedfrom %]
+        (propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])
+      [% END %]
+    </td>
+  </tr>
+  [% IF has_log %]
+    <tr>
+      <th>Logfile:</th>
+      <td>[% INCLUDE renderLogButtons url=logUrl %]</td>
+    </tr>
+  [% END %]
+</table>
+
+[% END %]
