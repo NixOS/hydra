@@ -306,9 +306,11 @@ in
         StateDirectoryMode = "0700";
         ReadWritePaths = [
           "/nix/var/nix/gcroots/"
-          "/run/postgresql/.s.PGSQL.${toString config.services.postgresql.settings.port}"
           "/nix/var/nix/daemon-socket/socket"
           "/var/lib/hydra/build-logs/"
+        ]
+        ++ lib.optionals (lib.hasInfix "%2Frun%2Fpostgresql" cfg.settings.dbUrl) [
+          "/run/postgresql/.s.PGSQL.${toString config.services.postgresql.settings.port}"
         ];
         ReadOnlyPaths = [ "/nix/" ];
         RuntimeDirectory = "hydra-queue-runner";
