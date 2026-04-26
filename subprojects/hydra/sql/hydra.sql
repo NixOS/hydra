@@ -261,7 +261,7 @@ create table BuildSteps (
 
     type          integer not null, -- 0 = build, 1 = substitution
 
-    drvPath       text,
+    drvPath       text not null,
 
     -- 0 = not busy
     -- 1 = building
