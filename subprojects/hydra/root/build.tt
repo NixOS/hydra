@@ -3,6 +3,7 @@
   titleHTML="Build $id of job " _ linkToJob(jobset, job)
 %]
 [% PROCESS common.tt %]
+[% PROCESS "build-common.tt" %]
 [% PROCESS "product-list.tt" %]
 [% USE HTML %]
 [% USE Date %]
@@ -19,12 +20,6 @@ FOR step IN steps;
 END;
 %]
 
-[% BLOCK renderOutputs %]
-  [% start=1; FOREACH output IN outputs %]
-    [% IF !start %],<br/>[% END; start=0; output.path %]
-  [% END %]
-[% END %]
-
 [% BLOCK renderBuildSteps %]
   <table class="table table-striped table-condensed clickable-rows">
     <thead>
@@ -35,9 +30,10 @@ END;
         [% IF ( type == "All" ) || ( type == "Failed" && step.busy == 0 && step.status != 0 ) || ( type == "Running" && step.busy != 0 ) %]
           [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
-             log = c.uri_for('/build' build.id 'nixlog' step.stepnr); %]
+             stepUrl = c.uri_for('/build' build.id 'step' step.stepnr);
+             logUrl = c.uri_for('/build' build.id 'step' step.stepnr 'log'); %]
           <tr>
-            <td>[% HTML.escape(step.stepnr) %]</td>
+            <td><a class="row-link" [% HTML.attributes(href => stepUrl) %]>[% HTML.escape(step.stepnr) %]</a></td>
             <td>
               [% IF step.type == 0 %]
                 Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
@@ -45,54 +41,11 @@ END;
                 Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
               [% END %]
             </td>
-            <td>
-              [% IF step.busy == 0;
-                   IF step.stoptime;
-                     INCLUDE renderDuration duration = step.stoptime - step.starttime;
-                   ELSE;
-                     %]<em>n/a</em>[%
-                   END;
-                 ELSIF build.finished;
-                   INCLUDE renderDuration duration = build.stoptime - step.starttime;
-                 ELSE;
-                   INCLUDE renderDuration duration = curTime - step.starttime;
-                 END %]
-            </td>
-            <td>[% IF step.busy != 0 || ((step.machine || step.starttime) && (step.status == 0 || step.status == 1 || step.status == 3 || step.status == 4 || step.status == 7)); INCLUDE renderMachineName machine=step.machine; ELSE; "<em>n/a</em>"; END %]</td>
+            <td>[% INCLUDE renderStepDuration %]</td>
+            <td>[% INCLUDE renderStepMachine %]</td>
             <td class="step-status">
-              [% IF step.busy != 0 %]
-                [% INCLUDE renderBusyStatus %]
-              [% ELSIF step.status == 0 %]
-                [% IF step.isnondeterministic %]
-                  <span class="warn">Succeeded with non-determistic result</span>
-                [% ELSE %]
-                  Succeeded
-                [% END %]
-                [% IF step.timesbuilt && step.timesbuilt > 1 %]
-                  ([% step.timesbuilt %] times)
-                [% END %]
-              [% ELSIF step.status == 3 %]
-                <span class="error">Aborted</span>[% IF step.errormsg %]: <em>[% HTML.escape(step.errormsg) %]</em>[% END %]
-              [% ELSIF step.status == 4 %]
-                <span class="error">Cancelled</span>
-              [% ELSIF step.status == 7 %]
-                <span class="error">Timed out</span>
-              [% ELSIF step.status == 8 %]
-                <span class="error">Cached failure</span>
-              [% ELSIF step.status == 9 %]
-                <span class="error">Unsupported system type</span>
-              [% ELSIF step.status == 10 %]
-                <span class="error">Log limit exceeded</span>
-              [% ELSIF step.status == 11 %]
-                <span class="error">Output limit exceeded</span>
-              [% ELSIF step.status == 12 %]
-                <span class="error">Non-determinism detected</span> [% IF step.timesbuilt %] after [% HTML.escape(step.timesbuilt) %] times[% END %]
-              [% ELSIF step.errormsg %]
-                <span class="error">Failed</span>: <em>[% HTML.escape(step.errormsg) %]</em>
-              [% ELSE %]
-                <span class="error">Failed</span>
-              [% END %]
-              [%%] [%+ IF has_log; INCLUDE renderLogLinks url=log inRow=1; END %]
+              [% INCLUDE renderStepStatus %]
+              [%%] [%+ IF has_log; INCLUDE renderLogLinks url=logUrl; END %]
               [%+ IF step.propagatedfrom; %](propagated from [% INCLUDE renderBuildIdLink id=step.propagatedfrom.get_column('id') %])[% END %]
             </td>
           </tr>
@@ -225,10 +178,8 @@ END;
               <tr>
                 <th>Logfile:</th>
                 <td>
-                  [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'nixlog' cachedBuildStep.stepnr) : c.uri_for('/build' build.id 'log') %]
-                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog) %]>pretty</a>
-                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog _ "/raw") %]>raw</a>
-                  <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => actualLog _ "/tail") %]>tail</a>
+                  [% actualLog = cachedBuildStep ? c.uri_for('/build' cachedBuild.id 'step' cachedBuildStep.stepnr 'log') : c.uri_for('/build' build.id 'log') %]
+                  [% INCLUDE renderLogButtons url=actualLog %]
                 </td>
               </tr>
             [% END %]
@@ -369,7 +320,7 @@ END;
       </tr>
       <tr>
         <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
+        <td>[% INCLUDE renderOutputsTable outputs=build.buildoutputs %]</td>
       </tr>
       [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job) _ "#tabs-charts" %]
       [% IF build.finished && build.closuresize %]
@@ -531,11 +482,7 @@ END;
                 [% END %]
                 [% IF runcommandlog.uuid != undef %]
                   [% runLog = c.uri_for('/build', build.id, 'runcommandlog', runcommandlog.uuid) %]
-                  <div>
-                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]>pretty</a>
-                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]/raw">raw</a>
-                    <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => runLog) %]/tail">tail</a>
-                  </div>
+                  <div>[% INCLUDE renderLogButtons url=runLog %]</div>
                 [% END %]
               </div>
             [% ELSE %]
