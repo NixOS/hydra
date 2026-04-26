@@ -592,6 +592,10 @@ pub struct Machine {
     pub bogomips: f32,
     pub speed_factor: f32,
     pub max_jobs: u32,
+    /// Extra capacity for input pre-fetching.  The dispatcher may send up to
+    /// `max_jobs + prefetch_slots` builds to this machine; the builder gates
+    /// the actual `nix build` on `max_jobs` internally.
+    pub prefetch_slots: u32,
     pub build_dir_avail_threshold: f64,
     pub store_avail_threshold: f64,
     pub load1_threshold: f32,
@@ -612,6 +616,11 @@ pub struct Machine {
     msg_queue: mpsc::Sender<Message>,
     pub stats: Arc<Stats>,
     pub jobs: Arc<parking_lot::RwLock<Vec<Job>>>,
+    /// Jobs whose build slot has been freed (via `SlotFreed`) but whose
+    /// `CompleteBuild` RPC has not yet arrived.  Keyed by internal build
+    /// UUID.  `succeed_step_by_uuid` checks this map as a fallback when the
+    /// job is no longer in `jobs`.
+    freed_jobs: Arc<parking_lot::RwLock<HashMap<uuid::Uuid, Job>>>,
 }
 
 impl std::fmt::Display for Machine {
@@ -667,6 +676,7 @@ impl Machine {
             bogomips: msg.bogomips,
             speed_factor: msg.speed_factor,
             max_jobs: msg.max_jobs,
+            prefetch_slots: msg.prefetch_slots,
             build_dir_avail_threshold: msg.build_dir_avail_threshold.into(),
             store_avail_threshold: msg.store_avail_threshold.into(),
             load1_threshold: msg.load1_threshold,
@@ -685,6 +695,7 @@ impl Machine {
             joined_at: jiff::Timestamp::now(),
             stats: Arc::new(Stats::new()),
             jobs: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            freed_jobs: Arc::new(parking_lot::RwLock::new(HashMap::new())),
         })
     }
 
@@ -770,7 +781,11 @@ impl Machine {
 
     #[must_use]
     pub fn has_static_capacity(&self) -> bool {
-        self.stats.get_current_jobs() < u64::from(self.max_jobs)
+        // Total capacity includes prefetch slots so the dispatcher can
+        // keep the pipeline full: builds beyond max_jobs import inputs
+        // while existing builds run.
+        let total = u64::from(self.max_jobs.saturating_add(self.prefetch_slots));
+        self.stats.get_current_jobs() < total
     }
 
     #[must_use]
@@ -850,9 +865,15 @@ impl Machine {
 
     #[tracing::instrument(skip(self), fields(%build_id))]
     pub fn get_build_id_and_step_nr_by_uuid(&self, build_id: uuid::Uuid) -> Option<(i32, i32)> {
+        // Check active jobs first, then freed jobs.
         let jobs = self.jobs.read();
-        jobs.iter()
-            .find(|j| j.internal_build_id == build_id)
+        if let Some(j) = jobs.iter().find(|j| j.internal_build_id == build_id) {
+            return Some((j.build_id, j.step_nr));
+        }
+        drop(jobs);
+        let freed = self.freed_jobs.read();
+        freed
+            .get(&build_id)
             .map(|j| (j.build_id, j.step_nr))
     }
 
@@ -883,25 +904,162 @@ impl Machine {
     pub fn remove_job(&self, drv: &nix_utils::StorePath) -> Option<Job> {
         let job = {
             let mut jobs = self.jobs.write();
-            let job = jobs.iter().find(|j| &j.path == drv).cloned();
-            jobs.retain(|j| &j.path != drv);
-            self.stats.incr_nr_steps_done();
-            self.stats.store_current_jobs(jobs.len() as u64);
-            job
+            let idx = jobs.iter().position(|j| &j.path == drv);
+            if let Some(idx) = idx {
+                let job = jobs.remove(idx);
+                self.stats.incr_nr_steps_done();
+                self.stats.store_current_jobs(jobs.len() as u64);
+                Some(job)
+            } else {
+                None
+            }
         };
 
-        {
-            // if build finished fast we can subtract 1 here
+        if job.is_some() {
             let now = jiff::Timestamp::now().as_second();
             let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
-
             if now <= (jobs_in_last_30s_start + 30) {
-                self.stats
+                // Saturating subtract to avoid wrapping to u64::MAX.
+                let _ = self
+                    .stats
                     .jobs_in_last_30s_count
-                    .fetch_sub(1, Ordering::Relaxed);
+                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+                        v.checked_sub(1)
+                    });
             }
         }
 
         job
+    }
+
+    /// Remove a job by its internal UUID (the `build_id` sent over gRPC).
+    ///
+    /// This is used by `CompleteBuild` / `fail_step` to do the final cleanup
+    /// of a job that may or may not still be occupying a slot (depending on
+    /// whether `SlotFreed` already ran).
+    #[tracing::instrument(skip(self), fields(%build_id))]
+    pub fn remove_job_by_build_id(&self, build_id: uuid::Uuid) -> Option<Job> {
+        let job = {
+            let mut jobs = self.jobs.write();
+            let idx = jobs
+                .iter()
+                .position(|j| j.internal_build_id == build_id);
+            if let Some(idx) = idx {
+                let job = jobs.remove(idx);
+                self.stats.incr_nr_steps_done();
+                self.stats.store_current_jobs(jobs.len() as u64);
+                Some(job)
+            } else {
+                None
+            }
+        };
+
+        if job.is_some() {
+            let now = jiff::Timestamp::now().as_second();
+            let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
+            if now <= (jobs_in_last_30s_start + 30) {
+                // Saturating subtract to avoid wrapping to u64::MAX.
+                let _ = self
+                    .stats
+                    .jobs_in_last_30s_count
+                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+                        v.checked_sub(1)
+                    });
+            }
+        }
+
+        job
+    }
+
+    /// Move a job from the active `jobs` list into the `freed_jobs` map and
+    /// update the slot counter so the machine appears to have a free slot.
+    ///
+    /// Called when the builder sends `SlotFreed` to indicate that the nix
+    /// build is done and the builder can accept new work.  The job metadata
+    /// is kept in `freed_jobs` so that the subsequent `CompleteBuild` RPC
+    /// can still look up build_id / step_nr for DB finalisation.
+    #[tracing::instrument(skip(self), fields(%build_id))]
+    pub fn free_slot_for_build_id(&self, build_id: uuid::Uuid) -> bool {
+        let job = {
+            let mut jobs = self.jobs.write();
+            let idx = jobs
+                .iter()
+                .position(|j| j.internal_build_id == build_id);
+            if let Some(idx) = idx {
+                let job = jobs.remove(idx);
+                self.stats.store_current_jobs(jobs.len() as u64);
+                Some(job)
+            } else {
+                None
+            }
+        };
+
+        if let Some(job) = job {
+            let mut freed = self.freed_jobs.write();
+            freed.insert(build_id, job);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Look up the drv path for a build by checking both `jobs` (active
+    /// builds) and `freed_jobs` (slot already released, awaiting
+    /// `CompleteBuild`).
+    #[tracing::instrument(skip(self), fields(%build_id))]
+    pub fn get_job_drv_for_build_id_or_freed(
+        &self,
+        build_id: uuid::Uuid,
+    ) -> Option<nix_utils::StorePath> {
+        // Check active jobs first.
+        if let Some(path) = self.get_job_drv_for_build_id(build_id) {
+            return Some(path);
+        }
+        // Fall back to freed jobs.
+        let freed = self.freed_jobs.read();
+        freed.get(&build_id).map(|j| j.path.clone())
+    }
+
+    /// Remove and return a job from the `freed_jobs` map by build UUID.
+    ///
+    /// Called by `succeed_step` / `fail_step` when `remove_job(drv)` returns
+    /// `None` because the job was already moved by `free_slot_for_build_id`.
+    #[tracing::instrument(skip(self), fields(%build_id))]
+    pub fn take_freed_job(&self, build_id: uuid::Uuid) -> Option<Job> {
+        let mut freed = self.freed_jobs.write();
+        let job = freed.remove(&build_id);
+        if job.is_some() {
+            self.stats.incr_nr_steps_done();
+        }
+        job
+    }
+
+    /// Remove and return a job from the `freed_jobs` map by drv path.
+    #[tracing::instrument(skip(self), fields(%drv))]
+    pub fn take_freed_job_by_drv(&self, drv: &nix_utils::StorePath) -> Option<Job> {
+        let mut freed = self.freed_jobs.write();
+        let key = freed.iter().find(|(_, j)| &j.path == drv).map(|(k, _)| *k);
+        let job = key.and_then(|k| freed.remove(&k));
+        if job.is_some() {
+            self.stats.incr_nr_steps_done();
+        }
+        job
+    }
+
+    /// Drain all entries from `freed_jobs`, returning them as a Vec.
+    ///
+    /// Used by `remove_machine` to fail orphaned builds whose slot was
+    /// freed but whose `CompleteBuild` never arrived (e.g. builder crashed
+    /// during upload).
+    pub fn drain_freed_jobs(&self) -> Vec<Job> {
+        let mut freed = self.freed_jobs.write();
+        freed.drain().map(|(_, job)| job).collect()
+    }
+
+    /// Re-insert a previously drained job back into `freed_jobs` so that
+    /// `fail_step` → `take_freed_job_by_drv` can find it.
+    pub fn reinsert_freed_job(&self, job: Job) {
+        let mut freed = self.freed_jobs.write();
+        freed.insert(job.internal_build_id, job);
     }
 }

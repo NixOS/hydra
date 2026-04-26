@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::hash::Hash;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::Arc;
 
 use anyhow::Context;
 use hashbrown::{HashMap, HashSet};
@@ -392,12 +392,15 @@ pub struct BuildProduct {
 }
 
 impl BuildProduct {
-    pub fn from_db(v: db::models::OwnedBuildProduct) -> Self {
-        Self {
-            path: v.path.map(|p| RelativeStorePath {
-                base_path: p,
-                relative_path: "".into(),
-            }),
+    pub fn from_db(
+        store_dir: &nix_utils::StoreDir,
+        v: db::models::OwnedBuildProduct,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            path: v
+                .path
+                .map(|p| RelativeStorePath::from_path(store_dir, &p))
+                .transpose()?,
             default_path: v.defaultpath,
             r#type: v.r#type,
             subtype: v.subtype,
@@ -406,7 +409,7 @@ impl BuildProduct {
             sha256hash: v.sha256hash,
             #[allow(clippy::cast_sign_loss)]
             file_size: v.filesize.map(|v| v as u64),
-        }
+        })
     }
 
     pub fn from_grpc(
@@ -741,5 +744,131 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    fn test_store_dir() -> nix_utils::StoreDir {
+        nix_utils::StoreDir::new("/nix/store").unwrap()
+    }
+
+    // Regression: `buildproducts.path` produced by e.g. a `doc manual …` entry in
+    // `$out/nix-support/hydra-build-products` points at a sub-path of an output.
+    // Parsing the full value as a bare `StorePath` used to fail with
+    // `invalid store path / symbol at 50`, wedging every "cached" Hydra build
+    // whose outputs included a doc/manual or similar sub-path product.
+    #[test]
+    fn relative_store_path_splits_product_subpath() {
+        let dir = test_store_dir();
+        let rel = RelativeStorePath::from_path(
+            &dir,
+            "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+        )
+        .expect("subpath product must parse");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*rel.relative_path, "share/doc/nix/manual");
+    }
+
+    #[test]
+    fn relative_store_path_accepts_bare_store_path() {
+        let dir = test_store_dir();
+        let rel = RelativeStorePath::from_path(
+            &dir,
+            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+        )
+        .expect("bare store path must parse");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
+        );
+        assert!(rel.relative_path.is_empty());
+    }
+
+    // The DB write path calls `RelativeStorePath::print` and the DB read path
+    // (after this fix) calls `RelativeStorePath::from_path`. They must be inverses
+    // for both shapes of `buildproducts.path`.
+    #[test]
+    fn relative_store_path_roundtrips() {
+        let dir = test_store_dir();
+        for original in [
+            "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+        ] {
+            let rel = RelativeStorePath::from_path(&dir, original)
+                .unwrap_or_else(|e| panic!("parse {original}: {e}"));
+            assert_eq!(rel.print(&dir), original);
+        }
+    }
+
+    /// Helper to construct an `OwnedBuildProduct` with a given path, leaving
+    /// other fields at harmless defaults.
+    fn make_db_product(path: Option<&str>) -> db::models::OwnedBuildProduct {
+        db::models::OwnedBuildProduct {
+            r#type: "doc".into(),
+            subtype: "manual".into(),
+            filesize: None,
+            sha256hash: None,
+            path: path.map(Into::into),
+            name: "test-product".into(),
+            defaultpath: Some("index.html".into()),
+        }
+    }
+
+    // Regression test: `BuildProduct::from_db` used to feed the full
+    // `buildproducts.path` value (e.g. `/nix/store/…/share/doc/nix/manual`)
+    // to `StoreDir::parse`, which rejected the trailing `/…` with
+    // `invalid store path / symbol at 50`. This wedged every cached build
+    // whose products included a sub-path.
+    #[test]
+    fn from_db_parses_subpath_product() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(
+            &dir,
+            make_db_product(Some(
+                "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+            )),
+        )
+        .expect("subpath product must parse via from_db");
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*rel.relative_path, "share/doc/nix/manual");
+    }
+
+    #[test]
+    fn from_db_parses_bare_store_path() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(
+            &dir,
+            make_db_product(Some(
+                "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+            )),
+        )
+        .expect("bare store path must parse via from_db");
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
+        );
+        assert!(rel.relative_path.is_empty());
+    }
+
+    #[test]
+    fn from_db_handles_none_path() {
+        let dir = test_store_dir();
+        let bp = BuildProduct::from_db(&dir, make_db_product(None))
+            .expect("None path must not error");
+        assert!(bp.path.is_none());
     }
 }

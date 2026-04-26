@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use db::models::BuildID;
 use nix_utils::{BaseStore as _, StorePath};
 
-use crate::state::RemoteBuild;
+use crate::state::{BuildTimings, RemoteBuild};
 
-#[tracing::instrument(skip(db, store, res), err)]
+#[tracing::instrument(skip(db, store, res, timings), err)]
 pub async fn finish_build_step(
     db: &db::Database,
     store: &nix_utils::LocalStore,
@@ -14,6 +14,7 @@ pub async fn finish_build_step(
     res: &RemoteBuild,
     machine: Option<&str>,
     output_paths: Option<&BTreeMap<nix_utils::OutputName, StorePath>>,
+    timings: BuildTimings,
 ) -> anyhow::Result<()> {
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
@@ -35,6 +36,9 @@ pub async fn finish_build_step(
         stop_time: res.get_stop_time_as_i32()?,
         machine,
         overhead: res.get_overhead(),
+        import_time_ms: i32::try_from(timings.import_elapsed.as_millis()).ok(),
+        build_time_ms: i32::try_from(timings.build_elapsed.as_millis()).ok(),
+        upload_time_ms: i32::try_from(timings.upload_elapsed.as_millis()).ok(),
         times_built: res.get_times_built(),
         is_non_deterministic: res.get_is_non_deterministic(),
     })

@@ -45,11 +45,11 @@ async fn main() -> anyhow::Result<()> {
 
     let cli = config::Cli::new();
 
-    let state = state::State::new(&cli).await?;
-    let task = tokio::spawn({
-        let state = state.clone();
-        async move { grpc::start_bidirectional_stream(state.clone()).await }
-    });
+    // Broadcast channel for SlotFreed messages: build tasks send on
+    // `slot_freed_tx`, each gRPC tunnel stream subscribes a new receiver
+    // so reconnections work transparently.
+    let (slot_freed_tx, _) = tokio::sync::broadcast::channel(64);
+    let state = state::State::new(&cli, slot_freed_tx).await?;
 
     let _notify = sd_notify::notify(&[
         sd_notify::NotifyState::Status("Running"),
@@ -59,33 +59,62 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
-    let abort_handle = task.abort_handle();
+    // Reconnection loop: restart the gRPC stream on transient failures
+    // instead of exiting the process.  Only fatal errors (API version
+    // mismatch) cause an immediate exit.
+    loop {
+        let task = tokio::spawn({
+            let state = state.clone();
+            async move { grpc::start_bidirectional_stream(state.clone()).await }
+        });
+        let abort_handle = task.abort_handle();
 
-    tokio::select! {
-        _ = sigint.recv() => {
-            tracing::info!("Received sigint - shutting down gracefully");
-            stop_application(&state, &abort_handle).await;
-        }
-        _ = sigterm.recv() => {
-            tracing::info!("Received sigterm - shutting down gracefully");
-            stop_application(&state, &abort_handle).await;
-        }
-        r = task => {
-            let _ = state.clear_gcroots().await;
-            match r {
-                Ok(Ok(())) => (),
-                Ok(Err(e)) => {
-                    let error_str = e.to_string();
-                    if error_str.contains("API version mismatch") {
-                        tracing::error!("ERROR: {error_str}");
-                        std::process::exit(65); // EX_DATAERR
-                    } else {
-                        return Err(e);
+        let should_exit = tokio::select! {
+            _ = sigint.recv() => {
+                tracing::info!("Received sigint - shutting down gracefully");
+                stop_application(&state, &abort_handle).await;
+                true
+            }
+            _ = sigterm.recv() => {
+                tracing::info!("Received sigterm - shutting down gracefully");
+                stop_application(&state, &abort_handle).await;
+                true
+            }
+            r = task => {
+                match r {
+                    Ok(Ok(())) => {
+                        // Stream ended cleanly — safe to clear gcroots.
+                        let _ = state.clear_gcroots().await;
+                        true
+                    }
+                    Ok(Err(e)) => {
+                        let error_str = e.to_string();
+                        if error_str.contains("API version mismatch") {
+                            tracing::error!("ERROR: {error_str}");
+                            std::process::exit(65); // EX_DATAERR
+                        }
+                        // Transient error — log and reconnect after a brief
+                        // pause.  Do NOT clear gcroots here: background
+                        // upload tasks may still be running and depend on
+                        // the gcroot symlinks to protect outputs from GC.
+                        tracing::warn!("gRPC stream error, reconnecting in 5s: {e}");
+                        false
+                    }
+                    Err(e) => {
+                        // Same reasoning: don't clear gcroots on panic.
+                        tracing::warn!("gRPC task panicked, reconnecting in 5s: {e}");
+                        false
                     }
                 }
-                Err(e) => return Err(e.into()),
             }
+        };
+
+        if should_exit {
+            break;
         }
-    };
+
+        // Brief backoff before reconnecting to avoid tight retry loops.
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
     Ok(())
 }

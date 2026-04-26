@@ -39,7 +39,13 @@ message BuilderRequest {
   oneof message {
     JoinMessage join = 1;
     PingMessage ping = 2;
+    SlotFreedMessage slot_freed = 3;
   }
+}
+
+message SlotFreedMessage {
+  string build_id = 1;
+  string machine_id = 2;
 }
 
 message JoinMessage {
@@ -63,6 +69,11 @@ message JoinMessage {
   repeated string substituters = 18;
   bool use_substitutes = 19;
   string nix_version = 20;
+  // Extra slots beyond max_jobs that the builder can accept for input
+  // pre-fetching.  The queue runner may dispatch up to (max_jobs +
+  // prefetch_slots) builds; builds beyond max_jobs import inputs
+  // immediately but wait for a build semaphore before running nix build.
+  uint32 prefetch_slots = 21;
 }
 
 message Pressure {
@@ -230,6 +241,10 @@ message StepUpdate {
   string build_id = 1;
   string machine_id = 2;
   StepStatus step_status = 3;
+  // Progress tracking for the current phase (0 = not reported).
+  // During SendingInputs: paths imported / total paths to import.
+  uint32 progress_current = 4;
+  uint32 progress_total = 5;
 }
 
 enum BuildResultState {
