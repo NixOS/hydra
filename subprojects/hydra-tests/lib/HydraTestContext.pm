@@ -193,6 +193,21 @@ sub jobsdir {
     return $self->{jobsdir};
 }
 
+# Lazily spawn a DrvDaemonContext when HYDRA_TEST_USE_DRV_DAEMON is
+# set in the environment; returns undef otherwise. Eval-using helpers
+# (CliRunners::evalSucceeds etc.) call this and route their nix-daemon
+# traffic through the daemon socket if a daemon is available, so the
+# whole eval-using test suite can be exercised both with and without
+# the drv-daemon by toggling the env.
+sub drv_daemon {
+    my ($self) = @_;
+    return $self->{_drv_daemon} if defined $self->{_drv_daemon};
+    return undef unless $ENV{HYDRA_TEST_USE_DRV_DAEMON};
+    require DrvDaemonContext;
+    $self->{_drv_daemon} = DrvDaemonContext->new($self);
+    return $self->{_drv_daemon};
+}
+
 sub nix_state_dir {
     my ($self) = @_;
 

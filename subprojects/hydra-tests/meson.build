@@ -73,3 +73,10 @@ test('testsuite',
   workdir: meson.current_source_dir(),
   timeout: -1,
 )
+
+# A second target that runs the eval-using tests with HYDRA_TEST_USE_DRV_DAEMON=1
+# is intentionally absent until harmonia-protocol supports the
+# `fixed:r:sha256` CA hash algorithm nix-eval-jobs sends through the
+# daemon during evaluation. The plumbing for it lives in
+# HydraTestContext::drv_daemon + CliRunners; once harmonia is bumped
+# the testsuite-drv-daemon target can be added back.
