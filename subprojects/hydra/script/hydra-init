@@ -18,7 +18,7 @@ my $home = getHydraHome;
 my $sql_splitter = SQL::SplitStatement->new;
 
 # Figure out the target schema version.
-my $maxSchemaVersion = max (map { /.*\/upgrade-(\d.*)\.sql/; $1 } (glob "$home/sql/upgrade-[0-9]*.sql")) || 1;
+my $maxSchemaVersion = max (map { /.*\/upgrade-(\d.*)\.sql/; $1 } (glob "$home/sql/migrations/upgrade-[0-9]*.sql")) || 1;
 
 # Check whether the database has been initialised.  If not, load the
 # schema.
@@ -58,7 +58,7 @@ QUOTE
 for (my $n = $schemaVersion; $n < $maxSchemaVersion; $n++) {
     my $m = $n + 1;
     print STDERR "upgrading Hydra schema from version $n to $m\n";
-    my $schema = read_text("$home/sql/upgrade-$m.sql");
+    my $schema = read_text("$home/sql/migrations/upgrade-$m.sql");
     my @statements = $sql_splitter->split($schema);
     eval {
         $dbh->begin_work;
