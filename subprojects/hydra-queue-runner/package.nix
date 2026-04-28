@@ -43,6 +43,7 @@ rustPlatform.buildRustPackage {
   # Drop the other Rust binary crates from the workspace; their sources
   # are excluded from the fileset above, so cargo would otherwise fail
   # trying to load their (absent) manifests.
+  postPatch = ''
     sed -i '/hydra-queue-runner/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
