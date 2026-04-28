@@ -13,9 +13,21 @@ our @EXPORT = qw(
     sendNotifications
 );
 
+# When $ctx has a DrvDaemonContext attached (HYDRA_TEST_USE_DRV_DAEMON
+# env), eval children get NIX_REMOTE pointed at the daemon socket so
+# IFD store ops route through it.
+sub _eval_env {
+    my ($ctx) = @_;
+    my %env = %{ $ctx->{central_env} };
+    my $d = $ctx->drv_daemon;
+    $env{NIX_REMOTE} = $d->nix_remote_url if $d;
+    return %env;
+}
+
 sub evalSucceeds {
     my ($ctx, $jobset) = @_;
-    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+    my %env = _eval_env($ctx);
+    local @ENV{keys %env} = values %env;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
@@ -31,7 +43,8 @@ sub evalSucceeds {
 
 sub evalFails {
     my ($ctx, $jobset) = @_;
-    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+    my %env = _eval_env($ctx);
+    local @ENV{keys %env} = values %env;
     my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
