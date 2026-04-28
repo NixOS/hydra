@@ -149,17 +149,22 @@
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
-      checks = forEachSystem (system: {
-        systemTests = hydraJobs.systemTests.${system};
-        install = hydraJobs.nixosTests.install.${system};
-        validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
-        dbix-up-to-date =
-          nixpkgs.legacyPackages.${system}.callPackage ./packaging/check-dbix-up-to-date.nix
-            {
-              inherit (packages.${system}) hydra;
-            };
-        formatter = (treefmtEval system).config.build.check self;
-      });
+      checks = forEachSystem (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        pkgs.callPackage ./subprojects/hydra/sql/check-migrations.nix { }
+        // {
+          systemTests = hydraJobs.systemTests.${system};
+          install = hydraJobs.nixosTests.install.${system};
+          validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
+          dbix-up-to-date = pkgs.callPackage ./packaging/check-dbix-up-to-date.nix {
+            inherit (packages.${system}) hydra;
+          };
+          formatter = (treefmtEval system).config.build.check self;
+        }
+      );
 
       packages =
         nixpkgs.lib.recursiveUpdate

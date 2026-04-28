@@ -1,0 +1,3 @@
+# Original commit (d4759c1d) had `check schedulingShares > 0` without parens
+# (invalid SQL). Using 006d105f which fixed the syntax error.
+006d105f938bcc37ac758018931fcf97a3d42956

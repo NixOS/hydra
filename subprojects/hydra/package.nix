@@ -137,7 +137,21 @@ stdenv.mkDerivation (finalAttrs: {
   src = lib.fileset.toSource {
     root = ../..;
     fileset = lib.fileset.unions [
-      ../../subprojects/hydra
+      ../../subprojects/hydra/hydra-evaluator
+      ../../subprojects/hydra/lib
+      ../../subprojects/hydra/Makefile.PL
+      ../../subprojects/hydra/meson.build
+      ../../subprojects/hydra/package.nix
+      ../../subprojects/hydra/root
+      ../../subprojects/hydra/script
+      ../../subprojects/hydra/sql/hydra.sql
+      ../../subprojects/hydra/sql/meson.build
+      ../../subprojects/hydra/sql/migrations
+      ../../subprojects/hydra/sql/test.sql
+      ../../subprojects/hydra/sql/update-dbix.pl
+      ../../subprojects/hydra/sql/update-dbix-harness.sh
+      ../../subprojects/hydra/ttf
+      ../../subprojects/hydra/version.txt
       ../../version.txt
     ];
   };
