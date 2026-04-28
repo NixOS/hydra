@@ -75,11 +75,11 @@ in
       nodes.server = serverConfig;
       nodes.builder = builderConfig;
       testScript = ''
-        server.wait_for_job("hydra-init")
-        server.wait_for_job("hydra-server")
-        server.wait_for_job("hydra-evaluator")
-        server.wait_for_job("hydra-queue-runner-dev")
-        builder.wait_for_job("hydra-queue-builder-dev")
+        server.wait_for_unit("hydra-init.service")
+        server.wait_for_unit("hydra-server.service")
+        server.wait_for_unit("hydra-evaluator.service")
+        server.wait_for_unit("hydra-queue-runner-dev.service")
+        builder.wait_for_unit("hydra-queue-builder-dev.service")
         server.wait_for_open_port(3000)
         server.succeed("curl --fail http://localhost:3000/")
       '';
@@ -104,9 +104,9 @@ in
       testScript =
         { nodes, ... }:
         ''
-          server.wait_for_job("hydra-init")
-          server.wait_for_job("hydra-queue-runner-dev")
-          builder.wait_for_job("hydra-queue-builder-dev")
+          server.wait_for_unit("hydra-init.service")
+          server.wait_for_unit("hydra-queue-runner-dev.service")
+          builder.wait_for_unit("hydra-queue-builder-dev.service")
 
           # Create an admin account and some other state.
           server.succeed(
@@ -121,7 +121,7 @@ in
           )
 
           # Wait until InfluxDB can receive web requests
-          server.wait_for_job("influxdb")
+          server.wait_for_unit("influxdb.service")
           server.wait_for_open_port(8086)
 
           # Create an InfluxDB database where hydra will write to
@@ -131,7 +131,7 @@ in
           )
 
           # Wait until hydra-server can receive HTTP requests
-          server.wait_for_job("hydra-server")
+          server.wait_for_unit("hydra-server.service")
           server.wait_for_open_port(3000)
 
           # Setup the project and jobset
@@ -301,8 +301,8 @@ in
           server.start()
           builder.start()
           server.wait_for_unit("multi-user.target")
-          server.wait_for_job("hydra-queue-runner-dev")
-          builder.wait_for_job("hydra-queue-builder-dev")
+          server.wait_for_unit("hydra-queue-runner-dev.service")
+          builder.wait_for_unit("hydra-queue-builder-dev.service")
           server.wait_for_open_port(3000)
           server.wait_for_open_port(3001)
 
