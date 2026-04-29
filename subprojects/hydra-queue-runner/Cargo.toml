@@ -30,12 +30,14 @@ byte-unit.workspace    = true
 futures.workspace      = true
 futures-util.workspace = true
 tokio                  = { workspace = true, features = [ "full" ] }
+tokio-stream.workspace = true
+tokio-util             = { workspace = true, features = [ "io", "io-util" ] }
 
+async-compression          = { workspace = true, features = [ "tokio", "zstd" ] }
 h2.workspace               = true
 listenfd.workspace         = true
 prost.workspace            = true
-tokio-stream.workspace     = true
-tonic                      = { workspace = true, features = [ "zstd", "tls-webpki-roots" ] }
+tonic                      = { workspace = true, features = [ "tls-webpki-roots" ] }
 tonic-health.workspace     = true
 tonic-prost.workspace      = true
 tonic-reflection.workspace = true

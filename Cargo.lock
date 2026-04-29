@@ -1453,9 +1453,11 @@ name = "hydra-builder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-compression",
  "async-stream",
  "backon",
  "binary-cache",
+ "bytes",
  "clap",
  "fs-err",
  "futures",
@@ -1479,6 +1481,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -1494,6 +1497,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arc-swap",
+ "async-compression",
  "atomic_float",
  "backon",
  "binary-cache",
@@ -1529,6 +1533,7 @@ dependencies = [
  "tikv-jemallocator",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "toml",
  "tonic",
  "tonic-health",
@@ -4150,7 +4155,6 @@ dependencies = [
  "tower-service",
  "tracing",
  "webpki-roots 1.0.6",
- "zstd",
 ]
 
 [[package]]

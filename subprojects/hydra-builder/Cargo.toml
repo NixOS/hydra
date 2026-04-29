@@ -17,14 +17,17 @@ parking_lot.workspace = true
 thiserror.workspace   = true
 uuid                  = { workspace = true, features = [ "v4" ] }
 
+async-compression      = { workspace = true, features = [ "tokio", "zstd" ] }
 async-stream.workspace = true
 backon.workspace       = true
+bytes.workspace        = true
 futures.workspace      = true
 hyper-util.workspace   = true
 prost.workspace        = true
 tokio                  = { workspace = true, features = [ "full" ] }
 tokio-stream.workspace = true
-tonic                  = { workspace = true, features = [ "zstd", "tls-webpki-roots" ] }
+tokio-util             = { workspace = true, features = [ "io", "io-util" ] }
+tonic                  = { workspace = true, features = [ "tls-webpki-roots" ] }
 tonic-prost.workspace  = true
 tower.workspace        = true
 url.workspace          = true

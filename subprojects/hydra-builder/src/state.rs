@@ -9,7 +9,6 @@ use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
 use futures::TryFutureExt as _;
 use hashbrown::HashMap;
 use tonic::Request;
-use tracing::Instrument as _;
 
 use crate::grpc::{BuilderClient, runner_v1};
 use crate::types::BuildTimings;
@@ -17,7 +16,7 @@ use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use nix_utils::{BaseStore as _, OutputName};
 use runner_v1::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
-    FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
+    FetchRequisitesRequest, JoinMessage, NarData, NixSupport, Output, OutputNameOnly,
     OutputWithPath, PingMessage, PressureState, StepStatus, StepUpdate, StorePaths, output,
 };
 use shared::proto::ProtoStorePath;
@@ -397,9 +396,7 @@ impl State {
         m: BuildMessage,
         timings: &mut BuildTimings,
     ) -> Result<(), JobFailure> {
-        // we dont use anyhow here because we manually need to write the correct build status
-        // to the queue runner.
-        use tokio_stream::StreamExt as _;
+        use tokio_stream::StreamExt;
 
         let store = nix_utils::LocalStore::init();
 
@@ -457,7 +454,7 @@ impl State {
             })
             .await;
         let before_build = Instant::now();
-        let (mut child, stdout, mut stderr) = nix_utils::realise_drv(
+        let (mut child, stdout, stderr) = nix_utils::realise_drv(
             &store,
             maybe_resolved_drv,
             &nix_utils::BuildOptions::complete(m.max_log_size, m.max_silent_time, m.build_timeout),
@@ -465,21 +462,6 @@ impl State {
         )
         .await
         .map_err(|e| JobFailure::Build(e.into()))?;
-        let drv2 = drv.clone();
-        let log_stream = async_stream::stream! {
-            while let Some(chunk) = stderr.next().await {
-                match chunk {
-                    Ok(chunk) => yield LogChunk {
-                        drv: Some(ProtoStorePath::from(drv2.clone())),
-                        data: format!("{chunk}\n").into(),
-                    },
-                    Err(e) => {
-                        tracing::error!("Failed to write log chunk to queue-runner: {e}");
-                        break
-                    }
-                }
-            }
-        };
         // The build_log RPC streams stderr to the queue-runner and only
         // resolves once the child closes stderr (i.e. the build finished).
         // A transport error here (e.g. nginx sending an HTTP/2 GOAWAY after
@@ -494,7 +476,9 @@ impl State {
         // build_log stream (the queue-runner appends to the same log file
         // keyed by drv path), and keep the child running.
         client
-            .build_log(Request::new(log_stream))
+            .build_log(Request::new(crate::utils::compressed_log_stream(
+                &drv, stderr,
+            )))
             .await
             .map_err(|e| {
                 JobFailure::Upload(
@@ -709,6 +693,17 @@ async fn substitute_paths(
     Ok(())
 }
 
+fn decode_stream<S>(
+    stream: S,
+) -> impl tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
+where
+    S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
+{
+    let reader = tokio_util::io::StreamReader::new(stream);
+    let decoder = crate::utils::CompressionDecoder::new(reader);
+    tokio_util::io::ReaderStream::new(decoder)
+}
+
 #[tracing::instrument(skip(client, store, metrics), fields(%gcroot), err)]
 async fn import_paths(
     mut client: BuilderClient,
@@ -764,15 +759,12 @@ async fn import_paths(
         .into_inner();
 
     metrics.add_downloading_path(paths.len() as u64);
-    let import_result = store
-        .import_paths(
-            tokio_stream::StreamExt::map(stream, |s| {
-                s.map(|v| v.chunk.into())
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
-            }),
-            false,
-        )
-        .await;
+
+    let byte_stream = tokio_stream::StreamExt::map(stream, |s| {
+        s.map(|v| bytes::Bytes::from(v.chunk))
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
+    });
+    let import_result = store.import_paths(decode_stream(byte_stream), false).await;
     metrics.sub_downloading_path(paths.len() as u64);
     import_result?;
     tracing::debug!("Finished importing paths");
@@ -914,30 +906,56 @@ async fn upload_nars_regular(
     }
 
     tracing::info!("Start uploading paths to queue runner directly");
+    let (raw_writer, raw_reader) = tokio::io::duplex(crate::utils::DUPLEX_BUFFER_SIZE);
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<NarData>();
     let before_upload = Instant::now();
     let nars_len = nars.len() as u64;
 
     metrics.add_uploading_path(nars_len);
-    let closure = move |data: &[u8]| {
-        let data = Vec::from(data);
-        tx.send(NarData { chunk: data }).is_ok()
-    };
+
+    tokio::task::spawn(async move {
+        use tokio_stream::StreamExt as _;
+        let encoder = crate::utils::CompressionEncoder::new(tokio::io::BufReader::new(raw_reader));
+        let mut encoded_stream = tokio_util::io::ReaderStream::new(encoder);
+        while let Some(chunk) = encoded_stream.next().await {
+            match chunk {
+                Ok(bytes) => {
+                    if tx
+                        .send(NarData {
+                            chunk: bytes.into(),
+                        })
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to compress NAR chunk: {e}");
+                    break;
+                }
+            }
+        }
+    });
+
     let a = client
         .build_result(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
         .map_err(Into::<anyhow::Error>::into);
 
     let b = tokio::task::spawn_blocking(move || {
-        async move {
-            store.export_paths(&nars, closure)?;
-            tracing::debug!("Finished exporting paths");
-            Ok::<(), anyhow::Error>(())
-        }
-        .in_current_span()
-    })
-    .await?
-    .map_err(Into::<anyhow::Error>::into);
-    futures::future::try_join(a, b).await?;
+        let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
+        let closure = move |data: &[u8]| {
+            use std::io::Write as _;
+            sync_writer.write_all(data).is_ok()
+        };
+
+        store.export_paths(&nars, closure)?;
+        tracing::debug!("Finished exporting paths");
+        Ok::<(), anyhow::Error>(())
+    });
+    let (a, b) = futures::future::join(a, b).await;
+    a?;
+    b??;
+
     tracing::info!(
         "Finished uploading paths to queue runner directly. elapsed={:?}",
         before_upload.elapsed()
