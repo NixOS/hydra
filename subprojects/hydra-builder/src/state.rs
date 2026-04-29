@@ -18,7 +18,8 @@ use nix_utils::{BaseStore as _, OutputName};
 use runner_v1::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
     FetchRequisitesRequest, JoinMessage, LogChunk, NarData, NixSupport, Output, OutputNameOnly,
-    OutputWithPath, PingMessage, PressureState, StepStatus, StepUpdate, StorePaths, output,
+    OutputWithPath, PingMessage, PressureState, SlotFreedMessage, StepStatus, StepUpdate,
+    StorePaths, output,
 };
 use shared::proto::ProtoStorePath;
 
@@ -32,6 +33,7 @@ fn retry_strategy() -> backon::ExponentialBuilder {
         .with_jitter()
         .with_min_delay(RETRY_MIN_DELAY)
         .with_max_delay(RETRY_MAX_DELAY)
+        .with_max_times(20) // Bound retries to ~10 min total with exponential backoff
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -53,6 +55,23 @@ pub enum JobFailure {
 struct NixBuildOutputs {
     drv_path: String,
     outputs: BTreeMap<OutputName, String>,
+}
+
+/// Data produced by a successful import + build phase that the background
+/// upload task needs to finish the job.
+struct BuildPhaseResult {
+    store: nix_utils::LocalStore,
+    drv: nix_utils::StorePath,
+    outputs: BTreeMap<OutputName, nix_utils::StorePath>,
+    build_id: String,
+    machine_id: uuid::Uuid,
+    presigned_url_opts: Option<runner_v1::PresignedUploadOpts>,
+    client: BuilderClient,
+    /// GC root symlinks that protect the build outputs from garbage
+    /// collection.  Held alive until the upload completes so that a
+    /// concurrent `nix-collect-garbage` cannot delete the outputs
+    /// mid-upload.
+    _gcroot: Gcroot,
 }
 
 impl From<JobFailure> for BuildResultState {
@@ -98,6 +117,12 @@ pub struct Config {
     pub mandatory_features: Vec<String>,
     pub cgroups: bool,
     pub use_substitutes: bool,
+    /// Timeout for the import phase (0 = disabled).
+    pub import_timeout: std::time::Duration,
+    /// Timeout for the upload phase (0 = disabled).
+    pub upload_timeout: std::time::Duration,
+    /// Extra prefetch slots beyond max_jobs.
+    pub prefetch_slots: u32,
 }
 
 #[derive(Debug)]
@@ -112,6 +137,20 @@ pub struct State {
     pub halt: AtomicBool,
     pub metrics: Arc<crate::metrics::Metrics>,
     upload_client: PresignedUploadClient,
+    /// Broadcast channel for `SlotFreedMessage` notifications.  Build tasks
+    /// send on `slot_freed_tx`; each gRPC tunnel stream subscribes a new
+    /// receiver so that reconnections work transparently.
+    pub slot_freed_tx: tokio::sync::broadcast::Sender<SlotFreedMessage>,
+    /// Semaphore that limits the number of concurrent background upload
+    /// tasks.  Without this, rapid build completions could spawn unbounded
+    /// uploads that exhaust memory and network sockets.
+    upload_semaphore: Arc<tokio::sync::Semaphore>,
+    /// Semaphore that gates the actual `nix build` phase.  The queue runner
+    /// may dispatch up to (max_jobs + prefetch_slots) builds; builds beyond
+    /// max_jobs import inputs immediately but acquire this semaphore before
+    /// starting `nix build`.  This keeps builders always busy: while N
+    /// builds are running, up to N more can be importing inputs in parallel.
+    build_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Debug)]
@@ -141,8 +180,11 @@ impl Drop for Gcroot {
 }
 
 impl State {
-    #[tracing::instrument(err)]
-    pub async fn new(cli: &super::config::Cli) -> anyhow::Result<Arc<Self>> {
+    #[tracing::instrument(skip(slot_freed_tx), err)]
+    pub async fn new(
+        cli: &super::config::Cli,
+        slot_freed_tx: tokio::sync::broadcast::Sender<SlotFreedMessage>,
+    ) -> anyhow::Result<Arc<Self>> {
         nix_utils::set_verbosity(1);
 
         let logname = std::env::var("LOGNAME").context("LOGNAME not set")?;
@@ -190,12 +232,24 @@ impl State {
                 mandatory_features: cli.mandatory_features.clone().unwrap_or_default(),
                 cgroups: nix_utils::get_use_cgroups(),
                 use_substitutes: cli.use_substitutes,
+                import_timeout: std::time::Duration::from_secs(cli.import_timeout),
+                upload_timeout: std::time::Duration::from_secs(cli.upload_timeout),
+                prefetch_slots: cli.max_jobs.saturating_mul(cli.prefetch_factor.saturating_sub(1)),
             },
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
             metrics: Arc::new(crate::metrics::Metrics::default()),
             upload_client: PresignedUploadClient::new(),
+            slot_freed_tx,
+            // Allow up to 2× max_jobs concurrent background uploads.
+            upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
+                (cli.max_jobs as usize).saturating_mul(2).max(4),
+            )),
+            // Gate actual `nix build` on max_jobs permits.  The queue runner
+            // dispatches up to (max_jobs + prefetch_slots) builds; extras
+            // import inputs immediately but wait here before building.
+            build_semaphore: Arc::new(tokio::sync::Semaphore::new(cli.max_jobs as usize)),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -236,6 +290,7 @@ impl State {
             substituters: nix_utils::get_substituters(),
             use_substitutes: self.config.use_substitutes,
             nix_version: nix_utils::get_nix_version(),
+            prefetch_slots: self.config.prefetch_slots,
         })
     }
 
@@ -266,6 +321,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self, m), fields(drv=?m.drv))]
+    #[allow(clippy::too_many_lines)]
     pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> anyhow::Result<()> {
         if self.halt.load(Ordering::SeqCst) {
             tracing::warn!("State is set to halt, will no longer accept new builds!");
@@ -291,9 +347,85 @@ impl State {
             async move {
                 let mut timings = BuildTimings::default();
                 match Box::pin(self_.process_build(m, &mut timings)).await {
-                    Ok(()) => {
-                        tracing::info!("Successfully completed build process for {drv}");
+                    Ok(result) => {
+                        // Build phase (import + nix build) succeeded.
+                        // Signal the queue runner that our slot is free, and
+                        // release the local build slot immediately so we can
+                        // accept new work.
+                        let _ = self_.slot_freed_tx.send(SlotFreedMessage {
+                            build_id: build_id.to_string(),
+                            machine_id: self_.id.to_string(),
+                        });
                         self_.remove_build(build_id);
+                        tracing::info!(
+                            "Slot freed for {drv}, spawning background upload"
+                        );
+
+                        // Upload outputs and call CompleteBuild in the
+                        // background -- this no longer holds a build slot.
+                        // Acquire the upload semaphore to bound concurrency.
+                        let self_bg = self_.clone();
+                        let drv_bg = drv.clone();
+                        let upload_permit = self_.upload_semaphore.clone();
+                        tokio::spawn(async move {
+                            let _permit = upload_permit.acquire().await;
+
+                            let mut bg_timings = timings;
+                            match Box::pin(self_bg.upload_and_complete(result, &mut bg_timings)).await {
+                                Ok(()) => {
+                                    tracing::info!(
+                                        "Successfully completed upload for {drv_bg}"
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        "Background upload for {drv_bg} failed with {e}"
+                                    );
+                                    // Report the failure via CompleteBuild so the
+                                    // queue runner knows the step did not succeed.
+                                    let failed_build = BuildResultInfo {
+                                        build_id: build_id.to_string(),
+                                        machine_id: self_bg.id.to_string(),
+                                        import_time_ms: u64::try_from(
+                                            bg_timings.import_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        build_time_ms: u64::try_from(
+                                            bg_timings.build_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        upload_time_ms: u64::try_from(
+                                            bg_timings.upload_elapsed.as_millis(),
+                                        )
+                                        .unwrap_or_default(),
+                                        result_state: BuildResultState::from(e) as i32,
+                                        nix_support: None,
+                                        outputs: vec![],
+                                    };
+
+                                    if let (_, Err(e)) =
+                                        (|tuple: (BuilderClient, BuildResultInfo)| async {
+                                            let (mut client, body) = tuple;
+                                            let res = client.complete_build(body.clone()).await;
+                                            ((client, body), res)
+                                        })
+                                        .retry(retry_strategy())
+                                        .sleep(tokio::time::sleep)
+                                        .context((self_bg.client.clone(), failed_build))
+                                        .notify(
+                                            |err: &tonic::Status, dur: core::time::Duration| {
+                                                tracing::error!("Failed to submit upload failure info: err={err}, retrying in={dur:?}");
+                                            },
+                                        )
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            "Failed to submit upload failure info: {e}"
+                                        );
+                                    }
+                                }
+                            }
+                        });
                     }
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
@@ -390,13 +522,18 @@ impl State {
         active.clear();
     }
 
+    /// Run the import and build phases for a derivation.
+    ///
+    /// On success, returns a [`BuildPhaseResult`] containing everything the
+    /// background upload task needs.  The build slot can be released
+    /// immediately after this returns.
     #[tracing::instrument(skip(self, m), fields(drv=?m.drv), err)]
     #[allow(clippy::too_many_lines)]
     async fn process_build(
         &self,
         m: BuildMessage,
         timings: &mut BuildTimings,
-    ) -> Result<(), JobFailure> {
+    ) -> Result<BuildPhaseResult, JobFailure> {
         // we dont use anyhow here because we manually need to write the correct build status
         // to the queue runner.
         use tokio_stream::StreamExt as _;
@@ -423,37 +560,79 @@ impl State {
                 build_id: m.build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::SeningInputs as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
-        let requisites = client
-            .fetch_drv_requisites(FetchRequisitesRequest {
-                path: Some(ProtoStorePath::from(maybe_resolved_drv.clone())),
-                include_outputs: false,
-            })
-            .await
-            .map_err(|e| JobFailure::Import(e.into()))?
-            .into_inner()
-            .requisites;
 
-        import_requisites(
-            &mut client,
-            store.clone(),
-            self.metrics.clone(),
-            &gcroot,
-            maybe_resolved_drv,
-            requisites.into_iter().map(|s| s.0),
-            usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
-            self.config.use_substitutes,
-        )
-        .await
-        .map_err(JobFailure::Import)?;
+        // The entire import phase (fetch requisites + import paths) is wrapped
+        // in an optional timeout so that stuck downloads don't hold a build
+        // slot indefinitely.
+        let import_fut = async {
+            let requisites = client
+                .fetch_drv_requisites(FetchRequisitesRequest {
+                    path: Some(ProtoStorePath::from(maybe_resolved_drv.clone())),
+                    include_outputs: false,
+                })
+                .await
+                .map_err(|e| JobFailure::Import(e.into()))?
+                .into_inner()
+                .requisites;
+
+            import_requisites(
+                &mut client,
+                store.clone(),
+                self.metrics.clone(),
+                &gcroot,
+                maybe_resolved_drv,
+                requisites.into_iter().map(|s| s.0),
+                usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
+                self.config.use_substitutes,
+                &m.build_id,
+                &machine_id.to_string(),
+            )
+            .await
+            .map_err(JobFailure::Import)
+        };
+
+        if self.config.import_timeout.is_zero() {
+            import_fut.await?;
+        } else {
+            tokio::time::timeout(self.config.import_timeout, import_fut)
+                .await
+                .map_err(|_| {
+                    JobFailure::Import(anyhow::anyhow!(
+                        "import phase timed out after {}s",
+                        self.config.import_timeout.as_secs()
+                    ))
+                })??;
+        }
         timings.import_elapsed = before_import.elapsed();
+
+        // Acquire a build permit.  With prefetch_factor > 1 the queue runner
+        // dispatches more builds than max_jobs.  The extra builds complete
+        // their import phase above and then wait here until a build slot is
+        // free.  This keeps builders saturated: while N builds run, N more
+        // can be importing inputs in parallel.
+        let _ = client
+            .build_step_update(StepUpdate {
+                build_id: m.build_id.clone(),
+                machine_id: machine_id.to_string(),
+                step_status: StepStatus::WaitingForLocalSlot as i32,
+                progress_current: 0,
+                progress_total: 0,
+            })
+            .await;
+        let _build_permit = self.build_semaphore.acquire().await
+            .map_err(|e| JobFailure::Preparing(anyhow::anyhow!("build semaphore closed: {e}")))?;
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
                 build_id: m.build_id.clone(),
                 machine_id: machine_id.to_string(),
                 step_status: StepStatus::Building as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
         let before_build = Instant::now();
@@ -544,7 +723,9 @@ impl State {
 
         let outputs = output_raw
             .pop()
-            .unwrap()
+            .ok_or_else(|| JobFailure::PostProcessing(anyhow::anyhow!(
+                "empty output_raw after length check"
+            )))?
             .outputs
             .into_iter()
             .map(|(name, path)| {
@@ -563,40 +744,86 @@ impl State {
         timings.build_elapsed = before_build.elapsed();
         tracing::info!("Finished building {drv}");
 
+        Ok(BuildPhaseResult {
+            store,
+            drv,
+            outputs,
+            build_id: m.build_id,
+            machine_id,
+            presigned_url_opts: m.presigned_url_opts,
+            client,
+            _gcroot: gcroot,
+        })
+    }
+
+    /// Upload outputs and send `CompleteBuild` to the queue runner.
+    ///
+    /// This runs as a background task after the build slot has been freed.
+    /// Failures here are reported via `CompleteBuild` with the appropriate
+    /// failure state.
+    #[tracing::instrument(skip(self, result), fields(build_id=%result.build_id, drv=%result.drv), err)]
+    #[allow(clippy::too_many_lines)]
+    async fn upload_and_complete(
+        &self,
+        result: BuildPhaseResult,
+        timings: &mut BuildTimings,
+    ) -> Result<(), JobFailure> {
+        let mut client = result.client;
+
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id: result.build_id.clone(),
+                machine_id: result.machine_id.to_string(),
                 step_status: StepStatus::ReceivingOutputs as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
 
+        // The upload phase is wrapped in an optional timeout so that stuck
+        // uploads don't leak resources indefinitely (the build slot itself
+        // was already freed before this background task was spawned).
         let before_upload = Instant::now();
-        self.upload_nars(
-            store.clone(),
-            outputs.values().cloned().collect::<Vec<_>>(),
-            &m.build_id,
-            &machine_id.to_string(),
-            m.presigned_url_opts,
-        )
-        .await
-        .map_err(JobFailure::Upload)?;
+        let machine_id_str = result.machine_id.to_string();
+        let upload_fut = self.upload_nars(
+            result.store.clone(),
+            result.outputs.values().cloned().collect::<Vec<_>>(),
+            &result.build_id,
+            &machine_id_str,
+            result.presigned_url_opts,
+        );
+
+        if self.config.upload_timeout.is_zero() {
+            upload_fut.await.map_err(JobFailure::Upload)?;
+        } else {
+            tokio::time::timeout(self.config.upload_timeout, upload_fut)
+                .await
+                .map_err(|_| {
+                    JobFailure::Upload(anyhow::anyhow!(
+                        "upload phase timed out after {}s",
+                        self.config.upload_timeout.as_secs()
+                    ))
+                })?
+                .map_err(JobFailure::Upload)?;
+        }
         timings.upload_elapsed = before_upload.elapsed();
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
-                build_id: m.build_id.clone(),
-                machine_id: machine_id.to_string(),
+                build_id: result.build_id.clone(),
+                machine_id: result.machine_id.to_string(),
                 step_status: StepStatus::PostProcessing as i32,
+                progress_current: 0,
+                progress_total: 0,
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
-            store.clone(),
-            machine_id,
-            &drv,
-            &outputs,
+            result.store.clone(),
+            result.machine_id,
+            &result.drv,
+            &result.outputs,
             *timings,
-            m.build_id.clone(),
+            result.build_id.clone(),
         ))
         .await
         .map_err(JobFailure::PostProcessing)?;
@@ -699,14 +926,65 @@ async fn filter_missing(
     }
 }
 
+/// Try to substitute paths in parallel using nix's configured substituters
+/// (peernix, nix-serve, etc.).  Returns (succeeded, failed) counts.
 async fn substitute_paths(
-    store: &nix_utils::LocalStore,
-    paths: &[nix_utils::StorePath],
-) -> anyhow::Result<()> {
-    for p in paths {
-        store.ensure_path(p).await?;
+    store: nix_utils::LocalStore,
+    paths: Vec<nix_utils::StorePath>,
+) -> (usize, usize) {
+    use futures::StreamExt as _;
+
+    let total = paths.len();
+
+    // Run up to 10 concurrent ensure_path calls.  Nix's flock on
+    // store paths prevents redundant downloads — concurrent calls for
+    // the same path will serialize at the lock, not duplicate work.
+    let results: Vec<_> = futures::stream::iter(paths.into_iter().enumerate())
+        .map(|(i, path)| {
+            let store = store.clone();
+            async move {
+                let before = Instant::now();
+                let result = store.ensure_path(&path).await;
+                let elapsed = before.elapsed();
+                if elapsed > std::time::Duration::from_secs(5) {
+                    tracing::warn!(
+                        "Slow substitution {}/{}: {} took {:.1}s",
+                        i + 1, total, path, elapsed.as_secs_f64()
+                    );
+                }
+                (path, result)
+            }
+        })
+        // Keep concurrency low: each ensure_path occupies a tokio
+        // spawn_blocking thread for the entire substitution duration.
+        // With prefetch_factor=2 and max_jobs=4, up to 8 builds import
+        // concurrently.  At 3 per build = 24 blocking threads, safe
+        // within tokio's default pool of 512.  Higher values (10+)
+        // caused pool exhaustion, starving the async ping generator
+        // and killing gRPC streams with "broken pipe".
+        .buffer_unordered(3)
+        .collect()
+        .await;
+
+    let mut ok = 0usize;
+    let mut err = 0usize;
+    for (path, result) in &results {
+        match result {
+            Ok(()) => ok += 1,
+            Err(e) => {
+                err += 1;
+                tracing::debug!("Substitution failed for {path}: {e}");
+            }
+        }
     }
-    Ok(())
+    if err > 0 {
+        tracing::info!(
+            "Substitution: {ok}/{total} succeeded, {err} failed (will fetch via gRPC)"
+        );
+    } else if total > 0 {
+        tracing::info!("Substitution: all {total} paths resolved locally or via substituters");
+    }
+    (ok, err)
 }
 
 #[tracing::instrument(skip(client, store, metrics), fields(%gcroot), err)]
@@ -733,9 +1011,8 @@ async fn import_paths(
         paths
     };
     let paths = if use_substitutes {
-        // we can ignore the error
         metrics.add_substituting_path(paths.len() as u64);
-        let _ = substitute_paths(&store, &paths).await;
+        let (_ok, _err) = substitute_paths(store.clone(), paths.clone()).await;
         metrics.sub_substituting_path(paths.len() as u64);
         let paths = futures::StreamExt::map(tokio_stream::iter(paths), |p| {
             filter_missing(&store, gcroot, p)
@@ -752,7 +1029,7 @@ async fn import_paths(
         paths
     };
 
-    tracing::debug!("Start importing paths");
+    tracing::info!("Streaming {} paths from queue runner", paths.len());
     let stream = client
         .stream_files(StorePaths {
             paths: paths
@@ -775,7 +1052,7 @@ async fn import_paths(
         .await;
     metrics.sub_downloading_path(paths.len() as u64);
     import_result?;
-    tracing::debug!("Finished importing paths");
+    tracing::info!("Finished streaming {} paths from queue runner", paths.len());
 
     for p in paths {
         nix_utils::add_root(&store, &gcroot.root, &p);
@@ -794,6 +1071,8 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
+    build_id: &str,
+    machine_id: &str,
 ) -> anyhow::Result<()> {
     use futures::stream::StreamExt as _;
 
@@ -809,6 +1088,16 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
         .into_iter()
         .partition(nix_utils::StorePath::is_derivation);
 
+    tracing::info!(
+        "Import plan for {drv}: {srcs} sources + {drvs} derivations to fetch (already local paths filtered out)",
+        srcs = input_srcs.len(),
+        drvs = input_drvs.len(),
+    );
+
+    let src_total = input_srcs.len();
+    let drv_total = input_drvs.len();
+    let import_total = src_total + drv_total;
+    let mut src_imported = 0usize;
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -820,8 +1109,22 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             use_substitutes,
         )
         .await?;
+        src_imported += srcs.len();
+        tracing::info!(
+            "Imported sources {imported}/{total} for {drv}",
+            imported = src_imported,
+            total = src_total,
+        );
+        let _ = client.build_step_update(StepUpdate {
+            build_id: build_id.to_owned(),
+            machine_id: machine_id.to_owned(),
+            step_status: StepStatus::SeningInputs as i32,
+            progress_current: src_imported as u32,
+            progress_total: import_total as u32,
+        }).await;
     }
 
+    let mut drv_imported = 0usize;
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
@@ -833,6 +1136,12 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             false, // never use substitute for drvs
         )
         .await?;
+        drv_imported += drvs.len();
+        tracing::info!(
+            "Imported derivations {imported}/{total} for {drv}",
+            imported = drv_imported,
+            total = drv_total,
+        );
     }
 
     let full_requisites = client
@@ -847,6 +1156,7 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
         .into_iter()
         .map(|s| s.0)
         .collect::<Vec<_>>();
+    let full_req_total = full_requisites.len();
     let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
         filter_missing(&store, gcroot, p)
     })
@@ -855,6 +1165,16 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
+    if !full_requisites.is_empty() {
+        tracing::info!(
+            "Importing {missing}/{total} remaining requisites (with outputs) for {drv}",
+            missing = full_requisites.len(),
+            total = full_req_total,
+        );
+    }
+
+    let remaining_total = full_requisites.len();
+    let mut remaining_imported = 0usize;
     for other in full_requisites.chunks(max_concurrent_downloads) {
         // we can skip filtering here as we already done that
         import_paths(
@@ -867,8 +1187,17 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
             use_substitutes,
         )
         .await?;
+        remaining_imported += other.len();
+        if remaining_total > max_concurrent_downloads {
+            tracing::info!(
+                "Imported remaining requisites {imported}/{total} for {drv}",
+                imported = remaining_imported,
+                total = remaining_total,
+            );
+        }
     }
 
+    tracing::info!("Import complete for {drv}");
     Ok(())
 }
 
