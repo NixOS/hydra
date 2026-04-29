@@ -355,12 +355,20 @@ impl Connection {
                 CROSS JOIN LATERAL (
                     SELECT o.path
                     FROM buildsteps s
+                    -- If this step was resolved, look up outputs from
+                    -- the resolved drv's successful buildstep instead.
+                    -- resolvedDrvPath is a bare basename; drvPath is a
+                    -- full path, so strip the directory prefix to compare.
+                    LEFT JOIN buildsteps sr
+                        ON sr.drvPath = $2 || '/' || s.resolvedDrvPath
+                        AND sr.status = 0
                     JOIN buildstepoutputs o
-                        ON s.build = o.build AND s.stepnr = o.stepnr
+                        ON o.build = COALESCE(sr.build, s.build)
+                        AND o.stepnr = COALESCE(sr.stepnr, s.stepnr)
                     WHERE s.drvPath = r.drv_path
                       AND o.name = i.chain[r.step]
                       AND o.path IS NOT NULL
-                      AND s.status = 0
+                      AND (s.status = 0 OR s.status = 13)
                     ORDER BY s.build DESC
                     LIMIT 1
                 ) sub
@@ -376,6 +384,7 @@ impl Connection {
             ",
         )
         .bind(&json_input)
+        .bind(store_dir.to_str())
         .fetch_all(&mut *self.conn)
         .await?;
 
@@ -693,6 +702,36 @@ impl Transaction<'_> {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self), err)]
+    pub async fn find_build_step_outputs(
+        &mut self,
+        store_dir: &StoreDir,
+        drv_path: &StorePath,
+    ) -> sqlx::Result<BTreeMap<OutputName, StorePath>> {
+        let drv_path = store_dir.display(drv_path).to_string();
+        let items: Vec<(String, String)> = sqlx::query_as(
+            r"SELECT o.name, o.path
+              FROM buildstepoutputs o
+              JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
+              WHERE s.drvpath = $1 AND o.path IS NOT NULL",
+        )
+        .bind(drv_path)
+        .fetch_all(&mut *self.tx)
+        .await?;
+
+        items
+            .into_iter()
+            .map(|(name, path)| -> anyhow::Result<_> {
+                let name: OutputName = name.parse().context("invalid output name from DB")?;
+                let path: StorePath = store_dir
+                    .parse(&path)
+                    .context("invalid store path from DB")?;
+                Ok((name, path))
+            })
+            .collect::<anyhow::Result<_>>()
+            .map_err(|e| sqlx::Error::Decode(e.into_boxed_dyn_error()))
+    }
+
     #[tracing::instrument(skip(self, res), err)]
     pub async fn update_build_step_in_finish(
         &mut self,
@@ -937,6 +976,83 @@ impl Transaction<'_> {
         if status == BuildStatus::Busy {
             self.notify_step_started(build_id, step_nr).await?;
         }
+
+        Ok(step_nr)
+    }
+
+    /// Record which resolved drv path this step was resolved to.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn set_resolved_to(
+        &mut self,
+        origin_build_id: crate::models::BuildID,
+        origin_step_nr: i32,
+        resolved_drv_path: &StorePath,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            r"
+              UPDATE buildsteps
+              SET resolvedDrvPath = $3
+              WHERE build = $1 AND stepnr = $2
+            ",
+        )
+        .bind(origin_build_id)
+        .bind(origin_step_nr)
+        .bind(resolved_drv_path.to_string())
+        .execute(&mut *self.tx)
+        .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(
+        skip(self, start_time, stop_time, build_id, drv_path, outputs,),
+        err,
+        ret
+    )]
+    pub async fn create_local_step(
+        &mut self,
+        store_dir: &StoreDir,
+        start_time: i32,
+        stop_time: i32,
+        build_id: crate::models::BuildID,
+        drv_path: &StorePath,
+        outputs: BTreeMap<OutputName, StorePath>,
+    ) -> anyhow::Result<i32> {
+        let step_nr = loop {
+            if let Some(step_nr) = self
+                .insert_build_step(
+                    store_dir,
+                    InsertBuildStep {
+                        build_id,
+                        r#type: crate::models::BuildType::Substitution,
+                        drv_path,
+                        status: BuildStatus::Success,
+                        busy: false,
+                        start_time: Some(start_time),
+                        stop_time: Some(stop_time),
+                        platform: None,
+                        propagated_from: None,
+                        error_msg: None,
+                        machine: "",
+                    },
+                )
+                .await?
+            {
+                break step_nr;
+            }
+        };
+
+        let output_items: Vec<_> = outputs
+            .into_iter()
+            .map(|(name, path)| InsertBuildStepOutput {
+                build_id,
+                step_nr,
+                name,
+                path: Some(path),
+            })
+            .collect();
+
+        self.insert_build_step_outputs(store_dir, &output_items)
+            .await?;
 
         Ok(step_nr)
     }
@@ -1191,11 +1307,24 @@ mod tests {
     }
 
     async fn insert_step(conn: &mut Connection, build: i32, stepnr: i32, drv_path: &StorePath) {
+        insert_step_with_status(conn, build, stepnr, drv_path, 0, None).await;
+    }
+
+    async fn insert_step_with_status(
+        conn: &mut Connection,
+        build: i32,
+        stepnr: i32,
+        drv_path: &StorePath,
+        status: i32,
+        resolved_drv_path: Option<&StorePath>,
+    ) {
         let sd = test_store_dir();
-        sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 0, $3, 0)")
+        sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5)")
             .bind(build)
             .bind(stepnr)
             .bind(sd.display(drv_path).to_string())
+            .bind(status)
+            .bind(resolved_drv_path.map(|p| p.to_string()))
             .execute(&mut *conn.conn)
             .await
             .unwrap();
@@ -1333,6 +1462,70 @@ mod tests {
         );
     }
 
+    /// A step that was resolved (status=13) with `resolvedDrvPath` pointing
+    /// to a different drv whose successful buildstep has the outputs.
+    #[tokio::test]
+    async fn resolve_through_resolved_step() {
+        let (_pg, mut conn) = setup().await;
+
+        // Step 1: unresolved ca-depending-on-ca.drv, status=Resolved(13),
+        // resolvedDrvPath points to the resolved drv
+        insert_step_with_status(
+            &mut conn,
+            1,
+            1,
+            &sp("unresolved.drv"),
+            13,
+            Some(&sp("resolved.drv")),
+        )
+        .await;
+        // A successful buildstep for the resolved drv (could be any build)
+        insert_step(&mut conn, 2, 1, &sp("resolved.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("result")).await;
+
+        // Looking up via the unresolved drv path should find the output
+        // through the resolvedDrvPath chain.
+        let results = conn
+            .resolve_drv_output_chains(&test_store_dir(), &[(&sp("unresolved.drv"), &[&on("out")])])
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some(sp("result"))]);
+    }
+
+    /// A depth-2 chain where the first step was resolved:
+    /// unresolved.drv (status=13, resolvedDrvPath→resolved.drv) →
+    /// resolved.drv outputs a .drv path → that .drv has the final output.
+    #[tokio::test]
+    async fn resolve_depth_2_through_resolved_step() {
+        let (_pg, mut conn) = setup().await;
+
+        // Build 1: unresolved step, resolved to bbb-resolved.drv
+        insert_step_with_status(
+            &mut conn,
+            1,
+            1,
+            &sp("unresolved.drv"),
+            13,
+            Some(&sp("resolved.drv")),
+        )
+        .await;
+        insert_step(&mut conn, 2, 1, &sp("resolved.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("intermediate.drv")).await;
+
+        // Build 3: the intermediate drv
+        insert_step(&mut conn, 3, 1, &sp("intermediate.drv")).await;
+        insert_output(&mut conn, 3, 1, "out", &sp("final")).await;
+
+        let results = conn
+            .resolve_drv_output_chains(
+                &test_store_dir(),
+                &[(&sp("unresolved.drv"), &[&on("out"), &on("out")])],
+            )
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some(sp("final"))]);
+    }
+
     /// Batch with ragged depths: one depth-1 (Opaque), one depth-2 (Built),
     /// one depth-3 (Built(Built(...))).
     #[tokio::test]
@@ -1376,5 +1569,42 @@ mod tests {
                 Some(sp("result-c")),
             ]
         );
+    }
+
+    /// Depth-1 lookup where the only buildstep for the drv has
+    /// status=Resolved(13) with `resolvedDrvPath` pointing to
+    /// a different drv whose successful buildstep has the outputs.
+    /// This matches the production scenario: ca-depending-on-ca.drv
+    /// was resolved to a different drv, and ca-depending-on-ca-
+    /// depending-on-ca needs to look up its output.
+    #[tokio::test]
+    async fn resolve_depth_1_via_resolved_step() {
+        let (_pg, mut conn) = setup().await;
+
+        // Build 1, step 1: unresolved ca-depending-on-ca.drv
+        //   status=13 (Resolved), resolvedDrvPath points to the resolved drv
+        insert_step_with_status(
+            &mut conn,
+            1,
+            1,
+            &sp("unresolved-ca-dep.drv"),
+            13,
+            Some(&sp("resolved-ca-dep.drv")),
+        )
+        .await;
+        // Build 2: the resolved drv was built successfully
+        insert_step(&mut conn, 2, 1, &sp("resolved-ca-dep.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("ca-dep-output")).await;
+
+        // Depth-1 chain: look up "out" of the unresolved drv path.
+        // The query should follow resolvedDrvPath to find the output.
+        let results = conn
+            .resolve_drv_output_chains(
+                &test_store_dir(),
+                &[(&sp("unresolved-ca-dep.drv"), &[&on("out")])],
+            )
+            .await
+            .unwrap();
+        assert_eq!(results, vec![Some(sp("ca-dep-output"))]);
     }
 }
