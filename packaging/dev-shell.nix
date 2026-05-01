@@ -1,5 +1,6 @@
 {
   pkgs,
+  nix-perl,
   hydra,
   hydra-tests,
   hydra-manual,
@@ -12,6 +13,7 @@ let
   inherit (pkgs) lib;
 
   components = [
+    nix-perl
     hydra
     hydra-tests
     hydra-manual
@@ -64,5 +66,10 @@ hydra.overrideAttrs (
     mesonFlags = [ ];
 
     RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+
+    shellHook = ''
+      # Create .version for nix-perl meson subproject
+      echo ${nix-perl.version} > subprojects/nix-perl/.version
+    '';
   }
 )

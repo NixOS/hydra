@@ -55,6 +55,9 @@
           nix-eval-jobs = self'.callPackage nix-eval-jobs {
             inherit nixComponents;
           };
+          nix-perl = self'.callPackage ./subprojects/nix-perl/package.nix {
+            inherit (nixComponents) nix-store;
+          };
           hydra = self'.callPackage ./subprojects/hydra/package.nix {
             inherit nixComponents;
             rawSrc = self;
@@ -242,6 +245,7 @@
         default = import ./packaging/dev-shell.nix {
           pkgs = nixpkgs.legacyPackages.${system};
           inherit (self.packages.${system})
+            nix-perl
             hydra
             hydra-tests
             hydra-manual

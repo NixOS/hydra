@@ -1,17 +1,39 @@
+# Editor backup files
 *~
+
+# Nix dev shell
 /.direnv/
+
+# Test artifacts
 .test_info.*
+
+# Downloaded frontend assets
 /subprojects/hydra/root/static/bootstrap
 /subprojects/hydra/root/static/fontawesome
 /subprojects/hydra/root/static/js/flot
+
+# Generated SQL files
 /subprojects/hydra/sql/hydra-postgresql.sql
 /subprojects/hydra/sql/hydra-sqlite.sql
 /subprojects/hydra/sql/tmp.sqlite
+
+# Created by shell hook / preConfigure with the version from nix-store pkg-config.
+/subprojects/nix-perl/.version
+
+# Meson wrap lockfile
 /subprojects/.wraplock
+
+# Meson build directory
 /build/
+
+# Hydra runtime data
 .hydra-data
+
+# Nix build results
 result
 result-*
 outputs
+
+# Rust / Cargo
 /target
 /config.toml
