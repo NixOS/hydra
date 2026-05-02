@@ -79,15 +79,6 @@ pub struct State {
     pub steps: Steps,
     pub queues: Queues,
 
-    /// In-memory mapping from unresolved CA drv path to resolved drv
-    /// path. Used to translate drv paths before SQL output lookups,
-    /// temporarily avoiding the need for a `resolvedDrvPath` column in
-    /// the database.
-    ///
-    /// FIXME: Replace this with proper persisted column, so we don't have to re-resolve on
-    /// restart.
-    pub resolved_drv_map: parking_lot::RwLock<HashMap<nix_utils::StorePath, nix_utils::StorePath>>,
-
     pub fod_checker: Option<Arc<FodChecker>>,
 
     pub started_at: jiff::Timestamp,
@@ -140,7 +131,6 @@ impl State {
             cli,
             db,
             machines: Machines::new(),
-            resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
             log_dir,
             builds: Builds::new(),
             jobsets: Jobsets::new(),
@@ -413,13 +403,11 @@ impl State {
 
                 // Resolve `Built` input placeholders to concrete store
                 // paths using outputs recorded in the DB.
-                let resolved_map = self.resolved_drv_map.read().clone();
-                let basic_drv =
-                    StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref, &resolved_map)
-                        .await
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Failed to resolve CAFloating derivation {drv}")
-                        })?;
+                let basic_drv = StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref)
+                    .await
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Failed to resolve CAFloating derivation {drv}")
+                    })?;
                 let resolved_path = self.store.write_derivation(&basic_drv).await?;
                 // If resolution changed the drv, we need a two-phase
                 // build; otherwise just build the original directly.
@@ -430,11 +418,12 @@ impl State {
             if let Some(resolved_path) = resolved_path {
                 tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
 
-                // Record the resolved drv path in memory so future
-                // output lookups can translate through it.
-                self.resolved_drv_map
-                    .write()
-                    .insert(drv.clone(), resolved_path.clone());
+                // Record the resolved drv path on the original step so
+                // future output lookups can follow the chain.
+                let mut tx = db.begin_transaction().await?;
+                tx.set_resolved_to(build_id, step_nr, &resolved_path)
+                    .await?;
+                tx.commit().await?;
 
                 // Finish original step as "resolved" in the DB and in-memory
                 step_info.step.set_finished(true);
