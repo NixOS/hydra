@@ -88,16 +88,10 @@ my $downstream2 = $db->resultset('Builds')->find({
 my $downstream1_out = $downstream1->buildoutputs->find({ name => "out" });
 my $downstream2_out = $downstream2->buildoutputs->find({ name => "out" });
 is($downstream1_out->path, $downstream2_out->path,
-    "Both downstream builds should resolve to the same content-addressed output path");
+    "Both downstream builds should create the same content-addressed output path");
 
-# TODO: Once the queue runner deduplicates steps by resolved derivation
-# path (not just original drv path), we should also verify that both
-# original steps resolve to steps with the same derivation. (Might even
-# be the same step, but that doesn't matter as much).
-#
-# If there are multiple steps for the single resolved derivation,
-# additionally, only one should get built, and the other should be a
-# cached successes (as is normal for duplicative build steps).
+ok($downstream1->iscachedbuild || $downstream2->iscachedbuild,
+    "One downstream build should be cached");
 
 done_testing;
 

@@ -363,6 +363,28 @@ impl Step {
             .store(state.deps.len() as u64, Ordering::Relaxed);
     }
 
+    pub fn remove_dep(&self, dep: &Arc<Self>) {
+        let mut state = self.state.write();
+        state.deps.remove(dep);
+        self.atomic_state
+            .deps_len
+            .store(state.deps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn make_rdep(self: &Arc<Self>, dep: &Arc<Self>) {
+        dep.add_dep(self.clone());
+        let mut state = self.state.write();
+        state.rdeps.push(Arc::downgrade(dep));
+        self.atomic_state
+            .rdeps_len
+            .store(state.rdeps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn clone_rdeps(&self) -> Vec<Weak<Step>> {
+        let state = self.state.read();
+        state.rdeps.clone()
+    }
+
     pub fn add_referring_data(
         &self,
         referring_build: Option<&Arc<Build>>,

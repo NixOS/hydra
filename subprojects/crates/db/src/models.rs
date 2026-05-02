@@ -22,6 +22,8 @@ pub enum BuildStatus {
     LogLimitExceeded = 10,
     NarSizeLimitExceeded = 11,
     NotDeterministic = 12,
+    /// step was resolved to a CA derivation
+    Resolved = 13,
     /// not stored
     Busy = 100,
 }
@@ -42,6 +44,7 @@ impl BuildStatus {
             10 => Some(Self::LogLimitExceeded),
             11 => Some(Self::NarSizeLimitExceeded),
             12 => Some(Self::NotDeterministic),
+            13 => Some(Self::Resolved),
             100 => Some(Self::Busy),
             _ => None,
         }
