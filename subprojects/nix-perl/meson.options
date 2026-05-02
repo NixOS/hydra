@@ -11,20 +11,3 @@ option(
   value : 'disabled',
   description : 'run nix-perl tests',
 )
-
-
-# Location of Perl Modules
-#============================================================================
-option(
-  'dbi_path',
-  type : 'string',
-  value : '/usr',
-  description : 'path to perl::dbi',
-)
-
-option(
-  'dbd_sqlite_path',
-  type : 'string',
-  value : '/usr',
-  description : 'path to perl::dbd-SQLite',
-)

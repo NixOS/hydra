@@ -11,9 +11,6 @@
 #include "nix/store/globals.hh"
 #include "nix/store/store-open.hh"
 #include "nix/util/posix-source-accessor.hh"
-#include "nix/store/export-import.hh"
-
-#include <sodium.h>
 #include <nlohmann/json.hpp>
 
 using namespace nix;
@@ -86,11 +83,6 @@ void init()
         }
 
 
-void setVerbosity(int level)
-    CODE:
-        verbosity = (Verbosity) level;
-
-
 int
 StoreWrapper::isValidPath(char * path)
     CODE:
@@ -120,18 +112,6 @@ StoreWrapper::queryPathHash(char * path)
         try {
             auto s = THIS->store->queryPathInfo(THIS->store->parseStorePath(path))->narHash.to_string(HashFormat::Nix32, true);
             XPUSHs(sv_2mortal(newSVpv(s.c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-SV *
-StoreWrapper::queryDeriver(char * path)
-    PPCODE:
-        try {
-            auto info = THIS->store->queryPathInfo(THIS->store->parseStorePath(path));
-            if (!info->deriver) XSRETURN_UNDEF;
-            XPUSHs(sv_2mortal(newSVpv(THIS->store->printStorePath(*info->deriver).c_str(), 0)));
         } catch (Error & e) {
             croak("%s", e.what());
         }
@@ -227,66 +207,6 @@ StoreWrapper::followLinksToStorePath(char * path)
         RETVAL
 
 
-void
-StoreWrapper::exportPaths(int fd, ...)
-    PPCODE:
-        try {
-            StorePathSet paths;
-            for (int n = 2; n < items; ++n) paths.insert(THIS->store->parseStorePath(SvPV_nolen(ST(n))));
-            FdSink sink(fd);
-            exportPaths(*THIS->store, paths, sink);
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-void
-StoreWrapper::importPaths(int fd, int dontCheckSigs)
-    PPCODE:
-        try {
-            FdSource source(fd);
-            importPaths(*THIS->store, source, dontCheckSigs ? NoCheckSigs : CheckSigs);
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-SV *
-hashPath(char * algo, int base32, char * path)
-    PPCODE:
-        try {
-            Hash h = hashPath(
-                PosixSourceAccessor::createAtRoot(path),
-                FileIngestionMethod::NixArchive, parseHashAlgo(algo)).first;
-            auto s = h.to_string(base32 ? HashFormat::Nix32 : HashFormat::Base16, false);
-            XPUSHs(sv_2mortal(newSVpv(s.c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-SV * hashFile(char * algo, int base32, char * path)
-    PPCODE:
-        try {
-            Hash h = hashFile(parseHashAlgo(algo), path);
-            auto s = h.to_string(base32 ? HashFormat::Nix32 : HashFormat::Base16, false);
-            XPUSHs(sv_2mortal(newSVpv(s.c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-SV * hashString(char * algo, int base32, char * s)
-    PPCODE:
-        try {
-            Hash h = hashString(parseHashAlgo(algo), s);
-            auto s = h.to_string(base32 ? HashFormat::Nix32 : HashFormat::Base16, false);
-            XPUSHs(sv_2mortal(newSVpv(s.c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
 SV * convertHash(char * algo, char * s, int toBase32)
     PPCODE:
         try {
@@ -308,27 +228,6 @@ SV * signString(char * secretKey_, char * msg)
         }
 
 
-int checkSignature(SV * publicKey_, SV * sig_, char * msg)
-    CODE:
-        try {
-            STRLEN publicKeyLen;
-            unsigned char * publicKey = (unsigned char *) SvPV(publicKey_, publicKeyLen);
-            if (publicKeyLen != crypto_sign_PUBLICKEYBYTES)
-                throw Error("public key is not valid");
-
-            STRLEN sigLen;
-            unsigned char * sig = (unsigned char *) SvPV(sig_, sigLen);
-            if (sigLen != crypto_sign_BYTES)
-                throw Error("signature is not valid");
-
-            RETVAL = crypto_sign_verify_detached(sig, (unsigned char *) msg, strlen(msg), publicKey) == 0;
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-    OUTPUT:
-        RETVAL
-
-
 SV *
 StoreWrapper::addToStore(char * srcPath, int recursive, char * algo)
     PPCODE:
@@ -338,23 +237,6 @@ StoreWrapper::addToStore(char * srcPath, int recursive, char * algo)
                 std::string(baseNameOf(srcPath)),
                 PosixSourceAccessor::createAtRoot(srcPath),
                 method, parseHashAlgo(algo));
-            XPUSHs(sv_2mortal(newSVpv(THIS->store->printStorePath(path).c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
-SV *
-StoreWrapper::makeFixedOutputPath(int recursive, char * algo, char * hash, char * name)
-    PPCODE:
-        try {
-            auto h = Hash::parseAny(hash, parseHashAlgo(algo));
-            auto method = recursive ? FileIngestionMethod::NixArchive : FileIngestionMethod::Flat;
-            auto path = THIS->store->makeFixedOutputPath(name, FixedOutputInfo {
-                .method = method,
-                .hash = h,
-                .references = {},
-            });
             XPUSHs(sv_2mortal(newSVpv(THIS->store->printStorePath(path).c_str(), 0)));
         } catch (Error & e) {
             croak("%s", e.what());

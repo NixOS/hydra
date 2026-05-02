@@ -9,9 +9,7 @@
 nix_perl_store_xs = files('Store.xs')
 
 nix_perl_scripts = files(
-  'CopyClosure.pm',
   'Manifest.pm',
-  'SSH.pm',
   'Store.pm',
   'Utils.pm',
 )
