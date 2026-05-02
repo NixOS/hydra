@@ -395,6 +395,41 @@ impl Connection {
         Ok(results)
     }
 
+    /// Look up a single output of a derivation from the most recent
+    /// successful buildstep.
+    pub async fn resolve_drv_output(
+        &mut self,
+        store_dir: &StoreDir,
+        drv_path: &StorePath,
+        output_name: &OutputName,
+    ) -> sqlx::Result<Option<StorePath>> {
+        let drv_display = store_dir.display(drv_path).to_string();
+        let output_name_str: &str = output_name.as_ref();
+        let row: Option<(String,)> = sqlx::query_as(
+            r"SELECT o.path
+              FROM buildsteps s
+              JOIN buildstepoutputs o
+                  ON s.build = o.build AND s.stepnr = o.stepnr
+              WHERE s.drvPath = $1
+                AND o.name = $2
+                AND o.path IS NOT NULL
+                AND s.status = 0
+              ORDER BY s.build DESC
+              LIMIT 1",
+        )
+        .bind(&drv_display)
+        .bind(output_name_str)
+        .fetch_optional(&mut *self.conn)
+        .await?;
+
+        row.map(|(path,)| {
+            store_dir
+                .parse(&path)
+                .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+        })
+        .transpose()
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_status(&mut self) -> sqlx::Result<Option<serde_json::Value>> {
         Ok(
@@ -1460,5 +1495,143 @@ mod tests {
                 Some(sp("result-c")),
             ]
         );
+    }
+
+    // -- resolve_drv_output (depth-1) tests ------------------------------------
+
+    #[tokio::test]
+    async fn resolve_drv_output_basic() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("result")).await;
+
+        let result = conn
+            .resolve_drv_output(&test_store_dir(), &sp("foo.drv"), &on("out"))
+            .await
+            .unwrap();
+        assert_eq!(result, Some(sp("result")));
+    }
+
+    #[tokio::test]
+    async fn resolve_drv_output_missing() {
+        let (_pg, mut conn) = setup().await;
+        let result = conn
+            .resolve_drv_output(&test_store_dir(), &sp("nonexistent.drv"), &on("out"))
+            .await
+            .unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn resolve_drv_output_picks_latest_build() {
+        let (_pg, mut conn) = setup().await;
+        insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("old-result")).await;
+        insert_step(&mut conn, 5, 1, &sp("foo.drv")).await;
+        insert_output(&mut conn, 5, 1, "out", &sp("new-result")).await;
+
+        let result = conn
+            .resolve_drv_output(&test_store_dir(), &sp("foo.drv"), &on("out"))
+            .await
+            .unwrap();
+        assert_eq!(result, Some(sp("new-result")));
+    }
+
+    // -- Simulate the Rust-side loop that replaces the recursive SQL ----------
+    //
+    // These mirror the resolved-step tests from the DB-column approach,
+    // but use resolve_drv_output + an in-memory map instead of
+    // resolvedDrvPath in the SQL.
+
+    /// Helper: resolve a chain one level at a time using `resolve_drv_output`,
+    /// translating through `resolved_map` between levels.
+    async fn resolve_chain_with_map(
+        conn: &mut Connection,
+        resolved_map: &std::collections::HashMap<StorePath, StorePath>,
+        root: &StorePath,
+        outputs: &[&OutputName],
+    ) -> Option<StorePath> {
+        let sd = test_store_dir();
+        let mut current = root.clone();
+        for output_name in outputs {
+            let translated = resolved_map.get(&current).cloned().unwrap_or(current);
+            current = conn
+                .resolve_drv_output(&sd, &translated, output_name)
+                .await
+                .unwrap()?;
+        }
+        Some(current)
+    }
+
+    /// Depth-1: unresolved.drv was resolved to resolved.drv, which has
+    /// the outputs. The in-memory map translates before lookup.
+    #[tokio::test]
+    async fn resolve_with_map_depth_1() {
+        let (_pg, mut conn) = setup().await;
+
+        // resolved.drv was built successfully
+        insert_step(&mut conn, 2, 1, &sp("resolved.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("result")).await;
+
+        let mut map = std::collections::HashMap::new();
+        map.insert(sp("unresolved.drv"), sp("resolved.drv"));
+
+        let result =
+            resolve_chain_with_map(&mut conn, &map, &sp("unresolved.drv"), &[&on("out")]).await;
+        assert_eq!(result, Some(sp("result")));
+    }
+
+    /// Depth-2: unresolved.drv was resolved to resolved.drv, whose output
+    /// is an intermediate.drv that has the final output.
+    #[tokio::test]
+    async fn resolve_with_map_depth_2() {
+        let (_pg, mut conn) = setup().await;
+
+        insert_step(&mut conn, 2, 1, &sp("resolved.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("intermediate.drv")).await;
+        insert_step(&mut conn, 3, 1, &sp("intermediate.drv")).await;
+        insert_output(&mut conn, 3, 1, "out", &sp("final")).await;
+
+        let mut map = std::collections::HashMap::new();
+        map.insert(sp("unresolved.drv"), sp("resolved.drv"));
+
+        let result = resolve_chain_with_map(
+            &mut conn,
+            &map,
+            &sp("unresolved.drv"),
+            &[&on("out"), &on("out")],
+        )
+        .await;
+        assert_eq!(result, Some(sp("final")));
+    }
+
+    /// Depth-2 where the intermediate result was also resolved:
+    /// root.drv.drv (not resolved) → intermediate.drv (resolved) → final
+    #[tokio::test]
+    async fn resolve_with_map_intermediate_resolved() {
+        let (_pg, mut conn) = setup().await;
+
+        // root.drv.drv^out → unresolved-intermediate.drv
+        insert_step(&mut conn, 1, 1, &sp("root.drv.drv")).await;
+        insert_output(&mut conn, 1, 1, "out", &sp("unresolved-intermediate.drv")).await;
+
+        // resolved-intermediate.drv^out → final-result
+        insert_step(&mut conn, 2, 1, &sp("resolved-intermediate.drv")).await;
+        insert_output(&mut conn, 2, 1, "out", &sp("final-result")).await;
+
+        let mut map = std::collections::HashMap::new();
+        map.insert(
+            sp("unresolved-intermediate.drv"),
+            sp("resolved-intermediate.drv"),
+        );
+
+        let result = resolve_chain_with_map(
+            &mut conn,
+            &map,
+            &sp("root.drv.drv"),
+            &[&on("out"), &on("out")],
+        )
+        .await;
+        assert_eq!(result, Some(sp("final-result")));
     }
 }
