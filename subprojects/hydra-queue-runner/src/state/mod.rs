@@ -309,15 +309,6 @@ pub struct State {
     pub steps: Steps,
     pub queues: Queues,
 
-    /// In-memory mapping from unresolved CA drv path to resolved drv
-    /// path. Used to translate drv paths before SQL output lookups,
-    /// temporarily avoiding the need for a `resolvedDrvPath` column in
-    /// the database.
-    ///
-    /// FIXME: Replace this with proper persisted column, so we don't have to re-resolve on
-    /// restart.
-    pub resolved_drv_map: parking_lot::RwLock<HashMap<StorePath, StorePath>>,
-
     pub fod_checker: Option<Arc<FodChecker>>,
 
     pub started_at: jiff::Timestamp,
@@ -444,7 +435,6 @@ impl State {
             cli,
             db,
             machines: Machines::new(),
-            resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
             log_dir,
             builds: Builds::new(),
             jobsets: Jobsets::new(),
@@ -879,15 +869,10 @@ impl State {
             let drv_ref = &full_drv;
 
             // Resolve `Built` input references to concrete store paths.
-            let resolved_map = self.resolved_drv_map.read().clone();
-            let mut basic_drv = StepInfo::try_resolve_force(
-                self.connector.store_dir(),
-                &self.db,
-                drv_ref,
-                &resolved_map,
-            )
-            .await
-            .ok_or_else(|| ResolutionError::ResolveFailed(drv.clone()))?;
+            let mut basic_drv =
+                StepInfo::try_resolve_force(self.connector.store_dir(), &self.db, drv_ref)
+                    .await
+                    .ok_or_else(|| ResolutionError::ResolveFailed(drv.clone()))?;
 
             // Input-addressed outputs that transitively depend on a CA
             // derivation come out of eval as `Deferred` because the IA
@@ -942,27 +927,21 @@ impl State {
             if &resolved_path != drv {
                 tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
 
-                // Record the resolved drv path in memory so future
-                // output lookups can translate through it.
-                self.resolved_drv_map
-                    .write()
-                    .insert(drv.clone(), resolved_path.clone());
-
-                // Record the original step directly as Resolved.
+                // Record the original step directly as Resolved, with
+                // `resolvedDrvPath` set so future output lookups can
+                // follow the chain.
                 step_info.step.set_finished(true);
                 {
                     let _step_lock = self.build_step_lock(build_id).lock().await;
                     let mut tx = db.begin_transaction().await?;
-                    tx.create_build_step(
+                    tx.create_resolved_build_step(
                         self.connector.store_dir(),
-                        Some(job.result.get_start_time_as_i32()?),
+                        job.result.get_start_time_as_i32()?,
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
                         machine.hostname.clone(),
-                        BuildStatus::Resolved,
-                        None,
-                        None,
+                        &resolved_path,
                         step_info
                             .step
                             .get_output_paths()
