@@ -37,7 +37,6 @@ fn start_task_loops(state: &std::sync::Arc<State>) -> Vec<tokio::task::AbortHand
     let mut service_list = vec![
         spawn_config_reloader(state.clone(), state.config.clone(), &state.cli.config_path),
         state.clone().start_dispatch_loop(),
-        state.clone().start_dump_status_loop(),
         state.clone().start_uploader_queue(),
     ];
     if !state.cli.disable_queue_monitor_loop {
@@ -77,7 +76,7 @@ fn spawn_config_reloader(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let tracing_guard = hydra_tracing::init()?;
+    let _tracing_guard = hydra_tracing::init()?;
 
     #[cfg(debug_assertions)]
     {
@@ -91,11 +90,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     nix_utils::init_nix();
-    let state = State::new(&tracing_guard).await?;
-    if state.cli.status {
-        state.get_status_from_main_process().await?;
-        return Ok(());
-    }
+    let state = State::new().await?;
 
     let lockfile_path = state.config.get_lockfile();
     let _lock = lock_file::LockFile::acquire(&lockfile_path)

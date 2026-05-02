@@ -628,6 +628,8 @@ create rule IdempotentInsert as on insert to FailedPaths
 
 
 
+-- TODO: Drop this table in a future migration. The queue runner no longer
+-- writes status here; all status is served via its REST API instead.
 create table SystemStatus (
     what text primary key not null,
     status json not null

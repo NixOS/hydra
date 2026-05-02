@@ -9,7 +9,7 @@ use Net::Statsd;
 use File::Slurper qw(read_text);
 use JSON::MaybeXS;
 use Getopt::Long qw(:config gnu_getopt);
-use IPC::Run3;
+use LWP::UserAgent;
 
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
@@ -26,48 +26,48 @@ sub gauge {
 }
 
 sub sendQueueRunnerStats {
-    my ($stdout, $stderr);
-    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
-    die "cannot get queue runner stats: $stderr\n" if $? != 0;
+    my $endpoint = $config->{'queue_runner_endpoint'}
+        or die "queue_runner_endpoint not configured in hydra.conf\n";
 
-    my $json = decode_json($stdout) or die "cannot decode queue runner status";
+    my $ua = LWP::UserAgent->new();
+    my $resp = $ua->get($endpoint . "/status");
+    die "cannot get queue runner stats: " . $resp->status_line . "\n"
+        unless $resp->is_success;
 
-    gauge("hydra.queue.up", $json->{status} eq "up" ? 1 : 0);
+    my $json = decode_json($resp->decoded_content)
+        or die "cannot decode queue runner status";
 
-    return if $json->{status} ne "up";
+    my $qr = $json->{queueRunner};
 
-    gauge("hydra.queue.steps.active", $json->{nrActiveSteps});
-    gauge("hydra.queue.steps.building", $json->{nrStepsBuilding});
-    gauge("hydra.queue.steps.copying_to", $json->{nrStepsCopyingTo});
-    gauge("hydra.queue.steps.copying_from", $json->{nrStepsCopyingFrom});
-    gauge("hydra.queue.steps.waiting", $json->{nrStepsWaiting});
-    gauge("hydra.queue.steps.runnable", $json->{nrRunnableSteps});
-    gauge("hydra.queue.steps.unfinished", $json->{nrUnfinishedSteps});
-    gauge("hydra.queue.steps.finished", $json->{nrStepsDone});
-    gauge("hydra.queue.steps.retries", $json->{nrRetries});
-    gauge("hydra.queue.steps.unsupported", $json->{nrUnsupportedSteps});
-    gauge("hydra.queue.steps.max_retries", $json->{maxNrRetries});
-    if ($json->{nrStepsDone}) {
-        gauge("hydra.queue.steps.avg_total_time", $json->{avgStepTime});
-        gauge("hydra.queue.steps.avg_build_time", $json->{avgStepBuildTime});
+    gauge("hydra.queue.up", $qr->{status} eq "up" ? 1 : 0);
+
+    return if $qr->{status} ne "up";
+
+    gauge("hydra.queue.steps.building", $qr->{nrStepsBuilding});
+    gauge("hydra.queue.steps.runnable", $qr->{nrStepsRunnable});
+    gauge("hydra.queue.steps.unfinished", $qr->{nrStepsUnfinished});
+    gauge("hydra.queue.steps.finished", $qr->{nrStepsDone});
+    gauge("hydra.queue.steps.retries", $qr->{nrRetries});
+    gauge("hydra.queue.steps.unsupported", $qr->{nrUnsupportedSteps});
+    gauge("hydra.queue.steps.max_retries", $qr->{maxNrRetries});
+    if ($qr->{nrStepsDone}) {
+        gauge("hydra.queue.steps.avg_total_time", $qr->{avgStepTimeMs} / 1000);
+        gauge("hydra.queue.steps.avg_build_time", $qr->{avgStepBuildTimeMs} / 1000);
     }
-    foreach my $machine (keys %{$json->{machineTypes}}) {
-        my $machineType = $machine  =~ s/:|,/_/r;
-        gauge("hydra.queue.$machineType.runnable", $json->{machineTypes}->{$machine}->{runnable});
-        gauge("hydra.queue.$machineType.running", $json->{machineTypes}->{$machine}->{running});
+    foreach my $system (keys %{$qr->{queueStats}}) {
+        my $systemKey = $system =~ s/:|,/_/gr;
+        gauge("hydra.queue.$systemKey.runnable", $qr->{queueStats}->{$system}->{totalRunnable});
+        gauge("hydra.queue.$systemKey.active_runnable", $qr->{queueStats}->{$system}->{activeRunnable});
     }
 
-    gauge("hydra.queue.builds.read", $json->{nrBuildsRead});
-    gauge("hydra.queue.builds.unfinished", $json->{nrQueuedBuilds});
-    gauge("hydra.queue.builds.finished", $json->{nrBuildsDone});
+    gauge("hydra.queue.builds.read", $qr->{nrBuildsRead});
+    gauge("hydra.queue.builds.unfinished", $qr->{nrBuildsUnfinished});
+    gauge("hydra.queue.builds.finished", $qr->{nrBuildsDone});
 
-    gauge("hydra.queue.checks", $json->{nrQueueWakeups});
+    gauge("hydra.queue.checks", $qr->{nrQueueWakeups});
 
-    gauge("hydra.queue.bytes_sent", $json->{bytesSent});
-    gauge("hydra.queue.bytes_received", $json->{bytesReceived});
-
-    gauge("hydra.queue.machines.total", scalar(grep { $_->{enabled} } (values %{$json->{machines}})));
-    gauge("hydra.queue.machines.in_use", scalar(grep { $_->{currentJobs} > 0 } (values %{$json->{machines}})));
+    gauge("hydra.queue.machines.total", $qr->{machinesTotal});
+    gauge("hydra.queue.machines.in_use", $qr->{machinesInUse});
 }
 
 

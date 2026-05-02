@@ -429,16 +429,6 @@ impl Connection {
         })
         .transpose()
     }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn get_status(&mut self) -> sqlx::Result<Option<serde_json::Value>> {
-        Ok(
-            sqlx::query!("SELECT status FROM systemstatus WHERE what = 'queue-runner';",)
-                .fetch_optional(&mut *self.conn)
-                .await?
-                .map(|v| v.status),
-        )
-    }
 }
 
 impl Transaction<'_> {
@@ -1188,21 +1178,6 @@ impl Transaction<'_> {
         }
         Ok(())
     }
-
-    #[tracing::instrument(skip(self, status), err)]
-    pub async fn upsert_status(&mut self, status: &serde_json::Value) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"INSERT INTO systemstatus (
-              what, status
-            ) VALUES (
-              'queue-runner', $1
-            ) ON CONFLICT (what) DO UPDATE SET status = EXCLUDED.status;"#,
-            Some(status),
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
-    }
 }
 
 impl Transaction<'_> {
@@ -1263,18 +1238,6 @@ impl Transaction<'_> {
             &format!("{build_id}\t{step_nr}\t{log_file}"),
         )
         .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_dump_status(&mut self) -> sqlx::Result<()> {
-        self.notify_any("dump_status", "").await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_status_dumped(&mut self) -> sqlx::Result<()> {
-        self.notify_any("status_dumped", "").await?;
         Ok(())
     }
 }

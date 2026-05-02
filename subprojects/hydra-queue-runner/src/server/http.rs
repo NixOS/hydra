@@ -162,9 +162,6 @@ async fn router(
                     .ok_or(Error::NotFound)?;
                 handler::status::active(id_str, state).await
             }
-            (&hyper::Method::POST, "/dump_status" | "/dump_status/") => {
-                handler::dump_status::post(state).await
-            }
             (&hyper::Method::PUT, "/build" | "/build/") => handler::build::put(req, state).await,
             (&hyper::Method::POST, "/build_one" | "/build_one/") => {
                 handler::build_one::post(req, state).await
@@ -338,20 +335,6 @@ mod handler {
 
             let response = io::BuildActiveResponse { active: is_active };
             construct_json_ok_response(&response)
-        }
-    }
-
-    pub(super) mod dump_status {
-        use super::super::{Error, Response, construct_json_ok_response};
-        use crate::{io, state::State};
-
-        #[tracing::instrument(skip(state), err)]
-        pub(crate) async fn post(state: std::sync::Arc<State>) -> Result<Response, Error> {
-            let mut db = state.db.get().await?;
-            let mut tx = db.begin_transaction().await?;
-            tx.notify_dump_status().await?;
-            tx.commit().await?;
-            construct_json_ok_response(&io::Empty {})
         }
     }
 
