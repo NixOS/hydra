@@ -16,7 +16,5 @@ exec(
     "subprojects/hydra/",
     "subprojects/hydra-tests/",
     "subprojects/hydra-linters/",
-    # We'll deal with this later, after the initial moving over from the
-    # Nix repo.
-    # "subprojects/nix-perl",
+    "subprojects/nix-perl",
 ) or die "Failed to execute perlcritic.";

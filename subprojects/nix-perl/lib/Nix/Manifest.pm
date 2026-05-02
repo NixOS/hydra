@@ -2,6 +2,7 @@ package Nix::Manifest;
 
 use utf8;
 use strict;
+use warnings;
 use DBI;
 use DBD::SQLite;
 use Cwd;
@@ -58,11 +59,12 @@ sub readManifest_ {
     my ($manifest, $addNAR, $addPatch) = @_;
 
     # Decompress the manifest if necessary.
+    my $manifest_fh;
     if ($manifest =~ /\.bz2$/) {
-        open MANIFEST, "$Nix::Config::bzip2 -d < $manifest |"
+        open $manifest_fh, "-|", "$Nix::Config::bzip2", "-d", "-c", $manifest
             or die "cannot decompress '$manifest': $!";
     } else {
-        open MANIFEST, "<$manifest"
+        open $manifest_fh, "<", $manifest
             or die "cannot open '$manifest': $!";
     }
 
@@ -74,7 +76,8 @@ sub readManifest_ {
     my ($storePath, $url, $hash, $size, $basePath, $baseHash, $patchType);
     my ($narHash, $narSize, $references, $deriver, $copyFrom, $system, $compressionType);
 
-    while (<MANIFEST>) {
+    while (my $line = <$manifest_fh>) {
+        $_ = $line;
         chomp;
         s/\#.*$//g;
         next if (/^$/);
@@ -150,7 +153,7 @@ sub readManifest_ {
         }
     }
 
-    close MANIFEST;
+    close $manifest_fh;
 
     return $manifestVersion;
 }
@@ -167,51 +170,52 @@ sub readManifest {
 sub writeManifest {
     my ($manifest, $narFiles, $patches, $noCompress) = @_;
 
-    open MANIFEST, ">$manifest.tmp"; # !!! check exclusive
+    open my $manifest_fh, ">", "$manifest.tmp" # !!! check exclusive
+        or die "cannot create '$manifest.tmp': $!";
 
-    print MANIFEST "version {\n";
-    print MANIFEST "  ManifestVersion: 3\n";
-    print MANIFEST "}\n";
+    print $manifest_fh "version {\n";
+    print $manifest_fh "  ManifestVersion: 3\n";
+    print $manifest_fh "}\n";
 
     foreach my $storePath (sort (keys %{$narFiles})) {
         my $narFileList = $$narFiles{$storePath};
         foreach my $narFile (@{$narFileList}) {
-            print MANIFEST "{\n";
-            print MANIFEST "  StorePath: $storePath\n";
-            print MANIFEST "  NarURL: $narFile->{url}\n";
-            print MANIFEST "  Compression: $narFile->{compressionType}\n";
-            print MANIFEST "  Hash: $narFile->{hash}\n" if defined $narFile->{hash};
-            print MANIFEST "  Size: $narFile->{size}\n" if defined $narFile->{size};
-            print MANIFEST "  NarHash: $narFile->{narHash}\n";
-            print MANIFEST "  NarSize: $narFile->{narSize}\n" if $narFile->{narSize};
-            print MANIFEST "  References: $narFile->{references}\n"
+            print $manifest_fh "{\n";
+            print $manifest_fh "  StorePath: $storePath\n";
+            print $manifest_fh "  NarURL: $narFile->{url}\n";
+            print $manifest_fh "  Compression: $narFile->{compressionType}\n";
+            print $manifest_fh "  Hash: $narFile->{hash}\n" if defined $narFile->{hash};
+            print $manifest_fh "  Size: $narFile->{size}\n" if defined $narFile->{size};
+            print $manifest_fh "  NarHash: $narFile->{narHash}\n";
+            print $manifest_fh "  NarSize: $narFile->{narSize}\n" if $narFile->{narSize};
+            print $manifest_fh "  References: $narFile->{references}\n"
                 if defined $narFile->{references} && $narFile->{references} ne "";
-            print MANIFEST "  Deriver: $narFile->{deriver}\n"
+            print $manifest_fh "  Deriver: $narFile->{deriver}\n"
                 if defined $narFile->{deriver} && $narFile->{deriver} ne "";
-            print MANIFEST "  System: $narFile->{system}\n" if defined $narFile->{system};
-            print MANIFEST "}\n";
+            print $manifest_fh "  System: $narFile->{system}\n" if defined $narFile->{system};
+            print $manifest_fh "}\n";
         }
     }
 
     foreach my $storePath (sort (keys %{$patches})) {
         my $patchList = $$patches{$storePath};
         foreach my $patch (@{$patchList}) {
-            print MANIFEST "patch {\n";
-            print MANIFEST "  StorePath: $storePath\n";
-            print MANIFEST "  NarURL: $patch->{url}\n";
-            print MANIFEST "  Hash: $patch->{hash}\n";
-            print MANIFEST "  Size: $patch->{size}\n";
-            print MANIFEST "  NarHash: $patch->{narHash}\n";
-            print MANIFEST "  NarSize: $patch->{narSize}\n" if $patch->{narSize};
-            print MANIFEST "  BasePath: $patch->{basePath}\n";
-            print MANIFEST "  BaseHash: $patch->{baseHash}\n";
-            print MANIFEST "  Type: $patch->{patchType}\n";
-            print MANIFEST "}\n";
+            print $manifest_fh "patch {\n";
+            print $manifest_fh "  StorePath: $storePath\n";
+            print $manifest_fh "  NarURL: $patch->{url}\n";
+            print $manifest_fh "  Hash: $patch->{hash}\n";
+            print $manifest_fh "  Size: $patch->{size}\n";
+            print $manifest_fh "  NarHash: $patch->{narHash}\n";
+            print $manifest_fh "  NarSize: $patch->{narSize}\n" if $patch->{narSize};
+            print $manifest_fh "  BasePath: $patch->{basePath}\n";
+            print $manifest_fh "  BaseHash: $patch->{baseHash}\n";
+            print $manifest_fh "  Type: $patch->{patchType}\n";
+            print $manifest_fh "}\n";
         }
     }
 
 
-    close MANIFEST;
+    close $manifest_fh;
 
     rename("$manifest.tmp", $manifest)
         or die "cannot rename $manifest.tmp: $!";

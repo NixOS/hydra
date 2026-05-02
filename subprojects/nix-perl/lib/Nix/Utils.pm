@@ -1,12 +1,14 @@
 package Nix::Utils;
 
 use utf8;
+use strict;
+use warnings;
 use File::Temp qw(tempdir);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(checkURL uniq writeFile readFile mkTempDir);
 
-$urlRE = "(?: [a-zA-Z][a-zA-Z0-9\+\-\.]*\:[a-zA-Z0-9\%\/\?\:\@\&\=\+\$\,\-\_\.\!\~\*]+ )";
+our $urlRE = "(?: [a-zA-Z][a-zA-Z0-9\+\-\.]*\:[a-zA-Z0-9\%\/\?\:\@\&\=\+\$\,\-\_\.\!\~\*]+ )";
 
 sub checkURL {
     my ($url) = @_;
@@ -26,17 +28,17 @@ sub uniq {
 
 sub writeFile {
     my ($fn, $s) = @_;
-    open TMP, ">$fn" or die "cannot create file '$fn': $!";
-    print TMP "$s" or die;
-    close TMP or die;
+    open my $fh, ">", $fn or die "cannot create file '$fn': $!";
+    print $fh "$s" or die;
+    close $fh or die;
 }
 
 sub readFile {
     local $/ = undef;
     my ($fn) = @_;
-    open TMP, "<$fn" or die "cannot open file '$fn': $!";
-    my $s = <TMP>;
-    close TMP or die;
+    open my $fh, "<", $fn or die "cannot open file '$fn': $!";
+    my $s = <$fh>;
+    close $fh or die;
     return $s;
 }
 

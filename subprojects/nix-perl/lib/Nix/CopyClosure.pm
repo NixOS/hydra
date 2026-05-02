@@ -2,6 +2,7 @@ package Nix::CopyClosure;
 
 use utf8;
 use strict;
+use warnings;
 use Nix::Config;
 use Nix::Store;
 use Nix::SSH;
