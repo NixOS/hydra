@@ -31,10 +31,10 @@ our @EXPORT = qw(
 our $VERSION = '0.15';
 
 sub backtick {
-    open(RES, "-|", @_) or die;
+    open(my $fh, "-|", @_) or die;
     local $/;
-    my $res = <RES> || "";
-    close RES or die;
+    my $res = <$fh> || "";
+    close $fh or die;
     return $res;
 }
 

@@ -2,6 +2,7 @@ package Nix::SSH;
 
 use utf8;
 use strict;
+use warnings;
 use File::Temp qw(tempdir);
 use IPC::Open2;
 
