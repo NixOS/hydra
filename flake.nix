@@ -149,6 +149,21 @@
           inherit forEachSystem nixpkgs nixosModules;
         };
 
+        migrations = forEachSystem (
+          system:
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+          in
+          import ./subprojects/hydra/sql/check-migrations.nix {
+            inherit (pkgs)
+              lib
+              stdenv
+              postgresql_17
+              pg-schema-diff
+              ;
+          }
+        );
+
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
@@ -157,7 +172,7 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
-        pkgs.callPackage ./subprojects/hydra/sql/check-migrations.nix { }
+        hydraJobs.migrations.${system}
         // {
           systemTests = hydraJobs.systemTests.${system};
           install = hydraJobs.nixosTests.install.${system};
