@@ -2,41 +2,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use nix_utils::BaseStore as _;
 use nix_utils::SingleDerivedPath;
 
 use super::Step;
-
-/// Flatten a [`SingleDerivedPath`] + output name into `(root_drv_path, [outputs...])`.
-/// The output chain is in resolution order: for `Built { Opaque(A), "out" }` with
-/// final output `"dev"`, returns `(A, ["out", "dev"])`.
-fn flatten_chain(
-    drv_path: &SingleDerivedPath,
-    output_name: &nix_utils::OutputName,
-) -> (nix_utils::StorePath, Vec<nix_utils::OutputName>) {
-    let mut outputs = Vec::<nix_utils::OutputName>::new();
-    let mut current = drv_path;
-    let root = loop {
-        match current {
-            SingleDerivedPath::Opaque(p) => break p.clone(),
-            SingleDerivedPath::Built {
-                drv_path: parent,
-                output,
-            } => {
-                outputs.push(output.clone());
-                current = parent;
-            }
-        }
-    };
-    outputs.reverse();
-    outputs.push(output_name.clone());
-    (root, outputs)
-}
+use super::drv::flatten_chain;
 
 #[derive(Debug)]
 pub struct StepInfo {
     pub step: Arc<Step>,
-    pub resolved_drv_path: Option<nix_utils::StorePath>,
     already_scheduled: AtomicBool,
     cancelled: AtomicBool,
     pub runnable_since: jiff::Timestamp,
@@ -44,19 +17,8 @@ pub struct StepInfo {
 }
 
 impl StepInfo {
-    pub async fn new(store: &nix_utils::LocalStore, db: &db::Database, step: Arc<Step>) -> Self {
+    pub fn new(step: Arc<Step>) -> Self {
         Self {
-            resolved_drv_path: match step.get_drv() {
-                Some(guard) => {
-                    let resolved =
-                        Self::try_resolve(store.store_dir(), db, guard.as_ref().unwrap()).await;
-                    match resolved {
-                        Some(ref basic_drv) => store.write_derivation(basic_drv).await.ok(),
-                        None => None,
-                    }
-                }
-                None => None,
-            },
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: step.get_runnable_since(),
@@ -76,10 +38,11 @@ impl StepInfo {
     ///
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
-    async fn try_resolve(
+    pub(super) async fn try_resolve(
         store_dir: &nix_utils::StoreDir,
         db: &db::Database,
         drv: &nix_utils::Derivation,
+        resolved_drv_map: &hashbrown::HashMap<nix_utils::StorePath, nix_utils::StorePath>,
     ) -> Option<nix_utils::BasicDerivation> {
         // Input-addressed derivations should not be resolved because this would change their
         // output paths.
@@ -114,20 +77,35 @@ impl StepInfo {
             tokio::task::block_in_place(|| {
                 // Flatten each SingleDerivedPath chain into (root, [outputs...])
                 // and resolve everything in a single recursive SQL query.
-                let chains = inputs
+                let chains: Vec<_> = inputs
                     .iter()
                     .map(|(drv_path, output_name)| flatten_chain(drv_path, output_name))
-                    .collect::<Vec<_>>();
+                    .collect();
 
-                let chain_refs = chains
+                // Translate unresolved drv paths to resolved ones using the
+                // in-memory map, so the SQL query finds outputs under the
+                // resolved drv path directly.
+                let translated_roots: Vec<_> = chains
                     .iter()
-                    .map(|(root, outputs)| (root, outputs.iter().collect::<Vec<_>>()))
-                    .collect::<Vec<_>>();
+                    .map(|(root, _)| {
+                        resolved_drv_map
+                            .get(root)
+                            .cloned()
+                            .unwrap_or_else(|| root.clone())
+                    })
+                    .collect();
 
-                let sql_input = chain_refs
+                // SQL needs forward order; OutputNameChain stores reversed.
+                let chain_refs: Vec<_> = chains
+                    .iter()
+                    .zip(&translated_roots)
+                    .map(|((_, chain), root)| (root, chain.0.iter().rev().collect::<Vec<_>>()))
+                    .collect();
+
+                let sql_input: Vec<_> = chain_refs
                     .iter()
                     .map(|(root, outputs)| (*root, outputs.as_slice()))
-                    .collect::<Vec<_>>();
+                    .collect();
 
                 tokio::runtime::Handle::current()
                     .block_on(conn.resolve_drv_output_chains(store_dir, &sql_input))
@@ -278,7 +256,6 @@ mod tests {
 
         StepInfo {
             step,
-            resolved_drv_path: None,
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: jiff::Timestamp::now(),

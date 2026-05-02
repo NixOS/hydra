@@ -504,6 +504,7 @@ impl Queues {
                         nr_waiting += 1;
                         nr_steps_waiting_all_queues += 1;
                     }
+                    Ok(crate::state::RealiseStepResult::Resolved) => {}
                     Ok(
                         crate::state::RealiseStepResult::MaybeCancelled
                         | crate::state::RealiseStepResult::CachedFailure,
