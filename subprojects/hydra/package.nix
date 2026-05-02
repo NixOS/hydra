@@ -11,6 +11,7 @@
   perlPackages,
 
   nixComponents,
+  nix-perl,
   git,
 
   makeWrapper,
@@ -56,7 +57,7 @@ let
     name = "hydra-perl-deps";
     paths = lib.closePropagation (
       [
-        nixComponents.nix-perl-bindings
+        nix-perl
         git
       ]
       ++ (with perlPackages; [

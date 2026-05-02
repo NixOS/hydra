@@ -14,6 +14,7 @@ project('hydra-dev-shell', 'cpp',
 subproject('hydra')
 subproject('hydra-linters')
 subproject('hydra-manual')
+subproject('nix-perl')
 
 # Build rust workspace (dev build only; in Nix release builds, Rust is built separately)
 cargo = find_program('cargo', native: true)
