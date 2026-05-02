@@ -14,18 +14,17 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw(
     StoreWrapper
     StoreWrapper::new
-    StoreWrapper::isValidPath StoreWrapper::queryReferences StoreWrapper::queryPathInfo StoreWrapper::queryDeriver StoreWrapper::queryPathHash
+    StoreWrapper::isValidPath StoreWrapper::queryReferences StoreWrapper::queryPathInfo StoreWrapper::queryPathHash
     StoreWrapper::queryPathFromHashPart
-    StoreWrapper::topoSortPaths StoreWrapper::computeFSClosure followLinksToStorePath StoreWrapper::exportPaths StoreWrapper::importPaths
-    StoreWrapper::addToStore StoreWrapper::makeFixedOutputPath
+    StoreWrapper::topoSortPaths StoreWrapper::computeFSClosure followLinksToStorePath
+    StoreWrapper::addToStore
     StoreWrapper::derivationFromPath
     StoreWrapper::addTempRoot
     StoreWrapper::queryRawRealisation
 
-    hashPath hashFile hashString convertHash
-    signString checkSignature
+    convertHash
+    signString
     getStoreDir
-    setVerbosity
 );
 
 our $VERSION = '0.15';

@@ -57,24 +57,12 @@ libdir = join_paths(prefix, get_option('libdir'))
 
 # Required Programs
 #-------------------------------------------------
-find_program('xz')
 xsubpp = find_program('xsubpp')
 perl = find_program('perl')
-find_program('curl')
 yath = find_program('yath', required : false)
 
 # Required Libraries
 #-------------------------------------------------
-bzip2_dep = dependency('bzip2', required : false)
-if not bzip2_dep.found()
-  bzip2_dep = cpp.find_library('bz2')
-  if not bzip2_dep.found()
-    error('No "bzip2" pkg-config or "bz2" library found')
-  endif
-endif
-curl_dep = dependency('libcurl')
-libsodium_dep = dependency('libsodium')
-
 nix_store_dep = dependency('nix-store')
 
 
@@ -127,24 +115,6 @@ message('Perl archlibexp: @0@'.format(perl_archlibexp))
 message('Perl install site: @0@'.format(perl_site_libdir))
 message('Assumed Nix-Perl install dir: @0@'.format(nix_perl_install_dir))
 
-# Now find perl modules
-#-------------------------------------------------
-perl_check_dbi = run_command(
-  perl,
-  '-e',
-  'use DBI; use DBD::SQLite;',
-  '-I@0@'.format(get_option('dbi_path')),
-  '-I@0@'.format(get_option('dbd_sqlite_path')),
-  check : true,
-)
-
-if perl_check_dbi.returncode() == 2
-  error('The Perl modules DBI and/or DBD::SQLite are missing.')
-else
-  message('Found Perl Modules: DBI, DBD::SQLite.')
-endif
-
-
 
 # declare perl dependency
 #-------------------------------------------------
@@ -166,9 +136,6 @@ perl_dep = declare_dependency(
 #-------------------------------------------------
 nix_perl_store_dep_list = [
   perl_dep,
-  bzip2_dep,
-  curl_dep,
-  libsodium_dep,
   nix_store_dep,
 ]
 
