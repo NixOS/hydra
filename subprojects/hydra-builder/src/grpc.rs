@@ -147,8 +147,6 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
     };
 
     Ok(RunnerServiceClient::with_interceptor(channel, interceptor)
-        .send_compressed(tonic::codec::CompressionEncoding::Zstd)
-        .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
         .max_decoding_message_size(50 * 1024 * 1024)
         .max_encoding_message_size(50 * 1024 * 1024))
 }

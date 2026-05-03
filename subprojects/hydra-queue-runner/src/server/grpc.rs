@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use tokio::{io::AsyncWriteExt as _, sync::mpsc};
+use tokio::sync::mpsc;
 use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
 use tracing::Instrument as _;
@@ -27,6 +27,57 @@ type OpenTunnelResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<RunnerRequest, tonic::Status>> + Send>>;
 type StreamFileResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<NarData, tonic::Status>> + Send>>;
+
+type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
+type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
+
+const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
+
+fn decode_stream<S>(
+    stream: S,
+) -> impl tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
+where
+    S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
+{
+    let reader = tokio_util::io::StreamReader::new(stream);
+    let decoder = CompressionDecoder::new(reader);
+    tokio_util::io::ReaderStream::new(decoder)
+}
+
+fn compression_encode_channel() -> (
+    tokio::io::DuplexStream,
+    mpsc::UnboundedReceiver<Result<NarData, tonic::Status>>,
+) {
+    let (raw_writer, raw_reader) = tokio::io::duplex(DUPLEX_BUFFER_SIZE);
+    let (tx, rx) = mpsc::unbounded_channel();
+
+    tokio::task::spawn(async move {
+        use tokio_stream::StreamExt as _;
+        let encoder = CompressionEncoder::new(tokio::io::BufReader::new(raw_reader));
+        let mut stream = tokio_util::io::ReaderStream::new(encoder);
+        while let Some(chunk) = stream.next().await {
+            match chunk {
+                Ok(bytes) => {
+                    if tx
+                        .send(Ok(NarData {
+                            chunk: bytes.into(),
+                        }))
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to compress chunk: {e}");
+                    let _ = tx.send(Err(tonic::Status::internal("Compression error")));
+                    break;
+                }
+            }
+        }
+    });
+
+    (raw_writer, rx)
+}
 
 // there is no reason to make this configurable, it only exists so we ensure the channel is not
 // closed. we dont use this to write any actual information.
@@ -132,8 +183,6 @@ impl Server {
         let service = RunnerServiceServer::new(Self {
             state: state.clone(),
         })
-        .send_compressed(tonic::codec::CompressionEncoding::Zstd)
-        .accept_compressed(tonic::codec::CompressionEncoding::Zstd)
         .max_decoding_message_size(50 * 1024 * 1024)
         .max_encoding_message_size(50 * 1024 * 1024);
         let intercepted_service = InterceptedService::new(
@@ -373,27 +422,39 @@ impl RunnerService for Server {
     ) -> BuilderResult<runner_v1::Empty> {
         use tokio_stream::StreamExt as _;
 
-        let mut stream = req.into_inner();
+        let stream = req.into_inner();
         let state = self.state.clone();
 
-        let mut out_file: Option<fs_err::tokio::File> = None;
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
+        let mut mapped = stream.map(|result| {
+            result
+                .map(|chunk| (chunk.drv, bytes::Bytes::from(chunk.data)))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
+        });
 
-            if let Some(ref mut file) = out_file {
-                file.write_all(&chunk.data).await?;
-            } else {
-                let drv = chunk
-                    .drv
-                    .ok_or_else(|| tonic::Status::invalid_argument("missing drv"))?;
-                let mut file = state
-                    .new_log_file(&drv)
-                    .await
-                    .map_err(|_| tonic::Status::internal("Failed to create log file."))?;
-                file.write_all(&chunk.data).await?;
-                out_file = Some(file);
-            }
-        }
+        let (drv, first_data) = mapped
+            .next()
+            .await
+            .ok_or_else(|| tonic::Status::internal("Empty stream"))??;
+
+        let file = state
+            .new_log_file(
+                &drv.ok_or_else(|| tonic::Status::invalid_argument("missing drv"))?
+                    .into(),
+            )
+            .await
+            .map_err(|_| tonic::Status::internal("Failed to create log file."))?;
+
+        let first = tokio_stream::iter(vec![Ok::<_, std::io::Error>(first_data)]);
+        let rest = mapped.map(|r| r.map(|(_, data)| data));
+        let full_stream = first.chain(rest);
+
+        let reader = tokio_util::io::StreamReader::new(full_stream);
+        let mut decoder = CompressionDecoder::new(reader);
+        let mut file: fs_err::tokio::File = file;
+
+        tokio::io::copy(&mut decoder, &mut file)
+            .await
+            .map_err(|_| tonic::Status::internal("Failed to write log file."))?;
 
         Ok(tonic::Response::new(runner_v1::Empty {}))
     }
@@ -409,16 +470,13 @@ impl RunnerService for Server {
         // connection for each import. This sucks but using the state.store will result in the path
         // not being closed!
         {
+            let data_stream = tokio_stream::StreamExt::map(stream, |s| {
+                s.map(|v| bytes::Bytes::from(v.chunk))
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
+            });
+
             let store = nix_utils::LocalStore::init();
-            store
-                .import_paths(
-                    tokio_stream::StreamExt::map(stream, |s| {
-                        s.map(|v| v.chunk.into())
-                            .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
-                    }),
-                    false,
-                )
-                .await
+            store.import_paths(decode_stream(data_stream), false).await
         }
         .map_err(|_| tonic::Status::internal("Failed to import path."))?;
         Ok(tonic::Response::new(runner_v1::Empty {}))
@@ -569,15 +627,15 @@ impl RunnerService for Server {
         req: tonic::Request<ProtoStorePath>,
     ) -> BuilderResult<Self::StreamFileStream> {
         let path = req.into_inner().0;
-        let store = nix_utils::LocalStore::init();
-        let (tx, rx) = mpsc::unbounded_channel::<Result<NarData, tonic::Status>>();
+        let (raw_writer, rx) = compression_encode_channel();
 
-        let closure = move |data: &[u8]| {
-            let data = Vec::from(data);
-            tx.send(Ok(NarData { chunk: data })).is_ok()
-        };
-
-        tokio::task::spawn(async move {
+        tokio::task::spawn_blocking(move || {
+            let store = nix_utils::LocalStore::init();
+            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
+            let closure = move |data: &[u8]| {
+                use std::io::Write;
+                sync_writer.write_all(data).is_ok()
+            };
             let _ = store.export_paths(&[path], closure);
         });
 
@@ -594,17 +652,16 @@ impl RunnerService for Server {
     ) -> BuilderResult<Self::StreamFilesStream> {
         let req = req.into_inner();
         let paths = req.paths.into_iter().map(|p| p.0).collect::<Vec<_>>();
+        let (raw_writer, rx) = compression_encode_channel();
 
-        let store = nix_utils::LocalStore::init();
-        let (tx, rx) = mpsc::unbounded_channel::<Result<NarData, tonic::Status>>();
-
-        let closure = move |data: &[u8]| {
-            let data = Vec::from(data);
-            tx.send(Ok(NarData { chunk: data })).is_ok()
-        };
-
-        tokio::task::spawn(async move {
-            let _ = store.export_paths(&paths, closure.clone());
+        tokio::task::spawn_blocking(move || {
+            let store = nix_utils::LocalStore::init();
+            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
+            let closure = move |data: &[u8]| {
+                use std::io::Write;
+                sync_writer.write_all(data).is_ok()
+            };
+            let _ = store.export_paths(&paths, closure);
         });
 
         Ok(tonic::Response::new(
