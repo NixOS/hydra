@@ -5,30 +5,13 @@ package QueueRunnerContext;
 use IO::Socket::IP;
 use IPC::Run;
 use LWP::UserAgent;
+use POSIX qw(dup2);
 use Hydra::Config;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
-    get_random_port
     start_queue_runner
     wait_for_url
 );
-
-sub get_random_port {
-    my ($min, $max) = @_;
-    while (1) {
-        my $port = $min + int(rand($max - $min + 1));
-        my $sock = IO::Socket::IP->new(
-            LocalAddr => '::',
-            LocalPort => $port,
-            Proto     => 'tcp',
-            ReuseAddr => 0,
-        );
-        if ($sock) {
-            close($sock);
-            return $port;
-        }
-    }
-}
 
 sub wait_for_url {
     my ($ua, $url, $check) = @_;
@@ -42,15 +25,14 @@ sub wait_for_url {
     return 0;
 }
 
-# Start a queue runner process.
-# Returns ($harness, $http_url, $grpc_port, \$stdout_buf, \$stderr_buf).
+# Start a queue runner process using systemd socket activation.
+# We bind TCP sockets ourselves (port 0 for OS-assigned ports), then
+# pass them to the queue runner via LISTEN_FDS/LISTEN_FDNAMES.
+# Returns ($harness, $rest_url, $grpc_addr, \$stdout_buf, \$stderr_buf).
 # Caller is responsible for calling $harness->kill_kill when done.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
-
-    my $grpc_port = get_random_port(5000, 9999);
-    my $http_port = get_random_port(10000, 19999);
 
     my $config_dir = $ENV{T2_HARNESS_TEMP_DIR}
         // $ctx->{central}{hydra_data};
@@ -74,28 +56,71 @@ sub start_queue_runner {
         close($fh);
     }
 
-    my ($qr_in, $qr_out, $qr_err) = ("", "", "");
+    # Bind TCP sockets for both servers (port 0 = OS picks a free port).
+    my $rest_sock = IO::Socket::IP->new(
+        LocalAddr => '::',
+        LocalPort => 0,
+        Proto     => 'tcp',
+        Listen    => 128,
+        ReuseAddr => 1,
+        V6Only    => 0,
+    ) or die "Cannot bind REST socket: $!\n";
 
-    # Start the queue runner with central env applied.
+    my $grpc_sock = IO::Socket::IP->new(
+        LocalAddr => '::',
+        LocalPort => 0,
+        Proto     => 'tcp',
+        Listen    => 128,
+        ReuseAddr => 1,
+        V6Only    => 0,
+    ) or die "Cannot bind gRPC socket: $!\n";
+
+    my $rest_port = $rest_sock->sockport;
+    my $grpc_port = $grpc_sock->sockport;
+
+    # The systemd socket activation protocol passes fds starting at 3.
+    # We need to place our sockets at fd 3 and fd 4 in the child process.
+    # IPC::Run's init callback runs in the child after fork.
+    my $rest_fd = fileno($rest_sock);
+    my $grpc_fd = fileno($grpc_sock);
+
+    my ($qr_in, $qr_out, $qr_err) = ("", "", "");
     my $qr_harness;
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         local $ENV{RUST_LOG} = $opts{rust_log} // "error";
         local $ENV{NO_COLOR} = "1";
+        local $ENV{LISTEN_FDS} = "2";
+        local $ENV{LISTEN_FDNAMES} = "rest:grpc";
+        # Don't set LISTEN_PID — listenfd skips the PID check when it's unset.
+        delete $ENV{LISTEN_PID};
         $qr_harness = IPC::Run::start(
             ["hydra-queue-runner",
                 "--config-path", $config_file,
-                "--rest-bind", "[::]:$http_port",
-                "--grpc-bind", "[::]:$grpc_port",
+                "--rest-bind", "-",
+                "--grpc-bind", "-",
                 "--disable-queue-monitor-loop",
             ],
             \$qr_in, \$qr_out, \$qr_err,
+            init => sub {
+                # In the child: place sockets at fd 3 and 4.
+                POSIX::dup2($rest_fd, 3) or die "dup2 rest to fd 3: $!";
+                POSIX::dup2($grpc_fd, 4) or die "dup2 grpc to fd 4: $!";
+                # Close originals if they aren't already 3 or 4.
+                POSIX::close($rest_fd) if $rest_fd != 3 && $rest_fd != 4;
+                POSIX::close($grpc_fd) if $grpc_fd != 3 && $grpc_fd != 4;
+            },
         );
     }
 
-    my $base_url = "http://[::1]:$http_port";
+    # Close our copies of the sockets (child has its own).
+    close($rest_sock);
+    close($grpc_sock);
 
-    return ($qr_harness, $base_url, $grpc_port, \$qr_out, \$qr_err);
+    my $rest_url = "http://[::1]:$rest_port";
+    my $grpc_addr = "[::1]:$grpc_port";
+
+    return ($qr_harness, $rest_url, $grpc_addr, \$qr_out, \$qr_err);
 }
 
 1;
