@@ -15,6 +15,13 @@
     flake = false;
   };
 
+  # TODO once https://github.com/miyagawa/Starman/pull/156 is merged and
+  # released, get rid of this.
+  inputs.starman = {
+    url = "github:Ericson2314/Starman/systemd-socket-activation";
+    flake = false;
+  };
+
   inputs.treefmt-nix = {
     url = "github:numtide/treefmt-nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -26,6 +33,7 @@
       nixpkgs,
       nix,
       nix-eval-jobs,
+      starman,
       treefmt-nix,
       ...
     }:
@@ -61,6 +69,13 @@
           hydra = self'.callPackage ./subprojects/hydra/package.nix {
             inherit nixComponents;
             rawSrc = self;
+            perlPackages = pkgs.perl.pkgs.overrideScope (
+              final: prev: {
+                Starman = prev.Starman.overrideAttrs {
+                  src = starman;
+                };
+              }
+            );
           };
           hydra-tests = self'.callPackage ./subprojects/hydra-tests/package.nix {
             inherit nixComponents;
