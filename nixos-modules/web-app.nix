@@ -261,10 +261,24 @@ in
       };
       restartTriggers = [ hydraConf ];
       serviceConfig = {
-        ExecStart =
-          "@${cfg.package}/bin/hydra-server hydra-server -f -h '${cfg.listenHost}' "
-          + "-p ${toString cfg.port} --max_spare_servers 5 --max_servers 25 "
-          + "--max_requests 100 ${optionalString cfg.debugServer "-d"}";
+        ExecStart = escapeShellArgs (
+          [
+            "@${cfg.package}/bin/hydra-server"
+            "hydra-server"
+            "-f"
+            "-h"
+            cfg.listenHost
+            "-p"
+            (toString cfg.port)
+            "--max_spare_servers"
+            "5"
+            "--max_servers"
+            "25"
+            "--max_requests"
+            "100"
+          ]
+          ++ optionals cfg.debugServer [ "-d" ]
+        );
         User = "hydra-www";
         PermissionsStartOnly = true;
         Restart = "always";
@@ -287,8 +301,14 @@ in
         HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
       };
       serviceConfig = {
-        ExecStart = "@${cfg.package}/bin/hydra-evaluator hydra-evaluator";
-        ExecStopPost = "${cfg.package}/bin/hydra-evaluator --unlock";
+        ExecStart = escapeShellArgs [
+          "@${cfg.package}/bin/hydra-evaluator"
+          "hydra-evaluator"
+        ];
+        ExecStopPost = escapeShellArgs [
+          "${cfg.package}/bin/hydra-evaluator"
+          "--unlock"
+        ];
         User = "hydra";
         Restart = "always";
         WorkingDirectory = baseDir;
@@ -302,7 +322,10 @@ in
         HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-update-gc-roots";
       };
       serviceConfig = {
-        ExecStart = "@${cfg.package}/bin/hydra-update-gc-roots hydra-update-gc-roots";
+        ExecStart = escapeShellArgs [
+          "@${cfg.package}/bin/hydra-update-gc-roots"
+          "hydra-update-gc-roots"
+        ];
         User = "hydra";
       };
       startAt = "2,14:15";
@@ -315,7 +338,10 @@ in
         HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-send-stats";
       };
       serviceConfig = {
-        ExecStart = "@${cfg.package}/bin/hydra-send-stats hydra-send-stats";
+        ExecStart = escapeShellArgs [
+          "@${cfg.package}/bin/hydra-send-stats"
+          "hydra-send-stats"
+        ];
         User = "hydra";
       };
     };
@@ -331,7 +357,10 @@ in
         HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
       };
       serviceConfig = {
-        ExecStart = "@${cfg.package}/bin/hydra-notify hydra-notify";
+        ExecStart = escapeShellArgs [
+          "@${cfg.package}/bin/hydra-notify"
+          "hydra-notify"
+        ];
         # FIXME: hydra-notify should not need to write to build-logs.
         # Move log compression into the queue-runner, then give
         # hydra-notify its own user again.
