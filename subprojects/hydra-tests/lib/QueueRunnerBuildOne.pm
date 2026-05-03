@@ -40,7 +40,7 @@ sub runBuilds {
     ref $ctx eq 'HydraTestContext' or die "runBuilds requires a HydraTestContext as first argument\n";
     my @build_ids = map { $_->id } @builds;
 
-    my ($qr_harness, $base_url, $grpc_port, $qr_out_ref, $qr_err_ref) = start_queue_runner($ctx,
+    my ($qr_harness, $base_url, $grpc_addr, $qr_out_ref, $qr_err_ref) = start_queue_runner($ctx,
         rust_log => "queue_runner=debug,info",
     );
 
@@ -68,7 +68,7 @@ sub runBuilds {
             local $ENV{NO_COLOR} = "1";
             $bl_harness = IPC::Run::start(
                 ["hydra-builder",
-                    "--gateway-endpoint", "http://[::1]:$grpc_port",
+                    "--gateway-endpoint", "http://$grpc_addr",
                 ],
                 \$bl_in, \$bl_out, \$bl_err,
             );

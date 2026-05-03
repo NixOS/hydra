@@ -151,18 +151,18 @@ in
       };
 
       grpc = lib.mkOption {
-        description = "grpc options";
+        description = "gRPC listener options";
         default = { };
         type = lib.types.submodule {
           options = {
             address = lib.mkOption {
               type = lib.types.singleLineStr;
               default = "[::1]";
-              description = "The IP address the grpc listener should bound to";
+              description = "The IP address the gRPC listener should bind to.";
             };
 
             port = lib.mkOption {
-              description = "Which grpc port this app should listen on";
+              description = "Which gRPC port this app should listen on.";
               type = lib.types.port;
               default = 50051;
             };
@@ -171,18 +171,18 @@ in
       };
 
       rest = lib.mkOption {
-        description = "rest options";
+        description = "REST listener options";
         default = { };
         type = lib.types.submodule {
           options = {
             address = lib.mkOption {
               type = lib.types.singleLineStr;
               default = "[::1]";
-              description = "The IP address the rest listener should bound to";
+              description = "The IP address the REST listener should bind to.";
             };
 
             port = lib.mkOption {
-              description = "Which rest port this app should listen on";
+              description = "Which REST port this app should listen on.";
               type = lib.types.port;
               default = 8080;
             };
@@ -243,7 +243,11 @@ in
     systemd.services.hydra-queue-runner-dev = {
       description = "Hydra Queue Runner main service";
 
-      requires = [ "nix-daemon.socket" ];
+      requires = [
+        "nix-daemon.socket"
+        "hydra-queue-runner-dev-rest.socket"
+        "hydra-queue-runner-dev-grpc.socket"
+      ];
       after = [
         # sets up database, queue-runner crashes if schema is incorrect
         "hydra-init.service"
@@ -276,9 +280,9 @@ in
           [
             "${cfg.package}/bin/hydra-queue-runner"
             "--rest-bind"
-            "${cfg.rest.address}:${toString cfg.rest.port}"
+            "-"
             "--grpc-bind"
-            "${cfg.grpc.address}:${toString cfg.grpc.port}"
+            "-"
             "--config-path"
             "/etc/hydra/queue-runner.toml"
           ]
@@ -342,6 +346,26 @@ in
         MemoryDenyWriteExecute = true;
         PrivateUsers = true;
         RestrictNamespaces = true;
+      };
+    };
+
+    systemd.sockets.hydra-queue-runner-dev-rest = {
+      description = "Hydra Queue Runner REST socket";
+      wantedBy = [ "sockets.target" ];
+      socketConfig = {
+        ListenStream = "${cfg.rest.address}:${toString cfg.rest.port}";
+        FileDescriptorName = "rest";
+        Service = "hydra-queue-runner-dev.service";
+      };
+    };
+
+    systemd.sockets.hydra-queue-runner-dev-grpc = {
+      description = "Hydra Queue Runner gRPC socket";
+      wantedBy = [ "sockets.target" ];
+      socketConfig = {
+        ListenStream = "${cfg.grpc.address}:${toString cfg.grpc.port}";
+        FileDescriptorName = "grpc";
+        Service = "hydra-queue-runner-dev.service";
       };
     };
 

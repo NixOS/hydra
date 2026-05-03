@@ -7,7 +7,6 @@ use tower::ServiceBuilder;
 use tracing::Instrument as _;
 
 use crate::{
-    config::BindSocket,
     server::grpc::runner_v1::{BuildResultState, StepUpdate},
     state::{Machine, MachineMessage, State},
 };
@@ -178,8 +177,34 @@ pub struct Server {
 }
 
 impl Server {
-    #[tracing::instrument(skip(state), err)]
-    pub async fn run(addr: BindSocket, state: Arc<State>) -> anyhow::Result<()> {
+    /// Serve on a pre-bound TCP listener.
+    #[tracing::instrument(skip(listener, state), err)]
+    pub async fn run(listener: tokio::net::TcpListener, state: Arc<State>) -> anyhow::Result<()> {
+        let stream = tokio_stream::wrappers::TcpListenerStream::new(listener);
+        Self::serve_incoming(stream, state).await
+    }
+
+    /// Serve on a Unix socket listener.
+    #[tracing::instrument(skip(listener, state), err)]
+    pub async fn run_unix(
+        listener: tokio::net::UnixListener,
+        state: Arc<State>,
+    ) -> anyhow::Result<()> {
+        let stream = tokio_stream::wrappers::UnixListenerStream::new(listener);
+        Self::serve_incoming(stream, state).await
+    }
+
+    async fn serve_incoming<S, IO, IE>(incoming: S, state: Arc<State>) -> anyhow::Result<()>
+    where
+        S: futures_util::Stream<Item = Result<IO, IE>>,
+        IO: tokio::io::AsyncRead
+            + tokio::io::AsyncWrite
+            + tonic::transport::server::Connected
+            + Unpin
+            + Send
+            + 'static,
+        IE: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
         let service = RunnerServiceServer::new(Self {
             state: state.clone(),
         })
@@ -222,30 +247,12 @@ impl Server {
             .build_v1()?;
 
         let (_health_reporter, health_service) = tonic_health::server::health_reporter();
-        let server = server
+        server
             .add_service(health_service)
             .add_service(reflection_service)
-            .add_service(intercepted_service);
-
-        match addr {
-            BindSocket::Tcp(s) => server.serve(s).await?,
-            BindSocket::Unix(p) => {
-                let uds = tokio::net::UnixListener::bind(p)?;
-                let uds_stream = tokio_stream::wrappers::UnixListenerStream::new(uds);
-                server.serve_with_incoming(uds_stream).await?;
-            }
-            BindSocket::ListenFd => {
-                let listener = listenfd::ListenFd::from_env()
-                    .take_unix_listener(0)?
-                    .ok_or_else(|| anyhow::anyhow!("No listenfd found in env"))?;
-                listener.set_nonblocking(true)?;
-                let listener = tokio_stream::wrappers::UnixListenerStream::new(
-                    tokio::net::UnixListener::from_std(listener)?,
-                );
-
-                server.serve_with_incoming(listener).await?;
-            }
-        }
+            .add_service(intercepted_service)
+            .serve_with_incoming(incoming)
+            .await?;
 
         Ok(())
     }
