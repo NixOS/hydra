@@ -1,7 +1,23 @@
-[% WRAPPER layout.tt
-  titleHTML="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ linkToJob(build.jobset, job)
-  title="Log of " _ (step ? " step $step.stepnr of " : "") _ "build ${build.id} of job " _ makeNameTextForJob(build.jobset, job)
+[%
+  buildUrl = c.uri_for('/build', build.id);
+  IF step;
+    logUrl = c.uri_for('/build', build.id, 'nixlog', step.stepnr);
+    drvpath = step.drvpath;
+    titleText = "Log of step ${step.stepnr} of build ${build.id} of job " _ makeNameTextForJob(build.jobset, job);
+    titleLink = "Log of step ${step.stepnr}"
+              _ " of <a href=\"$buildUrl\">build ${build.id}</a>"
+              _ " of job " _ linkToJob(build.jobset, job);
+  ELSE;
+    logUrl = c.uri_for('/build', build.id, 'log');
+    drvpath = build.drvpath;
+    titleText = "Log of build ${build.id} of job " _ makeNameTextForJob(build.jobset, job);
+    titleLink = "Log of <a href=\"$buildUrl\">build ${build.id}</a>"
+              _ " of job " _ linkToJob(build.jobset, job);
+  END;
+  rawUrl = logUrl _ '/raw';
 %]
+
+[% WRAPPER layout.tt titleHTML=titleLink title=titleText %]
 [% PROCESS common.tt %]
 
 <p>
@@ -11,14 +27,13 @@
   [% ELSE %]
   is
   [% END %]
-  the build log (<a [% HTML.attributes(href => step ? c.uri_for('/build' build.id 'nixlog' step.stepnr, 'raw')
-  : c.uri_for('/build' build.id 'log', 'raw')) %]>raw</a>) of derivation <tt>[% IF step; step.drvpath; ELSE; build.drvpath; END %]</tt>.
+  the build log (<a [% HTML.attributes(href => rawUrl) %]>raw</a>)
+  of derivation <tt>[% drvpath | html %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine | html %]</tt>.
   [% END %]
   [% IF tail %]
-  The <a [% HTML.attributes(href => step ? c.uri_for('/build' build.id 'nixlog' step.stepnr)
-  : c.uri_for('/build' build.id 'log')) %]>full log</a> is also available.
+  The <a [% HTML.attributes(href => logUrl) %]>full log</a> is also available.
   [% END %]
 </p>
 
