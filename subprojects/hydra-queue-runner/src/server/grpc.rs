@@ -449,7 +449,7 @@ impl RunnerService for Server {
                     .into(),
             )
             .await
-            .map_err(|_| tonic::Status::internal("Failed to create log file."))?;
+            .map_err(|e| tonic::Status::internal(format!("Failed to create log file: {e}")))?;
 
         let first = tokio_stream::iter(vec![Ok::<_, std::io::Error>(first_data)]);
         let rest = mapped.map(|r| r.map(|(_, data)| data));
@@ -461,7 +461,7 @@ impl RunnerService for Server {
 
         tokio::io::copy(&mut decoder, &mut file)
             .await
-            .map_err(|_| tonic::Status::internal("Failed to write log file."))?;
+            .map_err(|e| tonic::Status::internal(format!("Failed to write log file: {e}")))?;
 
         Ok(tonic::Response::new(runner_v1::Empty {}))
     }
