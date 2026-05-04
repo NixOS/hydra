@@ -1,5 +1,5 @@
 use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{ParseStorePathError, StoreDir};
+use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 use hashbrown::HashMap;
 
 pub type BuildID = i32;
@@ -9,17 +9,23 @@ pub type BuildID = i32;
 pub enum BuildStatus {
     Success = 0,
     Failed = 1,
-    DepFailed = 2, // builds only
+    /// builds only
+    DepFailed = 2,
     Aborted = 3,
     Cancelled = 4,
-    FailedWithOutput = 6, // builds only
+    /// builds only
+    FailedWithOutput = 6,
     TimedOut = 7,
-    CachedFailure = 8, // steps only
+    /// steps only
+    CachedFailure = 8,
     Unsupported = 9,
     LogLimitExceeded = 10,
     NarSizeLimitExceeded = 11,
     NotDeterministic = 12,
-    Busy = 100, // not stored
+    /// step was resolved to a CA derivation
+    Resolved = 13,
+    /// not stored
+    Busy = 100,
 }
 
 impl BuildStatus {
@@ -38,6 +44,7 @@ impl BuildStatus {
             10 => Some(Self::LogLimitExceeded),
             11 => Some(Self::NarSizeLimitExceeded),
             12 => Some(Self::NotDeterministic),
+            13 => Some(Self::Resolved),
             100 => Some(Self::Busy),
             _ => None,
         }
@@ -77,8 +84,10 @@ pub struct Build<StorePath = harmonia_store_core::store_path::StorePath> {
     pub jobset: String,
     pub job: String,
     pub drvpath: StorePath,
-    pub maxsilent: Option<i32>, // maxsilent integer default 3600
-    pub timeout: Option<i32>,   // timeout integer default 36000
+    /// maxsilent integer default 3600
+    pub maxsilent: Option<i32>,
+    /// timeout integer default 36000
+    pub timeout: Option<i32>,
     pub timestamp: i64,
     pub globalpriority: i32,
     pub priority: i32,
@@ -130,7 +139,7 @@ pub struct UpdateBuild<'a> {
 pub struct InsertBuildStep<'a> {
     pub build_id: BuildID,
     pub r#type: BuildType,
-    pub drv_path: &'a str,
+    pub drv_path: &'a StorePath,
     pub status: BuildStatus,
     pub busy: bool,
     pub start_time: Option<i32>,
@@ -145,7 +154,7 @@ pub struct InsertBuildStep<'a> {
 pub struct InsertBuildStepOutput<StorePath = harmonia_store_core::store_path::StorePath> {
     pub build_id: BuildID,
     pub step_nr: i32,
-    pub name: String,
+    pub name: OutputName,
     pub path: Option<StorePath>,
 }
 

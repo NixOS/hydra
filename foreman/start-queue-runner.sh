@@ -1,16 +1,14 @@
 #!/bin/sh
 
-# wait for postgresql
-while ! pg_isready -h $(pwd)/.hydra-data/postgres -p 64444; do sleep 1; done
+. ./foreman/common.sh
+
+wait_for_postgres
 
 # wait until the hydra database exists (hydra-server creates it)
-while ! psql -h $(pwd)/.hydra-data/postgres -p 64444 -d hydra -c 'SELECT 1' >/dev/null 2>&1; do sleep 1; done
+while ! psql -h "$HYDRA_PG_SOCKET_DIR" -p "$HYDRA_PG_PORT" -d hydra -c 'SELECT 1' >/dev/null 2>&1; do sleep 1; done
 
-# wait until hydra-server is listening
-while ! nc -z localhost 63333; do sleep 1; done
+wait_for_hydra_server
 
-HYDRA_DATA=$(pwd)/.hydra-data
-PATH="$(pwd)/target/release:$PATH"
 CONFIG="$HYDRA_DATA/queue-runner.toml"
 
 # Generate a config for the Rust queue-runner if it doesn't exist
@@ -22,7 +20,7 @@ useSubstitutes = true
 EOF
 fi
 
-export HYDRA_DATABASE_URL="postgres://${USER}@localhost:64444/hydra"
+export HYDRA_DATABASE_URL="postgres://${USER}@localhost:$HYDRA_PG_PORT/hydra"
 export LOGNAME="${LOGNAME:-$USER}"
 
 exec hydra-queue-runner -c "$CONFIG"

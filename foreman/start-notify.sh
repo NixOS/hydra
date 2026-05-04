@@ -1,14 +1,12 @@
 #!/bin/sh
 
-export PATH=$(pwd)/subprojects/hydra/script:$PATH
-export PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
-export HYDRA_HOME=$(pwd)/subprojects/hydra
+. ./foreman/common.sh
 
-export HYDRA_DATA=$(pwd)/.hydra-data
-export HYDRA_DBI="dbi:Pg:dbname=hydra;host=localhost;port=64444"
+export HYDRA_HOME
+export HYDRA_DATA
+export HYDRA_DBI
 
-# wait for postgresql and hydra-server
-while ! pg_isready -h $(pwd)/.hydra-data/postgres -p 64444; do sleep 1; done
-while ! nc -z localhost 63333; do sleep 1; done
+wait_for_postgres
+wait_for_hydra_server
 
-HYDRA_CONFIG=$(pwd)/.hydra-data/hydra.conf exec hydra-notify
+HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-notify

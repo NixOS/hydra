@@ -34,12 +34,12 @@ pub async fn query_drv(
         return Ok(None);
     }
 
-    let full_path = store.print_store_path(drv);
-    if !fs_err::tokio::try_exists(&full_path).await? {
+    if !store.is_valid_path(drv).await {
         return Ok(None);
     }
 
-    let input = fs_err::tokio::read_to_string(&full_path).await?;
+    let real_path = store.to_real_path(drv).await?;
+    let input = fs_err::tokio::read_to_string(&real_path).await?;
     Ok(Some(parse_drv(store.get_store_dir(), drv, &input)?))
 }
 

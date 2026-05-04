@@ -665,8 +665,13 @@ sub checkJobsetWrapped {
         die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
         my $declFile = $declInput->{storePath} . "/" . $project->declfile;
-        my $declText = read_text($declFile)
-            or die "Couldn't read declarative specification file $declFile: $!\n";
+        # Use `nix store cat` so the physical store location is resolved
+        # by the store itself (handles root= stores where physical != logical).
+        my ($res, $declText, $catErr) = captureStdoutStderr(
+            60,
+            "nix", "--extra-experimental-features", "nix-command",
+            "store", "cat", $declFile);
+        die "Couldn't read declarative specification file $declFile: $catErr\n" if $res != 0;
         my $declSpec;
         eval {
             $declSpec = decode_json($declText);
@@ -891,7 +896,7 @@ sub checkJobsetWrapped {
                         , type => $input->{type}
                         , uri => $input->{uri}
                         , revision => $input->{revision}
-                        , shortRevLength => length($input->{shortRev})
+                        , shortrevlength => length($input->{shortRev})
                         , value => $input->{value}
                         , dependency => $input->{id}
                         , path => $input->{storePath} || "" # !!! temporary hack

@@ -121,9 +121,9 @@ in
               type = lib.types.ints.positive;
               default = 5;
             };
-            tokenListPath = lib.mkOption {
-              description = "Path to a list of allowed authentication tokens.";
-              type = lib.types.nullOr lib.types.path;
+            tokenPaths = lib.mkOption {
+              description = "List of paths of allowed authentication tokens.";
+              type = lib.types.nullOr (lib.types.listOf lib.types.path);
               default = null;
             };
             enableFodChecker = lib.mkOption {
@@ -306,9 +306,11 @@ in
         StateDirectoryMode = "0700";
         ReadWritePaths = [
           "/nix/var/nix/gcroots/"
-          "/run/postgresql/.s.PGSQL.${toString config.services.postgresql.settings.port}"
           "/nix/var/nix/daemon-socket/socket"
           "/var/lib/hydra/build-logs/"
+        ]
+        ++ lib.optionals (lib.hasInfix "%2Frun%2Fpostgresql" cfg.settings.dbUrl) [
+          "/run/postgresql/.s.PGSQL.${toString config.services.postgresql.settings.port}"
         ];
         ReadOnlyPaths = [ "/nix/" ];
         RuntimeDirectory = "hydra-queue-runner";

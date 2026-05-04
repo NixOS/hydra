@@ -25,6 +25,17 @@ END;
   [% END %]
 [% END %]
 
+[% BLOCK renderOutputsTable %]
+  <table class="info-table">
+    [% FOREACH output IN outputs %]
+      <tr>
+        <th><tt>[% output.name | html %]</tt></th>
+        <td><tt>[% IF output.path; output.path | html; ELSE %]<em>n/a</em>[% END %]</tt></td>
+      </tr>
+    [% END %]
+  </table>
+[% END; %]
+
 [% BLOCK renderBuildSteps %]
   <table class="table table-striped table-condensed clickable-rows">
     <thead>
@@ -369,7 +380,7 @@ END;
       </tr>
       <tr>
         <th>Output store paths:</th>
-        <td><tt>[% INCLUDE renderOutputs outputs=build.buildoutputs %]</tt></td>
+        <td>[% INCLUDE renderOutputsTable outputs=build.buildoutputs %]</td>
       </tr>
       [% chartsURL = c.uri_for('/job' build.project.name build.jobset.name build.job) _ "#tabs-charts" %]
       [% IF build.finished && build.closuresize %]

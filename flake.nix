@@ -35,6 +35,12 @@
         "aarch64-linux"
       ];
       forEachSystem = nixpkgs.lib.genAttrs systems;
+      darwinSystems = [
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forEachDarwin = nixpkgs.lib.genAttrs darwinSystems;
+      forEachSystemIncDarwin = nixpkgs.lib.genAttrs (systems ++ darwinSystems);
 
       version = nixpkgs.lib.strings.trim (builtins.readFile ./version.txt);
 
@@ -49,6 +55,9 @@
           nix-eval-jobs = self'.callPackage nix-eval-jobs {
             inherit nixComponents;
           };
+          nix-perl = self'.callPackage ./subprojects/nix-perl/package.nix {
+            inherit (nixComponents) nix-store;
+          };
           hydra = self'.callPackage ./subprojects/hydra/package.nix {
             inherit nixComponents;
             rawSrc = self;
@@ -61,6 +70,17 @@
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix {
           };
           hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix {
+            inherit nixComponents;
+          };
+          hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
+            inherit nixComponents;
+          };
+        });
+      mkHydraBuilder =
+        { pkgs, nixComponents }:
+        pkgs.lib.makeScope pkgs.newScope (self': {
+          inherit version releaseVersion;
+          hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
             inherit nixComponents;
           };
         });
@@ -108,6 +128,7 @@
           hydra-manual
           hydra-linters
           hydra-queue-runner
+          hydra-builder
           ;
       };
 
@@ -122,70 +143,139 @@
 
         queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
+        builder = forEachSystemIncDarwin (system: packages.${system}.hydra-builder);
+
         nixosTests = import ./nixos-tests.nix {
           inherit forEachSystem nixpkgs nixosModules;
         };
 
+        migrations = forEachSystem (
+          system:
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+          in
+          import ./subprojects/hydra/sql/check-migrations.nix {
+            inherit (pkgs)
+              lib
+              stdenv
+              postgresql_17
+              pg-schema-diff
+              ;
+          }
+        );
+
         container = nixosConfigurations.container.config.system.build.toplevel;
       };
 
-      checks = forEachSystem (system: {
-        systemTests = hydraJobs.systemTests.${system};
-        install = hydraJobs.nixosTests.install.${system};
-        validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
-        formatter = (treefmtEval system).config.build.check self;
-      });
-
-      packages = forEachSystem (
+      checks = forEachSystem (
         system:
         let
-          inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
-          nixDependencies = lib.makeScope pkgs.newScope (
-            import (nix + "/packaging/dependencies.nix") {
-              inherit pkgs;
-              inherit (pkgs) stdenv;
-              inputs = { };
-            }
-          );
-          nixComponents = lib.makeScope nixDependencies.newScope (
-            import (nix + "/packaging/components.nix") {
-              officialRelease = true;
-              inherit lib pkgs;
-              src = nix;
-              maintainers = [ ];
-            }
-          );
-          hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
         in
-        # makeScope adds non-derivation attrs that fail `nix flake check`
-        removeAttrs hydraComponents [
-          "newScope"
-          "callPackage"
-          "overrideScope"
-          "packages"
-          "version"
-          "releaseVersion"
-        ]
+        hydraJobs.migrations.${system}
         // {
-          default = hydraComponents.hydra-tests;
+          systemTests = hydraJobs.systemTests.${system};
+          install = hydraJobs.nixosTests.install.${system};
+          validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
+          dbix-up-to-date = pkgs.callPackage ./packaging/check-dbix-up-to-date.nix {
+            inherit (packages.${system}) hydra;
+          };
+          formatter = (treefmtEval system).config.build.check self;
         }
       );
+
+      packages =
+        nixpkgs.lib.recursiveUpdate
+          (forEachSystem (
+            system:
+            let
+              inherit (nixpkgs) lib;
+              pkgs = nixpkgs.legacyPackages.${system};
+              nixDependencies = lib.makeScope pkgs.newScope (
+                import (nix + "/packaging/dependencies.nix") {
+                  inherit pkgs;
+                  inherit (pkgs) stdenv;
+                  inputs = { };
+                }
+              );
+              nixComponents = lib.makeScope nixDependencies.newScope (
+                import (nix + "/packaging/components.nix") {
+                  officialRelease = true;
+                  inherit lib pkgs;
+                  src = nix;
+                  maintainers = [ ];
+                }
+              );
+              hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
+            in
+            # makeScope adds non-derivation attrs that fail `nix flake check`
+            removeAttrs hydraComponents [
+              "newScope"
+              "callPackage"
+              "overrideScope"
+              "packages"
+              "version"
+              "releaseVersion"
+            ]
+            // {
+              default = hydraComponents.hydra-tests;
+            }
+          ))
+          (
+            forEachSystemIncDarwin (
+              system:
+              let
+                inherit (nixpkgs) lib;
+                pkgs = nixpkgs.legacyPackages.${system};
+                nixDependencies = lib.makeScope pkgs.newScope (
+                  import (nix + "/packaging/dependencies.nix") {
+                    inherit pkgs;
+                    inherit (pkgs) stdenv;
+                    inputs = { };
+                  }
+                );
+                nixComponents = lib.makeScope nixDependencies.newScope (
+                  import (nix + "/packaging/components.nix") {
+                    officialRelease = true;
+                    inherit lib pkgs;
+                    src = nix;
+                    maintainers = [ ];
+                  }
+                );
+                hydraBuilder = mkHydraBuilder { inherit pkgs nixComponents; };
+              in
+              # makeScope adds non-derivation attrs that fail `nix flake check`
+              removeAttrs hydraBuilder [
+                "newScope"
+                "callPackage"
+                "overrideScope"
+                "packages"
+                "version"
+                "releaseVersion"
+              ]
+            )
+          );
 
       devShells = forEachSystem (system: {
         default = import ./packaging/dev-shell.nix {
           pkgs = nixpkgs.legacyPackages.${system};
           inherit (self.packages.${system})
+            nix-perl
             hydra
             hydra-tests
             hydra-manual
             hydra-linters
             hydra-queue-runner
+            hydra-builder
             ;
         };
       });
 
       nixosModules = import ./nixos-modules {
+        flakePackages = packages;
+      };
+
+      darwinModules = import ./darwin-modules {
         flakePackages = packages;
       };
 

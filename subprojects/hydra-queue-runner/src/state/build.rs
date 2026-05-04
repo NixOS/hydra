@@ -25,7 +25,7 @@ pub struct Build {
     pub local_priority: i32,
     pub global_priority: AtomicI32,
 
-    toplevel: arc_swap::ArcSwapOption<Step>,
+    pub toplevel: arc_swap::ArcSwapOption<Step>,
     pub jobset: Arc<Jobset>,
 
     finished_in_db: AtomicBool,
@@ -187,10 +187,14 @@ impl From<crate::server::grpc::runner_v1::BuildResultState> for BuildResultState
 #[derive(Debug, Clone)]
 pub struct RemoteBuild {
     pub step_status: BuildStatus,
-    pub can_retry: bool,           // for bsAborted
-    pub is_cached: bool,           // for bsSucceed
-    pub can_cache: bool,           // for bsFailed
-    pub error_msg: Option<String>, // for bsAborted
+    /// for bsAborted
+    pub can_retry: bool,
+    /// for bsSucceed
+    pub is_cached: bool,
+    /// for bsFailed
+    pub can_cache: bool,
+    /// for bsAborted
+    pub error_msg: Option<String>,
 
     times_built: i32,
     is_non_deterministic: bool,

@@ -2,42 +2,14 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use nix_utils::BaseStore as _;
 use nix_utils::SingleDerivedPath;
 
 use super::Step;
-
-/// Flatten a [`SingleDerivedPath`] + output name into `(root_drv_path, [outputs...])`.
-/// The output chain is in resolution order: for `Built { Opaque(A), "out" }` with
-/// final output `"dev"`, returns `(A, ["out", "dev"])`.
-fn flatten_chain(
-    store_dir: &nix_utils::StoreDir,
-    drv_path: &SingleDerivedPath,
-    output_name: &nix_utils::OutputName,
-) -> (String, Vec<String>) {
-    let mut outputs = Vec::<String>::new();
-    let mut current = drv_path;
-    let root = loop {
-        match current {
-            SingleDerivedPath::Opaque(p) => break store_dir.display(p).to_string(),
-            SingleDerivedPath::Built {
-                drv_path: parent,
-                output,
-            } => {
-                outputs.push(output.to_string());
-                current = parent;
-            }
-        }
-    };
-    outputs.reverse();
-    outputs.push(output_name.to_string());
-    (root, outputs)
-}
+use super::drv::flatten_chain;
 
 #[derive(Debug)]
 pub struct StepInfo {
     pub step: Arc<Step>,
-    pub resolved_drv_path: Option<nix_utils::StorePath>,
     already_scheduled: AtomicBool,
     cancelled: AtomicBool,
     pub runnable_since: jiff::Timestamp,
@@ -45,19 +17,8 @@ pub struct StepInfo {
 }
 
 impl StepInfo {
-    pub async fn new(store: &nix_utils::LocalStore, db: &db::Database, step: Arc<Step>) -> Self {
+    pub fn new(step: Arc<Step>) -> Self {
         Self {
-            resolved_drv_path: match step.get_drv() {
-                Some(guard) => {
-                    let resolved =
-                        Self::try_resolve(store.store_dir(), db, guard.as_ref().unwrap()).await;
-                    match resolved {
-                        Some(ref basic_drv) => store.write_derivation(basic_drv).await.ok(),
-                        None => None,
-                    }
-                }
-                None => None,
-            },
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: step.get_runnable_since(),
@@ -77,10 +38,11 @@ impl StepInfo {
     ///
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
-    async fn try_resolve(
+    pub(super) async fn try_resolve(
         store_dir: &nix_utils::StoreDir,
         db: &db::Database,
         drv: &nix_utils::Derivation,
+        resolved_drv_map: &hashbrown::HashMap<nix_utils::StorePath, nix_utils::StorePath>,
     ) -> Option<nix_utils::BasicDerivation> {
         // Input-addressed derivations should not be resolved because this would change their
         // output paths.
@@ -111,47 +73,53 @@ impl StepInfo {
 
         let mut conn = db.get().await.ok()?;
 
+        // Memoize depth-1 lookups across all chains resolved in this call.
+        let mut memo = std::collections::HashMap::<
+            (nix_utils::StorePath, nix_utils::OutputName),
+            Option<nix_utils::StorePath>,
+        >::new();
+
         drv.try_resolve(store_dir, &mut |inputs| {
-            let store_dir_str = store_dir.to_str();
             tokio::task::block_in_place(|| {
-                // Flatten each SingleDerivedPath chain into (root, [outputs...])
-                // and resolve everything in a single recursive SQL query.
-                let chains = inputs
+                let rt = tokio::runtime::Handle::current();
+
+                let chains: Vec<_> = inputs
                     .iter()
-                    .map(|(drv_path, output_name)| flatten_chain(store_dir, drv_path, output_name))
-                    .collect::<Vec<_>>();
+                    .map(|(drv_path, output_name)| flatten_chain(drv_path, output_name))
+                    .collect();
 
-                let chain_refs = chains
+                // Resolve each chain one level at a time, translating
+                // through the in-memory resolved-drv map between levels.
+                chains
                     .iter()
-                    .map(|(root, outputs)| {
-                        (
-                            root.as_str(),
-                            outputs.iter().map(String::as_str).collect::<Vec<_>>(),
-                        )
-                    })
-                    .collect::<Vec<_>>();
-
-                let sql_input = chain_refs
-                    .iter()
-                    .map(|(root, outputs)| (*root, outputs.as_slice()))
-                    .collect::<Vec<_>>();
-
-                let db_results = tokio::runtime::Handle::current()
-                    .block_on(conn.resolve_drv_output_chains(&sql_input))
-                    .unwrap_or_else(|e| {
-                        tracing::warn!("resolve_drv_output_chains failed: {e}");
-                        vec![None; inputs.len()]
-                    });
-
-                db_results
-                    .into_iter()
-                    .map(|path| {
-                        path.and_then(|p| {
-                            let base = p
-                                .strip_prefix(store_dir_str)
-                                .and_then(|s| s.strip_prefix('/'))?;
-                            Some(nix_utils::parse_store_path(base))
-                        })
+                    .map(|(root, chain)| {
+                        let mut current = root.clone();
+                        // OutputNameChain is in stack order; iterate
+                        // reversed for forward (root-to-leaf) order.
+                        for output_name in chain.0.iter().rev() {
+                            let translated = resolved_drv_map
+                                .get(&current)
+                                .cloned()
+                                .unwrap_or_else(|| current.clone());
+                            let key = (translated, output_name.clone());
+                            let result = match memo.get(&key) {
+                                Some(cached) => cached.clone(),
+                                None => {
+                                    let r = rt
+                                        .block_on(
+                                            conn.resolve_drv_output(store_dir, &key.0, &key.1),
+                                        )
+                                        .unwrap_or_else(|e| {
+                                            tracing::warn!("resolve_drv_output failed: {e}");
+                                            None
+                                        });
+                                    memo.insert(key, r.clone());
+                                    r
+                                }
+                            };
+                            current = result?;
+                        }
+                        Some(current)
                     })
                     .collect()
             })
@@ -297,7 +265,6 @@ mod tests {
 
         StepInfo {
             step,
-            resolved_drv_path: None,
             already_scheduled: false.into(),
             cancelled: false.into(),
             runnable_since: jiff::Timestamp::now(),

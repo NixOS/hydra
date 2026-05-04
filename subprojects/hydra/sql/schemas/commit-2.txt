@@ -1,0 +1,3 @@
+# Original commit (25334715) had hydra.sql out of sync with upgrade-2.sql;
+# BuildResultInfo was not yet merged into Builds. Using the fix commit instead.
+68a867da678c6d65ede21ed29d1265950a1e12dd

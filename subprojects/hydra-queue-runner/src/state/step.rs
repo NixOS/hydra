@@ -8,18 +8,35 @@ use hashbrown::{HashMap, HashSet};
 use super::{Build, Jobset};
 use db::models::BuildID;
 
+use super::drv::OutputNameChain;
+
+#[derive(Debug, Clone)]
+pub struct ReverseDep {
+    /// The step that depends on us
+    pub step: Weak<Step>,
+    pub relation: OutputNameChain,
+}
+
 #[derive(Debug)]
 pub struct StepAtomicState {
-    created: AtomicBool,  // Whether the step has finished initialisation.
-    pub tries: AtomicU32, // Number of times we've tried this step.
-    pub highest_global_priority: AtomicI32, // The highest global priority of any build depending on this step.
-    pub highest_local_priority: AtomicI32, // The highest local priority of any build depending on this step.
+    /// Whether the step has finished initialisation.
+    created: AtomicBool,
+    /// Number of times we've tried this step.
+    pub tries: AtomicU32,
+    /// The highest global priority of any build depending on this step.
+    pub highest_global_priority: AtomicI32,
+    /// The highest local priority of any build depending on this step.
+    pub highest_local_priority: AtomicI32,
 
-    pub lowest_build_id: super::build::AtomicBuildID, // The lowest ID of any build depending on this step.
+    /// The lowest ID of any build depending on this step.
+    pub lowest_build_id: super::build::AtomicBuildID,
 
-    pub after: super::AtomicDateTime, // Point in time after which the step can be retried.
-    pub runnable_since: super::AtomicDateTime, // The time at which this step became runnable.
-    pub last_supported: super::AtomicDateTime, // The time that we last saw a machine that supports this step
+    /// Point in time after which the step can be retried.
+    pub after: super::AtomicDateTime,
+    /// The time at which this step became runnable.
+    pub runnable_since: super::AtomicDateTime,
+    /// The time that we last saw a machine that supports this step
+    pub last_supported: super::AtomicDateTime,
 
     pub deps_len: AtomicU64,
     pub rdeps_len: AtomicU64,
@@ -58,10 +75,15 @@ impl StepAtomicState {
 
 #[derive(Debug)]
 pub(super) struct StepState {
-    deps: HashSet<Arc<Step>>,      // The build steps on which this step depends.
-    rdeps: Vec<Weak<Step>>,        // The build steps that depend on this step.
-    builds: Vec<Weak<Build>>,      // Builds that have this step as the top-level derivation.
-    jobsets: HashSet<Arc<Jobset>>, // Jobsets to which this step belongs. Used for determining scheduling priority.
+    /// The resolved build steps on which this step depends
+    deps: HashSet<Arc<Step>>,
+    /// The build steps that depend on this step.
+    /// An empty `relation` signifies a regular (non-dynamic) reverse dependency.
+    rdeps: Vec<ReverseDep>,
+    /// Builds that have this step as the top-level derivation.
+    builds: Vec<Weak<Build>>,
+    /// Jobsets to which this step belongs. Used for determining scheduling priority.
+    jobsets: HashSet<Arc<Jobset>>,
 }
 
 impl Default for StepState {
@@ -174,16 +196,6 @@ impl Step {
         })
     }
 
-    pub fn get_input_drvs(&self) -> Option<Vec<nix_utils::StorePath>> {
-        let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| {
-            harmonia_store_core::derivation::DerivationInputs::from(&drv.inputs)
-                .drvs
-                .into_keys()
-                .collect::<Vec<_>>()
-        })
-    }
-
     pub fn get_after(&self) -> jiff::Timestamp {
         self.atomic_state.after.load()
     }
@@ -258,7 +270,9 @@ impl Step {
         };
 
         for rdep in rdeps {
-            let Some(rdep) = rdep.upgrade() else { continue };
+            let Some(rdep) = rdep.step.upgrade() else {
+                continue;
+            };
             rdep.get_dependents(builds, steps);
         }
     }
@@ -274,7 +288,7 @@ impl Step {
 
         let mut state = self.state.write();
         state.rdeps.retain(|rdep| {
-            let Some(rdep) = rdep.upgrade() else {
+            let Some(rdep) = rdep.step.upgrade() else {
                 return false;
             };
 
@@ -351,10 +365,56 @@ impl Step {
             .store(state.deps.len() as u64, Ordering::Relaxed);
     }
 
+    pub fn remove_dep(&self, dep: &Arc<Self>) {
+        let mut state = self.state.write();
+        state.deps.remove(dep);
+        self.atomic_state
+            .deps_len
+            .store(state.deps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn make_rdep(self: &Arc<Self>, dep: &Arc<Self>) {
+        dep.add_dep(self.clone());
+        let mut state = self.state.write();
+        state.rdeps.push(ReverseDep {
+            step: Arc::downgrade(dep),
+            relation: OutputNameChain::default(),
+        });
+        self.atomic_state
+            .rdeps_len
+            .store(state.rdeps.len() as u64, Ordering::Relaxed);
+    }
+
+    pub fn clone_rdeps(&self) -> Vec<ReverseDep> {
+        let state = self.state.read();
+        state.rdeps.clone()
+    }
+
+    /// Pop one level of dynamic indirection from each dynamic rdep,
+    /// returning `(dependent_step, popped_output_name, remaining_relation)` triples.
+    ///
+    /// The rdep entries remain in the list (with shortened relations) so that
+    /// `make_rdeps_runnable` can still clean up forward deps.
+    ///
+    /// We collect into a `Vec` rather than returning an iterator because the
+    /// write lock on the step's state must be released before the caller can
+    /// do async work (e.g. `create_step`) with the results.
+    pub fn pop_dynamic_rdeps(&self) -> Vec<(Weak<Step>, nix_utils::OutputName, OutputNameChain)> {
+        let mut state = self.state.write();
+        state
+            .rdeps
+            .iter_mut()
+            .filter_map(|rdep| {
+                let output_name = rdep.relation.pop()?;
+                Some((rdep.step.clone(), output_name, rdep.relation.clone()))
+            })
+            .collect()
+    }
+
     pub fn add_referring_data(
         &self,
         referring_build: Option<&Arc<Build>>,
-        referring_step: Option<&Arc<Self>>,
+        referring_step: Option<(&Arc<Self>, OutputNameChain)>,
     ) {
         if referring_build.is_none() && referring_step.is_none() {
             return;
@@ -364,8 +424,11 @@ impl Step {
         if let Some(referring_build) = referring_build {
             state.builds.push(Arc::downgrade(referring_build));
         }
-        if let Some(referring_step) = referring_step {
-            state.rdeps.push(Arc::downgrade(referring_step));
+        if let Some((referring_step, relation)) = referring_step {
+            state.rdeps.push(ReverseDep {
+                step: Arc::downgrade(referring_step),
+                relation,
+            });
             self.atomic_state
                 .rdeps_len
                 .store(state.rdeps.len() as u64, Ordering::Relaxed);
@@ -497,7 +560,7 @@ impl Steps {
         &self,
         drv_path: &nix_utils::StorePath,
         referring_build: Option<&Arc<Build>>,
-        referring_step: Option<&Arc<Step>>,
+        referring_step: Option<(&Arc<Step>, OutputNameChain)>,
     ) -> (Arc<Step>, bool) {
         let mut is_new = false;
         let mut steps = self.inner.write();
@@ -523,5 +586,35 @@ impl Steps {
     pub fn remove(&self, drv_path: &nix_utils::StorePath) {
         let mut steps = self.inner.write();
         steps.remove(drv_path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn drv(name: &str) -> nix_utils::StorePath {
+        nix_utils::parse_store_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+    }
+
+    #[test]
+    fn steps_create_and_remove() {
+        let steps = Steps::new();
+        let (step, is_new) = steps.create(&drv("test"), None, None);
+        assert!(is_new);
+        assert_eq!(steps.len(), 1);
+
+        steps.remove(step.get_drv_path());
+        assert_eq!(steps.len(), 0);
+    }
+
+    #[test]
+    fn steps_weak_ref_dies_without_strong_ref() {
+        let steps = Steps::new();
+        let (step, _) = steps.create(&drv("ephemeral"), None, None);
+        assert_eq!(steps.len(), 1);
+
+        drop(step);
+        assert_eq!(steps.len(), 0);
     }
 }

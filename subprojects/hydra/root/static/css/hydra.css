@@ -55,6 +55,16 @@ table.clickable-rows > tbody > tr {
     cursor: pointer;
 }
 
+.rev-copy {
+    cursor: pointer;
+    user-select: all;
+}
+
+a.rev-copy {
+    color: inherit;
+    text-decoration: underline;
+}
+
 h2 {
     font-size: 150%;
     margin-bottom: 0em;

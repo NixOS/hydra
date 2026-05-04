@@ -1,0 +1,13 @@
+# Nix-Perl build options
+#============================================================================
+
+
+# compiler args
+#============================================================================
+
+option(
+  'tests',
+  type : 'feature',
+  value : 'disabled',
+  description : 'run nix-perl tests',
+)

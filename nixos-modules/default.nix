@@ -21,24 +21,14 @@ rec {
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
     };
 
-  linux-builder =
+  builder =
     { pkgs, lib, ... }:
     {
       _file = ./default.nix;
-      imports = [ ./linux-builder-module.nix ];
+      imports = [ ./builder-module.nix ];
       services.hydra-queue-builder-dev.package =
         lib.mkDefault
-          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
-    };
-
-  darwin-builder =
-    { pkgs, lib, ... }:
-    {
-      _file = ./default.nix;
-      imports = [ ./darwin-builder-module.nix ];
-      services.hydra-queue-builder-dev.package =
-        lib.mkDefault
-          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-queue-runner;
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-builder;
     };
 
   hydra =
@@ -48,7 +38,7 @@ rec {
       imports = [
         web-app
         queue-runner
-        linux-builder
+        builder
       ];
     };
 

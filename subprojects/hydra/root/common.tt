@@ -393,7 +393,7 @@ BLOCK renderInputs; %]
               <tt>[% HTML.escape(input.uri) %]</tt>
             [% END %]
           </td>
-          <td>[% IF input.revision %][% HTML.escape(input.revision) %][% END %]</td>
+          <td>[% IF input.revision %]<tt class="rev-copy" onclick="copyToClipboard('[% input.revision | html %]', this)" title="Click to copy">[% HTML.escape(input.revision) %]</tt>[% END %]</td>
           <td><tt>[% input.path | html %]</tt></td>
         </tr>
       [% END %]
@@ -423,10 +423,12 @@ BLOCK renderInputDiff; %]
                 [% IF bi1.type == "git" %]
                   <tr><td>
                     <b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.frontend_revision _ ' to ' _ bi2.frontend_revision) %]</tt>
+                    (<a class="rev-copy" href="javascript:void(0)" onclick="copyToClipboard('[% bi2.revision | html %]', this); return false;" title="Click to copy full revision: [% bi2.revision | html %]">copy</a>)
                   </td></tr>
                 [% ELSE %]
                   <tr><td>
                     <b>[% HTML.escape(bi1.name) %]</b></td><td><tt>[% INCLUDE renderDiffUri contents=(bi1.revision _ ' to ' _ bi2.revision) %]</tt>
+                    (<a class="rev-copy" href="javascript:void(0)" onclick="copyToClipboard('[% bi2.revision | html %]', this); return false;" title="Click to copy latest revision">copy</a>)
                   </td></tr>
                 [% END %]
               [% ELSIF bi1.dependency.id != bi2.dependency.id || bi1.path != bi2.path %]
@@ -466,7 +468,7 @@ BLOCK renderShortEvalInput;
   IF input.type == "build" || input.type == "sysbuild" %]
     <a [% HTML.attributes(href => c.uri_for('/build' input.get_column('dependency'))) %]>[% HTML.escape(input.get_column('dependency')) %]</a>
   [% ELSE %]
-    <tt>[% input.frontend_revision | html %]</tt>
+    <a class="rev-copy" href="javascript:void(0)" onclick="copyToClipboard('[% input.revision | html %]', this); return false;" title="Click to copy full revision: [% input.revision | html %]"><tt>[% input.frontend_revision | html %]</tt></a>
   [% END;
 END;
 

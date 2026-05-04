@@ -1,7 +1,7 @@
-# Install all SQL files in this directory.
-# This includes hydra.sql, test.sql, update-dbix.pl, and all upgrade-*.sql files.
-install_subdir('.',
+# Install hydra.sql, test.sql, update-dbix.pl, and all upgrade-*.sql migration files.
+install_data('hydra.sql', 'test.sql', 'update-dbix.pl',
   install_dir: hydra_libexecdir / 'sql',
-  strip_directory: true,
-  exclude_files: ['meson.build', 'update-dbix-harness.sh'],
+)
+install_subdir('migrations',
+  install_dir: hydra_libexecdir / 'sql',
 )

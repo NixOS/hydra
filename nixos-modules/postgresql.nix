@@ -76,7 +76,9 @@ in
         fi
       '';
       serviceConfig = {
-        ExecStart = "${cfg.package}/bin/hydra-init";
+        ExecStart = lib.escapeShellArgs [
+          "${cfg.package}/bin/hydra-init"
+        ];
         PermissionsStartOnly = true;
         User = "hydra";
         Type = "oneshot";

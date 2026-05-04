@@ -47,12 +47,26 @@ sub new {
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
 
+    # Logical store dir — shared between evaluator and builder so store
+    # paths are compatible.  The builder's physical store matches this
+    # (physical = logical), which is required on Darwin where we cannot
+    # use sandboxed builds.
+    my $builder = { root => "$dir/builder" };
+    make_path($builder->{root});
+    $builder->{nix_store_dir} = "$builder->{root}/nix/store";
+    $builder->{nix_state_dir} = "$builder->{root}/nix/var/nix";
+    $builder->{nix_log_dir} = "$builder->{root}/nix/var/log/nix";
+    $builder->{nix_store_uri} = "local?root=$builder->{root}&store=$builder->{nix_store_dir}";
+    $builder->{nix_conf_dir} = "$dir/nix/etc/nix";
+
     # Physical dirs for centralized services (queue runner, main web app, etc.)
     my $central = { root => "$dir/central" };
+    make_path($central->{root});
     $central->{hydra_data} = "$dir/hydra-data";
-    $central->{nix_conf_dir} = "$dir/nix/etc/nix";
     $central->{hydra_config_file} = "$dir/hydra.conf";
-    $central->{nix_store_dir} = "$central->{root}/nix/store";
+    $central->{nix_conf_dir} = "$dir/nix/etc/nix";
+    # Builder and central must agree on logical store dir.
+    $central->{nix_store_dir} = $builder->{nix_store_dir};
     $central->{nix_state_dir} = "$central->{root}/nix/var/nix";
     $central->{nix_log_dir} = "$central->{root}/nix/var/log/nix";
     $central->{nix_store_uri} = "local?root=$central->{root}&store=$central->{nix_store_dir}";
@@ -84,13 +98,20 @@ sub new {
     rcopy(abs_path(dirname(__FILE__) . "/../jobs"), $jobsdir);
 
     my $coreutils_path = dirname(which 'install');
-    replace_variable_in_file($jobsdir . "/config.nix", '@testPath@', $coreutils_path);
-    replace_variable_in_file($jobsdir . "/declarative/project.json", '@jobsPath@', $jobsdir);
+    my $nix_bin_dir = dirname(which 'nix');
+    my $bash_path = which 'bash';
+    replace_variable_in_file($jobsdir . "/config.nix",
+        '@testPath@' => $coreutils_path,
+        '@nixBinDir@' => $nix_bin_dir,
+        '@bash@' => $bash_path);
+    replace_variable_in_file($jobsdir . "/declarative/project.json",
+        '@jobsPath@' => $jobsdir);
 
     my $self = bless {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
+        builder => $builder,
         central => $central,
         testdir => abs_path(dirname(__FILE__) . "/.."),
         jobsdir => $jobsdir,
@@ -322,13 +343,16 @@ sub write_file {
 }
 
 sub replace_variable_in_file {
-    my ($fn, $var, $val) = @_;
+    my ($fn, %subs) = @_;
 
     open (my $input, '<', "$fn.in") or die $!;
     open (my $output, '>', $fn) or die $!;
 
     while (my $line = <$input>) {
-        $line =~ s/$var/$val/g;
+        for my $var (keys %subs) {
+            my $val = $subs{$var};
+            $line =~ s/\Q$var\E/$val/g;
+        }
         print $output $line;
     }
 }

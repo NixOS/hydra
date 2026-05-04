@@ -1,5 +1,6 @@
 mod atomic;
 mod build;
+pub mod drv;
 mod fod_checker;
 mod inspectable_channel;
 mod jobset;
@@ -10,6 +11,7 @@ mod step;
 mod step_info;
 mod uploader;
 
+use anyhow::Context as _;
 pub use atomic::AtomicDateTime;
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
 pub use jobset::{Jobset, JobsetID, Jobsets};
@@ -18,6 +20,7 @@ pub use queue::{BuildQueueStats, Queues};
 pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
@@ -46,6 +49,8 @@ enum CreateStepResult {
 
 enum RealiseStepResult {
     None,
+    /// Created a new resolved `BuildStep`
+    Resolved,
     Valid(Arc<Machine>),
     MaybeCancelled,
     CachedFailure,
@@ -73,6 +78,15 @@ pub struct State {
     pub jobsets: Jobsets,
     pub steps: Steps,
     pub queues: Queues,
+
+    /// In-memory mapping from unresolved CA drv path to resolved drv
+    /// path. Used to translate drv paths before SQL output lookups,
+    /// temporarily avoiding the need for a `resolvedDrvPath` column in
+    /// the database.
+    ///
+    /// FIXME: Replace this with proper persisted column, so we don't have to re-resolve on
+    /// restart.
+    pub resolved_drv_map: parking_lot::RwLock<HashMap<nix_utils::StorePath, nix_utils::StorePath>>,
 
     pub fod_checker: Option<Arc<FodChecker>>,
 
@@ -126,6 +140,7 @@ impl State {
             cli,
             db,
             machines: Machines::new(),
+            resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
             log_dir,
             builds: Builds::new(),
             jobsets: Jobsets::new(),
@@ -275,7 +290,7 @@ impl State {
         let drv = step_info.step.get_drv_path();
         let mut build_options = nix_utils::BuildOptions::new(None);
 
-        let build_id = {
+        let build = {
             let mut dependents = HashSet::new();
             let mut steps = HashSet::new();
             step_info.step.get_dependents(&mut dependents, &mut steps);
@@ -308,14 +323,12 @@ impl State {
             build_options
                 .set_max_silent_time(biggest_max_silent_time.unwrap_or(build.max_silent_time));
             build_options.set_build_timeout(biggest_build_timeout.unwrap_or(build.timeout));
-            build.id
+            build.clone()
         };
 
-        let mut job = machine::Job::new(
-            build_id,
-            drv.to_owned(),
-            step_info.resolved_drv_path.clone(),
-        );
+        let build_id = build.id;
+
+        let mut job = machine::Job::new(build_id, drv.to_owned());
         job.result.set_start_time_now();
         if self.check_cached_failure(step_info.step.clone()).await {
             job.result.step_status = BuildStatus::CachedFailure;
@@ -335,9 +348,10 @@ impl State {
 
             let step_nr = tx
                 .create_build_step(
+                    self.store.store_dir(),
                     Some(job.result.get_start_time_as_i32()?),
                     build_id,
-                    &self.store.print_store_path(step_info.step.get_drv_path()),
+                    step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
                     machine.hostname.clone(),
                     BuildStatus::Busy,
@@ -348,19 +362,188 @@ impl State {
                         .get_output_paths(self.store.store_dir())
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|(name, path)| {
-                            (
-                                name.to_string(),
-                                path.map(|p| self.store.print_store_path(&p)),
-                            )
-                        })
                         .collect(),
                 )
                 .await?;
+
             tx.commit().await?;
             step_nr
         };
         job.step_nr = step_nr;
+
+        // Try to resolve CA derivation inputs. If resolution yields a
+        // different drv, mark this step as Resolved in the DB and create a new
+        // step for the resolved drv that will be built at a later time.
+        {
+            let Some(guard) = step_info.step.get_drv() else {
+                // Should never happen
+                return Ok(RealiseStepResult::MaybeCancelled);
+            };
+            let drv_ref = guard.as_ref().unwrap();
+
+            // `Some(path)` if this CA derivation was resolved to a
+            // different drv; `None` if resolution is not needed or is
+            // a no-op (same drv path).
+            let resolved_path = async {
+                // Only CA floating derivations need resolution, and only
+                // when they have `Built` inputs (dynamic derivation deps).
+                // `Opaque`-only inputs are already resolved.
+                let is_ca_with_built_inputs =
+                    drv_ref.outputs.iter().all(|output| {
+                        matches!(output.1, nix_utils::DerivationOutput::CAFloating(_))
+                    }) && drv_ref
+                        .inputs
+                        .iter()
+                        .any(|input| matches!(input, nix_utils::SingleDerivedPath::Built { .. }));
+                tracing::info!(
+                    is_ca_with_built_inputs,
+                    ca_floating = drv_ref
+                        .outputs
+                        .iter()
+                        .all(|o| matches!(o.1, nix_utils::DerivationOutput::CAFloating(_))),
+                    has_built_inputs = drv_ref
+                        .inputs
+                        .iter()
+                        .any(|i| matches!(i, nix_utils::SingleDerivedPath::Built { .. })),
+                    "resolution check for {drv}"
+                );
+                if !is_ca_with_built_inputs {
+                    return Ok::<_, anyhow::Error>(None);
+                }
+
+                // Resolve `Built` input placeholders to concrete store
+                // paths using outputs recorded in the DB.
+                let resolved_map = self.resolved_drv_map.read().clone();
+                let basic_drv =
+                    StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref, &resolved_map)
+                        .await
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("Failed to resolve CAFloating derivation {drv}")
+                        })?;
+                let resolved_path = self.store.write_derivation(&basic_drv).await?;
+                // If resolution changed the drv, we need a two-phase
+                // build; otherwise just build the original directly.
+                Ok((&resolved_path != drv).then_some(resolved_path))
+            }
+            .await?;
+
+            if let Some(resolved_path) = resolved_path {
+                tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
+
+                // Record the resolved drv path in memory so future
+                // output lookups can translate through it.
+                self.resolved_drv_map
+                    .write()
+                    .insert(drv.clone(), resolved_path.clone());
+
+                // Finish original step as "resolved" in the DB and in-memory
+                step_info.step.set_finished(true);
+                let mut resolved_result = RemoteBuild::new();
+                resolved_result.step_status = BuildStatus::Resolved;
+                resolved_result.set_start_time_now();
+                resolved_result.set_stop_time_now();
+                resolved_result.log_file.clone_from(&job.result.log_file);
+                finish_build_step(
+                    &self.db,
+                    &self.store,
+                    build_id,
+                    step_nr,
+                    &resolved_result,
+                    Some(&machine.hostname),
+                    None,
+                )
+                .await?;
+
+                // Create a resolved in-memory step
+                // We do not need the global state because they are only relevant when making
+                // multiple steps. Our resolved step, by definition, has no dependencies, so
+                // only one step will ever be created.
+                // finished_drvs: A list of previously created steps within a build.
+                // Without this, it is possible that we will make a duplicate step if two different
+                // steps in the same build resolve to the same derivation, but it will not cause
+                // problems.
+                // new_steps: An output list of all created steps. Since only one is being made, the root,
+                // we can take the return of the function.
+                // new_runnable: An output list of the runnable steps. Again, only one will be made, so we
+                // can take the function return.
+                // Only mark the resolved step as a direct build if the
+                // unresolved step was the toplevel derivation of the build.
+                // Otherwise, `succeed_step` would prematurely mark the build as
+                // finished when an intermediate resolved step completes.
+                let is_toplevel = build.toplevel.load().as_deref() == Some(&*step_info.step);
+                let referring_build = if is_toplevel {
+                    Some(build.clone())
+                } else {
+                    None
+                };
+                let resolved_step = match self
+                    .create_step(
+                        build.clone(),
+                        resolved_path,
+                        referring_build,
+                        None,
+                        Arc::new(parking_lot::RwLock::new(HashSet::new())),
+                        Arc::new(parking_lot::RwLock::new(HashSet::new())),
+                        Arc::new(parking_lot::RwLock::new(HashSet::new())),
+                    )
+                    .await
+                {
+                    CreateStepResult::None => {
+                        return Err(anyhow::anyhow!("Could not create resolved build step"));
+                    }
+                    CreateStepResult::Valid(step) => step,
+                    CreateStepResult::PreviousFailure(step) => {
+                        self.handle_previous_failure(build.clone(), step.clone())
+                            .await
+                            .with_context(|| {
+                                format!(
+                                    "Failed to handle previous failure in resolved version of {drv}"
+                                )
+                            })?;
+                        return Ok(RealiseStepResult::CachedFailure);
+                    }
+                };
+
+                resolved_step.make_runnable();
+
+                // The in-memory `Arc<Step>` objects are kept alive by having a reference
+                // from a `Build` (if they are the root build) or a dependant `Step`
+                // (if they are not).
+                // Therefore, we must prevent our new resolved step from being garbage
+                // collected by marking it as a dependency of the old step's reverse
+                // dependencies and, if it was the root derivation, as the new root
+                // derivation of the build.
+
+                // Replace the original step with the resolved step in the
+                // dependency graph.  Each step that depended on the original
+                // (unresolved) step must now depend on the resolved step
+                // instead, otherwise it will never become runnable (the
+                // original step's drv path differs from the resolved one, so
+                // completing the resolved step wouldn't clear the dep).
+                for rdep in step_info.step.clone_rdeps() {
+                    if let Some(rdep) = rdep.step.upgrade() {
+                        rdep.remove_dep(&step_info.step);
+                        resolved_step.make_rdep(&rdep);
+                    }
+                }
+
+                // Make the resolved step the new root of the build if the old
+                // unresolved step was previously the root.
+                if *build
+                    .toplevel
+                    .compare_and_swap(&step_info.step, Some(resolved_step))
+                    == Some(step_info.step.clone())
+                {
+                    build.propagate_priorities();
+                }
+
+                // New steps runnable
+                self.trigger_dispatch();
+
+                // No more work to do, build will happen in another step
+                return Ok(RealiseStepResult::Resolved);
+            }
+        }
 
         {
             let mut tx = db.begin_transaction().await?;
@@ -368,22 +551,24 @@ impl State {
             tx.commit().await?;
         }
         tracing::info!(
-            "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} step_nr={step_nr}",
+            "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} step_nr={}",
             machine.id,
-            machine.hostname
+            machine.hostname,
+            job.step_nr,
         );
         self.db
             .get()
             .await?
             .update_build_step(db::models::UpdateBuildStep {
                 build_id,
-                step_nr,
+                step_nr: job.step_nr,
                 status: db::models::StepStatus::Connecting,
             })
             .await?;
         machine
             .build_drv(
                 job,
+                drv.clone(),
                 &build_options,
                 // TODO: cleanup
                 if self.config.use_presigned_uploads() {
@@ -551,8 +736,9 @@ impl State {
             .await?
             .ok_or_else(|| anyhow::anyhow!("drv not found"))?;
         db.insert_debug_build(
+            self.store.store_dir(),
             jobset_id,
-            &self.store.print_store_path(drv_path),
+            drv_path,
             std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
         )
         .await?;
@@ -956,7 +1142,7 @@ impl State {
             if r.atomic_state.tries.load(Ordering::Relaxed) > 0 {
                 continue;
             }
-            let step_info = StepInfo::new(&self.store, &self.db, r.clone()).await;
+            let step_info = StepInfo::new(r.clone());
 
             new_queues
                 .entry(system)
@@ -1045,6 +1231,30 @@ impl State {
             .ok_or_else(|| anyhow::anyhow!("Step is missing in queues.scheduled"))?;
 
         item.step_info.step.set_finished(true);
+
+        // Verify that for outputs with statically-known paths (input-addressed
+        // and fixed content-addressed), the paths reported by the builder match
+        // what we compute from the derivation.  A mismatch here would mean that
+        // the queue runner and builder are disagreeing on what the drv itself
+        // means (regardless of what it produces) which would be an "all bets
+        // are off" bug.
+        if let Some(expected) = item.step_info.step.get_output_paths(self.store.store_dir()) {
+            for (name, expected_path) in &expected {
+                let Some(expected_path) = expected_path else {
+                    continue; // path not statically known (Deferred/CAFloating/Impure)
+                };
+                if let Some(actual_path) = output.outputs.get(name) {
+                    anyhow::ensure!(
+                        expected_path == actual_path,
+                        "output path mismatch for output `{name}` of {drv_path}: \
+                         expected {}, got {}",
+                        self.store.print_store_path(expected_path),
+                        self.store.print_store_path(actual_path),
+                    );
+                }
+            }
+        }
+
         tracing::debug!(
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
@@ -1171,13 +1381,81 @@ impl State {
         {
             let mut db = self.db.get().await?;
             let mut tx = db.begin_transaction().await?;
-            for b in direct {
+            for b in &direct {
                 tx.notify_build_finished(b.id, &[]).await?;
             }
 
             tx.commit().await?;
         }
 
+        // Process dynamic rdeps first, as we must add new step dependencies for dynamically
+        // generated derivations
+        {
+            for (dep_step, output_name, relation) in item.step_info.step.pop_dynamic_rdeps() {
+                let Some(dependent_step) = dep_step.upgrade() else {
+                    continue;
+                };
+
+                let resolved_drv = output.outputs.get(&output_name).cloned().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Dynamic rdep references output `{output_name}` not produced by {drv_path}"
+                    )
+                })?;
+
+                // Find a build associated with this step. For intermediate steps
+                // (not top-level), `direct` is empty, so we walk the dependency
+                // chain via `get_dependents` to find the owning build.
+                let build = if let Some(b) = direct.get(0) {
+                    b.clone()
+                } else {
+                    let mut dependents = HashSet::new();
+                    let mut visited_steps = HashSet::new();
+                    item.step_info
+                        .step
+                        .get_dependents(&mut dependents, &mut visited_steps);
+                    let Some(b) = dependents.into_iter().next() else {
+                        tracing::warn!("Finished step does not have associated build");
+                        continue;
+                    };
+                    b
+                };
+
+                // Create the actual step for the new derivation.
+                // finished_drvs is not necessary as it is only a memoization table to reduce
+                // checks if a dependency is finished from the database.
+                // new_steps is not necessary either as
+                let new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>> = Default::default();
+                let new_step = match self
+                    .create_step(
+                        build.clone(),
+                        resolved_drv.clone(),
+                        None,
+                        Some((dependent_step.clone(), relation)),
+                        Default::default(),
+                        Default::default(),
+                        new_runnable.clone(),
+                    )
+                    .await
+                {
+                    CreateStepResult::None => continue,
+                    CreateStepResult::Valid(step) => step,
+                    CreateStepResult::PreviousFailure(step) => {
+                        if let Err(e) = self.handle_previous_failure(build.clone(), step).await {
+                            tracing::error!("Failed to handle previous failure: {e}");
+                        }
+                        // TODO: figure out what to do here
+                        continue;
+                    }
+                };
+
+                for r in new_runnable.read().iter() {
+                    r.make_runnable();
+                }
+
+                // create_step already added rdeps, but we need to add a forward dep as well
+                dependent_step.add_dep(new_step);
+            }
+        }
         item.step_info.step.make_rdeps_runnable();
 
         // always trigger dispatch, as we now might have a free machine again
@@ -1370,9 +1648,10 @@ impl State {
                     }
 
                     tx.create_build_step(
+                        self.store.store_dir(),
                         None,
                         b.id,
-                        &self.store.print_store_path(step.get_drv_path()),
+                        step.get_drv_path(),
                         step.get_system().as_deref(),
                         machine
                             .as_deref()
@@ -1388,12 +1667,6 @@ impl State {
                         step.get_output_paths(self.store.store_dir())
                             .unwrap_or_default()
                             .into_iter()
-                            .map(|(name, path)| {
-                                (
-                                    name.to_string(),
-                                    path.map(|p| self.store.print_store_path(&p)),
-                                )
-                            })
                             .collect(),
                     )
                     .await?;
@@ -1432,7 +1705,7 @@ impl State {
                         .unwrap_or_default()
                     {
                         if let Some(path) = path {
-                            tx.insert_failed_paths(&self.store.print_store_path(&path))
+                            tx.insert_failed_paths(self.store.store_dir(), &path)
                                 .await?;
                         }
                     }
@@ -1508,7 +1781,7 @@ impl State {
         // Find the previous build step record, first by derivation path, then by output
         // path.
         let mut propagated_from = tx
-            .get_last_build_step_id(&self.store.print_store_path(step.get_drv_path()))
+            .get_last_build_step_id(self.store.store_dir(), step.get_drv_path())
             .await?
             .unwrap_or_default();
 
@@ -1521,11 +1794,12 @@ impl State {
                 .unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(&self.store.print_store_path(path))
+                    tx.get_last_build_step_id_for_output_path(self.store.store_dir(), path)
                         .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
-                        &self.store.print_store_path(step.get_drv_path()),
+                        self.store.store_dir(),
+                        step.get_drv_path(),
                         name.as_ref(),
                     )
                     .await
@@ -1538,9 +1812,10 @@ impl State {
         }
 
         tx.create_build_step(
+            self.store.store_dir(),
             None,
             build.id,
-            &self.store.print_store_path(step.get_drv_path()),
+            step.get_drv_path(),
             step.get_system().as_deref(),
             String::new(),
             BuildStatus::CachedFailure,
@@ -1549,12 +1824,6 @@ impl State {
             step.get_output_paths(self.store.store_dir())
                 .unwrap_or_default()
                 .into_iter()
-                .map(|(name, path)| {
-                    (
-                        name.to_string(),
-                        path.map(|p| self.store.print_store_path(&p)),
-                    )
-                })
                 .collect(),
         )
         .await?;
@@ -1732,7 +2001,7 @@ impl State {
         build: Arc<Build>,
         drv_path: nix_utils::StorePath,
         referring_build: Option<Arc<Build>>,
-        referring_step: Option<Arc<Step>>,
+        referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<nix_utils::StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
@@ -1746,9 +2015,13 @@ impl State {
             }
         }
 
-        let (step, is_new) =
-            self.steps
-                .create(&drv_path, referring_build.as_ref(), referring_step.as_ref());
+        let (step, is_new) = self.steps.create(
+            &drv_path,
+            referring_build.as_ref(),
+            referring_step
+                .as_ref()
+                .map(|(step, relation)| (step, relation.clone())),
+        );
         if !is_new {
             return CreateStepResult::Valid(step);
         }
@@ -1760,6 +2033,7 @@ impl State {
             .ok()
             .flatten()
         else {
+            tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
             return CreateStepResult::None;
         };
         if let Some(fod_checker) = &self.fod_checker {
@@ -1785,17 +2059,45 @@ impl State {
             })
         };
         let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
+        let known_outputs = self
+            .query_known_drv_outputs(&drv_path)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("Could not query known outputs, continuing: {e}");
+                BTreeMap::new()
+            });
+        let missing_local_outputs = self.store.query_missing_outputs(output_paths.clone()).await;
+        // Handle paths that aren't in the database (for resolution)
+        // existing_local_outputs = output_paths - missing_local_outputs
+        // unregistered_local_outputs = existing_local_outputs - known_outputs
+        let unregistered_local_outputs = output_paths
+            .iter()
+            .filter(|(name, path)| {
+                path.is_some()
+                    && !missing_local_outputs.contains_key(name)
+                    && !known_outputs.contains_key(name)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect::<BTreeMap<_, _>>();
+        if !unregistered_local_outputs.is_empty()
+            && let Err(e) = crate::utils::make_local_step(
+                &self.db,
+                &self.store,
+                build.id,
+                &drv_path,
+                &unregistered_local_outputs,
+            )
+            .await
+        {
+            tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
+        }
+
+        // Handle paths that aren't in the remote store (for pushing)
         let missing_outputs = if let Some(ref remote_store) = remote_store {
             let mut missing = remote_store
                 .query_missing_remote_outputs(output_paths.clone())
                 .await;
-            if !missing.is_empty()
-                && self
-                    .store
-                    .query_missing_outputs(output_paths.clone())
-                    .await
-                    .is_empty()
-            {
+            if !missing.is_empty() && missing_local_outputs.is_empty() {
                 // we have all paths locally, so we can just upload them to the remote_store
                 if let Ok(log_file) = self.construct_log_file_path(&drv_path).await {
                     let missing_paths: Vec<nix_utils::StorePath> =
@@ -1815,6 +2117,7 @@ impl State {
             self.store.query_missing_outputs(output_paths).await
         };
 
+        let input_drvs = drv::input_drvs(&drv);
         step.set_drv(drv);
 
         if self.check_cached_failure(step.clone()).await {
@@ -1861,6 +2164,7 @@ impl State {
         };
 
         if finished {
+            tracing::info!("create_step: {drv_path} already finished (outputs in store), skipping");
             if let Some(fod_checker) = &self.fod_checker {
                 fod_checker.to_traverse(&drv_path);
             }
@@ -1871,35 +2175,32 @@ impl State {
         }
 
         tracing::debug!("creating build step '{drv_path}");
-        let Some(input_drvs) = step.get_input_drvs() else {
-            // this should never happen because we always a a drv set at this point in time
-            return CreateStepResult::None;
-        };
 
         let step2 = step.clone();
-        let mut stream = futures::StreamExt::map(tokio_stream::iter(input_drvs), |i| {
-            let build = build.clone();
-            let step = step2.clone();
-            let finished_drvs = finished_drvs.clone();
-            let new_steps = new_steps.clone();
-            let new_runnable = new_runnable.clone();
-            async move {
-                Box::pin(self.create_step(
-                    // conn,
-                    build,
-                    i,
-                    None,
-                    Some(step),
-                    finished_drvs,
-                    new_steps,
-                    new_runnable,
-                ))
-                .await
-            }
-        })
-        .buffered(25);
-        while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
-            match v {
+        let mut stream =
+            futures::StreamExt::map(tokio_stream::iter(input_drvs), |(input_path, relation)| {
+                let build = build.clone();
+                let step = step2.clone();
+                let finished_drvs = finished_drvs.clone();
+                let new_steps = new_steps.clone();
+                let new_runnable = new_runnable.clone();
+
+                async move {
+                    Box::pin(self.create_step(
+                        build,
+                        input_path,
+                        None,
+                        Some((step, relation)),
+                        finished_drvs,
+                        new_steps,
+                        new_runnable,
+                    ))
+                    .await
+                }
+            })
+            .buffered(25);
+        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+            match result {
                 CreateStepResult::None => (),
                 CreateStepResult::Valid(dep) => {
                     if !dep.get_finished() && !dep.get_previous_failure() {
@@ -1929,6 +2230,18 @@ impl State {
         CreateStepResult::Valid(step)
     }
 
+    #[tracing::instrument(skip(self))]
+    async fn query_known_drv_outputs(
+        &self,
+        drv_path: &nix_utils::StorePath,
+    ) -> anyhow::Result<BTreeMap<nix_utils::OutputName, nix_utils::StorePath>> {
+        let mut db = self.db.get().await?;
+        let mut tx = db.begin_transaction().await?;
+        Ok(tx
+            .find_build_step_outputs(self.store.store_dir(), drv_path)
+            .await?)
+    }
+
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
     async fn check_cached_failure(&self, step: Arc<Step>) -> bool {
         let Some(drv_outputs) = step.get_output_paths(self.store.store_dir()) else {
@@ -1940,9 +2253,10 @@ impl State {
         };
 
         conn.check_if_paths_failed(
+            self.store.store_dir(),
             &drv_outputs
                 .iter()
-                .filter_map(|(_, path)| path.as_ref().map(|p| self.store.print_store_path(p)))
+                .filter_map(|(_, path)| path.clone())
                 .collect::<Vec<_>>(),
         )
         .await
@@ -1994,7 +2308,7 @@ impl State {
                     continue;
                 };
                 let Some(db_build_output) = db
-                    .get_build_output_for_path(&self.store.print_store_path(out_path))
+                    .get_build_output_for_path(self.store.store_dir(), out_path)
                     .await?
                 else {
                     continue;
@@ -2086,7 +2400,7 @@ impl State {
                 continue;
             };
 
-            let mut job = machine::Job::new(build.id, drv.to_owned(), None);
+            let mut job = machine::Job::new(build.id, drv.to_owned());
             job.result.set_start_and_stop(now);
             job.result.step_status = BuildStatus::Unsupported;
             job.result.error_msg = Some(format!(

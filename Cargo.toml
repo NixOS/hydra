@@ -29,10 +29,10 @@ futures = "0.3"
 futures-util = "0.3"
 gethostname = "1"
 h2 = "0.4"
-harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
+harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
 hashbrown = "0.16"
 http = "1.1"
 http-body-util = "0.1"
@@ -94,7 +94,7 @@ uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
 
 [patch.crates-io]
-harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
-harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git", branch = "nix-next" }
+harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git" }
