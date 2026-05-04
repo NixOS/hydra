@@ -2,6 +2,7 @@ use warnings;
 use strict;
 
 package QueueRunnerContext;
+use File::Path qw(make_path);
 use IO::Socket::IP;
 use IPC::Run;
 use LWP::UserAgent;
@@ -42,12 +43,44 @@ sub wait_for_url {
     return 0;
 }
 
+# Start a nix daemon for the given store config.
+# Returns the daemon harness.  Caller must kill_kill it when done.
+sub start_nix_daemon {
+    my ($store) = @_;
+    make_path($store->{nix_state_dir});
+
+    my ($in, $out, $err) = ("", "", "");
+    my $harness;
+    {
+        local $ENV{NIX_REMOTE} = $store->{nix_store_uri};
+        local $ENV{NIX_STORE_DIR} = $store->{nix_store_dir};
+        local $ENV{NIX_STATE_DIR} = $store->{nix_state_dir};
+        local $ENV{NIX_CONF_DIR} = $store->{nix_conf_dir};
+        local $ENV{NIX_DAEMON_SOCKET_PATH} = $store->{nix_daemon_socket_path};
+        local $ENV{NIX_CONFIG} = "trusted-users = *";
+        $harness = IPC::Run::start(
+            ["nix-daemon"],
+            \$in, \$out, \$err,
+        );
+    }
+    my $socket = $store->{nix_daemon_socket_path};
+    for (1..50) {
+        last if -S $socket;
+        select(undef, undef, undef, 0.1);
+    }
+    -S $socket or die "nix-daemon did not start: $socket\n";
+    return $harness;
+}
+
 # Start a queue runner process.
-# Returns ($harness, $http_url, $grpc_port, \$stdout_buf, \$stderr_buf).
+# Returns ($harness, $http_url, $grpc_port, \$stdout_buf, \$stderr_buf, $daemon_harness).
 # Caller is responsible for calling $harness->kill_kill when done.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
+
+    # Start a nix daemon for the queue runner to use.
+    my $daemon_harness = start_nix_daemon($ctx->{central});
 
     my $grpc_port = get_random_port(5000, 9999);
     my $http_port = get_random_port(10000, 19999);
@@ -76,10 +109,11 @@ sub start_queue_runner {
 
     my ($qr_in, $qr_out, $qr_err) = ("", "", "");
 
-    # Start the queue runner with central env applied.
+    # Start the queue runner, connecting to the nix daemon via unix://.
     my $qr_harness;
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+        local $ENV{NIX_REMOTE} = $ctx->{central}{nix_daemon_uri};
         local $ENV{RUST_LOG} = $opts{rust_log} // "error";
         local $ENV{NO_COLOR} = "1";
         $qr_harness = IPC::Run::start(
@@ -95,7 +129,7 @@ sub start_queue_runner {
 
     my $base_url = "http://[::1]:$http_port";
 
-    return ($qr_harness, $base_url, $grpc_port, \$qr_out, \$qr_err);
+    return ($qr_harness, $base_url, $grpc_port, \$qr_out, \$qr_err, $daemon_harness);
 }
 
 1;
