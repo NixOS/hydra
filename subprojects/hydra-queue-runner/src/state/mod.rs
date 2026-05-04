@@ -1217,6 +1217,52 @@ impl State {
             }
         }
 
+        // Write realisations for CA floating outputs to binary caches.
+        // This maps (resolved_drv_path, output_name) -> concrete_output_path,
+        // allowing clients to look up outputs by derivation path.
+        //
+        // TODO: also write realisations to the local store's SQLite
+        // `Realisations` table (for non-S3 / FFI stores) once nix is
+        // updated to 2.35, which uses path-based DrvOutput matching
+        // the harmonia types.
+        if let Some(drv_guard) = item.step_info.step.get_drv() {
+            let drv_ref = drv_guard.as_ref().unwrap();
+            let has_ca_floating = drv_ref
+                .outputs
+                .values()
+                .any(|o| matches!(o, nix_utils::DerivationOutput::CAFloating(_)));
+            if has_ca_floating {
+                let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
+                    let r = self.remote_stores.read();
+                    r.iter()
+                        .filter_map(|s| match s {
+                            RemoteStoreBackend::S3(s) => Some(s.clone()),
+                            _ => None,
+                        })
+                        .collect()
+                };
+                for (output_name, out_path) in &output.outputs {
+                    let realisation = nix_utils::Realisation {
+                        key: nix_utils::DrvOutput {
+                            drv_path: drv_path.clone(),
+                            output_name: output_name.clone(),
+                        },
+                        value: nix_utils::UnkeyedRealisation {
+                            out_path: out_path.clone(),
+                            signatures: Default::default(),
+                        },
+                    };
+                    for s3 in &s3_stores {
+                        if let Err(e) = s3.write_realisation(realisation.clone()).await {
+                            tracing::warn!(
+                                "Failed to write realisation for {drv_path}^{output_name}: {e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         let direct = item.step_info.step.get_direct_builds();
         if direct.is_empty() {
             self.steps.remove(item.step_info.step.get_drv_path());

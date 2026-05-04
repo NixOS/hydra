@@ -1,7 +1,6 @@
 fn main() {
     let _store = nix_utils::LocalStore::init();
     println!("Store dir: {}", nix_utils::get_store_dir());
-    println!("Log dir: {}", nix_utils::get_log_dir());
     println!("State dir: {}", nix_utils::get_state_dir());
     println!("System: {}", nix_utils::get_this_system());
     println!("Extra Platforms: {:?}", nix_utils::get_extra_platforms());
