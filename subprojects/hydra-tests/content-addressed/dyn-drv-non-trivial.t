@@ -1,6 +1,10 @@
 use feature 'unicode_strings';
 use strict;
 use warnings;
+# There is something wrong with recursive nix that causes this to fail
+# wiht some regularity in CI. Allowing this test to be restarted as a
+# stop-gap for now.
+# HARNESS-RETRY 5
 use Setup;
 use Test2::V0;
 
