@@ -42,7 +42,6 @@ impl StepInfo {
         store_dir: &nix_utils::StoreDir,
         db: &db::Database,
         drv: &nix_utils::Derivation,
-        resolved_drv_map: &hashbrown::HashMap<nix_utils::StorePath, nix_utils::StorePath>,
     ) -> Option<nix_utils::BasicDerivation> {
         // Input-addressed derivations should not be resolved because this would change their
         // output paths.
@@ -73,55 +72,32 @@ impl StepInfo {
 
         let mut conn = db.get().await.ok()?;
 
-        // Memoize depth-1 lookups across all chains resolved in this call.
-        let mut memo = std::collections::HashMap::<
-            (nix_utils::StorePath, nix_utils::OutputName),
-            Option<nix_utils::StorePath>,
-        >::new();
-
         drv.try_resolve(store_dir, &mut |inputs| {
             tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-
+                // Flatten each SingleDerivedPath chain into (root, [outputs...])
+                // and resolve everything in a single recursive SQL query.
                 let chains: Vec<_> = inputs
                     .iter()
                     .map(|(drv_path, output_name)| flatten_chain(drv_path, output_name))
                     .collect();
 
-                // Resolve each chain one level at a time, translating
-                // through the in-memory resolved-drv map between levels.
-                chains
+                // SQL needs forward order; OutputNameChain stores reversed.
+                let chain_refs: Vec<_> = chains
                     .iter()
-                    .map(|(root, chain)| {
-                        let mut current = root.clone();
-                        // OutputNameChain is in stack order; iterate
-                        // reversed for forward (root-to-leaf) order.
-                        for output_name in chain.0.iter().rev() {
-                            let translated = resolved_drv_map
-                                .get(&current)
-                                .cloned()
-                                .unwrap_or_else(|| current.clone());
-                            let key = (translated, output_name.clone());
-                            let result = match memo.get(&key) {
-                                Some(cached) => cached.clone(),
-                                None => {
-                                    let r = rt
-                                        .block_on(
-                                            conn.resolve_drv_output(store_dir, &key.0, &key.1),
-                                        )
-                                        .unwrap_or_else(|e| {
-                                            tracing::warn!("resolve_drv_output failed: {e}");
-                                            None
-                                        });
-                                    memo.insert(key, r.clone());
-                                    r
-                                }
-                            };
-                            current = result?;
-                        }
-                        Some(current)
+                    .map(|(root, chain)| (root, chain.0.iter().rev().collect::<Vec<_>>()))
+                    .collect();
+
+                let sql_input: Vec<_> = chain_refs
+                    .iter()
+                    .map(|(root, outputs)| (*root, outputs.as_slice()))
+                    .collect();
+
+                tokio::runtime::Handle::current()
+                    .block_on(conn.resolve_drv_output_chains(store_dir, &sql_input))
+                    .unwrap_or_else(|e| {
+                        tracing::warn!("resolve_drv_output_chains failed: {e}");
+                        vec![None; inputs.len()]
                     })
-                    .collect()
             })
         })
     }

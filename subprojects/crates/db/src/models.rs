@@ -22,7 +22,7 @@ pub enum BuildStatus {
     LogLimitExceeded = 10,
     NarSizeLimitExceeded = 11,
     NotDeterministic = 12,
-    /// step was resolved to a CA derivation
+    /// step was resolved to a CA derivation, see resolvedTo FK
     Resolved = 13,
     /// not stored
     Busy = 100,
