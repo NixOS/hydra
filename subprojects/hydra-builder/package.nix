@@ -34,7 +34,7 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ../../Cargo.lock;
     outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-g7JJGrjWnnzBtxtxLaqL/wKehPBZAHh8C7U7ALYW6o0=";
+      "harmonia-store-core-0.0.0-alpha.0" = "sha256-EwOfW4esHMOaxoxgrguLJYLPQXoFjzOljR2+x+mmo3k=";
     };
   };
 
@@ -42,7 +42,12 @@ rustPlatform.buildRustPackage {
   # so drop it from the workspace members to keep cargo from trying to
   # load its (absent) manifest.
   postPatch = ''
-    sed -i 's|"subprojects/hydra-queue-runner", ||' Cargo.toml
+    sed -i \
+      -e 's|"subprojects/hydra-queue-runner", ||' \
+      -e 's|"subprojects/hydra-drv-daemon", ||' \
+      -e '/^[[:space:]]*"subprojects\/hydra-queue-runner",[[:space:]]*$/d' \
+      -e '/^[[:space:]]*"subprojects\/hydra-drv-daemon",[[:space:]]*$/d' \
+      Cargo.toml
   '';
 
   buildAndTestSubdir = "subprojects/hydra-builder";

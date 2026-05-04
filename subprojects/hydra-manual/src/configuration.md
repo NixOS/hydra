@@ -102,6 +102,41 @@ See [`nix help
 stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
 for a description of the store URI format.
 
+Routing import-from-derivation through Hydra
+--------------------------------------------
+
+When `allow_import_from_derivation = true` is set, an evaluator that
+hits an import-from-derivation builds the inner derivation locally on
+the evaluator host. Pointing the evaluator at the `hydra-drv-daemon`
+socket via `NIX_REMOTE` instead causes those builds to land in the
+`Builds` table under the auto-created `adhoc/adhoc` jobset, where the
+queue runner picks them up like any other build.
+
+The wiring is environment-only: `hydra-evaluator` (and any tool
+invoking the Nix daemon protocol) will use whatever socket
+`NIX_REMOTE` points at. There is no Hydra-side configuration knob.
+
+NixOS users can opt in via the evaluator module:
+
+```nix
+services.hydra-drv-daemon-dev.enable = true;
+services.hydra-evaluator-dev.routeIfdsThroughDaemon = true;
+services.hydra-evaluator-dev.allowImportFromDerivation = true;
+```
+
+This sets `NIX_REMOTE=unix:///run/hydra-drv-daemon/socket` on the
+`hydra-evaluator.service` unit and adds `allow_import_from_derivation
+= true` to `hydra.conf`. Without `allowImportFromDerivation`,
+`nix-eval-jobs` rejects every IFD before the daemon can see it.
+
+For non-NixOS deployments, run `hydra-drv-daemon` yourself and set
+`NIX_REMOTE` in the environment of `hydra-evaluator` (and any other
+process that should route store ops through the daemon).
+
+Content-addressed IFDs are not yet supported through this path — the
+daemon does not surface output realisations, so the evaluator cannot
+read CA outputs back. Input-addressed IFDs work end-to-end.
+
 Statsd Configuration
 --------------------
 
