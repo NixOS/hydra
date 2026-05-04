@@ -55,7 +55,25 @@
         "nix": "nix",
         "nix-eval-jobs": "nix-eval-jobs",
         "nixpkgs": "nixpkgs",
+        "starman": "starman",
         "treefmt-nix": "treefmt-nix"
+      }
+    },
+    "starman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1777864895,
+        "narHash": "sha256-cKkPW2sRZCLA0vhX5Pp9Bx6lgyls1FSsMHqtG4gP73c=",
+        "owner": "Ericson2314",
+        "repo": "Starman",
+        "rev": "093beec24aea5431e61f5c39bf1cf565837eaef1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Ericson2314",
+        "ref": "systemd-socket-activation",
+        "repo": "Starman",
+        "type": "github"
       }
     },
     "treefmt-nix": {

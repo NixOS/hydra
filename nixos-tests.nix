@@ -76,6 +76,7 @@ in
       nodes.builder = builderConfig;
       testScript = ''
         server.wait_for_unit("hydra-init.service")
+        server.succeed("systemctl status hydra-server.socket")
         server.wait_for_unit("hydra-server.service")
         server.wait_for_unit("hydra-evaluator.service")
         server.wait_for_unit("hydra-queue-runner-dev.service")
