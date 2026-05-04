@@ -40,9 +40,12 @@ sub runBuilds {
     ref $ctx eq 'HydraTestContext' or die "runBuilds requires a HydraTestContext as first argument\n";
     my @build_ids = map { $_->id } @builds;
 
-    my ($qr_harness, $base_url, $grpc_port, $qr_out_ref, $qr_err_ref) = start_queue_runner($ctx,
+    my ($qr_harness, $base_url, $grpc_port, $qr_out_ref, $qr_err_ref, $qr_daemon) = start_queue_runner($ctx,
         rust_log => "queue_runner=debug,info",
     );
+
+    # Start a nix daemon for the builder.
+    my $bl_daemon = QueueRunnerContext::start_nix_daemon($ctx->{builder});
 
     my ($bl_in, $bl_out, $bl_err) = ("", "", "");
     my $ua = LWP::UserAgent->new(timeout => 2);
@@ -56,9 +59,9 @@ sub runBuilds {
         wait_for_url($ua, "$base_url/status")
             or die "Timed out waiting for queue-runner REST server\n";
 
-        # Start the builder with its own store settings.
+        # Start the builder, connecting to the nix daemon via unix://.
         {
-            local $ENV{NIX_REMOTE} = $ctx->{builder}{nix_store_uri};
+            local $ENV{NIX_REMOTE} = $ctx->{builder}{nix_daemon_uri};
             local $ENV{NIX_CONF_DIR} = $ctx->{builder}{nix_conf_dir};
             local $ENV{NIX_STATE_DIR} = $ctx->{builder}{nix_state_dir};
             # TODO: hydra-builder reads NIX_STORE_DIR to report its
@@ -129,8 +132,10 @@ sub runBuilds {
         $bl_harness->kill_kill;
         _flush_harness("Builder", \$bl_out, \$bl_err, 1);
     }
+    $bl_daemon->kill_kill(grace => 2);
     $qr_harness->kill_kill;
     _flush_harness("Queue runner", $qr_out_ref, $qr_err_ref, 1);
+    $qr_daemon->kill_kill(grace => 2);
 
     if (!$ok) {
         print STDERR "runBuilds failed: $err" if $err;

@@ -53,11 +53,13 @@ sub new {
     # use sandboxed builds.
     my $builder = { root => "$dir/builder" };
     make_path($builder->{root});
+    $builder->{nix_conf_dir} = "$dir/nix/etc/nix";
     $builder->{nix_store_dir} = "$builder->{root}/nix/store";
     $builder->{nix_state_dir} = "$builder->{root}/nix/var/nix";
     $builder->{nix_log_dir} = "$builder->{root}/nix/var/log/nix";
     $builder->{nix_store_uri} = "local?root=$builder->{root}&store=$builder->{nix_store_dir}";
-    $builder->{nix_conf_dir} = "$dir/nix/etc/nix";
+    $builder->{nix_daemon_socket_path} = "$builder->{nix_state_dir}/daemon-socket/socket";
+    $builder->{nix_daemon_uri} = "unix://$builder->{nix_daemon_socket_path}?root=$builder->{root}&store=$builder->{nix_store_dir}";
 
     # Physical dirs for centralized services (queue runner, main web app, etc.)
     my $central = { root => "$dir/central" };
@@ -70,6 +72,8 @@ sub new {
     $central->{nix_state_dir} = "$central->{root}/nix/var/nix";
     $central->{nix_log_dir} = "$central->{root}/nix/var/log/nix";
     $central->{nix_store_uri} = "local?root=$central->{root}&store=$central->{nix_store_dir}";
+    $central->{nix_daemon_socket_path} = "$central->{nix_state_dir}/daemon-socket/socket";
+    $central->{nix_daemon_uri} = "unix://$central->{nix_daemon_socket_path}?root=$central->{root}&store=$central->{nix_store_dir}";
 
     {
         mkdir $central->{hydra_data};
