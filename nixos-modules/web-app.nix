@@ -247,8 +247,14 @@ in
 
     systemd.services.hydra-server = {
       wantedBy = [ "multi-user.target" ];
-      requires = [ "hydra-init.service" ];
-      after = [ "hydra-init.service" ];
+      requires = [
+        "hydra-init.service"
+        "hydra-server.socket"
+      ];
+      after = [
+        "hydra-init.service"
+        "hydra-server.socket"
+      ];
       environment = serverEnv // {
         HYDRA_DBI = "${serverEnv.HYDRA_DBI};application_name=hydra-server";
       };
@@ -259,10 +265,6 @@ in
             "@${cfg.package}/bin/hydra-server"
             "hydra-server"
             "-f"
-            "-h"
-            cfg.listenHost
-            "-p"
-            (toString cfg.port)
             "--max_spare_servers"
             "5"
             "--max_servers"
@@ -275,6 +277,16 @@ in
         User = "hydra-www";
         PermissionsStartOnly = true;
         Restart = "always";
+      };
+    };
+
+    systemd.sockets.hydra-server = {
+      description = "Hydra web server socket";
+      wantedBy = [ "sockets.target" ];
+      socketConfig = {
+        ListenStream =
+          if cfg.listenHost == "*" then toString cfg.port else "${cfg.listenHost}:${toString cfg.port}";
+        Service = "hydra-server.service";
       };
     };
 
