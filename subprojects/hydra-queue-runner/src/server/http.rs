@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 
 use crate::state::State;
 use bytes::Bytes;
@@ -84,34 +84,31 @@ fn construct_json_ok_response<U: serde::Serialize>(data: &U) -> Result<Response,
 #[derive(Debug, Clone, Copy)]
 pub struct Server {}
 impl Server {
-    pub async fn run(addr: SocketAddr, state: Arc<State>) -> Result<(), Error> {
-        async move {
-            let listener = tokio::net::TcpListener::bind(&addr).await?;
-            let server_span = tracing::span!(tracing::Level::TRACE, "http_server", %addr);
+    pub async fn run(listener: tokio::net::TcpListener, state: Arc<State>) -> Result<(), Error> {
+        let addr = listener.local_addr()?;
+        let server_span = tracing::span!(tracing::Level::TRACE, "http_server", %addr);
 
-            loop {
-                let (stream, _) = listener.accept().await?;
-                let io = hyper_util::rt::TokioIo::new(stream);
+        loop {
+            let (stream, _) = listener.accept().await?;
+            let io = hyper_util::rt::TokioIo::new(stream);
 
-                let state = state.clone();
-                tokio::task::spawn({
-                    let server_span = server_span.clone();
-                    async move {
-                        if let Err(err) = hyper::server::conn::http1::Builder::new()
-                            .serve_connection(
-                                io,
-                                hyper::service::service_fn(move |req| router(req, state.clone())),
-                            )
-                            .instrument(server_span.clone())
-                            .await
-                        {
-                            tracing::error!("Error serving connection: {err:?}");
-                        }
+            let state = state.clone();
+            tokio::task::spawn({
+                let server_span = server_span.clone();
+                async move {
+                    if let Err(err) = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(
+                            io,
+                            hyper::service::service_fn(move |req| router(req, state.clone())),
+                        )
+                        .instrument(server_span.clone())
+                        .await
+                    {
+                        tracing::error!("Error serving connection: {err:?}");
                     }
-                });
-            }
+                }
+            });
         }
-        .await
     }
 }
 
