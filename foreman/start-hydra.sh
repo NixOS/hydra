@@ -36,4 +36,4 @@ queue_runner_endpoint = http://localhost:$HYDRA_QUEUE_RUNNER_REST_PORT
 </hydra_notify>
 EOF
 fi
-HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-dev-server --port "$HYDRA_SERVER_PORT" --restart --debug
+HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-server -f -d
