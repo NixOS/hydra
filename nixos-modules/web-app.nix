@@ -24,7 +24,6 @@ let
   env = {
     NIX_REMOTE = "daemon";
     PGPASSFILE = "${baseDir}/pgpass";
-    NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
   }
   // optionalAttrs (cfg.smtpHost != null) {
     EMAIL_SENDER_TRANSPORT = "SMTP";
@@ -49,7 +48,12 @@ let
 in
 
 {
-  imports = [ ./postgresql.nix ];
+  imports = [
+    ./postgresql.nix
+    (mkRemovedOptionModule [ "services" "hydra-dev" "buildMachinesFiles" ]
+      "The queue runner no longer reads Nix build machines files. Builders now connect to the queue runner via gRPC."
+    )
+  ];
   ###### interface
   options = {
 
@@ -168,17 +172,6 @@ in
         type = types.path;
         default = "/nix/var/nix/gcroots/hydra";
         description = "Directory that holds Hydra garbage collector roots.";
-      };
-
-      buildMachinesFiles = mkOption {
-        type = types.listOf types.path;
-        default = optional (config.nix.buildMachines != [ ]) "/etc/nix/machines";
-        defaultText = literalExpression ''optional (config.nix.buildMachines != []) "/etc/nix/machines"'';
-        example = [
-          "/etc/nix/machines"
-          "/var/lib/hydra/provisioner/machines"
-        ];
-        description = "List of files containing build machines.";
       };
 
       useSubstitutes = mkOption {

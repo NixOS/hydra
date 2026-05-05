@@ -98,16 +98,13 @@ pub struct State {
 }
 
 impl State {
-    #[tracing::instrument(skip(tracing_guard), err)]
-    pub async fn new(tracing_guard: &hydra_tracing::TracingGuard) -> anyhow::Result<Arc<Self>> {
+    #[tracing::instrument(err)]
+    pub async fn new() -> anyhow::Result<Arc<Self>> {
         let store = nix_utils::LocalStore::init();
         nix_utils::set_verbosity(1);
         tracing::info!("LocalStore dir={}", nix_utils::get_store_dir());
 
         let cli = Cli::new();
-        if cli.status {
-            tracing_guard.change_log_level(hydra_tracing::EnvFilter::new("error"));
-        }
 
         let config = App::init(&cli.config_path)?;
         let log_dir = config.get_hydra_log_dir();
@@ -968,95 +965,6 @@ impl State {
         task.abort_handle()
     }
 
-    #[tracing::instrument(skip(self), err)]
-    async fn dump_status_loop(self: Arc<Self>) -> anyhow::Result<()> {
-        let mut listener = self.db.listener(vec!["dump_status"]).await?;
-
-        let state = self.clone();
-        loop {
-            let _ = match listener.try_next().await {
-                Ok(Some(v)) => v,
-                Ok(None) => continue,
-                Err(e) => {
-                    tracing::warn!("PgListener failed with e={e}");
-                    continue;
-                }
-            };
-
-            let state = state.clone();
-            let queue_stats = crate::io::QueueRunnerStats::new(state.clone()).await;
-            let sort_fn = state.config.get_machine_sort_fn();
-            let free_fn = state.config.get_machine_free_fn();
-            let machines = state
-                .machines
-                .get_all_machines()
-                .into_iter()
-                .map(|m| {
-                    (
-                        m.hostname.clone(),
-                        crate::io::Machine::from_state(&m, sort_fn, free_fn),
-                    )
-                })
-                .collect();
-            let jobsets = self.jobsets.clone_as_io();
-            let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
-                let stores = state.remote_stores.read();
-                stores
-                    .iter()
-                    .filter_map(|s| match s {
-                        RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        _ => None,
-                    })
-                    .collect()
-            };
-            let dump_status = crate::io::DumpResponse::new(
-                queue_stats,
-                machines,
-                jobsets,
-                &state.store,
-                &s3_stores,
-            );
-            {
-                let Ok(mut db) = self.db.get().await else {
-                    continue;
-                };
-                let Ok(mut tx) = db.begin_transaction().await else {
-                    continue;
-                };
-                let dump_status = match serde_json::to_value(dump_status) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        tracing::error!("Failed to update status in database: {e}");
-                        continue;
-                    }
-                };
-                if let Err(e) = tx.upsert_status(&dump_status).await {
-                    tracing::error!("Failed to update status in database: {e}");
-                    continue;
-                }
-                if let Err(e) = tx.notify_status_dumped().await {
-                    tracing::error!("Failed to update status in database: {e}");
-                    continue;
-                }
-                if let Err(e) = tx.commit().await {
-                    tracing::error!("Failed to update status in database: {e}");
-                }
-            }
-        }
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub fn start_dump_status_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
-        let task = tokio::task::spawn({
-            async move {
-                if let Err(e) = self.dump_status_loop().await {
-                    tracing::error!("Failed to spawn queue monitor loop. e={e}");
-                }
-            }
-        });
-        task.abort_handle()
-    }
-
     #[tracing::instrument(skip(self))]
     pub fn start_uploader_queue(self: Arc<Self>) -> tokio::task::AbortHandle {
         let task = tokio::task::spawn({
@@ -1084,42 +992,6 @@ impl State {
             }
         });
         task.abort_handle()
-    }
-
-    #[tracing::instrument(skip(self))]
-    pub async fn get_status_from_main_process(self: Arc<Self>) -> anyhow::Result<()> {
-        let mut db = self.db.get().await?;
-
-        let mut listener = self.db.listener(vec!["status_dumped"]).await?;
-        {
-            let mut tx = db.begin_transaction().await?;
-            tx.notify_dump_status().await?;
-            tx.commit().await?;
-        }
-
-        let notification =
-            tokio::time::timeout(tokio::time::Duration::from_secs(5), listener.try_next()).await;
-
-        match notification {
-            Ok(Ok(Some(_))) => {}
-            Ok(Ok(None)) => return Ok(()),
-            Ok(Err(e)) => {
-                tracing::warn!("PgListener failed with e={e}");
-                return Ok(());
-            }
-            Err(_) => {
-                // No response from queue-runner daemon — print a down status.
-                println!(r#"{{"status":"down"}}"#);
-                return Ok(());
-            }
-        }
-
-        if let Some(status) = db.get_status().await? {
-            // we want a println! here so it can be consumed by other tools
-            println!("{}", serde_json::to_string_pretty(&status)?);
-        }
-
-        Ok(())
     }
 
     #[tracing::instrument(skip(self))]

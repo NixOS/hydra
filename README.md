@@ -17,7 +17,6 @@ Running Hydra is currently only supported on NixOS. The [hydra module](https://g
     enable = true;
     hydraURL = "http://localhost:3000";
     notificationSender = "hydra@localhost";
-    buildMachinesFiles = [];
     useSubstitutes = true;
   };
 }
