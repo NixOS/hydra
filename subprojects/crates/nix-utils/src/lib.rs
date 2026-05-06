@@ -13,11 +13,10 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod drv;
-mod realisation;
 mod realise;
 mod store_path;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use hashbrown::HashMap;
 
@@ -49,11 +48,14 @@ pub enum Error {
 }
 
 pub use drv::{Derivation, output_paths, query_drv};
-pub use harmonia_store_core::derivation::{BasicDerivation, DerivationOutput, DerivationOutputs};
+pub use harmonia_store_core::derivation::{
+    BasicDerivation, DerivationOutput, DerivationOutputs, DerivationT,
+};
 pub use harmonia_store_core::derived_path::{
     DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
 };
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
+pub use harmonia_store_core::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
+pub use harmonia_store_core::signature::Signature;
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
     ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
@@ -123,12 +125,6 @@ mod ffi {
         head: u64,
     }
 
-    #[derive(Debug)]
-    struct DerivationHash {
-        output_name: String,
-        drv_hash: String,
-    }
-
     unsafe extern "C++" {
         include!("nix-utils/include/nix.h");
 
@@ -140,7 +136,6 @@ mod ffi {
         fn get_store_dir() -> String;
         fn get_store_dir_for(store: &StoreWrapper) -> String;
         fn get_build_dir() -> String;
-        fn get_log_dir() -> String;
         fn get_state_dir() -> String;
         fn get_nix_version() -> String;
         fn get_this_system() -> String;
@@ -215,10 +210,6 @@ mod ffi {
         fn ensure_path(store: &StoreWrapper, path: &str) -> Result<()>;
         fn to_real_path(store: &StoreWrapper, path: &str) -> Result<String>;
         fn write_derivation(store: &StoreWrapper, json: &str) -> Result<String>;
-        fn static_output_hashes(
-            store: &StoreWrapper,
-            drv_path: &str,
-        ) -> Result<Vec<DerivationHash>>;
     }
 }
 
@@ -267,12 +258,6 @@ pub fn get_store_dir() -> StoreDir {
 #[must_use]
 pub fn get_build_dir() -> String {
     ffi::get_build_dir()
-}
-
-#[inline]
-#[must_use]
-pub fn get_log_dir() -> String {
-    ffi::get_log_dir()
 }
 
 #[inline]
@@ -469,10 +454,6 @@ pub trait BaseStore {
     fn list_nar_deep(&self, path: &StorePath) -> impl Future<Output = Result<String, Error>>;
 
     fn ensure_path(&self, path: &StorePath) -> impl Future<Output = Result<(), Error>>;
-    fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> impl Future<Output = Result<HashMap<String, String>, Error>>;
 
     #[must_use]
     fn store_dir(&self) -> &StoreDir;
@@ -767,20 +748,6 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        let store = self.wrapper.clone();
-        let drv_path = self.print_store_path(drv_path);
-        asyncify(move || {
-            let o = ffi::static_output_hashes(store.as_raw(), &drv_path)?;
-            Ok(o.into_iter().map(|v| (v.output_name, v.drv_hash)).collect())
-        })
-        .await
-    }
-
-    #[inline]
     fn store_dir(&self) -> &StoreDir {
         &self.store_dir
     }
@@ -872,7 +839,7 @@ impl LocalStore {
     ///
     /// Returns the store path of the written `.drv` file.
     pub async fn write_derivation(&self, drv: &BasicDerivation) -> Result<StorePath, Error> {
-        let full_drv = drv
+        let full_drv: DerivationT<BTreeSet<SingleDerivedPath>> = drv
             .clone()
             .map_inputs(|inputs| inputs.into_iter().map(SingleDerivedPath::Opaque).collect());
         let json = serde_json::to_string(&full_drv)
@@ -1020,14 +987,6 @@ impl BaseStore for LocalStore {
     #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         self.base.ensure_path(path).await
-    }
-
-    #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        self.base.static_output_hashes(drv_path).await
     }
 
     #[inline]
@@ -1246,14 +1205,6 @@ impl BaseStore for RemoteStore {
     #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         self.base.ensure_path(path).await
-    }
-
-    #[inline]
-    async fn static_output_hashes(
-        &self,
-        drv_path: &StorePath,
-    ) -> Result<HashMap<String, String>, Error> {
-        self.base.static_output_hashes(drv_path).await
     }
 
     #[inline]

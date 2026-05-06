@@ -34,7 +34,7 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ../../Cargo.lock;
     outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-g7JJGrjWnnzBtxtxLaqL/wKehPBZAHh8C7U7ALYW6o0=";
+      "harmonia-store-core-0.0.0-alpha.0" = "sha256-T6Mbhet2sNGqU9wT5keCAKCSJKrDJ1NuuvtmWp7XUPY=";
     };
   };
 

@@ -7,19 +7,14 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/nix.cpp");
     println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed=src/realisation.rs");
     println!("cargo:rerun-if-changed=src/cxx/");
 
     let nix_main = pkg_config::probe_library("nix-main").unwrap();
     let nix_store = pkg_config::probe_library("nix-store").unwrap();
     let nix_util = pkg_config::probe_library("nix-util").unwrap();
 
-    cxx_build::bridges(["src/lib.rs", "src/realisation.rs"])
-        .files([
-            "src/nix.cpp",
-            "src/cxx/utils.cpp",
-            "src/cxx/realisation.cpp",
-        ])
+    cxx_build::bridges(["src/lib.rs"])
+        .files(["src/nix.cpp", "src/cxx/utils.cpp"])
         .flag("-std=c++23")
         .flag("-O2")
         .includes(&nix_main.include_paths)

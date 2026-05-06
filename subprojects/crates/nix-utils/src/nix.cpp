@@ -67,7 +67,6 @@ rust::String get_build_dir() {
              ? buildDir->string()
              : (nix::settings.nixStateDir / "builds").string();
 }
-rust::String get_log_dir() { return nix::settings.getLogFileSettings().nixLogDir.string(); }
 rust::String get_state_dir() { return nix::settings.nixStateDir.string(); }
 rust::String get_nix_version() { return nix::nixVersion; }
 rust::String get_this_system() { return nix::settings.thisSystem.get(); }
@@ -345,20 +344,5 @@ rust::String write_derivation(const StoreWrapper &wrapper, rust::Str json) {
   auto path = store->writeDerivation(drv, nix::NoRepair);
   auto s = path.to_string();
   return rust::String(s.data(), s.size());
-}
-
-rust::Vec<DerivationHash> static_output_hashes(const StoreWrapper &wrapper,
-                                               rust::Str drv_path) {
-  auto store = wrapper._store;
-
-  auto drvHashes = staticOutputHashes(
-      *store, store->readDerivation(store->parseStorePath(AS_VIEW(drv_path))));
-  rust::Vec<DerivationHash> data;
-  data.reserve(drvHashes.size());
-  for (auto &[name, hash] : drvHashes) {
-    data.emplace_back(
-        DerivationHash{name, hash.to_string(nix::HashFormat::Base16, true)});
-  }
-  return data;
 }
 } // namespace nix_utils
