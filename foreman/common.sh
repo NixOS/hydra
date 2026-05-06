@@ -5,6 +5,7 @@
 HYDRA_PG_PORT=64444
 HYDRA_SERVER_PORT=63333
 HYDRA_PROMETHEUS_PORT=64445
+HYDRA_QUEUE_RUNNER_REST_PORT=64446
 HYDRA_QUEUE_RUNNER_GRPC_PORT=50051
 
 # Paths
@@ -32,6 +33,10 @@ wait_for_postgres() {
 
 wait_for_hydra_server() {
     while ! nc -z localhost "$HYDRA_SERVER_PORT"; do sleep 1; done
+}
+
+wait_for_hydra_db() {
+    while ! psql -h "$HYDRA_PG_SOCKET_DIR" -p "$HYDRA_PG_PORT" -d hydra -c 'SELECT 1' >/dev/null 2>&1; do sleep 1; done
 }
 
 wait_for_queue_runner_grpc() {

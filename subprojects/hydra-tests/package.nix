@@ -23,7 +23,6 @@
   postgresql_17,
   pixz,
   nix-eval-jobs,
-  foreman,
   curl,
 
   cacert,
@@ -65,7 +64,6 @@ stdenv.mkDerivation (finalAttrs: {
     nixComponents.nix-cli
     bzip2
     darcs
-    foreman
     top-git
     mercurial
     subversion

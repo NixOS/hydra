@@ -26,6 +26,7 @@ if [ ! -f "$HYDRA_DATA/hydra.conf" ]; then
     cat << EOF > "$HYDRA_DATA/hydra.conf"
 # test-time instances likely don't want to bootstrap nixpkgs from scratch
 use-substitutes = true
+queue_runner_endpoint = http://localhost:$HYDRA_QUEUE_RUNNER_REST_PORT
 
 <hydra_notify>
   <prometheus>
@@ -35,4 +36,4 @@ use-substitutes = true
 </hydra_notify>
 EOF
 fi
-HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-dev-server --port "$HYDRA_SERVER_PORT" --restart --debug
+HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-server -f -d

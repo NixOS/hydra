@@ -7,6 +7,7 @@
   hydra-linters,
   hydra-queue-runner,
   hydra-builder,
+  foreman,
 }:
 
 let
@@ -44,14 +45,13 @@ hydra.overrideAttrs (
     src = null;
     sourceRoot = null;
 
-    nativeBuildInputs =
-      collectInputs "nativeBuildInputs"
-      ++ (with pkgs; [
-        clippy
-        nixfmt
-        rustfmt
-        taplo
-      ]);
+    nativeBuildInputs = collectInputs "nativeBuildInputs" ++ [
+      foreman
+      pkgs.clippy
+      pkgs.nixfmt
+      pkgs.rustfmt
+      pkgs.taplo
+    ];
     buildInputs = collectInputs "buildInputs";
 
     inherit (hydra-tests) OPENLDAP_ROOT;

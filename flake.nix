@@ -15,6 +15,13 @@
     flake = false;
   };
 
+  # TODO once https://github.com/ddollar/foreman/pull/816 is merged and
+  # released, switch back to the nixpkgs foreman package.
+  inputs.foreman = {
+    url = "github:Ericson2314/foreman/socketfile";
+    flake = false;
+  };
+
   inputs.treefmt-nix = {
     url = "github:numtide/treefmt-nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -26,6 +33,7 @@
       nixpkgs,
       nix,
       nix-eval-jobs,
+      foreman,
       treefmt-nix,
       ...
     }:
@@ -256,20 +264,29 @@
             )
           );
 
-      devShells = forEachSystem (system: {
-        default = import ./packaging/dev-shell.nix {
+      devShells = forEachSystem (
+        system:
+        let
           pkgs = nixpkgs.legacyPackages.${system};
-          inherit (self.packages.${system})
-            nix-perl
-            hydra
-            hydra-tests
-            hydra-manual
-            hydra-linters
-            hydra-queue-runner
-            hydra-builder
-            ;
-        };
-      });
+        in
+        {
+          default = import ./packaging/dev-shell.nix {
+            inherit pkgs;
+            inherit (self.packages.${system})
+              nix-perl
+              hydra
+              hydra-tests
+              hydra-manual
+              hydra-linters
+              hydra-queue-runner
+              hydra-builder
+              ;
+            foreman = pkgs.callPackage ./packaging/foreman/package.nix {
+              foreman-src = foreman;
+            };
+          };
+        }
+      );
 
       nixosModules = import ./nixos-modules {
         flakePackages = packages;
