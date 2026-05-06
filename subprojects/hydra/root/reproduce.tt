@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
 Usage: $0 [--dir PATH] [--run-env]
 
 This script will reproduce Hydra build [% build.id %] of job [%
-build.project.name %]:[% build.jobset.name %]:[% build.job.name +%]
+build.project.name %]:[% build.jobset.name %]:[% build.job +%]
 (available at [%+ c.uri_for('/build' build.id) +%]).  It will fetch
 all inputs of the Hydra build, then invoke Nix to build the job and
 all its dependencies.
@@ -108,7 +108,7 @@ if ! [ -d "$inputDir" ]; then
     rm -rf "$inputDirTmp"
     mkdir -p "$inputDirTmp"
     git clone '[% input.uri %]' "$inputDirTmp"
-    (cd "$inputDirTmp" && git checkout '[% input.revision %]')
+    (cd "$inputDirTmp" && git fetch origin '[% input.revision %]' && git checkout '[% input.revision %]')
     revCount="$(cd "$inputDirTmp" && (git rev-list '[% input.revision %]' | wc -l))"
     rm -rf "$inputDirTmp/.git"
     mv "$inputDirTmp" "$inputDir"
@@ -197,7 +197,7 @@ args+=(--option extra-binary-caches '[% c.uri_for('/') %]')
 # when evaluating jobs that rely on builtins.currentSystem.
 args+=(--option system x86_64-linux)
 
-args+=("$nixExprInputDir/[% eval.nixexprpath %]" -A '[% build.job.name %]')
+args+=("$nixExprInputDir/[% eval.nixexprpath %]" -A '[% build.job %]')
 
 if [ -n "$printFlags" ]; then
     first=1
