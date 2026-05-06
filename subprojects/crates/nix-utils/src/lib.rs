@@ -55,7 +55,9 @@ pub use harmonia_store_core::derivation::{
 pub use harmonia_store_core::derived_path::{
     DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
 };
-pub use realisation::{DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature};
+pub use realisation::{
+    DrvOutput, FfiRealisation, Realisation, RealisationOperations, Signature, UnkeyedRealisation,
+};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
 pub use store_path::{
     ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,

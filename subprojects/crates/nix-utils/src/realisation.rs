@@ -1,4 +1,4 @@
-pub use harmonia_store_core::realisation::{DrvOutput, Realisation};
+pub use harmonia_store_core::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 pub use harmonia_store_core::signature::Signature;
 
 #[cxx::bridge(namespace = "nix_utils")]
@@ -17,6 +17,8 @@ mod ffi {
             store: &StoreWrapper,
             output_id: &str,
         ) -> Result<SharedPtr<InternalRealisation>>;
+
+        fn register_drv_output(store: &StoreWrapper, json: &str) -> Result<()>;
     }
 }
 
@@ -36,7 +38,11 @@ impl FfiRealisation {
 }
 
 pub trait RealisationOperations {
+    /// Query a realisation from the store. Currently unused — realisations
+    /// are constructed from buildstep data instead — but kept for potential
+    /// future use.
     fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error>;
+    fn register_drv_output(&self, realisation: &Realisation) -> Result<(), crate::Error>;
 }
 
 impl RealisationOperations for crate::BaseStoreImpl {
@@ -45,10 +51,29 @@ impl RealisationOperations for crate::BaseStoreImpl {
             inner: ffi::query_raw_realisation(self.wrapper.as_raw(), &id.to_string())?,
         })
     }
+
+    fn register_drv_output(&self, realisation: &Realisation) -> Result<(), crate::Error> {
+        let json = serde_json::to_string(realisation)?;
+        Ok(ffi::register_drv_output(self.wrapper.as_raw(), &json)?)
+    }
 }
 
 impl RealisationOperations for crate::LocalStore {
     fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error> {
         self.base.query_raw_realisation(id)
+    }
+
+    fn register_drv_output(&self, realisation: &Realisation) -> Result<(), crate::Error> {
+        self.base.register_drv_output(realisation)
+    }
+}
+
+impl RealisationOperations for crate::RemoteStore {
+    fn query_raw_realisation(&self, id: &DrvOutput) -> Result<FfiRealisation, crate::Error> {
+        self.base.query_raw_realisation(id)
+    }
+
+    fn register_drv_output(&self, realisation: &Realisation) -> Result<(), crate::Error> {
+        self.base.register_drv_output(realisation)
     }
 }

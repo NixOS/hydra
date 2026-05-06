@@ -1,13 +1,30 @@
 {
   "nodes": {
+    "foreman": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778004604,
+        "narHash": "sha256-YdFYx5/91pK0LdBpD6Xb2xPaTNCS3GvwErPaDiKt3OY=",
+        "owner": "Ericson2314",
+        "repo": "foreman",
+        "rev": "dabe4b3b95034d30df68c196cd3824bf8860ee52",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Ericson2314",
+        "ref": "socketfile",
+        "repo": "foreman",
+        "type": "github"
+      }
+    },
     "nix": {
       "flake": false,
       "locked": {
-        "lastModified": 1777827958,
-        "narHash": "sha256-Bu0+ILJVOfrblVrgQGYSDJTpjPwsciQ80kjm7aPi1lo=",
+        "lastModified": 1778026127,
+        "narHash": "sha256-XfaFvgAQNLKVe2XMph366aVnoZRxd8ds2Y3fvps6tf4=",
         "owner": "NixOS",
         "repo": "nix",
-        "rev": "61024d0855f397d80a2c8c554188fd3bd9b171a2",
+        "rev": "4a705c0bd15772e8c9b7122b5d8c9d6982168709",
         "type": "github"
       },
       "original": {
@@ -36,11 +53,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1777339890,
-        "narHash": "sha256-/8cNnAn4FMZgIEEWf9chqo2ffH6bu/vDoJR8mnaNjtM=",
+        "lastModified": 1777933422,
+        "narHash": "sha256-WpfZLatstZKZV43HtpK4cbEdQZvHhwVRVtW/rc6YTRU=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "fcf51609c44b7781822f4258feb16f15085ff47d",
+        "rev": "41a7bd591bc47320390c829b9f16bfc59b25843c",
         "type": "github"
       },
       "original": {
@@ -52,6 +69,7 @@
     },
     "root": {
       "inputs": {
+        "foreman": "foreman",
         "nix": "nix",
         "nix-eval-jobs": "nix-eval-jobs",
         "nixpkgs": "nixpkgs",

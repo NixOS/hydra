@@ -129,7 +129,6 @@ sub new {
             'HYDRA_DBI'          => $central->{hydra_dbi},
             'HYDRA_DATABASE_URL' => $central->{hydra_database_url},
             'NIX_CONF_DIR'       => $central->{nix_conf_dir},
-            'NIX_REMOTE_SYSTEMS' => '',
             'NIX_REMOTE'         => $central->{nix_store_uri},
             'NIX_STATE_DIR'      => $central->{nix_state_dir}, # FIXME: remove
             'NIX_STORE_DIR'      => $central->{nix_store_dir}, # FIXME: remove

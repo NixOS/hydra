@@ -27,13 +27,9 @@ impl std::str::FromStr for BindSocket {
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Query the queue runner status
-    #[clap(long)]
-    pub status: bool,
-
-    /// REST server bind
+    /// REST server bind, either a `SocketAddr` or `-` to use `ListenFD` (systemd socket activation)
     #[clap(short, long, default_value = "[::1]:8080")]
-    pub rest_bind: SocketAddr,
+    pub rest_bind: BindSocket,
 
     /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-` to use `ListenFD` (systemd socket activation)
     #[clap(short, long, default_value = "[::1]:50051")]

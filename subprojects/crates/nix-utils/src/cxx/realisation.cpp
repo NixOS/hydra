@@ -28,4 +28,11 @@ query_raw_realisation(const nix_utils::StoreWrapper &wrapper,
       nix::make_ref<nix::Realisation>((nix::Realisation &)*realisation));
 }
 
+void register_drv_output(const nix_utils::StoreWrapper &wrapper,
+                         rust::Str json) {
+  auto store = wrapper._store;
+  auto realisation = nlohmann::json::parse(AS_STRING(json)).get<nix::Realisation>();
+  store->registerDrvOutput(realisation);
+}
+
 } // namespace nix_utils

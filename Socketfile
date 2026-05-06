@@ -1,0 +1,2 @@
+hydra-server: http=:63333
+hydra-queue-runner: rest=:64446 grpc=:50051
