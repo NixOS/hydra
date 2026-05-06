@@ -18,7 +18,7 @@ pub mod models;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{Connection, FinishedBuild, Transaction};
 pub use harmonia_store_core::store_path::StoreDir;
 pub use sqlx::Error;
 
@@ -35,6 +35,23 @@ impl Database {
                 .connect(url)
                 .await?,
         })
+    }
+
+    pub async fn new_with_options(
+        options: sqlx::postgres::PgConnectOptions,
+        max_connections: u32,
+    ) -> Result<Self, Error> {
+        Ok(Self {
+            pool: sqlx::postgres::PgPoolOptions::new()
+                .max_connections(max_connections)
+                .connect_with(options)
+                .await?,
+        })
+    }
+
+    #[must_use]
+    pub fn pool(&self) -> &sqlx::PgPool {
+        &self.pool
     }
 
     pub async fn get(&self) -> Result<Connection, Error> {

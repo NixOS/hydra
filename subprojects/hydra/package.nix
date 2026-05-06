@@ -18,18 +18,11 @@
   meson,
   ninja,
   nukeReferences,
-  pkg-config,
 
   unzip,
-  libpqxx,
-  openssl,
   bzip2,
-  libxslt,
   perl,
   pixz,
-  boost,
-  nlohmann_json,
-  prometheus-cpp,
 
   openssh,
   coreutils,
@@ -138,7 +131,6 @@ stdenv.mkDerivation (finalAttrs: {
   src = lib.fileset.toSource {
     root = ../..;
     fileset = lib.fileset.unions [
-      ../../subprojects/hydra/hydra-evaluator
       ../../subprojects/hydra/lib
       ../../subprojects/hydra/Makefile.PL
       ../../subprojects/hydra/meson.build
@@ -168,24 +160,14 @@ stdenv.mkDerivation (finalAttrs: {
     meson
     ninja
     nukeReferences
-    pkg-config
     perlDeps
     perl
     unzip
   ];
 
   buildInputs = [
-    libpqxx
-    openssl
-    libxslt
-    nixComponents.nix-util
-    nixComponents.nix-store
-    nixComponents.nix-main
     perlDeps
     perl
-    boost
-    nlohmann_json
-    prometheus-cpp
   ];
 
   hydraPath = lib.makeBinPath (

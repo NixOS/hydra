@@ -7,6 +7,9 @@ rec {
       _file = ./default.nix;
       imports = [ ./web-app.nix ];
       services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
+      services.hydra-dev.evaluatorExecutable = lib.mkDefault "${
+        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator
+      }/bin/hydra-evaluator";
     };
 
   postgresql = ./postgresql.nix;
@@ -31,6 +34,18 @@ rec {
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-builder;
     };
 
+  drv-daemon =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./drv-daemon-module.nix ];
+      services.hydra-drv-daemon-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-drv-daemon;
+    };
+
+  evaluator-drv-daemon = ./evaluator-drv-daemon.nix;
+
   hydra =
     { ... }:
     {
@@ -39,6 +54,8 @@ rec {
         web-app
         queue-runner
         builder
+        drv-daemon
+        evaluator-drv-daemon
       ];
     };
 

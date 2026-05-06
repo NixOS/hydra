@@ -7,12 +7,10 @@ fs = import('fs')
 
 perl = find_program('perl', native: true)
 nix = find_program('nix')
-hydra_evaluator = find_program('hydra-evaluator')
 curl = find_program('curl')
 
 exe_path = [
   fs.parent(nix.full_path()),
-  fs.parent(hydra_evaluator.full_path()),
   fs.parent(curl.full_path()),
   meson.current_source_dir() / 'scripts',
 ]
@@ -34,6 +32,7 @@ if meson.is_subproject()
 else
   hydra_queue_runner = find_program('hydra-queue-runner')
   hydra_builder = find_program('hydra-builder')
+  hydra_evaluator = find_program('hydra-evaluator')
   hydra_init = find_program('hydra-init')
   hydra_notify = find_program('hydra-notify')
 
@@ -42,6 +41,7 @@ else
 
   exe_path += fs.parent(hydra_queue_runner.full_path())
   exe_path += fs.parent(hydra_builder.full_path())
+  exe_path += fs.parent(hydra_evaluator.full_path())
   exe_path += fs.parent(hydra_init.full_path())
   exe_path += fs.parent(hydra_notify.full_path())
 endif
@@ -73,3 +73,10 @@ test('testsuite',
   workdir: meson.current_source_dir(),
   timeout: -1,
 )
+
+# A second target that runs the eval-using tests with HYDRA_TEST_USE_DRV_DAEMON=1
+# is intentionally absent until harmonia-protocol supports the
+# `fixed:r:sha256` CA hash algorithm nix-eval-jobs sends through the
+# daemon during evaluation. The plumbing for it lives in
+# HydraTestContext::drv_daemon + CliRunners; once harmonia is bumped
+# the testsuite-drv-daemon target can be added back.

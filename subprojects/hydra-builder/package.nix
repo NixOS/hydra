@@ -34,15 +34,15 @@ rustPlatform.buildRustPackage {
   cargoLock = {
     lockFile = ../../Cargo.lock;
     outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-g7JJGrjWnnzBtxtxLaqL/wKehPBZAHh8C7U7ALYW6o0=";
+      "harmonia-store-core-0.0.0-alpha.0" = "sha256-EwOfW4esHMOaxoxgrguLJYLPQXoFjzOljR2+x+mmo3k=";
     };
   };
 
-  # The source fileset above intentionally excludes hydra-queue-runner,
-  # so drop it from the workspace members to keep cargo from trying to
-  # load its (absent) manifest.
+  # Drop the other Rust binary crates from the workspace; their sources
+  # are excluded from the fileset above, so cargo would otherwise fail
+  # trying to load their (absent) manifests.
   postPatch = ''
-    sed -i 's|"subprojects/hydra-queue-runner", ||' Cargo.toml
+    sed -i '/hydra-builder/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
   buildAndTestSubdir = "subprojects/hydra-builder";
