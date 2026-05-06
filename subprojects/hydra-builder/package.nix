@@ -33,9 +33,7 @@ rustPlatform.buildRustPackage {
 
   cargoLock = {
     lockFile = ../../Cargo.lock;
-    outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-HfbltKVSZB+eg8CIPvT9/+EWRtHBomYA8kmAquG9gSw=";
-    };
+    outputHashes = import ../../cargo-output-hashes.nix;
   };
 
   # The source fileset above intentionally excludes hydra-queue-runner,
