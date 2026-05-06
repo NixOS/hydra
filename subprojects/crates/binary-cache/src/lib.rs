@@ -24,8 +24,7 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
-use nix_utils::RealisationOperations as _;
-use nix_utils::{BaseStore as _, query_drv};
+use nix_utils::BaseStore as _;
 
 mod cfg;
 mod compression;
@@ -630,18 +629,9 @@ impl S3BinaryCacheClient {
             narinfo.file_size = Some(file_size as u64);
         }
 
-        if self.cfg.write_realisation
-            && let Some(deriver) = narinfo.deriver.as_ref()
-            && let Some(drv) = query_drv(store, deriver).await?
-        {
-            for (output_name, _output) in drv.outputs {
-                let id = nix_utils::DrvOutput {
-                    output_name,
-                    drv_path: deriver.to_owned(),
-                };
-                self.copy_realisation(store, &id, repair).await?;
-            }
-        }
+        // Realisation writing for CA derivations is handled by the caller
+        // (e.g. the queue-runner after resolving and building a CA drv),
+        // not here during path copy.
 
         self.upload_narinfo(store.get_store_dir(), narinfo).await?;
 
@@ -671,19 +661,14 @@ impl S3BinaryCacheClient {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store, id), err)]
-    pub async fn copy_realisation(
+    /// Write a pre-constructed [`Realisation`] to the binary cache.
+    ///
+    /// Signs the realisation with the cache's secret keys before uploading.
+    #[tracing::instrument(skip(self, realisation), err)]
+    pub async fn write_realisation(
         &self,
-        store: &nix_utils::LocalStore,
-        id: &nix_utils::DrvOutput,
-        repair: bool,
+        mut realisation: nix_utils::Realisation,
     ) -> Result<(), CacheError> {
-        if !repair && self.has_realisation(id).await? {
-            return Ok(());
-        }
-
-        let raw_realisation = store.query_raw_realisation(id)?;
-        let mut realisation = raw_realisation.as_rust()?;
         let keys = self
             .signing_keys
             .iter()
@@ -692,6 +677,7 @@ impl S3BinaryCacheClient {
         realisation.value.sign_mut(&realisation.key, &keys);
 
         let json = serde_json::to_string(&realisation)?;
+        let id = &realisation.key;
         self.upsert_file(&format!("realisations/{id}.doi"), json, "application/json")
             .await?;
         Ok(())

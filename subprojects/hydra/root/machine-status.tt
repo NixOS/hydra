@@ -60,9 +60,9 @@
               </span>
             [% END %]
           [% END %]
-          [% IF m.value.nrStepsDone %]
+          [% IF m.value.stats.nrStepsDone %]
             <span class="muted" style="font-weight: normal;">
-              ([% m.value.nrStepsDone %] steps done, [% f = format("%.1f"); f(m.value.avgStepBuildTime) %] s/step)
+              ([% m.value.stats.nrStepsDone %] steps done, [% f = format("%.1f"); f(m.value.stats.avgStepBuildTimeMs / 1000) %] s/step)
             </span>
           [% END %]
         </th>

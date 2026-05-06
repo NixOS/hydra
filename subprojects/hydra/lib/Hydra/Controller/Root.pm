@@ -14,7 +14,7 @@ use Encode;
 use File::Basename;
 use JSON::MaybeXS;
 use HTML::Entities;
-use IPC::Run3;
+use LWP::UserAgent;
 use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
@@ -177,14 +177,18 @@ sub queue_runner_status :Local :Path('queue-runner-status') :Args(0) :ActionClas
 sub queue_runner_status_GET {
     my ($self, $c) = @_;
 
-    #my $status = from_json($c->model('DB::SystemStatus')->find('queue-runner')->status);
-    my ($stdout, $stderr);
-    run3(['hydra-queue-runner', '--status'], \undef, \$stdout, \$stderr);
+    my $endpoint = $c->config->{'queue_runner_endpoint'};
     my $status;
-    if ($? != 0) {
+    if (!$endpoint) {
         $status = { status => "unknown" };
     } else {
-        $status = decode_json($stdout);
+        my $ua = LWP::UserAgent->new();
+        my $resp = $ua->get($endpoint . "/status");
+        if ($resp->is_success) {
+            $status = decode_json($resp->decoded_content);
+        } else {
+            $status = { status => "unreachable" };
+        }
     }
     my $json = JSON->new->pretty()->canonical();
 
@@ -197,25 +201,6 @@ sub queue_runner_status_GET {
 sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
-
-    # Add entry for localhost. The implicit addition is not needed with queue runner v2
-    if (not $c->config->{'queue_runner_endpoint'}) {
-        $machines->{''} //= {};
-    }
-    delete $machines->{'localhost'};
-
-    my $status = $c->model('DB::SystemStatus')->find("queue-runner");
-    if ($status) {
-        my $ms = decode_json($status->status)->{"machines"};
-        foreach my $name (keys %{$ms}) {
-            $name = "" if $name eq "localhost";
-            my $outName = $name;
-            $outName = "" if $name eq "ssh://localhost";
-            $machines->{$outName} //= {disabled => 1};
-            $machines->{$outName}->{nrStepsDone} = $ms->{$name}->{nrStepsDone};
-            $machines->{$outName}->{avgStepBuildTime} = $ms->{$name}->{avgStepBuildTime} // 0;
-        }
-    }
 
     $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(

@@ -24,7 +24,6 @@ let
   env = {
     NIX_REMOTE = "daemon";
     PGPASSFILE = "${baseDir}/pgpass";
-    NIX_REMOTE_SYSTEMS = concatStringsSep ":" cfg.buildMachinesFiles;
   }
   // optionalAttrs (cfg.smtpHost != null) {
     EMAIL_SENDER_TRANSPORT = "SMTP";
@@ -49,7 +48,12 @@ let
 in
 
 {
-  imports = [ ./postgresql.nix ];
+  imports = [
+    ./postgresql.nix
+    (mkRemovedOptionModule [ "services" "hydra-dev" "buildMachinesFiles" ]
+      "The queue runner no longer reads Nix build machines files. Builders now connect to the queue runner via gRPC."
+    )
+  ];
   ###### interface
   options = {
 
@@ -170,17 +174,6 @@ in
         description = "Directory that holds Hydra garbage collector roots.";
       };
 
-      buildMachinesFiles = mkOption {
-        type = types.listOf types.path;
-        default = optional (config.nix.buildMachines != [ ]) "/etc/nix/machines";
-        defaultText = literalExpression ''optional (config.nix.buildMachines != []) "/etc/nix/machines"'';
-        example = [
-          "/etc/nix/machines"
-          "/var/lib/hydra/provisioner/machines"
-        ];
-        description = "List of files containing build machines.";
-      };
-
       useSubstitutes = mkOption {
         type = types.bool;
         default = false;
@@ -254,8 +247,14 @@ in
 
     systemd.services.hydra-server = {
       wantedBy = [ "multi-user.target" ];
-      requires = [ "hydra-init.service" ];
-      after = [ "hydra-init.service" ];
+      requires = [
+        "hydra-init.service"
+        "hydra-server.socket"
+      ];
+      after = [
+        "hydra-init.service"
+        "hydra-server.socket"
+      ];
       environment = serverEnv // {
         HYDRA_DBI = "${serverEnv.HYDRA_DBI};application_name=hydra-server";
       };
@@ -266,10 +265,6 @@ in
             "@${cfg.package}/bin/hydra-server"
             "hydra-server"
             "-f"
-            "-h"
-            cfg.listenHost
-            "-p"
-            (toString cfg.port)
             "--max_spare_servers"
             "5"
             "--max_servers"
@@ -282,6 +277,16 @@ in
         User = "hydra-www";
         PermissionsStartOnly = true;
         Restart = "always";
+      };
+    };
+
+    systemd.sockets.hydra-server = {
+      description = "Hydra web server socket";
+      wantedBy = [ "sockets.target" ];
+      socketConfig = {
+        ListenStream =
+          if cfg.listenHost == "*" then toString cfg.port else "${cfg.listenHost}:${toString cfg.port}";
+        Service = "hydra-server.service";
       };
     };
 

@@ -1,4 +1,5 @@
 use binary_cache::S3BinaryCacheClient;
+use nix_utils::RealisationOperations as _;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "has realisation before: {}",
         client.has_realisation(&id).await?
     );
-    client.copy_realisation(&local, &id, true).await?;
+    let raw = local.query_raw_realisation(&id)?;
+    let realisation = raw.as_rust()?;
+    client.write_realisation(realisation).await?;
     tracing::info!(
         "has realisation after: {}",
         client.has_realisation(&id).await?

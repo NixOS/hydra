@@ -24,4 +24,7 @@ namespace nix_utils {
 std::shared_ptr<InternalRealisation>
 query_raw_realisation(const nix_utils::StoreWrapper &wrapper,
                       rust::Str output_id);
+
+void register_drv_output(const nix_utils::StoreWrapper &wrapper,
+                         rust::Str json);
 } // namespace nix_utils

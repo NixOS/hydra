@@ -7,7 +7,6 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/nix.cpp");
     println!("cargo:rerun-if-changed=src/lib.rs");
-    println!("cargo:rerun-if-changed=src/realisation.rs");
     println!("cargo:rerun-if-changed=src/cxx/");
 
     let nix_main = pkg_config::probe_library("nix-main").unwrap();
