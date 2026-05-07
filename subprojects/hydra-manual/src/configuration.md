@@ -1,11 +1,9 @@
 Configuration
 =============
 
-This chapter is a collection of configuration snippets for different
-scenarios.
+This chapter is a collection of configuration snippets for different scenarios.
 
-The configuration is parsed by `Config::General` which has [a pretty
-thorough documentation on their file format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
+The configuration is parsed by `Config::General` which has [a pretty thorough documentation on their file format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
 Hydra calls the parser with the following options:
 - `-UseApacheInclude => 1`
 - `-IncludeAgain => 1`
@@ -14,8 +12,8 @@ Hydra calls the parser with the following options:
 Including files
 ---------------
 
-`hydra.conf` supports Apache-style includes. This is **IMPORTANT**
-because that is how you keep your **secrets** out of the **Nix store**.
+`hydra.conf` supports Apache-style includes.
+This is **IMPORTANT** because that is how you keep your **secrets** out of the **Nix store**.
 Hopefully this got your attention 😌
 
 This:
@@ -28,9 +26,7 @@ should **NOT** be in `hydra.conf`.
 
 `hydra.conf` is rendered in the Nix store and is therefore world-readable.
 
-Instead, the above should be written to a file outside the Nix store by
-other means (manually, using Nixops' secrets feature, etc) and included
-like so:
+Instead, the above should be written to a file outside the Nix store by other means (manually, using Nixops' secrets feature, etc) and included like so:
 ```
 Include /run/keys/hydra/github_authorizations.conf
 ```
@@ -38,8 +34,7 @@ Include /run/keys/hydra/github_authorizations.conf
 Serving behind reverse proxy
 ----------------------------
 
-To serve hydra web server behind reverse proxy like *nginx* or *httpd*
-some additional configuration must be made.
+To serve hydra web server behind reverse proxy like *nginx* or *httpd* some additional configuration must be made.
 
 Edit your `hydra.conf` file in a similar way to this example:
 
@@ -48,16 +43,13 @@ using_frontend_proxy 1
 base_uri example.com
 ```
 
-`base_uri` should be your hydra servers proxied URL. If you are using
-Hydra nixos module then setting `hydraURL` option should be enough.
+`base_uri` should be your hydra servers proxied URL.
+If you are using Hydra nixos module then setting `hydraURL` option should be enough.
 
-You also need to configure your reverse proxy to pass `X-Request-Base`
-to hydra, with the same value as `base_uri`.
-This also covers the case of serving Hydra with a prefix path,
-as in [http://example.com/hydra]().
+You also need to configure your reverse proxy to pass `X-Request-Base` to hydra, with the same value as `base_uri`.
+This also covers the case of serving Hydra with a prefix path, as in [http://example.com/hydra]().
 
-For example if you are using nginx, then use configuration similar to
-following:
+For example if you are using nginx, then use configuration similar to following:
 
     server {
         listen 433 ssl;
@@ -75,37 +67,28 @@ following:
         }
     }
 
-Note the trailing slash on the `proxy_pass` directive, which causes nginx to
-strip off the `/hydra/` part of the URL before passing it to hydra.
+Note the trailing slash on the `proxy_pass` directive, which causes nginx to strip off the `/hydra/` part of the URL before passing it to hydra.
 
 Populating a Cache
 ------------------
 
-A common use for Hydra is to pre-build and cache derivations which
-take a long time to build. While it is possible to direcly access the
-Hydra server's store over SSH, a more scalable option is to upload
-built derivations to a remote store like an [S3-compatible object
-store](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html#s3-binary-cache-store). Setting
-the `store_uri` parameter will cause Hydra to sign and upload
-derivations as they are built:
+A common use for Hydra is to pre-build and cache derivations which take a long time to build.
+While it is possible to direcly access the Hydra server's store over SSH, a more scalable option is to upload built derivations to a remote store like an [S3-compatible object store](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html#s3-binary-cache-store).
+Setting the `store_uri` parameter will cause Hydra to sign and upload derivations as they are built:
 
 ```
 store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&write-nar-listing=1&ls-compression=br&log-compression=br&secret-key=/path/to/cache/private/key
 ```
 
-This example uses [Zstandard](https://github.com/facebook/zstd)
-compression on derivations to reduce CPU usage on the server, but
-[Brotli](https://brotli.org/) compression for derivation listings and
-build logs because it has better browser support.
+This example uses [Zstandard](https://github.com/facebook/zstd) compression on derivations to reduce CPU usage on the server, but [Brotli](https://brotli.org/) compression for derivation listings and build logs because it has better browser support.
 
-See [`nix help
-stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html)
-for a description of the store URI format.
+See [`nix help stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html) for a description of the store URI format.
 
 Statsd Configuration
 --------------------
 
-By default, Hydra will send stats to statsd at `localhost:8125`. Point Hydra to a different server via:
+By default, Hydra will send stats to statsd at `localhost:8125`.
+Point Hydra to a different server via:
 
 ```
 <statsd>
@@ -117,9 +100,8 @@ By default, Hydra will send stats to statsd at `localhost:8125`. Point Hydra to 
 hydra-notify's Prometheus service
 ---------------------------------
 
-hydra-notify supports running a Prometheus webserver for metrics. The
-exporter does not run unless a listen address and port are specified
-in the hydra configuration file, as below:
+hydra-notify supports running a Prometheus webserver for metrics.
+The exporter does not run unless a listen address and port are specified in the hydra configuration file, as below:
 
 ```conf
 <hydra_notify>
@@ -133,10 +115,9 @@ in the hydra configuration file, as below:
 hydra-queue-runner's Prometheus service
 ---------------------------------------
 
-hydra-queue-runner supports running a Prometheus webserver for metrics. The
-exporter's address defaults to exposing on `127.0.0.1:9198`, but is also
-configurable through the hydra configuration file and a command line argument,
-as below. A port of `:0` will make the exposer choose a random, available port.
+hydra-queue-runner supports running a Prometheus webserver for metrics.
+The exporter's address defaults to exposing on `127.0.0.1:9198`, but is also configurable through the hydra configuration file and a command line argument, as below.
+A port of `:0` will make the exposer choose a random, available port.
 
 ```conf
 queue_runner_metrics_address = 127.0.0.1:9198
@@ -153,20 +134,17 @@ $ hydra-queue-runner --prometheus-address [::]:9198
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
-Instead of using Hydra's built-in user management you can optionally
-use LDAP to manage roles and users.
+Instead of using Hydra's built-in user management you can optionally use LDAP to manage roles and users.
 
 This is configured by defining the `<ldap>` block in the configuration file.
-In this block it's possible to configure the authentication plugin in the
-`<config>` block. All options are directly passed to `Catalyst::Authentication::Store::LDAP`.
-The documentation for the available settings can be found
-[here](https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
+In this block it's possible to configure the authentication plugin in the `<config>` block.
+All options are directly passed to `Catalyst::Authentication::Store::LDAP`.
+The documentation for the available settings can be found [here](https://metacpan.org/pod/Catalyst::Authentication::Store::LDAP#CONFIGURATION-OPTIONS).
 
-Note that the bind password (if needed) should be supplied as an included file to
-prevent it from leaking to the Nix store.
+Note that the bind password (if needed) should be supplied as an included file to prevent it from leaking to the Nix store.
 
-Roles can be assigned to users based on their LDAP group membership. For this
-to work *use\_roles = 1* needs to be defined for the authentication plugin.
+Roles can be assigned to users based on their LDAP group membership.
+For this to work `use_roles = 1` needs to be defined for the authentication plugin.
 LDAP groups can then be mapped to Hydra roles using the `<role_mapping>` block.
 
 Example configuration:
@@ -244,12 +222,10 @@ Set the `debug` parameter under `ldap.config.ldap_server_options.debug`:
 
 ### Legacy LDAP Configuration
 
-Hydra used to load the LDAP configuration from a YAML file in the
-`HYDRA_LDAP_CONFIG` environment variable. This behavior is deperecated
-and will be removed.
+Hydra used to load the LDAP configuration from a YAML file in the `HYDRA_LDAP_CONFIG` environment variable.
+This behavior is deperecated and will be removed.
 
-When Hydra uses the deprecated YAML file, Hydra applies the following
-default role mapping:
+When Hydra uses the deprecated YAML file, Hydra applies the following default role mapping:
 
 ```
 <ldap>
@@ -263,8 +239,7 @@ default role mapping:
 </ldap>
 ```
 
-Note that configuring both the LDAP parameters in the hydra.conf and via
-the environment variable is a fatal error.
+Note that configuring both the LDAP parameters in the hydra.conf and via the environment variable is a fatal error.
 
 Webhook Authentication
 ---------------------
