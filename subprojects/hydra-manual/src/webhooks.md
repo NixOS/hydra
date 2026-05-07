@@ -1,12 +1,11 @@
 # Webhooks
 
-Hydra can be notified by github or gitea with webhooks to trigger a new evaluation when a
-jobset has a github repo in its input.
+Hydra can be notified by github or gitea with webhooks to trigger a new evaluation when a jobset has a github repo in its input.
 
 ## Webhook Authentication
 
-Hydra supports webhook signature verification for both GitHub and Gitea using HMAC-SHA256. This ensures that webhook
-requests are coming from your configured Git forge and haven't been tampered with.
+Hydra supports webhook signature verification for both GitHub and Gitea using HMAC-SHA256.
+This ensures that webhook requests are coming from your configured Git forge and haven't been tampered with.
 
 ### Configuring Webhook Authentication
 
@@ -69,13 +68,12 @@ Then add the hook with `Add webhook`.
 
 ### Verifying GitHub Webhook Security
 
-After configuration, GitHub will send webhook requests with an `X-Hub-Signature-256` header containing the HMAC-SHA256
-signature of the request body. Hydra will verify this signature matches the configured secret.
+After configuration, GitHub will send webhook requests with an `X-Hub-Signature-256` header containing the HMAC-SHA256 signature of the request body.
+Hydra will verify this signature matches the configured secret.
 
 ## Gitea
 
-To set up a webhook for a Gitea repository go to the settings of the repository in your Gitea instance
-and in the `Webhooks` tab click on `Add Webhook` and choose `Gitea` in the drop down.
+To set up a webhook for a Gitea repository go to the settings of the repository in your Gitea instance and in the `Webhooks` tab click on `Add Webhook` and choose `Gitea` in the drop down.
 
 - In `Target URL` fill in `https://<your-hydra-domain>/api/push-gitea`.
 - Keep HTTP method `POST`, POST Content Type `application/json` and Trigger On `Push Events`.
@@ -86,8 +84,8 @@ Then add the hook with `Add webhook`.
 
 ### Verifying Gitea Webhook Security
 
-After configuration, Gitea will send webhook requests with an `X-Gitea-Signature` header containing the HMAC-SHA256
-signature of the request body. Hydra will verify this signature matches the configured secret.
+After configuration, Gitea will send webhook requests with an `X-Gitea-Signature` header containing the HMAC-SHA256 signature of the request body.
+Hydra will verify this signature matches the configured secret.
 
 ## Troubleshooting
 

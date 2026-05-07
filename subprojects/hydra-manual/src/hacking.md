@@ -1,15 +1,14 @@
 # Hacking
 
-This section provides some notes on how to hack on Hydra. To get the
-latest version of Hydra from GitHub:
+This section provides some notes on how to hack on Hydra.
+To get the latest version of Hydra from GitHub:
 
 ```console
 $ git clone git://github.com/NixOS/hydra.git
 $ cd hydra
 ```
 
-To enter a shell in which all environment variables (such as `PERL5LIB`)
-and dependencies can be found:
+To enter a shell in which all environment variables (such as `PERL5LIB`) and dependencies can be found:
 
 ```console
 $ nix develop
@@ -55,16 +54,12 @@ $ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/checks.t
 $ PERL5LIB=t/lib:$PERL5LIB perl t/test.pl t/Hydra/Controller/API/
 ```
 
-**Warning**: Currently, the tests can fail
-if run with high parallelism [due to an issue in
-`Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40)
-causing database ports to collide.
+**Warning**: Currently, the tests can fail if run with high parallelism [due to an issue in `Test::PostgreSQL`](https://github.com/TJC/Test-postgresql/issues/40) causing database ports to collide.
 
 ## Working on the Manual
 
-By default, `foreman start` runs mdbook in "watch" mode. mdbook listens
-at [http://localhost:63332/](http://localhost:63332/), and
-will reload the page every time you save.
+By default, `foreman start` runs mdbook in "watch" mode.
+mdbook listens at [http://localhost:63332/](http://localhost:63332/), and will reload the page every time you save.
 
 ## Building
 
@@ -78,8 +73,7 @@ $ nix build .#packages.x86_64-linux.default
 
 ### Connecting to the database
 
-Assuming you're running the default configuration with `foreman start`,
-open an interactive session with Postgres via:
+Assuming you're running the default configuration with `foreman start`, open an interactive session with Postgres via:
 
 ```console
 $ psql -h localhost -p 64444 hydra
@@ -94,16 +88,14 @@ $ cargo build -p hydra-queue-runner
 $ cargo test -p hydra-queue-runner
 ```
 
-`foreman start` launches the queue-runner automatically with the right
-config and environment. If a previous instance crashed, you may need to
-remove the stale lock file:
+`foreman start` launches the queue-runner automatically with the right config and environment.
+If a previous instance crashed, you may need to remove the stale lock file:
 
 ```console
 $ rm .hydra-data/queue-runner/lock
 ```
 
-For `hydra-queue-runner` to successfully build locally, your
-development user will need to be "trusted" by your Nix store.
+For `hydra-queue-runner` to successfully build locally, your development user will need to be "trusted" by your Nix store.
 
 Add yourself to the `trusted_users` option of `/etc/nix/nix.conf`.
 
