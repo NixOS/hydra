@@ -38,5 +38,4 @@
    ./schemas/verify.sh
    ```
 
-   (Note, this requires a full git history, not just the latest tree, so we
-   don't bother putting it inside a formal nix derivation check.)
+   (Note, this requires a full git history, not just the latest tree, so we don't bother putting it inside a formal nix derivation check.)

@@ -11,6 +11,7 @@ use Hydra::Config;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     start_queue_runner
+    wait_for_builds
     wait_for_url
 );
 
@@ -157,6 +158,39 @@ sub start_queue_runner {
     my $grpc_addr = "[::1]:$grpc_port";
 
     return ($qr_harness, $rest_url, $grpc_addr, \$qr_out, \$qr_err, $daemon_harness);
+}
+
+# Poll the queue runner REST API until all given build IDs are no longer
+# active. Calls $pg->pump_logs each iteration so test output stays visible.
+#
+# Args: ($ua, $base_url, $process_group, @build_ids)
+# Dies on timeout or if the builder process exits unexpectedly.
+sub wait_for_builds {
+    my ($ua, $base_url, $pg, @build_ids) = @_;
+    my $timeout = 60 * scalar(@build_ids);
+    $timeout = 60 if $timeout < 60;
+    my $deadline = time() + $timeout;
+    while (time() < $deadline) {
+        $pg->pump_logs;
+        my $bl = $pg->harness("builder");
+        if ($bl && !$bl->pumpable) {
+            $bl->finish;
+            my $rc = $bl->result;
+            die "builder exited unexpectedly (exit code $rc)\n";
+        }
+
+        my $all_done = 1;
+        for my $bid (@build_ids) {
+            my $resp = $ua->get("$base_url/status/build/$bid/active");
+            if ($resp->decoded_content =~ /true/) {
+                $all_done = 0;
+                last;
+            }
+        }
+        return 1 if $all_done;
+        sleep 2;
+    }
+    die "timed out waiting for builds to finish\n";
 }
 
 1;

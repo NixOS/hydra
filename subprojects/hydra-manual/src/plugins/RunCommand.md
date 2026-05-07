@@ -33,17 +33,18 @@ Command to run. Can use the `$HYDRA_JSON` environment variable to access informa
 
 ### Dynamic Commands
 
-Hydra can optionally run RunCommand hooks defined dynamically by the jobset. In
-order to enable dynamic commands, you must enable this feature in your
-`hydra.conf`, *as well as* in the parent project and jobset configuration.
+Hydra can optionally run RunCommand hooks defined dynamically by the jobset.
+In order to enable dynamic commands, you must enable this feature in your `hydra.conf`, *as well as* in the parent project and jobset configuration.
 
 #### Behavior
 
-Hydra will execute any program defined under the `runCommandHook` attribute set. These jobs must have a single output named `out`, and that output must be an executable file located directly at `$out`.
+Hydra will execute any program defined under the `runCommandHook` attribute set.
+These jobs must have a single output named `out`, and that output must be an executable file located directly at `$out`.
 
 #### Security Properties
 
-Safely deploying dynamic commands requires careful design of your Hydra jobs. Allowing arbitrary users to define attributes in your top level attribute set will allow that user to execute code on your Hydra.
+Safely deploying dynamic commands requires careful design of your Hydra jobs.
+Allowing arbitrary users to define attributes in your top level attribute set will allow that user to execute code on your Hydra.
 
 If a jobset has dynamic commands enabled, you must ensure only trusted users can define top level attributes.
 

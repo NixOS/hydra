@@ -6,10 +6,13 @@ Hydra is a [Continuous Integration](https://en.wikipedia.org/wiki/Continuous_int
 
 ## Installation And Setup
 
-**Note**: The instructions provided below are intended to enable new users to get a simple, local installation up and running. They are by no means sufficient for running a production server, let alone a public instance.
+**Note**: The instructions provided below are intended to enable new users to get a simple, local installation up and running.
+They are by no means sufficient for running a production server, let alone a public instance.
 
 ### Enabling The Service
-Running Hydra is currently only supported on NixOS. The [hydra module](https://github.com/NixOS/nixpkgs/blob/release-20.03/nixos/modules/services/continuous-integration/hydra/default.nix) allows for an easy setup. The following configuration can be used for a simple setup that performs all builds on _localhost_ (Please refer to the [Options page](https://nixos.org/nixos/options.html#services.hydra) for all available options):
+Running Hydra is currently only supported on NixOS.
+The [hydra module](https://github.com/NixOS/nixpkgs/blob/release-20.03/nixos/modules/services/continuous-integration/hydra/default.nix) allows for an easy setup.
+The following configuration can be used for a simple setup that performs all builds on _localhost_ (Please refer to the [Options page](https://nixos.org/nixos/options.html#services.hydra) for all available options):
 
 ```nix
 {
@@ -22,7 +25,8 @@ Running Hydra is currently only supported on NixOS. The [hydra module](https://g
 }
 ```
 ### Creating An Admin User
-Once the Hydra service has been configured as above and activated, you should already be able to access the UI interface at the specified URL. However some actions require an admin user which has to be created first:
+Once the Hydra service has been configured as above and activated, you should already be able to access the UI interface at the specified URL.
+However some actions require an admin user which has to be created first:
 
 ```
 $ su - hydra
@@ -30,10 +34,13 @@ $ hydra-create-user <USER> --full-name '<NAME>' \
     --email-address '<EMAIL>' --password-prompt --role admin
 ```
 
-Afterwards you should be able to log by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-create-user`. Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
+Afterwards you should be able to log in by clicking on "_Sign In_" on the top right of the web interface using the credentials specified by `hydra-create-user`.
+Once you are logged in you can click "_Admin -> Create Project_" to configure your first project.
 
 ### Creating A Simple Project And Jobset
-In order to evaluate and build anything you need to create _projects_ that contain _jobsets_. Hydra supports imperative and declarative projects and many different configurations. The steps below will guide you through the required steps to creating a minimal imperative project configuration.
+In order to evaluate and build anything you need to create _projects_ that contain _jobsets_.
+Hydra supports imperative and declarative projects and many different configurations.
+The steps below will guide you through the required steps to creating a minimal imperative project configuration.
 
 #### Creating A Project
 Log in as administrator, click "_Admin_" and select "_Create project_". Fill the form as follows:
@@ -45,7 +52,10 @@ Log in as administrator, click "_Admin_" and select "_Create project_". Fill the
 Click "_Create project_".
 
 #### Creating A Jobset
-After creating a project you are forwarded to the project page. Click "_Actions_" and choose "_Create jobset_". Change **Type** to Legacy for the example below. Fill the form with the following values:
+After creating a project you are forwarded to the project page.
+Click "_Actions_" and choose "_Create jobset_".
+Change **Type** to Legacy for the example below.
+Fill the form with the following values:
 
 - **Identifier**: `hello-project`
 - **Nix expression**: `examples/hello.nix` in `hydra`
@@ -62,7 +72,9 @@ We have to add two inputs for this jobset. One for _nixpkgs_ and one for _hydra_
 - **Type**: `Git checkout`
 - **Value**: `https://github.com/nixos/hydra`
 
-Make sure **State** at the top of the page is set to "_Enabled_" and click on "_Create jobset_". This concludes the creation of a jobset that evaluates [./examples/hello.nix](./examples/hello.nix) once a minute. Clicking "_Evaluations_" should list the first evaluation of the newly created jobset after a brief delay.
+Make sure **State** at the top of the page is set to "_Enabled_" and click on "_Create jobset_".
+This concludes the creation of a jobset that evaluates [./examples/hello.nix](./examples/hello.nix) once a minute.
+Clicking "_Evaluations_" should list the first evaluation of the newly created jobset after a brief delay.
 
 ## Building And Developing
 
@@ -88,8 +100,8 @@ The development environment can also automatically be established using [nix-dir
 
 ### Executing Hydra During Development
 
-When working on new features or bug fixes you need to be able to run Hydra from your working copy. This
-can be done using [foreman](https://github.com/ddollar/foreman):
+When working on new features or bug fixes you need to be able to run Hydra from your working copy.
+This can be done using [foreman](https://github.com/ddollar/foreman):
 
 ```
 $ nix develop
@@ -99,14 +111,14 @@ $ cargo build
 $ foreman start
 ```
 
-Have a look at the [Procfile](./Procfile) if you want to see how the processes are being started. In order to avoid
-conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
+Have a look at the [Procfile](./Procfile) if you want to see how the processes are being started.
+In order to avoid conflicts with services that might be running on your host, hydra and postgress are started on custom ports:
 
 - hydra-server: 63333 with the username "alice" and the password "foobar"
 - postgresql: 64444, can be connected to using `psql -p 64444 -h localhost hydra`
 
-Note that this is only ever meant as an ad-hoc way of executing Hydra during development. Please make use of the
-NixOS module for actually running Hydra in production.
+Note that this is only ever meant as an ad-hoc way of executing Hydra during development.
+Please make use of the NixOS module for actually running Hydra in production.
 
 ### Checking your patches
 
@@ -146,7 +158,8 @@ $ cargo test
 
 ### JSON API
 
-You can also interface with Hydra through a JSON API. The API is defined in [hydra-api.yaml](./hydra-api.yaml) and you can test and explore via the [swagger editor](https://editor.swagger.io/?url=https://raw.githubusercontent.com/NixOS/hydra/master/hydra-api.yaml)
+You can also interface with Hydra through a JSON API.
+The API is defined in [hydra-api.yaml](./hydra-api.yaml) and you can test and explore via the [swagger editor](https://editor.swagger.io/?url=https://raw.githubusercontent.com/NixOS/hydra/master/hydra-api.yaml)
 
 ## Additional Resources
 
