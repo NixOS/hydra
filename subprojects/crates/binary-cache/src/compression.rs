@@ -42,7 +42,7 @@ impl Compression {
         match self {
             Self::None => "none",
             Self::Xz => "xz",
-            Self::Bzip2 => "bz2",
+            Self::Bzip2 => "bzip2",
             Self::Brotli => "br",
             Self::Zstd => "zstd",
         }
@@ -77,7 +77,7 @@ impl std::str::FromStr for Compression {
         match s.trim().to_ascii_lowercase().as_str() {
             "none" => Ok(Self::None),
             "xz" => Ok(Self::Xz),
-            "bz2" => Ok(Self::Bzip2),
+            "bzip2" => Ok(Self::Bzip2),
             "br" => Ok(Self::Brotli),
             "zstd" | "zst" => Ok(Self::Zstd),
             o => Err(o.to_string()),
