@@ -3,12 +3,12 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
-use anyhow::Context;
 use hashbrown::{HashMap, HashSet};
 
 use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
 use nix_utils::BaseStore as _;
+use store_path_utils::RelativeStorePath;
 
 pub(super) type AtomicBuildID = AtomicI32;
 
@@ -340,42 +340,6 @@ impl RemoteBuild {
     }
 }
 
-/// Store path with an optional relative path from the store object directory.
-///
-/// Build products can reference files inside store outputs (e.g. `/nix/store/hash-name/bin/foo`),
-/// so we separate the base `StorePath` from the trailing sub-path.
-#[derive(Debug, Clone)]
-pub struct RelativeStorePath {
-    pub base_path: nix_utils::StorePath,
-    pub relative_path: Box<str>,
-}
-
-impl RelativeStorePath {
-    pub fn from_path(store_dir: &nix_utils::StoreDir, path: &str) -> anyhow::Result<Self> {
-        let stripped = store_dir
-            .strip_prefix(path)
-            .with_context(|| format!("stripping store dir from '{path}'"))?;
-        let (base_str, remaining_str) = stripped.split_once('/').unwrap_or((stripped, ""));
-        Ok(Self {
-            base_path: nix_utils::StorePath::from_base_path(base_str)
-                .with_context(|| format!("parsing store path from '{base_str}'"))?,
-            relative_path: remaining_str.into(),
-        })
-    }
-
-    pub fn print(&self, store_dir: &nix_utils::StoreDir) -> String {
-        if self.relative_path.is_empty() {
-            store_dir.display(&self.base_path).to_string()
-        } else {
-            format!(
-                "{}/{}",
-                store_dir.display(&self.base_path),
-                self.relative_path
-            )
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct BuildProduct {
     pub path: Option<RelativeStorePath>,
@@ -394,10 +358,7 @@ pub struct BuildProduct {
 impl BuildProduct {
     pub fn from_db(v: db::models::OwnedBuildProduct) -> Self {
         Self {
-            path: v.path.map(|p| RelativeStorePath {
-                base_path: p,
-                relative_path: "".into(),
-            }),
+            path: v.path,
             default_path: v.defaultpath,
             r#type: v.r#type,
             subtype: v.subtype,
@@ -741,5 +702,64 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    /// Helper to construct a parsed `OwnedBuildProduct` with a given path,
+    /// leaving other fields at harmless defaults.
+    fn make_db_product(path: Option<(&str, &str)>) -> db::models::OwnedBuildProduct {
+        db::models::OwnedBuildProduct {
+            r#type: "doc".into(),
+            subtype: "manual".into(),
+            filesize: None,
+            sha256hash: None,
+            path: path.map(|(base, rel)| RelativeStorePath {
+                base_path: nix_utils::StorePath::from_base_path(base).unwrap(),
+                relative_path: rel.into(),
+            }),
+            name: "test-product".into(),
+            defaultpath: Some("index.html".into()),
+        }
+    }
+
+    #[test]
+    fn from_db_subpath_product() {
+        let bp = BuildProduct::from_db(make_db_product(Some((
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4",
+            "share/doc/nix/manual",
+        ))));
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*rel.relative_path, "share/doc/nix/manual");
+    }
+
+    #[test]
+    fn from_db_bare_store_path() {
+        let bp = BuildProduct::from_db(make_db_product(Some((
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+            "",
+        ))));
+
+        let rel = bp.path.expect("path must be Some");
+        assert_eq!(
+            rel.base_path.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
+        );
+        assert!(rel.relative_path.is_empty());
+    }
+
+    #[test]
+    fn from_db_handles_none_path() {
+        let bp = BuildProduct::from_db(make_db_product(None));
+        assert!(bp.path.is_none());
     }
 }

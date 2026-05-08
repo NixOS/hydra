@@ -1,0 +1,9 @@
+[package]
+name                   = "store-path-utils"
+version                = "0.1.0"
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+harmonia-store-core.workspace = true

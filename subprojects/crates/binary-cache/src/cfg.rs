@@ -810,7 +810,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
 
     #[test]
     fn test_s3_cache_config_from_str_with_parameters() {
-        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bz2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
+        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bzip2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
 
         let config = S3CacheConfig::from_str(config_str).unwrap();
 
@@ -893,7 +893,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert!(!config.write_debug_info);
         assert!(config.parallel_compression);
 
-        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZ2&ls-compression=BR&log-compression=ZSTD";
+        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZIP2&ls-compression=BR&log-compression=ZSTD";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(config.compression, Compression::Xz);
         assert_eq!(config.narinfo_compression, Compression::Bzip2);

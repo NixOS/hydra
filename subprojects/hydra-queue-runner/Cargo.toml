@@ -58,6 +58,7 @@ harmonia-store-core.workspace = true
 hydra-tracing                 = { path = "../crates/tracing", features = [ "tonic" ] }
 nix-utils                     = { path = "../crates/nix-utils" }
 shared                        = { path = "../crates/shared" }
+store-path-utils.workspace    = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
