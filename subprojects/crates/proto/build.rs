@@ -16,6 +16,7 @@ fn main() -> Result<(), BuildError> {
 
     println!("cargo:rerun-if-changed=../../proto/v1/streaming.proto");
     println!("cargo:rerun-if-changed=../../proto/v1/store.proto");
+    println!("cargo:rerun-if-changed=../../proto/v1/store/derivation.proto");
     println!("cargo:rerun-if-changed=../../proto/v1/nix-support.proto");
 
     let mut hasher = sha2::Sha256::new();
@@ -41,7 +42,13 @@ pub const PROTO_API_VERSION: &str = "{version}";
         )
         .build_client(false)
         .build_server(false)
-        .compile_protos(&["../../proto/v1/store.proto"], &["../../proto"])?;
+        .compile_protos(
+            &[
+                "../../proto/v1/store.proto",
+                "../../proto/v1/store/derivation.proto",
+            ],
+            &["../../proto"],
+        )?;
 
     // Second pass: generate runner.v1 (references nix.store.v1 via extern_path)
     tonic_prost_build::configure()
@@ -50,6 +57,10 @@ pub const PROTO_API_VERSION: &str = "{version}";
             "crate::store_path::ProtoStorePath",
         )
         .extern_path(".nix.store.v1", "crate::nix::store::v1")
+        .extern_path(
+            ".nix.store.derivation.v1",
+            "crate::nix::store::derivation::v1",
+        )
         .build_client(cfg!(feature = "client"))
         .build_server(cfg!(feature = "server"))
         .file_descriptor_set_path(out_dir.join("streaming_descriptor.bin"))

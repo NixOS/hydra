@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use harmonia_store_derivation::derivation::{BasicDerivation, Derivation, DerivationOutput};
+use harmonia_store_derivation::derivation::{BasicDerivation, Derivation};
 use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
 use harmonia_store_path::{StoreDir, StorePath};
 
@@ -40,22 +40,12 @@ impl StepInfo {
     ///
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
-    pub(super) async fn try_resolve(
+    pub(super) async fn try_resolve_force(
         store_dir: &StoreDir,
         db: &db::Database,
         drv: &Derivation,
         resolved_drv_map: &hashbrown::HashMap<StorePath, StorePath>,
     ) -> Option<BasicDerivation> {
-        // Input-addressed derivations should not be resolved because this would change their
-        // output paths.
-        let all_input_addressed = drv
-            .outputs
-            .values()
-            .any(|o| matches!(o, DerivationOutput::InputAddressed(_)));
-        if all_input_addressed {
-            return None;
-        }
-
         // If there are no Built inputs, the derivation is already resolved.
         let has_built_inputs = drv
             .inputs
@@ -79,7 +69,7 @@ impl StepInfo {
         let mut memo =
             std::collections::HashMap::<(StorePath, OutputName), Option<StorePath>>::new();
 
-        drv.try_resolve(store_dir, &mut |inputs| {
+        drv.try_resolve_force(store_dir, &mut |inputs| {
             tokio::task::block_in_place(|| {
                 let rt = tokio::runtime::Handle::current();
 

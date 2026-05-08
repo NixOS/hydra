@@ -502,13 +502,13 @@ impl RunnerService for Server {
     #[tracing::instrument(skip(self, req), err)]
     async fn fetch_requisites(
         &self,
-        req: tonic::Request<ProtoStorePath>,
+        req: tonic::Request<hydra_proto::StorePaths>,
     ) -> BuilderResult<hydra_proto::RequisitesResponse> {
         let state = self.state.clone();
-        let drv = req.into_inner().0;
+        let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
         let requisites: Vec<ProtoStorePath> =
-            daemon_client_utils::query_closure(&state.pool, &[drv])
+            daemon_client_utils::query_closure(&state.pool, &paths)
                 .await
                 .map_err(|e| {
                     tracing::error!("failed to compute closure e={e}");

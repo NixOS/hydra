@@ -1744,9 +1744,11 @@ dependencies = [
 name = "hydra-proto"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "db",
  "fs-err",
  "harmonia-store-content-address",
+ "harmonia-store-derivation",
  "harmonia-store-nar-info",
  "harmonia-store-path",
  "harmonia-store-path-info",
@@ -1754,6 +1756,7 @@ dependencies = [
  "harmonia-utils-signature",
  "nix-support",
  "prost",
+ "serde_json",
  "sha2 0.10.9",
  "store-path-utils",
  "thiserror",
