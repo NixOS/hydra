@@ -3,7 +3,7 @@ use binary_cache::S3BinaryCacheClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracing_guard = hydra_tracing::init()?;
-    let local = nix_utils::LocalStore::init();
+    let _local = nix_utils::LocalStore::init();
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -14,21 +14,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let id = nix_utils::DrvOutput {
-        drv_hash: "sha256:6e46b9cf4fecaeab4b3c0578f4ab99e89d2f93535878c4ac69b5d5c4eb3a3db9"
-            .parse::<harmonia_utils_hash::fmt::Any<harmonia_utils_hash::Hash>>()
-            .unwrap()
-            .into_hash(),
+        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv"
+            .parse()
+            .unwrap(),
         output_name: "debug".parse().unwrap(),
     };
     tracing::info!(
         "has realisation before: {}",
         client.has_realisation(&id).await?
     );
-    client.copy_realisation(&local, &id, true).await?;
-    tracing::info!(
-        "has realisation after: {}",
-        client.has_realisation(&id).await?
-    );
+    // TODO put back after we add back `query_raw_realisation` with Nix 2.35.
+
+    // let raw = local.query_raw_realisation(&id)?;
+    // let realisation = raw.as_rust()?;
+    // client.write_realisation(realisation).await?;
+    // tracing::info!(
+    //     "has realisation after: {}",
+    //     client.has_realisation(&id).await?
+    // );
 
     let stats = client.s3_stats();
     tracing::info!(
