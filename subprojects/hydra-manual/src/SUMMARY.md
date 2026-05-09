@@ -14,7 +14,10 @@
 - [Monitoring Hydra](./monitoring/README.md)
 
 ## Developer's Guide
+
+- [Architecture](architecture.md)
 - [Hacking](hacking.md)
 - [Hydra Notifications](notifications.md)
+
 -----------
 [About](about.md)
