@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use harmonia_store_path::StorePath;
 use tokio::sync::mpsc;
 use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
@@ -14,7 +15,6 @@ use hydra_proto::{
     SimplePingMessage, StepUpdate, VersionCheckRequest, VersionCheckResponse, builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
-use nix_utils::BaseStore as _;
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
@@ -207,7 +207,7 @@ impl RunnerService for Server {
             }));
         }
 
-        let our_store_dir = self.state.store.store_dir().to_string();
+        let our_store_dir = self.state.pool.store_dir().to_string();
         if req.store_dir != our_store_dir {
             return Err(tonic::Status::failed_precondition(format!(
                 "Store dir mismatch: builder has `{}`, server has `{}`",
@@ -392,11 +392,13 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<tonic::Streaming<hydra_proto::AddToStoreRequest>>,
     ) -> BuilderResult<hydra_proto::Empty> {
-        // We leak memory if we use the store from state, so we open and close a new
-        // connection for each import. This sucks but using the state.store will result in the path
-        // not being closed!
-        let store = nix_utils::LocalStore::init();
-        store_transfer::import::import(&store, req.into_inner())
+        let mut guard = self
+            .state
+            .pool
+            .acquire()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connection failed: {e}")))?;
+        store_transfer::import::import(&mut guard, req.into_inner())
             .await
             .map_err(|e| tonic::Status::internal(format!("import error: {e}")))?;
         Ok(tonic::Response::new(hydra_proto::Empty {}))
@@ -508,19 +510,15 @@ impl RunnerService for Server {
         req: tonic::Request<ProtoStorePath>,
     ) -> BuilderResult<hydra_proto::RequisitesResponse> {
         let state = self.state.clone();
-        let path = req.into_inner().0;
+        let drv = req.into_inner().0;
 
-        let requisites = state
-            .store
-            .query_requisites(&[&path])
-            .await
-            .map_err(|e| {
-                tracing::error!("failed to toposort drv e={e}");
-                tonic::Status::internal("failed to toposort drv.")
-            })?
-            .into_iter()
-            .map(ProtoStorePath::from)
-            .collect();
+        let requisites: Vec<ProtoStorePath> =
+            daemon_client_utils::query_closure(&state.pool, &[drv])
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to compute closure: {e}")))?
+                .into_iter()
+                .map(|vpi| ProtoStorePath(vpi.path))
+                .collect();
 
         Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
             requisites,
@@ -534,9 +532,7 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path = state
-            .store
-            .is_valid_path(&path)
+        let has_path: bool = daemon_client_utils::is_valid_path(&state.pool, &path)
             .await
             .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
@@ -552,18 +548,29 @@ impl RunnerService for Server {
     ) -> BuilderResult<Self::FetchPathsStream> {
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
-        let infos = self
-            .state
-            .store
-            .query_path_infos(&paths.iter().collect::<Vec<_>>())
-            .await
-            .map_err(|e| tonic::Status::internal(format!("query_path_infos failed: {e}")))?;
+        let mut infos = hashbrown::HashMap::new();
+        for path in &paths {
+            let info = daemon_client_utils::query_path_info(&self.state.pool, path)
+                .await
+                .map_err(|e| tonic::Status::internal(format!("query_path_info failed: {e}")))?
+                .ok_or_else(|| tonic::Status::not_found(format!("path '{path}' is not valid")))?;
+            infos.insert(path.clone(), info);
+        }
 
         let (tx, rx) = mpsc::unbounded_channel();
+        let pool = self.state.pool.clone();
 
-        tokio::task::spawn_blocking(move || {
-            let store = nix_utils::LocalStore::init();
-            store_transfer::export::export(&store, &paths, &infos, &tx);
+        tokio::spawn(async move {
+            let mut guard = match pool.acquire().await {
+                Ok(g) => g,
+                Err(e) => {
+                    tracing::error!("export failed: daemon connection: {e}");
+                    return;
+                }
+            };
+            if let Err(e) = store_transfer::export::export(&mut guard, &paths, &infos, &tx).await {
+                tracing::error!("export failed: {e}");
+            }
         });
 
         Ok(tonic::Response::new(
@@ -609,10 +616,8 @@ impl RunnerService for Server {
 
         let mut responses = Vec::new();
         for presigned_request in req.request {
-            let store_path = presigned_request
-                .store_path
-                .parse::<harmonia_store_path::StorePath>()
-                .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
+            let store_path = StorePath::from_base_path(&presigned_request.store_path)
+                .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
 
             let proto_hash = presigned_request
                 .nar_hash
@@ -636,7 +641,7 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(hydra_proto::PresignedNarResponse {
-                store_path: store_path.to_string().clone(),
+                store_path: store_path.to_string(),
                 nar_url: presigned_response.nar_url,
                 nar_upload: Some(hydra_proto::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
@@ -726,10 +731,10 @@ impl RunnerService for Server {
             .try_into()
             .map_err(|e: hydra_proto::NarInfoConvertError| tonic::Status::invalid_argument(e.0))?;
 
-        if &narinfo.info.info.store_dir != self.state.store.get_store_dir() {
+        if &narinfo.info.info.store_dir != self.state.pool.store_dir() {
             return Err(tonic::Status::invalid_argument(format!(
                 "store_dir mismatch: expected {}, got {}",
-                self.state.store.get_store_dir(),
+                self.state.pool.store_dir(),
                 narinfo.info.info.store_dir
             )));
         }
@@ -743,7 +748,7 @@ impl RunnerService for Server {
         let size = narinfo.info.download_size;
 
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(&self.state.store, narinfo)
+            .upload_narinfo_after_presigned_upload(&self.state.pool, narinfo)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);

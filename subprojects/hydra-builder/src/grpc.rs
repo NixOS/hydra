@@ -1,10 +1,10 @@
-use harmonia_store_path::StorePath;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use anyhow::Context as _;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
 
+use harmonia_store_path::StorePath;
 use hydra_proto::{
     BuilderRequest, VersionCheckRequest, builder_request, runner_request,
     runner_service_client::RunnerServiceClient,
@@ -198,7 +198,7 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
             version: hydra_proto::PROTO_API_VERSION.to_string(),
             machine_id: state.id.to_string(),
             hostname: state.hostname.clone(),
-            store_dir: nix_utils::get_store_dir().to_string(),
+            store_dir: state.config.store_dir.to_string(),
         }))
         .await?;
     let response = response.into_inner();

@@ -15,6 +15,8 @@
 mod config;
 mod grpc;
 mod metrics;
+mod nix_config;
+mod realise;
 mod state;
 mod system;
 mod types;
@@ -42,8 +44,6 @@ async fn stop_application(
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
-    nix_utils::init_nix();
-
     let cli = config::Cli::new();
 
     let state = state::State::new(&cli).await?;

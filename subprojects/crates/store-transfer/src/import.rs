@@ -7,24 +7,28 @@
 /// `nar_chunk` bytes with all NARs concatenated in header order.
 ///
 /// Rust splits the decompressed stream by counting `nar_size` bytes
-/// per path and feeds each slice into `add_to_store`.
-pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
-    store: &Store,
+/// per path and feeds each slice into `add_to_store_nar`.
+pub async fn import(
+    guard: &mut harmonia_store_remote::PooledConnectionGuard,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
-) -> Result<Vec<harmonia_store_path::StorePath>, nix_utils::Error> {
+) -> anyhow::Result<Vec<harmonia_store_path::StorePath>> {
     use futures::StreamExt as _;
-    use nix_utils::Error;
+    use harmonia_protocol::types::DaemonStore;
 
     // First message must be the header.
     let first = stream
         .next()
         .await
         .ok_or_else(|| anyhow::anyhow!("empty AddToStoreRequest stream"))?
-        .map_err(|e| Error::Anyhow(e.into()))?;
+        .map_err(|e| anyhow::anyhow!("stream error: {e}"))?;
 
     let header = match first.content {
         Some(hydra_proto::add_to_store_request::Content::Header(h)) => h,
-        _ => return Err(anyhow::anyhow!("expected AddToStoreHeader as first message").into()),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "expected AddToStoreHeader as first message"
+            ));
+        }
     };
 
     let path_infos: Vec<harmonia_store_path_info::ValidPathInfo> = header
@@ -42,8 +46,7 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
                 .map_err(|e| anyhow::anyhow!("invalid path info: {e}"))?;
             Ok(harmonia_store_path_info::ValidPathInfo { path, info })
         })
-        .collect::<anyhow::Result<_>>()
-        .map_err(Error::Anyhow)?;
+        .collect::<anyhow::Result<_>>()?;
 
     let paths: Vec<_> = path_infos.iter().map(|pi| pi.path.clone()).collect();
 
@@ -73,15 +76,15 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
     );
 
     // Import each path by reading exactly nar_size decompressed bytes
-    // into a per-path duplex pipe feeding add_to_store.
-    for pi in &path_infos {
+    // into a per-path duplex pipe feeding add_to_store_nar.
+    for vpi in &path_infos {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
         let (mut nar_writer, nar_reader) = tokio::io::duplex(256 * 1024);
-        let nar_stream = tokio_util::io::ReaderStream::new(nar_reader);
+        let mut nar_buf_reader = tokio::io::BufReader::new(nar_reader);
 
         let copy_fut = async {
-            let mut remaining = pi.info.nar_size;
+            let mut remaining = vpi.info.nar_size;
             let mut buf = vec![0u8; 64 * 1024];
             while remaining > 0 {
                 let to_read = buf.len().min(remaining as usize);
@@ -89,7 +92,7 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
                 if n == 0 {
                     return Err(anyhow::anyhow!(
                         "unexpected end of NAR stream for {}, {remaining} bytes remaining",
-                        pi.path
+                        vpi.path
                     ));
                 }
                 nar_writer.write_all(&buf[..n]).await?;
@@ -99,17 +102,16 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
             Ok::<(), anyhow::Error>(())
         };
 
-        let store_fut = store.add_to_store(pi, nar_stream, false);
+        let store_fut = guard
+            .client()
+            .add_to_store_nar(vpi, &mut nar_buf_reader, false, true);
 
         let (copy_result, store_result) = futures::future::join(copy_fut, store_fut).await;
-        copy_result.map_err(Error::Anyhow)?;
+        copy_result?;
         store_result?;
     }
 
-    writer_handle
-        .await
-        .map_err(|e| Error::Anyhow(e.into()))?
-        .map_err(Error::Anyhow)?;
+    writer_handle.await??;
 
     Ok(paths)
 }

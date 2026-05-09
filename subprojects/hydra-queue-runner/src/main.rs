@@ -89,7 +89,6 @@ async fn main() -> anyhow::Result<()> {
         }));
     }
 
-    nix_utils::init_nix();
     let state = State::new().await?;
 
     let lockfile_path = state.config.get_lockfile();

@@ -1,3 +1,4 @@
+use harmonia_store_path::StorePath;
 use std::sync::{Arc, atomic::Ordering};
 
 use hashbrown::{HashMap, HashSet};
@@ -5,7 +6,6 @@ use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 use db::models::BuildID;
-use harmonia_store_path::StorePath;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
@@ -629,7 +629,7 @@ impl Machine {
     }
 
     #[tracing::instrument(
-        skip(self, job, opts, presigned_url_opts),
+        skip(self, job, presigned_url_opts),
         fields(build_id=job.build_id, step_nr=job.step_nr),
         err,
     )]
@@ -637,7 +637,9 @@ impl Machine {
         &self,
         job: Job,
         effective_drv: StorePath,
-        opts: &nix_utils::BuildOptions,
+        max_log_size: u64,
+        max_silent_time: i32,
+        build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
     ) -> anyhow::Result<()> {
         let drv = effective_drv;
@@ -645,9 +647,9 @@ impl Machine {
             .send(Message::BuildMessage {
                 build_id: job.internal_build_id,
                 drv,
-                max_log_size: opts.get_max_log_size(),
-                max_silent_time: opts.get_max_silent_time(),
-                build_timeout: opts.get_build_timeout(),
+                max_log_size,
+                max_silent_time,
+                build_timeout,
                 presigned_url_opts,
             })
             .await?;

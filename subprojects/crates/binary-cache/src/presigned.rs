@@ -1,11 +1,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use backon::Retryable;
-
 use bytes::Bytes;
 use harmonia_store_path::StorePath;
-use nix_utils::{BaseStore as _, LocalStore};
-
 use tokio_util::io::StreamReader;
 
 use crate::{CacheError, Compression, streaming_hash::HashingReader};
@@ -109,7 +106,7 @@ impl PresignedUploadClient {
     #[tracing::instrument(skip(self, store, narinfo, req), err)]
     pub async fn process_presigned_request(
         &self,
-        store: &LocalStore,
+        store: &harmonia_store_remote::ConnectionPool,
         mut narinfo: crate::NarInfo,
         req: PresignedUploadResponse,
     ) -> Result<crate::NarInfo, CacheError> {
@@ -127,7 +124,7 @@ impl PresignedUploadClient {
             };
             crate::debug_info::process_debug_info(
                 &req.nar_url,
-                store,
+                store.store_dir().as_ref(),
                 &narinfo.path,
                 debug_info_client.clone(),
             )
@@ -146,7 +143,7 @@ impl PresignedUploadClient {
     #[tracing::instrument(skip(self, store, store_path), err)]
     async fn upload_nar(
         &self,
-        store: &LocalStore,
+        store: &harmonia_store_remote::ConnectionPool,
         store_path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
@@ -155,21 +152,41 @@ impl PresignedUploadClient {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, std::io::Error>>();
         let (result_tx, result_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
 
-        let closure = {
-            let tx = tx.clone();
-            move |data: &[u8]| {
-                let data = Bytes::copy_from_slice(data);
-                tx.send(Ok(data)).is_ok()
-            }
-        };
-
         tokio::task::spawn({
             let path = store_path.clone();
             let store = store.clone();
+            let tx = tx.clone();
             async move {
-                let result = store
-                    .nar_from_path(&path, closure)
-                    .map_err(|e| format!("NAR reading failed: {e}"));
+                use harmonia_protocol::types::DaemonStore;
+                use tokio::io::AsyncBufReadExt as _;
+                let result: Result<(), String> = async {
+                    let mut guard = store
+                        .acquire()
+                        .await
+                        .map_err(|e| format!("NAR reading failed: {e}"))?;
+                    let mut nar_reader = guard
+                        .client()
+                        .nar_from_path(&path)
+                        .await
+                        .map_err(|e| format!("NAR reading failed: {e}"))?;
+                    loop {
+                        let buf = nar_reader
+                            .fill_buf()
+                            .await
+                            .map_err(|e| format!("NAR reading failed: {e}"))?;
+                        if buf.is_empty() {
+                            break;
+                        }
+                        let data = Bytes::copy_from_slice(buf);
+                        let len = data.len();
+                        if tx.send(Ok(data)).is_err() {
+                            break;
+                        }
+                        nar_reader.consume(len);
+                    }
+                    Ok(())
+                }
+                .await;
                 let _ = result_tx.send(result);
             }
         });
@@ -197,16 +214,16 @@ impl PresignedUploadClient {
         }
     }
 
-    #[tracing::instrument(skip(self, store, store_path), err)]
+    #[tracing::instrument(skip(self, store), err)]
     async fn upload_ls(
         &self,
-        store: &LocalStore,
-        store_path: &StorePath,
+        store: &harmonia_store_remote::ConnectionPool,
+        path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let listing = super::nar_listing(store, store_path).await?;
+        let listing = super::nar_listing(store, path).await?;
         let ls_json = serde_json::json!({
             "version": 1,
             "root": listing,

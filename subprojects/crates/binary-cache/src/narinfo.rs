@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
-use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
+use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::fingerprint_path;
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
@@ -136,8 +136,6 @@ pub enum NarInfoError {
         field: &'static str,
         err: std::num::ParseIntError,
     },
-    #[error("store path parse error: {0}")]
-    StorePath(#[from] ParseStorePathError),
 }
 
 /// Parse a narinfo text into a [`NarInfo`].
@@ -182,7 +180,7 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
 
         match key {
             "StorePath" => {
-                store_path_opt = Some(StoreDir::default().parse::<StorePath>(val)?);
+                store_path_opt = Some(val.parse().expect("valid store path"));
             }
             "URL" => {
                 url_opt = Some(val.to_string());
@@ -213,14 +211,14 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 references = val
                     .split_whitespace()
                     .filter(|s| !s.is_empty())
-                    .map(StorePath::from_base_path)
-                    .collect::<Result<_, _>>()?;
+                    .map(|s| s.parse().expect("valid store path"))
+                    .collect();
             }
             "Deriver" => {
                 deriver = if val.is_empty() {
                     None
                 } else {
-                    Some(StorePath::from_base_path(val)?)
+                    Some(val.parse().expect("valid store path"))
                 };
             }
             "CA" => {
@@ -231,10 +229,10 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 };
             }
             "Sig" => {
-                if !val.is_empty() {
-                    if let Ok(sig) = val.parse() {
-                        sigs.insert(sig);
-                    }
+                if !val.is_empty()
+                    && let Ok(sig) = val.parse()
+                {
+                    sigs.insert(sig);
                 }
             }
             _ => {}

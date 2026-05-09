@@ -1,7 +1,6 @@
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
 use harmonia_store_path::StorePath;
-use nix_utils::BaseStore as _;
 
 #[allow(clippy::unnecessary_wraps)]
 fn deserialize_with_new_v4<'de, D>(_: D) -> Result<uuid::Uuid, D::Error>
@@ -95,7 +94,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_store, remote_stores))]
     async fn upload_msg(
         &self,
-        local_store: nix_utils::LocalStore,
+        local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
     ) {
@@ -103,11 +102,13 @@ impl Uploader {
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
-        let paths_to_copy = match local_store
-            .query_requisites(&msg.store_paths.iter().collect::<Vec<_>>())
-            .await
+        let closure = match daemon_client_utils::query_closure(
+            &local_store,
+            msg.store_paths.as_ref(),
+        )
+        .await
         {
-            Ok(paths) => paths,
+            Ok(c) => c,
             Err(e) => {
                 // Non-fatal: outputs remain in the local store. The
                 // uploader is best-effort — a transient daemon issue
@@ -119,12 +120,11 @@ impl Uploader {
         tracing::info!(
             "{} paths results in {} paths_to_copy",
             msg.store_paths.len(),
-            paths_to_copy.len()
+            closure.len()
         );
 
         for remote_store in remote_stores {
-            if let Err(e) =
-                Self::upload_to_store(&remote_store, &local_store, &msg, &paths_to_copy).await
+            if let Err(e) = Self::upload_to_store(&remote_store, &local_store, &msg, &closure).await
             {
                 // Non-fatal: per-store failure shouldn't block other
                 // stores. Outputs remain in the local store.
@@ -145,9 +145,9 @@ impl Uploader {
     /// anything goes wrong (after retries).
     async fn upload_to_store(
         remote_store: &binary_cache::S3BinaryCacheClient,
-        local_store: &nix_utils::LocalStore,
+        local_store: &harmonia_store_remote::ConnectionPool,
         msg: &Message,
-        paths_to_copy: &[StorePath],
+        closure: &[harmonia_store_path_info::ValidPathInfo],
     ) -> anyhow::Result<()> {
         // Upload log file
         (|| async {
@@ -167,9 +167,16 @@ impl Uploader {
         .map_err(|e| anyhow::anyhow!("failed to upload log file: {e}"))?;
 
         // Copy NARs
-        let paths_to_copy = remote_store
-            .query_missing_paths(paths_to_copy.to_vec())
-            .await;
+        let missing_paths: hashbrown::HashSet<StorePath> = remote_store
+            .query_missing_paths(closure.iter().map(|vpi| vpi.path.clone()).collect())
+            .await
+            .into_iter()
+            .collect();
+        let paths_to_copy: Vec<_> = closure
+            .iter()
+            .filter(|vpi| missing_paths.contains(&vpi.path))
+            .cloned()
+            .collect();
         tracing::info!(
             "{} paths missing in remote store that will be copied",
             paths_to_copy.len()
@@ -200,7 +207,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_store, remote_stores))]
     pub async fn upload_once(
         &self,
-        local_store: nix_utils::LocalStore,
+        local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
         let Some(msg) = self.queue.recv().await else {
@@ -224,7 +231,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_store, remote_stores))]
     pub async fn upload_many(
         &self,
-        local_store: nix_utils::LocalStore,
+        local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,
     ) {

@@ -9,7 +9,6 @@ use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
-use nix_utils::BaseStore as _;
 
 pub(super) type AtomicBuildID = AtomicI32;
 
@@ -430,24 +429,28 @@ impl BuildOutput {
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(store, outputs), err)]
+    #[tracing::instrument(skip(store, real_store_dir, outputs), err)]
     pub async fn new(
-        store: &nix_utils::LocalStore,
+        store: &harmonia_store_remote::ConnectionPool,
+        real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> anyhow::Result<Self> {
         let resolved: BTreeMap<_, _> = outputs
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
-        let pathinfos = store
-            .query_path_infos(&resolved.values().collect::<Vec<_>>())
-            .await?;
+        let mut pathinfos = BTreeMap::new();
+        for path in resolved.values() {
+            if let Some(info) = daemon_client_utils::query_path_info(store, path).await? {
+                pathinfos.insert(path.clone(), info);
+            }
+        }
         let fs = nix_support::FilesystemOperations {
-            real_store_dir: store.get_store_dir().to_path().to_owned(),
+            real_store_dir: real_store_dir.to_owned(),
         };
         let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
-            store.get_store_dir(),
-            store.get_store_dir().to_path(),
+            store.store_dir(),
+            real_store_dir,
             &fs,
             &resolved,
         ))
@@ -464,7 +467,7 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += store.compute_closure_size(&path).await?;
+                closure_size += daemon_client_utils::compute_closure_size(store, &path).await;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }

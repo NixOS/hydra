@@ -61,12 +61,11 @@ Solid arrows are normal dependencies; dashed arrows are dev (test-only) dependen
 
 ```mermaid
 graph BT
-    binary-cache --> nix-utils
+    binary-cache --> daemon-client-utils
     nix-support --> store-path-utils
     db --> nix-support
     hydra-proto --> nix-support
     store-transfer --> hydra-proto
-    store-transfer --> nix-utils
     hydra-builder --> binary-cache
     hydra-builder --> hydra-tracing
     hydra-builder --> store-transfer
@@ -89,8 +88,8 @@ graph BT
 - `binary-cache`:
   reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
 
-- `nix-utils`:
-  Nix store path parsing, derivation reading, and local store operations via C++ FFI
+- `daemon-client-utils`:
+  Various utilities for working with the daemon connection beyond what the Harmonia libraries provide.
 
 - `store-transfer`:
   shared import/export logic for streaming store objects as `AddToStoreRequest` protobuf messages, used by both the builder and queue-runner
