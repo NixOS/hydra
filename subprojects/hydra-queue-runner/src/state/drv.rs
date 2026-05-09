@@ -25,6 +25,7 @@ impl OutputNameChain {
 /// The output chain is in stack order (outermost first) matching
 /// [`OutputNameChain`]'s convention. For `Built { Opaque(A), "foo" }`,
 /// returns `(A, ["foo"])`. For `Opaque(A)`, returns `(A, [])`.
+#[must_use]
 pub fn flatten_path(sdp: &SingleDerivedPath) -> (nix_utils::StorePath, OutputNameChain) {
     match sdp {
         SingleDerivedPath::Opaque(p) => (p.clone(), OutputNameChain::default()),
@@ -36,6 +37,7 @@ pub fn flatten_path(sdp: &SingleDerivedPath) -> (nix_utils::StorePath, OutputNam
 ///
 /// For `Built { Opaque(A), "foo" }` with output `"bar"`,
 /// returns `(A, ["bar", "foo"])`.
+#[must_use]
 pub fn flatten_chain(
     drv_path: &SingleDerivedPath,
     output_name: &nix_utils::OutputName,

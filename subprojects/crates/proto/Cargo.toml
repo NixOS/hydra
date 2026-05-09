@@ -1,0 +1,25 @@
+[package]
+name                   = "hydra-proto"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+harmonia-store-core.workspace = true
+prost.workspace               = true
+tonic.workspace               = true
+tonic-prost.workspace         = true
+
+db                         = { workspace = true, optional = true }
+store-path-utils.workspace = true
+
+[features]
+client = [  ]
+db     = [ "dep:db" ]
+server = [  ]
+
+[build-dependencies]
+fs-err                      = { workspace = true }
+sha2.workspace              = true
+tonic-prost-build.workspace = true

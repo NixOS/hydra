@@ -246,7 +246,9 @@ impl State {
                         &job.path,
                         // we fail this with preparing because we kinda want to restart all jobs if
                         // a machine is removed
-                        BuildResultState::PreparingFailure,
+                        BuildResultState::Completed(
+                            hydra_proto::BuildResultState::PreparingFailure,
+                        ),
                         BuildTimings::default(),
                     )
                     .await
@@ -571,7 +573,7 @@ impl State {
                 if self.config.use_presigned_uploads() {
                     let remote_stores = self.remote_stores.read();
                     remote_stores.iter().find_map(|s| match s {
-                        RemoteStoreBackend::S3(s) => Some(machine::PresignedUrlOpts {
+                        RemoteStoreBackend::S3(s) => Some(hydra_proto::PresignedUploadOpts {
                             upload_debug_info: s.cfg.write_debug_info,
                         }),
                         _ => None,
@@ -1323,7 +1325,7 @@ impl State {
                 // Find a build associated with this step. For intermediate steps
                 // (not top-level), `direct` is empty, so we walk the dependency
                 // chain via `get_dependents` to find the owning build.
-                let build = if let Some(b) = direct.get(0) {
+                let build = if let Some(b) = direct.first() {
                     b.clone()
                 } else {
                     let mut dependents = HashSet::new();

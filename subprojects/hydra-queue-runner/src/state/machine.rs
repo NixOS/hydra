@@ -8,36 +8,10 @@ use db::models::BuildID;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
-use crate::server::grpc::runner_v1::{AbortMessage, BuildMessage, JoinMessage, runner_request};
+use hydra_proto::{AbortMessage, BuildMessage, JoinMessage, PresignedUploadOpts, runner_request};
 
-#[derive(Debug, Clone, Copy)]
-pub struct Pressure {
-    pub avg10: f32,
-    pub avg60: f32,
-    pub avg300: f32,
-    pub total: u64,
-}
-
-impl From<crate::server::grpc::runner_v1::Pressure> for Pressure {
-    fn from(v: crate::server::grpc::runner_v1::Pressure) -> Self {
-        Self {
-            avg10: v.avg10,
-            avg60: v.avg60,
-            avg300: v.avg300,
-            total: v.total,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PressureState {
-    pub cpu_some: Option<Pressure>,
-    pub mem_some: Option<Pressure>,
-    pub mem_full: Option<Pressure>,
-    pub io_some: Option<Pressure>,
-    pub io_full: Option<Pressure>,
-    pub irq_full: Option<Pressure>,
-}
+pub use hydra_proto::Pressure;
+pub(crate) use hydra_proto::PressureState;
 
 #[derive(Debug)]
 pub struct Stats {
@@ -222,7 +196,7 @@ impl Stats {
         self.last_ping.load(Ordering::Relaxed)
     }
 
-    pub fn store_ping(&self, msg: &crate::server::grpc::runner_v1::PingMessage) {
+    pub fn store_ping(&self, msg: &hydra_proto::PingMessage) {
         self.last_ping
             .store(jiff::Timestamp::now().as_second(), Ordering::Relaxed);
 
@@ -232,14 +206,7 @@ impl Stats {
         self.mem_usage.store(msg.mem_usage, Ordering::Relaxed);
 
         if let Some(p) = msg.pressure {
-            self.pressure.store(Some(Arc::new(PressureState {
-                cpu_some: p.cpu_some.map(Into::into),
-                mem_some: p.mem_some.map(Into::into),
-                mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
-                irq_full: p.irq_full.map(Into::into),
-            })));
+            self.pressure.store(Some(Arc::new(p)));
         }
 
         self.build_dir_free_percent
@@ -508,23 +475,7 @@ impl Job {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PresignedUrlOpts {
-    pub upload_debug_info: bool,
-}
-
-impl From<PresignedUrlOpts> for crate::server::grpc::runner_v1::PresignedUploadOpts {
-    fn from(value: PresignedUrlOpts) -> Self {
-        Self {
-            upload_debug_info: value.upload_debug_info,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConfigUpdate {
-    pub max_concurrent_downloads: u32,
-}
+pub(crate) use hydra_proto::ConfigUpdate;
 
 #[derive(Debug)]
 pub enum Message {
@@ -535,7 +486,7 @@ pub enum Message {
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
-        presigned_url_opts: Option<PresignedUrlOpts>,
+        presigned_url_opts: Option<PresignedUploadOpts>,
     },
     AbortMessage {
         build_id: uuid::Uuid,
@@ -543,13 +494,10 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn into_request(self) -> crate::server::grpc::runner_v1::RunnerRequest {
+    #[must_use]
+    pub fn into_request(self) -> hydra_proto::RunnerRequest {
         let msg = match self {
-            Self::ConfigUpdate(m) => runner_request::Message::ConfigUpdate(
-                crate::server::grpc::runner_v1::ConfigUpdate {
-                    max_concurrent_downloads: m.max_concurrent_downloads,
-                },
-            ),
+            Self::ConfigUpdate(m) => runner_request::Message::ConfigUpdate(m),
             Self::BuildMessage {
                 build_id,
                 drv,
@@ -559,18 +507,18 @@ impl Message {
                 presigned_url_opts,
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
-                drv: Some(shared::proto::ProtoStorePath::from(drv)),
+                drv: Some(hydra_proto::ProtoStorePath::from(drv)),
                 max_log_size,
                 max_silent_time,
                 build_timeout,
-                presigned_url_opts: presigned_url_opts.map(Into::into),
+                presigned_url_opts,
             }),
             Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
                 build_id: build_id.to_string(),
             }),
         };
 
-        crate::server::grpc::runner_v1::RunnerRequest { message: Some(msg) }
+        hydra_proto::RunnerRequest { message: Some(msg) }
     }
 }
 
@@ -689,7 +637,7 @@ impl Machine {
         job: Job,
         effective_drv: nix_utils::StorePath,
         opts: &nix_utils::BuildOptions,
-        presigned_url_opts: Option<PresignedUrlOpts>,
+        presigned_url_opts: Option<PresignedUploadOpts>,
     ) -> anyhow::Result<()> {
         let drv = effective_drv;
         self.msg_queue

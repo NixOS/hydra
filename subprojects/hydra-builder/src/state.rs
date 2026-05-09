@@ -10,18 +10,16 @@ use futures::TryFutureExt as _;
 use hashbrown::HashMap;
 use tonic::Request;
 
-use crate::grpc::{BuilderClient, runner_v1};
+use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
-use nix_utils::{BaseStore as _, OutputName};
-use runner_v1::{
+use hydra_proto::ProtoStorePath;
+use hydra_proto::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
     FetchRequisitesRequest, JoinMessage, NarData, NixSupport, Output, OutputNameOnly,
-    OutputWithPath, PingMessage, PressureState, StepStatus, StepUpdate, StorePaths, output,
+    OutputWithPath, PingMessage, StepStatus, StepUpdate, StorePaths, output,
 };
-use shared::proto::ProtoStorePath;
-
-include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
+use nix_utils::{BaseStore as _, OutputName};
 
 const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
 const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
@@ -248,14 +246,7 @@ impl State {
             load5: sysinfo.load_avg_5,
             load15: sysinfo.load_avg_15,
             mem_usage: sysinfo.mem_usage,
-            pressure: sysinfo.pressure.map(|p| PressureState {
-                cpu_some: p.cpu_some.map(Into::into),
-                mem_some: p.mem_some.map(Into::into),
-                mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
-                irq_full: p.irq_full.map(Into::into),
-            }),
+            pressure: sysinfo.pressure,
             build_dir_free_percent: sysinfo.build_dir_free_percent,
             store_free_percent: sysinfo.store_free_percent,
             current_substituting_path_count: self.metrics.get_substituting_path_count(),
@@ -648,7 +639,7 @@ impl State {
         nars: Vec<nix_utils::StorePath>,
         build_id: &str,
         machine_id: &str,
-        presigned_url_opts: Option<runner_v1::PresignedUploadOpts>,
+        presigned_url_opts: Option<hydra_proto::PresignedUploadOpts>,
     ) -> anyhow::Result<()> {
         if let Some(opts) = presigned_url_opts {
             upload_nars_presigned(
@@ -969,7 +960,7 @@ async fn upload_nars_presigned(
     upload_client: PresignedUploadClient,
     store: nix_utils::LocalStore,
     output_paths: &[nix_utils::StorePath],
-    opts: runner_v1::PresignedUploadOpts,
+    opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
     machine_id: &str,
 ) -> anyhow::Result<()> {
@@ -1056,7 +1047,7 @@ async fn upload_single_nar_presigned(
     nar_path: &nix_utils::StorePath,
     build_id: &str,
     machine_id: &str,
-    presigned_response: &runner_v1::PresignedNarResponse,
+    presigned_response: &hydra_proto::PresignedNarResponse,
     client: &mut BuilderClient,
     upload_client: &PresignedUploadClient,
 ) -> anyhow::Result<()> {
@@ -1110,7 +1101,7 @@ async fn upload_single_nar_presigned(
         updated_narinfo.file_hash.as_ref(),
         updated_narinfo.file_size,
     ) {
-        let completion_msg = runner_v1::PresignedUploadComplete {
+        let completion_msg = hydra_proto::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
             store_path: nar_path.to_string().clone(),
@@ -1193,17 +1184,21 @@ async fn new_success_build_result_info(
             products: nix_support
                 .products
                 .into_iter()
-                .map(|p| BuildProduct {
-                    path: p.path,
-                    default_path: p.default_path,
-                    r#type: p.r#type,
-                    subtype: p.subtype,
-                    name: p.name,
-                    is_regular: p.is_regular,
-                    sha256hash: p.sha256hash,
-                    file_size: p.file_size,
+                .map(|p| {
+                    let rel =
+                        store_path_utils::RelativeStorePath::from_path(store.store_dir(), &p.path)?;
+                    Ok(BuildProduct {
+                        path: Some(rel.into()),
+                        default_path: p.default_path,
+                        r#type: p.r#type,
+                        subtype: p.subtype,
+                        name: p.name,
+                        is_regular: p.is_regular,
+                        sha256hash: p.sha256hash,
+                        file_size: p.file_size,
+                    })
                 })
-                .collect(),
+                .collect::<anyhow::Result<Vec<_>>>()?,
         }),
     })
 }

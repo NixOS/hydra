@@ -22,7 +22,6 @@ rustPlatform.buildRustPackage {
       ../../Cargo.lock
       ../../.cargo
       ../../subprojects/hydra-builder/Cargo.toml
-      ../../subprojects/hydra-builder/build.rs
       ../../subprojects/hydra-builder/src
       ../../subprojects/crates
       # For unit tests which want to spin up a fresh database

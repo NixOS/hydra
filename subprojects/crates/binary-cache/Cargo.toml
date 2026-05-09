@@ -39,8 +39,8 @@ tokio-util = { workspace = true, features = [ "io", "io-util" ] }
 
 harmonia-store-core.workspace = true
 harmonia-utils-hash.workspace = true
-nix-utils                     = { path = "../nix-utils" }
+nix-utils.workspace           = true
 
 [dev-dependencies]
-hydra-tracing = { path = "../tracing" }
-tempfile      = "3.23.0"
+hydra-tracing.workspace = true
+tempfile                = "3.23.0"

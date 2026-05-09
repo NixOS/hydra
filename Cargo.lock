@@ -1522,6 +1522,7 @@ dependencies = [
  "gethostname",
  "harmonia-store-core",
  "hashbrown 0.16.1",
+ "hydra-proto",
  "hydra-tracing",
  "hyper-util",
  "nix",
@@ -1532,8 +1533,8 @@ dependencies = [
  "sd-notify",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "shared",
+ "store-path-utils",
  "sysinfo",
  "thiserror",
  "tikv-jemallocator",
@@ -1542,11 +1543,25 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-prost",
- "tonic-prost-build",
  "tower",
  "tracing",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "hydra-proto"
+version = "0.1.0"
+dependencies = [
+ "db",
+ "fs-err",
+ "harmonia-store-core",
+ "prost",
+ "sha2 0.10.9",
+ "store-path-utils",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
 ]
 
 [[package]]
@@ -1570,6 +1585,7 @@ dependencies = [
  "harmonia-store-core",
  "hashbrown 0.16.1",
  "http-body-util",
+ "hydra-proto",
  "hydra-tracing",
  "hyper",
  "hyper-util",
@@ -1584,7 +1600,6 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "shared",
  "smallvec",
  "store-path-utils",
@@ -1597,7 +1612,6 @@ dependencies = [
  "tonic",
  "tonic-health",
  "tonic-prost",
- "tonic-prost-build",
  "tonic-reflection",
  "tower",
  "tower-http",
@@ -3467,7 +3481,6 @@ dependencies = [
  "anyhow",
  "fs-err",
  "nix-utils",
- "prost",
  "regex",
  "sha2 0.10.9",
  "tokio",

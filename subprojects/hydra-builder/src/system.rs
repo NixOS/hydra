@@ -42,45 +42,16 @@ impl BaseSystemInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Pressure {
-    pub avg10: f32,
-    pub avg60: f32,
-    pub avg300: f32,
-    pub total: u64,
-}
+pub use hydra_proto::{Pressure, PressureState};
 
 #[cfg(target_os = "linux")]
-impl Pressure {
-    const fn new(record: &procfs_core::PressureRecord) -> Self {
-        Self {
-            avg10: record.avg10,
-            avg60: record.avg60,
-            avg300: record.avg300,
-            total: record.total,
-        }
+fn pressure_from_record(record: &procfs_core::PressureRecord) -> Pressure {
+    Pressure {
+        avg10: record.avg10,
+        avg60: record.avg60,
+        avg300: record.avg300,
+        total: record.total,
     }
-}
-
-impl From<Pressure> for crate::grpc::runner_v1::Pressure {
-    fn from(val: Pressure) -> Self {
-        Self {
-            avg10: val.avg10,
-            avg60: val.avg60,
-            avg300: val.avg300,
-            total: val.total,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PressureState {
-    pub cpu_some: Option<Pressure>,
-    pub mem_some: Option<Pressure>,
-    pub mem_full: Option<Pressure>,
-    pub io_some: Option<Pressure>,
-    pub io_full: Option<Pressure>,
-    pub irq_full: Option<Pressure>,
 }
 
 // TODO: remove once https://github.com/eminence/procfs/issues/351 is resolved
@@ -135,29 +106,27 @@ fn parse_pressure_record(line: &str) -> procfs_core::ProcResult<procfs_core::Pre
 }
 
 #[cfg(target_os = "linux")]
-impl PressureState {
-    #[must_use]
-    pub fn new() -> Option<Self> {
-        if !fs_err::exists("/proc/pressure").unwrap_or_default() {
-            return None;
-        }
-
-        let cpu_psi = procfs_core::CpuPressure::from_file("proc/pressure/cpu").ok();
-        let mem_psi = procfs_core::MemoryPressure::from_file("/proc/pressure/memory").ok();
-        let io_psi = procfs_core::IoPressure::from_file("/proc/pressure/io").ok();
-        let irq_psi_full = fs_err::read_to_string("/proc/pressure/irq")
-            .ok()
-            .and_then(|v| parse_pressure_record(&v).ok());
-
-        Some(Self {
-            cpu_some: cpu_psi.map(|v| Pressure::new(&v.some)),
-            mem_some: mem_psi.as_ref().map(|v| Pressure::new(&v.some)),
-            mem_full: mem_psi.map(|v| Pressure::new(&v.full)),
-            io_some: io_psi.as_ref().map(|v| Pressure::new(&v.some)),
-            io_full: io_psi.map(|v| Pressure::new(&v.full)),
-            irq_full: irq_psi_full.map(|v| Pressure::new(&v)),
-        })
+#[must_use]
+pub fn read_pressure_state() -> Option<PressureState> {
+    if !fs_err::exists("/proc/pressure").unwrap_or_default() {
+        return None;
     }
+
+    let cpu_psi = procfs_core::CpuPressure::from_file("proc/pressure/cpu").ok();
+    let mem_psi = procfs_core::MemoryPressure::from_file("/proc/pressure/memory").ok();
+    let io_psi = procfs_core::IoPressure::from_file("/proc/pressure/io").ok();
+    let irq_psi_full = fs_err::read_to_string("/proc/pressure/irq")
+        .ok()
+        .and_then(|v| parse_pressure_record(&v).ok());
+
+    Some(PressureState {
+        cpu_some: cpu_psi.map(|v| pressure_from_record(&v.some)),
+        mem_some: mem_psi.as_ref().map(|v| pressure_from_record(&v.some)),
+        mem_full: mem_psi.map(|v| pressure_from_record(&v.full)),
+        io_some: io_psi.as_ref().map(|v| pressure_from_record(&v.some)),
+        io_full: io_psi.map(|v| pressure_from_record(&v.full)),
+        irq_full: irq_psi_full.as_ref().map(pressure_from_record),
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -200,7 +169,7 @@ impl SystemLoad {
             load_avg_5: load.five,
             load_avg_15: load.fifteen,
             mem_usage: meminfo.mem_total - meminfo.mem_available.unwrap_or(0),
-            pressure: PressureState::new(),
+            pressure: read_pressure_state(),
             build_dir_free_percent: get_mount_free_percent(build_dir).unwrap_or(100.),
             store_free_percent: get_mount_free_percent(store_dir.to_str()).unwrap_or(100.),
         })

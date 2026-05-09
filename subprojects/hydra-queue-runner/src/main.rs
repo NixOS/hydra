@@ -117,10 +117,7 @@ async fn main() -> anyhow::Result<()> {
         .collect();
 
     let http_listener = match &state.cli.rest_bind {
-        config::BindSocket::Tcp(s) => {
-            let listener = tokio::net::TcpListener::bind(s).await?;
-            listener
-        }
+        config::BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
             let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {

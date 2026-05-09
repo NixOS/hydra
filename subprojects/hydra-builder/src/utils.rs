@@ -2,8 +2,8 @@ use tokio::io::BufReader;
 use tokio_stream::wrappers::LinesStream;
 use tokio_util::io::ReaderStream;
 
-use crate::grpc::runner_v1::LogChunk;
-use shared::proto::ProtoStorePath;
+use hydra_proto::LogChunk;
+use hydra_proto::ProtoStorePath;
 
 pub(crate) type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
 pub(crate) type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
