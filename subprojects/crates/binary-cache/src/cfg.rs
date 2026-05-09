@@ -43,7 +43,7 @@ impl S3CacheConfig {
             ls_compression: Compression::None,
             log_compression: Compression::None,
             buffer_size: 8 * 1024 * 1024,
-            presigned_url_expiry: std::time::Duration::from_secs(3600),
+            presigned_url_expiry: std::time::Duration::from_hours(1),
         }
     }
 

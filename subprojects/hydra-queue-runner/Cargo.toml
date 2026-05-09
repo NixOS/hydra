@@ -52,18 +52,22 @@ prometheus               = { workspace = true, features = [ "process" ] }
 tower                    = { workspace = true, features = [ "util" ] }
 tower-http               = { workspace = true, features = [ "trace" ] }
 
-binary-cache.workspace              = true
-db.workspace                        = true
-harmonia-store-derivation.workspace = true
-harmonia-store-nar-info.workspace   = true
-harmonia-store-path.workspace       = true
-harmonia-store-path-info.workspace  = true
-harmonia-utils-hash.workspace       = true
-hydra-proto                         = { workspace = true, features = [ "db", "server" ] }
-hydra-tracing                       = { workspace = true, features = [ "tonic" ] }
-nix-support.workspace               = true
-nix-utils.workspace                 = true
-store-transfer.workspace            = true
+binary-cache.workspace                   = true
+daemon-client-utils.workspace            = true
+db.workspace                             = true
+harmonia-protocol.workspace              = true
+harmonia-store-aterm.workspace           = true
+harmonia-store-content-address.workspace = true
+harmonia-store-derivation.workspace      = true
+harmonia-store-nar-info.workspace        = true
+harmonia-store-path.workspace            = true
+harmonia-store-path-info.workspace       = true
+harmonia-store-remote.workspace          = true
+harmonia-utils-hash.workspace            = true
+hydra-proto                              = { workspace = true, features = [ "db", "server" ] }
+hydra-tracing                            = { workspace = true, features = [ "tonic" ] }
+nix-support.workspace                    = true
+store-transfer.workspace                 = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true

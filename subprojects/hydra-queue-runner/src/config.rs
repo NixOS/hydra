@@ -303,11 +303,11 @@ impl TryFrom<AppConfig> for PreparedApp {
             .collect();
 
         let logname = std::env::var("LOGNAME").context("LOGNAME env var missing")?;
-        let nix_state_dir =
-            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix/".to_owned());
+        let nix_remote = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
         let roots_dir = val.roots_dir.map_or_else(
             || {
-                std::path::PathBuf::from(nix_state_dir)
+                nix_remote
+                    .state_dir
                     .join("gcroots/per-user")
                     .join(logname)
                     .join("hydra-roots")

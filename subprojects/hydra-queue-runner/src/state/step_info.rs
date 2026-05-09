@@ -245,7 +245,9 @@ mod tests {
         lowest_share_used: f64,
         rdeps_len: u64,
     ) -> StepInfo {
-        let step = Step::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv".parse().unwrap());
+        let step = Step::new(
+            StorePath::from_base_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv").unwrap(),
+        );
 
         step.atomic_state
             .highest_global_priority

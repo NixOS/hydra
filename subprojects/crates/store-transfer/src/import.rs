@@ -9,12 +9,13 @@ use crate::{Error, ProtocolError};
 /// `nar_chunk` bytes with all NARs concatenated in header order.
 ///
 /// Rust splits the decompressed stream by counting `nar_size` bytes
-/// per path and feeds each slice into `add_to_store`.
-pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
-    store: &Store,
+/// per path and feeds each slice into `add_to_store_nar`.
+pub async fn import(
+    guard: &mut harmonia_store_remote::PooledConnectionGuard,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
 ) -> Result<Vec<harmonia_store_path::StorePath>, Error> {
     use futures::StreamExt as _;
+    use harmonia_protocol::types::DaemonStore;
 
     // First message must be the header.
     let first = stream
@@ -51,7 +52,7 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
     // Pipe compressed gRPC chunks through a zstd decoder. A spawned
     // task writes the compressed data; we read decompressed bytes
     // from the other end.
-    let (mut compressed_writer, compressed_reader) = tokio::io::duplex(256 * 1024);
+    let (mut compressed_writer, compressed_reader) = tokio::io::duplex(crate::PIPE_BUFFER_SIZE);
 
     let writer_handle = tokio::spawn(async move {
         while let Some(msg) = stream.next().await {
@@ -70,22 +71,22 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
     );
 
     // Import each path by reading exactly nar_size decompressed bytes
-    // into a per-path duplex pipe feeding add_to_store.
-    for pi in &path_infos {
+    // into a per-path duplex pipe feeding add_to_store_nar.
+    for vpi in &path_infos {
         use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-        let (mut nar_writer, nar_reader) = tokio::io::duplex(256 * 1024);
-        let nar_stream = tokio_util::io::ReaderStream::new(nar_reader);
+        let (mut nar_writer, nar_reader) = tokio::io::duplex(crate::PIPE_BUFFER_SIZE);
+        let mut nar_buf_reader = tokio::io::BufReader::new(nar_reader);
 
         let copy_fut = async {
-            let mut remaining = pi.info.nar_size;
-            let mut buf = vec![0u8; 64 * 1024];
+            let mut remaining = vpi.info.nar_size;
+            let mut buf = vec![0u8; crate::COPY_BUFFER_SIZE];
             while remaining > 0 {
                 let to_read = buf.len().min(remaining as usize);
                 let n = decoder.read(&mut buf[..to_read]).await?;
                 if n == 0 {
                     return Err(ProtocolError::TruncatedNar {
-                        path: pi.path.clone(),
+                        path: vpi.path.clone(),
                         remaining,
                     }
                     .into());
@@ -97,7 +98,9 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
             Ok::<(), Error>(())
         };
 
-        let store_fut = store.add_to_store(pi, nar_stream, false);
+        let store_fut = guard
+            .client()
+            .add_to_store_nar(vpi, &mut nar_buf_reader, false, true);
 
         let (copy_result, store_result) = futures::future::join(copy_fut, store_fut).await;
         copy_result?;

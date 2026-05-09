@@ -3,12 +3,15 @@ use harmonia_store_path::StorePath;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let p: StorePath = "dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv"
-        .parse()
-        .unwrap();
+    let p: StorePath = "dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv".parse()?;
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(4);
 
-    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(Some(tx)));
+    let nix_config = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
+    let pool = harmonia_store_remote::ConnectionPool::new(
+        &nix_config.socket,
+        harmonia_store_remote::PoolConfig::default(),
+    );
+    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(pool, Some(tx)));
     fod.clone().start_traverse_loop();
     fod.to_traverse(&p);
     fod.trigger_traverse();

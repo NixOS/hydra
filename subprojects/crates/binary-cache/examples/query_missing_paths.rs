@@ -1,10 +1,14 @@
 use binary_cache::S3BinaryCacheClient;
-use nix_utils::BaseStore as _;
+use harmonia_store_path::StorePath;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracing_guard = hydra_tracing::init()?;
-    let store = nix_utils::LocalStore::init();
+    let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
+    let store = harmonia_store_remote::ConnectionPool::new(
+        &nix_config.socket,
+        harmonia_store_remote::PoolConfig::default(),
+    );
 
     let client = S3BinaryCacheClient::new(
         "s3://nix-cache-staging?ls-compression=br&log-compression=br".parse()?,
@@ -12,18 +16,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     tracing::info!("{:#?}", client.cfg);
 
-    let drv = "z3d15qi11dvljq5qz84kak3h0nb12wca-rsyslog-8.2510.0"
-        .parse()
-        .unwrap();
-    let ps = store.query_requisites(&[&drv]).await.unwrap();
-    println!("ps before: {}", ps.len());
+    let drv: StorePath = "z3d15qi11dvljq5qz84kak3h0nb12wca-rsyslog-8.2510.0".parse()?;
 
-    let ps = client.query_missing_paths(ps.clone()).await;
-    println!("ps after: {}", ps.len());
+    let ps: Vec<StorePath> = daemon_client_utils::query_closure(&store, &[drv.clone()])
+        .await?
+        .into_iter()
+        .map(|vpi| vpi.path)
+        .collect();
+    println!("closure size: {}", ps.len());
 
-    let ps = store.query_requisites(&[&drv]).await.unwrap();
-    for p in ps {
-        println!("{}", store.print_store_path(&p));
+    let missing = client.query_missing_paths(ps).await;
+    println!("missing: {}", missing.len());
+
+    for p in &missing {
+        println!("  {}", store.store_dir().display(p));
     }
 
     let stats = client.s3_stats();

@@ -18,14 +18,21 @@ pub enum ProtocolError {
         path: harmonia_store_path::StorePath,
         remaining: u64,
     },
+
+    #[error("NAR size mismatch for {path}: wrote {actual} bytes, expected {expected}")]
+    NarSizeMismatch {
+        path: harmonia_store_path::StorePath,
+        expected: u64,
+        actual: u64,
+    },
 }
 
 /// Errors during store path import/export over gRPC.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The underlying nix store operation failed.
+    /// The underlying daemon store operation failed.
     #[error(transparent)]
-    Store(#[from] nix_utils::Error),
+    Store(#[from] harmonia_protocol::types::DaemonError),
 
     /// gRPC transport error.
     #[error("gRPC error: {0}")]
