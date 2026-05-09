@@ -1,44 +1,88 @@
-This is a rough overview from informal discussions and explanations of inner workings of Hydra.
+# Architecture
+
+This is an overview of Hydra's inner workings.
 You can use it as a guide to navigate the codebase or ask questions.
 
-## Architecture
+## Components
 
-### Components
+Hydra's components are split across a coordinator machine and any number of builder machines.
+The NixOS modules in `nixos-modules/` reflect this split: `web-app` and `queue-runner` run on the master, while `builder` runs on remote machines.
+For small installations, all three can run on a single host (the `hydra` module combines them).
+But most installation will want to use multiple build machines for scale.
 
-- Postgres database
-    - configuration
-    - build queue
-        - what is already built
-        - what is going to build
-- `hydra-server`
-    - Perl, Catalyst
-    - web frontend
-- `hydra-evaluator`
-    - Perl, C++
-    - fetches repositories
-    - evaluates job sets
-        - pointers to a repository
-    - adds builds to the queue
-- `hydra-queue-runner`
-    - C++
-    - monitors the queue
-    - executes build steps
-    - uploads build results
-        - copy to a Nix store
-- Nix store
-    - contains `.drv`s
-    - populated by `hydra-evaluator`
-    - read by `hydra-queue-runner`
-- destination Nix store
-    - can be a binary cache
-    - e.g. `[cache.nixos.org](http://cache.nixos.org)` or the same store again (for small Hydra instances)
-- plugin architecture
-    - extend evaluator for new kinds of repositories
-        - e.g. fetch from `git`
+### Coordinator machine
 
-### Database Schema
+These components all share a single Nix store and PostgreSQL database on the master:
 
-[https://github.com/NixOS/hydra/blob/master/src/sql/hydra.sql](https://github.com/NixOS/hydra/blob/master/src/sql/hydra.sql)
+- **PostgreSQL database**
+    - stores configuration, the build queue (scheduled and finished builds), and results
+- **`hydra-server`** (Perl, Catalyst)
+    - web frontend and REST API
+    - user authentication (built-in or LDAP)
+- **`hydra-evaluator`** (C++)
+    - periodically evaluates jobsets by invoking the Nix evaluator
+    - writes `.drv` files into the coordinator's Nix store
+    - adds new builds to the queue when evaluation results change
+- **`hydra-eval-jobset`** (Perl)
+    - called by the evaluator to orchestrate fetching inputs and running the Nix evaluation
+- **`hydra-queue-runner`** (Rust)
+    - reads `.drv` files from the coordinator's Nix store
+    - schedules build steps across builders
+    - uploads results to a destination store
+    - exposes a gRPC service that builders connect to
+- **`hydra-notify`** (Perl)
+    - dispatches post-build notifications to plugins (email, GitHub/GitLab status, Slack, etc.)
+    - listens for PostgreSQL `NOTIFY` events from the queue runner
+- **Plugin system** (Perl)
+    - input plugins extend the evaluator with new source types (Git, Mercurial, Darcs, etc.)
+    - notification plugins react to build lifecycle events
+
+### Destination store
+
+The queue runner uploads built outputs to a *destination store*, which is separate from the coordinator's local Nix store.
+This can be an S3-compatible binary cache, or for small installations it can just be the coordinator's own store.
+See [Populating a Cache](configuration.md#populating-a-cache) for configuration.
+
+### Builder machines
+
+Builders have their own Nix store — they do not need access to the coordinator's store or database.
+
+- **`hydra-builder`** (Rust)
+    - build execution agent that runs on remote machines
+    - connects to the queue runner's gRPC service
+    - receives derivations to build, streams back logs and results
+
+## Source layout
+
+The repository is organized into subprojects:
+
+- [`subprojects/hydra/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra)
+  — the Perl/Catalyst web application, evaluator scripts, SQL schema, and plugins
+- [`subprojects/hydra-queue-runner/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-queue-runner)
+  — the Rust queue runner
+- [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)
+  — the Rust build agent
+- [`subprojects/crates/`](https://github.com/NixOS/hydra/tree/master/subprojects/crates)
+  — shared Rust libraries (`db`, `binary-cache`, `shared`, `nix-utils`, `tracing`, `test-utils`)
+- [`subprojects/proto/`](https://github.com/NixOS/hydra/tree/master/subprojects/proto)
+  — Protocol Buffer definitions for the builder ↔ queue-runner gRPC interface
+- [`subprojects/nix-perl/`](https://github.com/NixOS/hydra/tree/master/subprojects/nix-perl)
+  — Perl bindings to the Nix store API
+- [`subprojects/hydra-tests/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-tests)
+  — integration test suite (Perl, using `Test::More`)
+- [`subprojects/hydra-manual/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-manual)
+  — this manual (mdbook)
+
+The build system uses Meson for the C++ and Perl components and Cargo for the Rust workspace.
+
+## Database Schema
+
+The canonical schema lives in [`subprojects/hydra/sql/hydra.sql`](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/hydra.sql).
+Incremental migrations are in `migrations/upgrade-N.sql`; see the [SQL README](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/README.md) for details on making schema changes.
+
+The database is accessed by all three language runtimes: Perl (DBI/DBIx::Class), C++ (libpqxx), and Rust (SQLx).
+
+Key tables:
 
 - `Jobsets`
     - populated by calling Nix evaluator
@@ -79,7 +123,7 @@ You can use it as a guide to navigate the codebase or ask questions.
         - `out`, `dev`, ...
 - `BuildProducts`
     - not a Nix concept
-    - populated from a special file `$out/nix-support/hydra-build-producs`
+    - populated from a special file `$out/nix-support/hydra-build-products`
     - used to scrape parts of build results out to the web frontend
         - e.g. manuals, ISO images, etc.
 - `BuildMetrics`
@@ -87,14 +131,14 @@ You can use it as a guide to navigate the codebase or ask questions.
         - e.g. test coverage, build times, CPU utilization for build
     - `$out/nix-support/hydra-metrics`
 - `BuildInputs`
-    - probably obsolute
+    - probably obsolete
 - `JobsetEvalMembers`
     - joins evaluations with jobs
     - huge table, 10k’s of entries for one `nixpkgs` evaluation
     - can be imagined as a subset of the eval cache
         - could in principle use the eval cache
 
-### `release.nix`
+## `release.nix`
 
 - hydra-specific convention to describe the build
 - should evaluate to an attribute set that contains derivations
@@ -122,8 +166,8 @@ Is it conceptually possible to unify Hydra’s capabilities with regular Nix?
 - Nix does not have any scheduling, it just traverses the build graph
 - Hydra has scheduling in terms of job set priorities, tracks how much of a job set it has worked on
     - makes sure jobs don’t starve each other
-- Nix cannot dynamically add build jobs at runtime
-    - [RFC 92](https://github.com/NixOS/rfcs/blob/master/rfcs/0092-plan-dynamism.md) should enable that
-    - internally it is already possible, but there is no interface to do that
+- Both Hydra and Nix can dynamically add build jobs at runtime
+    - Hydra queued up new jobs dynamically / on-line long before Nix.
+    - But now, both Nix and Hydra now have experimental support for [dynamic derivations](https://github.com/NixOS/rfcs/blob/master/rfcs/0092-plan-dynamism.md), where build jobs can produce new derivations at build time
 - Hydra queue runner is a long running process
     - Nix takes a static set of jobs, working it off at once
