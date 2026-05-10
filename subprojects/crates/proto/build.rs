@@ -22,8 +22,23 @@ pub const PROTO_API_VERSION: &str = "{version}";
         ),
     )?;
 
+    // First pass: generate nix.store.v1 types (except StorePath which is manual)
     tonic_prost_build::configure()
-        .extern_path(".runner.v1.StorePath", "crate::store_path::ProtoStorePath")
+        .extern_path(
+            ".nix.store.v1.StorePath",
+            "crate::store_path::ProtoStorePath",
+        )
+        .build_client(false)
+        .build_server(false)
+        .compile_protos(&["../../proto/v1/store.proto"], &["../../proto"])?;
+
+    // Second pass: generate runner.v1 (references nix.store.v1 via extern_path)
+    tonic_prost_build::configure()
+        .extern_path(
+            ".nix.store.v1.StorePath",
+            "crate::store_path::ProtoStorePath",
+        )
+        .extern_path(".nix.store.v1", "crate::nix::store::v1")
         .build_client(cfg!(feature = "client"))
         .build_server(cfg!(feature = "server"))
         .file_descriptor_set_path(out_dir.join("streaming_descriptor.bin"))

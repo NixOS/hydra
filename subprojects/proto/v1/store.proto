@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package nix.store.v1;
+
+message StorePath {
+  string path = 1;
+}
+
+message StorePaths {
+  repeated StorePath paths = 1;
+}
+
+message RelativeStorePath {
+  StorePath store_path = 1;
+  string sub_path = 2;
+}
+
+message ValidPathInfo {
+  StorePath path = 1;
+  string nar_hash = 2;
+  uint64 nar_size = 3;
+  repeated StorePath references = 4;
+  optional StorePath deriver = 5;
+  optional string ca = 6;
+}
+
+message NarInfo {
+  ValidPathInfo path_info = 1;
+  string url = 2;
+  string compression = 3;
+  string file_hash = 4;
+  uint64 file_size = 5;
+}
