@@ -41,21 +41,18 @@ gethostname.workspace = true
 nix                   = { workspace = true, features = [ "fs" ] }
 procfs-core.workspace = true
 
-binary-cache  = { path = "../crates/binary-cache" }
-hydra-tracing = { path = "../crates/tracing", features = [ "tonic" ] }
-nix-utils     = { path = "../crates/nix-utils" }
-shared        = { path = "../crates/shared" }
+binary-cache.workspace     = true
+hydra-proto                = { workspace = true, features = [ "client" ] }
+hydra-tracing              = { workspace = true, features = [ "tonic" ] }
+nix-utils.workspace        = true
+shared.workspace           = true
+store-path-utils.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 sysinfo.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
-
-[build-dependencies]
-fs-err                      = { workspace = true }
-sha2.workspace              = true
-tonic-prost-build.workspace = true
 
 [features]
 otel = [ "hydra-tracing/otel" ]

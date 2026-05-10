@@ -23,7 +23,6 @@ rustPlatform.buildRustPackage {
       ../../.cargo
       ../../.sqlx
       ../../subprojects/hydra-queue-runner/Cargo.toml
-      ../../subprojects/hydra-queue-runner/build.rs
       ../../subprojects/hydra-queue-runner/src
       ../../subprojects/hydra-queue-runner/examples
       ../../subprojects/crates

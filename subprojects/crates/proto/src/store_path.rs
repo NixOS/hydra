@@ -10,7 +10,7 @@ use prost::DecodeError;
 use prost::bytes::{Buf, BufMut};
 use prost::encoding::{self, DecodeContext, WireType};
 
-use nix_utils::StorePath;
+use harmonia_store_core::store_path::StorePath;
 
 /// A [`StorePath`] that implements [`prost::Message`].
 ///

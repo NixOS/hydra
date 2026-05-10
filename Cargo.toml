@@ -71,7 +71,6 @@ serde_json = "1.0"
 sha2 = "0.10"
 smallvec = "1.15"
 sqlx = "0.8"
-store-path-utils = { path = "subprojects/crates/store-path-utils" }
 sysinfo = "0.38.0"
 thiserror = "2.0"
 tikv-jemallocator = "0.6"
@@ -93,6 +92,16 @@ tracing-subscriber = "0.3.18"
 url = "2.5.4"
 uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
+
+# Local workspace crates
+binary-cache     = { path = "subprojects/crates/binary-cache" }
+db               = { path = "subprojects/crates/db" }
+hydra-proto      = { path = "subprojects/crates/proto" }
+hydra-tracing    = { path = "subprojects/crates/tracing" }
+nix-utils        = { path = "subprojects/crates/nix-utils" }
+shared           = { path = "subprojects/crates/shared" }
+store-path-utils = { path = "subprojects/crates/store-path-utils" }
+test-utils       = { path = "subprojects/crates/test-utils" }
 
 [patch.crates-io]
 harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }

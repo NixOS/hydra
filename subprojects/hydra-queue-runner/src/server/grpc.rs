@@ -6,20 +6,16 @@ use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
 use tracing::Instrument as _;
 
-use crate::{
-    server::grpc::runner_v1::{BuildResultState, StepUpdate},
-    state::{Machine, MachineMessage, State},
+use crate::state::{Machine, MachineMessage, State};
+use hydra_proto::ProtoStorePath;
+use hydra_proto::{
+    BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
+    PROTO_API_VERSION, PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse,
+    RunnerRequest, SimplePingMessage, StepUpdate, StorePaths, VersionCheckRequest,
+    VersionCheckResponse, builder_request,
+    runner_service_server::{RunnerService, RunnerServiceServer},
 };
 use nix_utils::BaseStore as _;
-
-include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
-use runner_v1::runner_service_server::{RunnerService, RunnerServiceServer};
-use runner_v1::{
-    BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
-    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StorePaths, VersionCheckRequest, VersionCheckResponse, builder_request,
-};
-use shared::proto::ProtoStorePath;
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
@@ -81,30 +77,6 @@ fn compression_encode_channel() -> (
 // there is no reason to make this configurable, it only exists so we ensure the channel is not
 // closed. we dont use this to write any actual information.
 const BACKWARDS_PING_INTERVAL: u64 = 30;
-
-pub mod runner_v1 {
-    // We need to allow pedantic here because of generated code
-    #![allow(clippy::pedantic, unused_qualifications)]
-
-    tonic::include_proto!("runner.v1");
-
-    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("streaming_descriptor");
-
-    impl From<StepStatus> for db::models::StepStatus {
-        fn from(item: StepStatus) -> Self {
-            match item {
-                StepStatus::Preparing => Self::Preparing,
-                StepStatus::Connecting => Self::Connecting,
-                StepStatus::SeningInputs => Self::SendingInputs,
-                StepStatus::Building => Self::Building,
-                StepStatus::WaitingForLocalSlot => Self::WaitingForLocalSlot,
-                StepStatus::ReceivingOutputs => Self::ReceivingOutputs,
-                StepStatus::PostProcessing => Self::PostProcessing,
-            }
-        }
-    }
-}
 
 fn match_for_io_error(err_status: &tonic::Status) -> Option<&std::io::Error> {
     let mut err: &(dyn std::error::Error + 'static) = err_status;
@@ -243,7 +215,7 @@ impl Server {
             server = server.tls_config(tls)?;
         }
         let reflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(runner_v1::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(hydra_proto::FILE_DESCRIPTOR_SET)
             .build_v1()?;
 
         let (_health_reporter, health_service) = tonic_health::server::health_reporter();
@@ -348,7 +320,7 @@ impl RunnerService for Server {
         let (output_tx, output_rx) = mpsc::channel(128);
         if let Err(e) = output_tx
             .send(Ok(RunnerRequest {
-                message: Some(runner_v1::runner_request::Message::Join(JoinResponse {
+                message: Some(hydra_proto::runner_request::Message::Join(JoinResponse {
                     machine_id: machine_id.to_string(),
                     max_concurrent_downloads: state.config.get_max_concurrent_downloads(),
                 })),
@@ -366,7 +338,7 @@ impl RunnerService for Server {
                 tokio::select! {
                     _ = ping_interval.tick() => {
                         let msg = RunnerRequest {
-                            message: Some(runner_v1::runner_request::Message::Ping(SimplePingMessage {
+                            message: Some(hydra_proto::runner_request::Message::Ping(SimplePingMessage {
                                 message: "ping".into(),
                             }))
                         };
@@ -426,7 +398,7 @@ impl RunnerService for Server {
     async fn build_log(
         &self,
         req: tonic::Request<tonic::Streaming<LogChunk>>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         use tokio_stream::StreamExt as _;
 
         let stream = req.into_inner();
@@ -463,14 +435,14 @@ impl RunnerService for Server {
             .await
             .map_err(|e| tonic::Status::internal(format!("Failed to write log file: {e}")))?;
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), err)]
     async fn build_result(
         &self,
         req: tonic::Request<tonic::Streaming<NarData>>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let stream = req.into_inner();
 
         // We leak memory if we use the store from state, so we open and close a new
@@ -486,14 +458,14 @@ impl RunnerService for Server {
             store.import_paths(decode_stream(data_stream), false).await
         }
         .map_err(|_| tonic::Status::internal("Failed to import path."))?;
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self), err)]
     async fn build_step_update(
         &self,
         req: tonic::Request<StepUpdate>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
 
         let req = req.into_inner();
@@ -524,14 +496,14 @@ impl RunnerService for Server {
             }.in_current_span()
         });
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), fields(machine_id=req.get_ref().machine_id, build_id=req.get_ref().build_id), err)]
     async fn complete_build(
         &self,
         req: tonic::Request<BuildResultInfo>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
 
         let req = req.into_inner();
@@ -546,15 +518,14 @@ impl RunnerService for Server {
 
         tokio::spawn({
             async move {
-                if req.result_state() == BuildResultState::Success {
-                    let build_output =
-                        match crate::state::BuildOutput::from_grpc(state.store.store_dir(), req) {
-                            Ok(output) => output,
-                            Err(e) => {
-                                tracing::error!("Failed to parse build output: {e}");
-                                return;
-                            }
-                        };
+                if req.result_state() == hydra_proto::BuildResultState::Success {
+                    let build_output = match crate::state::BuildOutput::from_grpc(req) {
+                        Ok(output) => output,
+                        Err(e) => {
+                            tracing::error!("Failed to parse build output: {e}");
+                            return;
+                        }
+                    };
                     if let Err(e) = state
                         .succeed_step_by_uuid(build_id, machine_id, build_output)
                         .await
@@ -582,14 +553,14 @@ impl RunnerService for Server {
             .in_current_span()
         });
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), err)]
     async fn fetch_drv_requisites(
         &self,
         req: tonic::Request<FetchRequisitesRequest>,
-    ) -> BuilderResult<runner_v1::DrvRequisitesMessage> {
+    ) -> BuilderResult<hydra_proto::DrvRequisitesMessage> {
         let state = self.state.clone();
         let req = req.into_inner();
         let drv = req
@@ -609,7 +580,7 @@ impl RunnerService for Server {
             .map(ProtoStorePath::from)
             .collect();
 
-        Ok(tonic::Response::new(runner_v1::DrvRequisitesMessage {
+        Ok(tonic::Response::new(hydra_proto::DrvRequisitesMessage {
             requisites,
         }))
     }
@@ -618,12 +589,12 @@ impl RunnerService for Server {
     async fn has_path(
         &self,
         req: tonic::Request<ProtoStorePath>,
-    ) -> BuilderResult<runner_v1::HasPathResponse> {
+    ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
         let has_path = state.store.is_valid_path(&path).await;
 
-        Ok(tonic::Response::new(runner_v1::HasPathResponse {
+        Ok(tonic::Response::new(hydra_proto::HasPathResponse {
             has_path,
         }))
     }
@@ -728,10 +699,10 @@ impl RunnerService for Server {
                     tonic::Status::internal("Failed to generate presigned URL")
                 })?;
 
-            responses.push(runner_v1::PresignedNarResponse {
+            responses.push(hydra_proto::PresignedNarResponse {
                 store_path: store_path.to_string().clone(),
                 nar_url: presigned_response.nar_url,
-                nar_upload: Some(runner_v1::PresignedUpload {
+                nar_upload: Some(hydra_proto::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
                     url: presigned_response.nar_upload.url,
                     path: presigned_response.nar_upload.path,
@@ -743,7 +714,7 @@ impl RunnerService for Server {
                 }),
                 ls_upload: presigned_response
                     .ls_upload
-                    .map(|ls| runner_v1::PresignedUpload {
+                    .map(|ls| hydra_proto::PresignedUpload {
                         compression_level: ls.get_compression_level_as_i32(),
                         url: ls.url,
                         path: ls.path,
@@ -752,7 +723,7 @@ impl RunnerService for Server {
                 debug_info_upload: presigned_response
                     .debug_info_upload
                     .into_iter()
-                    .map(|p| runner_v1::PresignedUpload {
+                    .map(|p| hydra_proto::PresignedUpload {
                         compression_level: p.get_compression_level_as_i32(),
                         url: p.url,
                         path: p.path,
@@ -780,7 +751,7 @@ impl RunnerService for Server {
     async fn notify_presigned_upload_complete(
         &self,
         req: tonic::Request<PresignedUploadComplete>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
         let req = req.into_inner();
 
@@ -849,6 +820,6 @@ impl RunnerService for Server {
             narinfo_url
         );
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 }

@@ -63,9 +63,17 @@ The repository is organized into subprojects:
 - [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)
   — the Rust build agent
 - [`subprojects/crates/`](https://github.com/NixOS/hydra/tree/master/subprojects/crates)
-  — shared Rust libraries (`db`, `binary-cache`, `shared`, `nix-utils`, `tracing`, `test-utils`)
+  — shared Rust libraries:
+  - `proto` — generated gRPC/protobuf code for the builder ↔ queue-runner interface (message types, client stubs, server traits)
+  - `db` — PostgreSQL database access via SQLx (models, queries, connection pooling)
+  - `binary-cache` — reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
+  - `nix-utils` — Nix store path parsing, derivation reading, and local store operations
+  - `shared` — common types used across components (protobuf newtypes, `nix-support` file parsing)
+  - `store-path-utils` — lightweight store path utilities built on harmonia types
+  - `tracing` — OpenTelemetry/tracing setup with optional gRPC export
+  - `test-utils` — test fixtures and helpers for integration tests
 - [`subprojects/proto/`](https://github.com/NixOS/hydra/tree/master/subprojects/proto)
-  — Protocol Buffer definitions for the builder ↔ queue-runner gRPC interface
+  — Protocol Buffer `.proto` source files (compiled by the `proto` crate's build script)
 - [`subprojects/nix-perl/`](https://github.com/NixOS/hydra/tree/master/subprojects/nix-perl)
   — Perl bindings to the Nix store API
 - [`subprojects/hydra-tests/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-tests)

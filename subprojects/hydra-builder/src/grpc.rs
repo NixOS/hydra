@@ -4,17 +4,10 @@ use std::sync::atomic::Ordering;
 use anyhow::Context as _;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
 
-use runner_v1::{
+use hydra_proto::{
     BuilderRequest, VersionCheckRequest, builder_request, runner_request,
     runner_service_client::RunnerServiceClient,
 };
-
-pub mod runner_v1 {
-    // We need to allow pedantic here because of generated code
-    #![allow(clippy::pedantic, unused_qualifications)]
-
-    tonic::include_proto!("runner.v1");
-}
 
 #[derive(Debug, Clone)]
 pub enum BuilderInterceptor {
@@ -38,7 +31,21 @@ impl tonic::service::Interceptor for BuilderInterceptor {
     }
 }
 
-pub type BuilderClient = RunnerServiceClient<InterceptedService<Channel, BuilderInterceptor>>;
+#[derive(Debug, Clone)]
+pub struct BuilderClient(pub RunnerServiceClient<InterceptedService<Channel, BuilderInterceptor>>);
+
+impl std::ops::Deref for BuilderClient {
+    type Target = RunnerServiceClient<InterceptedService<Channel, BuilderInterceptor>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for BuilderClient {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl BuilderClient {
     #[tracing::instrument(skip(self, store_paths), err)]
@@ -47,8 +54,8 @@ impl BuilderClient {
         build_id: &str,
         machine_id: &str,
         store_paths: Vec<(nix_utils::StorePath, String, Vec<String>)>,
-    ) -> anyhow::Result<Vec<runner_v1::PresignedNarResponse>> {
-        use runner_v1::{PresignedNarRequest, PresignedUrlRequest};
+    ) -> anyhow::Result<Vec<hydra_proto::PresignedNarResponse>> {
+        use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 
         let request = store_paths
             .into_iter()
@@ -146,9 +153,11 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
         BuilderInterceptor::Noop
     };
 
-    Ok(RunnerServiceClient::with_interceptor(channel, interceptor)
-        .max_decoding_message_size(50 * 1024 * 1024)
-        .max_encoding_message_size(50 * 1024 * 1024))
+    Ok(BuilderClient(
+        RunnerServiceClient::with_interceptor(channel, interceptor)
+            .max_decoding_message_size(50 * 1024 * 1024)
+            .max_encoding_message_size(50 * 1024 * 1024),
+    ))
 }
 
 #[tracing::instrument(skip(state), err)]
@@ -184,7 +193,7 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
 
     let response = client
         .check_version(Request::new(VersionCheckRequest {
-            version: crate::state::PROTO_API_VERSION.to_string(),
+            version: hydra_proto::PROTO_API_VERSION.to_string(),
             machine_id: state.id.to_string(),
             hostname: state.hostname.clone(),
             store_dir: nix_utils::get_store_dir().to_string(),
@@ -195,14 +204,14 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
     if !response.compatible {
         return Err(anyhow::anyhow!(
             "API version mismatch: client has {}, server has {}",
-            crate::state::PROTO_API_VERSION,
+            hydra_proto::PROTO_API_VERSION,
             response.server_version,
         ));
     }
 
     tracing::info!(
         "Version check passed: client={}, server={}",
-        crate::state::PROTO_API_VERSION,
+        hydra_proto::PROTO_API_VERSION,
         response.server_version
     );
     Ok(())

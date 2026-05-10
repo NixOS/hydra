@@ -52,21 +52,17 @@ prometheus               = { workspace = true, features = [ "process" ] }
 tower                    = { workspace = true, features = [ "util" ] }
 tower-http               = { workspace = true, features = [ "trace" ] }
 
-binary-cache                  = { path = "../crates/binary-cache" }
-db                            = { path = "../crates/db" }
+binary-cache.workspace        = true
+db.workspace                  = true
 harmonia-store-core.workspace = true
-hydra-tracing                 = { path = "../crates/tracing", features = [ "tonic" ] }
-nix-utils                     = { path = "../crates/nix-utils" }
-shared                        = { path = "../crates/shared" }
+hydra-proto                   = { workspace = true, features = [ "db", "server" ] }
+hydra-tracing                 = { workspace = true, features = [ "tonic" ] }
+nix-utils.workspace           = true
+shared.workspace              = true
 store-path-utils.workspace    = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
-
-[build-dependencies]
-fs-err                      = { workspace = true }
-sha2.workspace              = true
-tonic-prost-build.workspace = true
 
 [features]
 otel = [ "hydra-tracing/otel" ]

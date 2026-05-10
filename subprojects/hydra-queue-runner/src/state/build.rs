@@ -156,30 +156,15 @@ impl Build {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildResultState {
-    Success,
-    BuildFailure,
-    PreparingFailure,
-    ImportFailure,
-    UploadFailure,
-    PostProcessingFailure,
+    /// Result reported by the builder over gRPC.
+    Completed(hydra_proto::BuildResultState),
     Aborted,
     Cancelled,
 }
 
-impl From<crate::server::grpc::runner_v1::BuildResultState> for BuildResultState {
-    fn from(v: crate::server::grpc::runner_v1::BuildResultState) -> Self {
-        match v {
-            crate::server::grpc::runner_v1::BuildResultState::BuildFailure => Self::BuildFailure,
-            crate::server::grpc::runner_v1::BuildResultState::Success => Self::Success,
-            crate::server::grpc::runner_v1::BuildResultState::PreparingFailure => {
-                Self::PreparingFailure
-            }
-            crate::server::grpc::runner_v1::BuildResultState::ImportFailure => Self::ImportFailure,
-            crate::server::grpc::runner_v1::BuildResultState::UploadFailure => Self::UploadFailure,
-            crate::server::grpc::runner_v1::BuildResultState::PostProcessingFailure => {
-                Self::PostProcessingFailure
-            }
-        }
+impl From<hydra_proto::BuildResultState> for BuildResultState {
+    fn from(v: hydra_proto::BuildResultState) -> Self {
+        Self::Completed(v)
     }
 }
 
@@ -243,18 +228,24 @@ impl RemoteBuild {
         }
     }
 
-    pub const fn update_with_result_state(&mut self, state: &BuildResultState) {
+    const fn update_with_completed(&mut self, state: &hydra_proto::BuildResultState) {
         match state {
-            BuildResultState::BuildFailure => {
+            hydra_proto::BuildResultState::BuildFailure => {
                 self.can_retry = false;
             }
-            BuildResultState::Success => (),
-            BuildResultState::PreparingFailure
-            | BuildResultState::ImportFailure
-            | BuildResultState::UploadFailure
-            | BuildResultState::PostProcessingFailure => {
+            hydra_proto::BuildResultState::Success => (),
+            hydra_proto::BuildResultState::PreparingFailure
+            | hydra_proto::BuildResultState::ImportFailure
+            | hydra_proto::BuildResultState::UploadFailure
+            | hydra_proto::BuildResultState::PostProcessingFailure => {
                 self.can_retry = true;
             }
+        }
+    }
+
+    pub const fn update_with_result_state(&mut self, state: &BuildResultState) {
+        match state {
+            BuildResultState::Completed(s) => self.update_with_completed(s),
             BuildResultState::Aborted => {
                 self.can_retry = true;
                 self.step_status = BuildStatus::Aborted;
@@ -370,12 +361,14 @@ impl BuildProduct {
         }
     }
 
-    pub fn from_grpc(
-        store_dir: &nix_utils::StoreDir,
-        v: crate::server::grpc::runner_v1::BuildProduct,
-    ) -> anyhow::Result<Self> {
+    pub fn from_grpc(v: hydra_proto::BuildProduct) -> anyhow::Result<Self> {
+        let path = v
+            .path
+            .ok_or_else(|| anyhow::anyhow!("BuildProduct missing path"))?
+            .try_into()
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
+            path: Some(path),
             default_path: Some(v.default_path),
             r#type: v.r#type,
             subtype: v.subtype,
@@ -482,20 +475,17 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
 }
 
 impl BuildOutput {
-    pub fn from_grpc(
-        store_dir: &nix_utils::StoreDir,
-        v: crate::server::grpc::runner_v1::BuildResultInfo,
-    ) -> anyhow::Result<Self> {
+    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> anyhow::Result<Self> {
         let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
 
         for o in v.outputs {
             match o.output {
-                Some(crate::server::grpc::runner_v1::output::Output::Nameonly(_)) => {
+                Some(hydra_proto::output::Output::Nameonly(_)) => {
                     // We dont care about outputs that dont have a path,
                 }
-                Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
+                Some(hydra_proto::output::Output::Withpath(o)) => {
                     let path = o
                         .path
                         .ok_or_else(|| anyhow::anyhow!("output missing path"))?
@@ -526,7 +516,7 @@ impl BuildOutput {
             size: nar_size,
             products: products
                 .into_iter()
-                .map(|p| BuildProduct::from_grpc(store_dir, p))
+                .map(BuildProduct::from_grpc)
                 .collect::<anyhow::Result<Vec<_>>>()?,
             outputs,
             metrics: metrics

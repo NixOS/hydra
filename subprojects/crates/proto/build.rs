@@ -6,14 +6,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let workspace_version = env::var("CARGO_PKG_VERSION")?;
 
-    let proto_path = "../proto/v1/streaming.proto";
+    let proto_path = "../../proto/v1/streaming.proto";
     let proto_content = fs_err::read_to_string(proto_path)?;
     let mut hasher = sha2::Sha256::new();
     hasher.update(proto_content.as_bytes());
     let proto_hash = format!("{:x}", hasher.finalize());
     let version = format!("{}-{}", workspace_version, &proto_hash[..8]);
 
-    // Generate version module
     fs_err::write(
         out_dir.join("proto_version.rs"),
         format!(
@@ -24,8 +23,10 @@ pub const PROTO_API_VERSION: &str = "{version}";
     )?;
 
     tonic_prost_build::configure()
-        .extern_path(".runner.v1.StorePath", "::shared::proto::ProtoStorePath")
+        .extern_path(".runner.v1.StorePath", "crate::store_path::ProtoStorePath")
+        .build_client(cfg!(feature = "client"))
+        .build_server(cfg!(feature = "server"))
         .file_descriptor_set_path(out_dir.join("streaming_descriptor.bin"))
-        .compile_protos(&["../proto/v1/streaming.proto"], &["../proto"])?;
+        .compile_protos(&["../../proto/v1/streaming.proto"], &["../../proto"])?;
     Ok(())
 }
