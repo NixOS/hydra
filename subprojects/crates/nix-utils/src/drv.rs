@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use harmonia_store_core::derived_path::OutputName;
 use harmonia_store_core::store_path::{StoreDir, StorePathName};
 
-pub use harmonia_store_core::derivation::Derivation;
+use harmonia_store_core::derivation::Derivation;
 
 use crate::StorePath;
 

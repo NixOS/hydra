@@ -24,6 +24,9 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::realisation::{DrvOutput, Realisation};
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 use nix_utils::BaseStore as _;
 // Realisation writing is now done by the caller, not via FFI query.
 
@@ -51,7 +54,7 @@ pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 
 pub async fn path_to_narinfo(
     store: &nix_utils::LocalStore,
-    path: &nix_utils::StorePath,
+    path: &StorePath,
 ) -> Result<NarInfo, CacheError> {
     let Some(path_info) = store.query_path_info(path).await else {
         return Err(CacheError::PathNotFound {
@@ -139,7 +142,7 @@ pub enum CacheError {
     #[error(transparent)]
     NixStoreError(#[from] nix_utils::Error),
     #[error("cannot add '{0}' to the binary cache because the reference '{1}' is not valid")]
-    ReferenceVerifyError(nix_utils::StorePath, nix_utils::StorePath),
+    ReferenceVerifyError(StorePath, StorePath),
     #[error("Hash error: {0}")]
     HashingError(#[from] streaming_hash::Error),
     #[error("Render error: {0}")]
@@ -164,7 +167,7 @@ pub struct S3BinaryCacheClient {
     pub cfg: S3CacheConfig,
     s3_stats: Arc<AtomicS3Stats>,
     signing_keys: SmallVec<[secrecy::SecretString; 4]>,
-    narinfo_cache: Cache<nix_utils::StorePath, NarInfo, foldhash::fast::RandomState>,
+    narinfo_cache: Cache<StorePath, NarInfo, foldhash::fast::RandomState>,
 }
 
 #[tracing::instrument(skip(stream, chunk), err)]
@@ -526,7 +529,7 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self, store_dir, narinfo), err)]
     async fn upload_narinfo(
         &self,
-        store_dir: &nix_utils::StoreDir,
+        store_dir: &StoreDir,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
         let base = narinfo.path.hash().to_string();
@@ -544,7 +547,7 @@ impl S3BinaryCacheClient {
     async fn path_to_narinfo(
         &self,
         store: &nix_utils::LocalStore,
-        path: &nix_utils::StorePath,
+        path: &StorePath,
     ) -> Result<NarInfo, CacheError> {
         let Some(path_info) = store.query_path_info(path).await else {
             return Err(CacheError::PathNotFound {
@@ -573,7 +576,7 @@ impl S3BinaryCacheClient {
     pub async fn copy_path(
         &self,
         store: &nix_utils::LocalStore,
-        path: &nix_utils::StorePath,
+        path: &StorePath,
         repair: bool,
     ) -> Result<(), CacheError> {
         if !repair && self.has_narinfo(path).await? {
@@ -646,7 +649,7 @@ impl S3BinaryCacheClient {
     pub async fn copy_paths(
         &self,
         store: &nix_utils::LocalStore,
-        paths: Vec<nix_utils::StorePath>,
+        paths: Vec<StorePath>,
         repair: bool,
     ) -> Result<(), CacheError> {
         use futures::stream::StreamExt as _;
@@ -669,10 +672,7 @@ impl S3BinaryCacheClient {
     ///
     /// Signs the realisation with the cache's secret keys before uploading.
     #[tracing::instrument(skip(self, realisation), err)]
-    pub async fn write_realisation(
-        &self,
-        mut realisation: nix_utils::Realisation,
-    ) -> Result<(), CacheError> {
+    pub async fn write_realisation(&self, mut realisation: Realisation) -> Result<(), CacheError> {
         let keys = self
             .signing_keys
             .iter()
@@ -690,7 +690,7 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self), err)]
     pub async fn download_narinfo(
         &self,
-        store_path: &nix_utils::StorePath,
+        store_path: &StorePath,
     ) -> Result<Option<NarInfo>, CacheError> {
         if let Some(narinfo) = self.narinfo_cache.get(store_path).await {
             return Ok(Some(narinfo));
@@ -717,7 +717,7 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn has_narinfo(&self, store_path: &nix_utils::StorePath) -> Result<bool, CacheError> {
+    pub async fn has_narinfo(&self, store_path: &StorePath) -> Result<bool, CacheError> {
         if self.narinfo_cache.contains_key(store_path) {
             return Ok(true);
         }
@@ -725,10 +725,7 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn download_realisation(
-        &self,
-        id: &nix_utils::DrvOutput,
-    ) -> Result<Option<String>, CacheError> {
+    pub async fn download_realisation(&self, id: &DrvOutput) -> Result<Option<String>, CacheError> {
         (self.get_object(&format!("realisations/{id}.doi")).await?).map_or_else(
             || Ok(None),
             |v| Ok(Some(String::from_utf8_lossy(&v).to_string())),
@@ -736,15 +733,12 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn has_realisation(&self, id: &nix_utils::DrvOutput) -> Result<bool, CacheError> {
+    pub async fn has_realisation(&self, id: &DrvOutput) -> Result<bool, CacheError> {
         Ok(self.download_realisation(id).await?.is_some())
     }
 
     #[tracing::instrument(skip(self, paths))]
-    pub async fn query_missing_paths(
-        &self,
-        paths: Vec<nix_utils::StorePath>,
-    ) -> Vec<nix_utils::StorePath> {
+    pub async fn query_missing_paths(&self, paths: Vec<StorePath>) -> Vec<StorePath> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(paths)
@@ -764,8 +758,8 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self, outputs))]
     pub async fn query_missing_remote_outputs(
         &self,
-        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
-    ) -> BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>> {
+        outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> BTreeMap<OutputName, Option<StorePath>> {
         use futures::stream::StreamExt as _;
 
         tokio_stream::iter(outputs)
@@ -784,7 +778,7 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self), err)]
     pub async fn generate_nar_upload_presigned_url(
         &self,
-        path: &nix_utils::StorePath,
+        path: &StorePath,
         nix32_nar_hash: &str,
         debug_info_build_ids: Vec<String>,
     ) -> Result<PresignedUploadResponse, CacheError> {

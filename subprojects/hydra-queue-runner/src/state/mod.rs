@@ -14,6 +14,7 @@ mod uploader;
 use anyhow::Context as _;
 pub use atomic::AtomicDateTime;
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
+use harmonia_store_core::store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
 pub use queue::{BuildQueueStats, Queues};
@@ -30,6 +31,9 @@ use hashbrown::{HashMap, HashSet};
 use secrecy::ExposeSecret as _;
 
 use db::models::{BuildID, BuildStatus};
+use harmonia_store_core::derivation::DerivationOutput;
+use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_core::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
 use nix_utils::BaseStore as _;
 
@@ -86,7 +90,7 @@ pub struct State {
     ///
     /// FIXME: Replace this with proper persisted column, so we don't have to re-resolve on
     /// restart.
-    pub resolved_drv_map: parking_lot::RwLock<HashMap<nix_utils::StorePath, nix_utils::StorePath>>,
+    pub resolved_drv_map: parking_lot::RwLock<HashMap<StorePath, StorePath>>,
 
     pub fod_checker: Option<Arc<FodChecker>>,
 
@@ -387,23 +391,24 @@ impl State {
                 // Only CA floating derivations need resolution, and only
                 // when they have `Built` inputs (dynamic derivation deps).
                 // `Opaque`-only inputs are already resolved.
-                let is_ca_with_built_inputs =
-                    drv_ref.outputs.iter().all(|output| {
-                        matches!(output.1, nix_utils::DerivationOutput::CAFloating(_))
-                    }) && drv_ref
+                let is_ca_with_built_inputs = drv_ref
+                    .outputs
+                    .iter()
+                    .all(|output| matches!(output.1, DerivationOutput::CAFloating(_)))
+                    && drv_ref
                         .inputs
                         .iter()
-                        .any(|input| matches!(input, nix_utils::SingleDerivedPath::Built { .. }));
+                        .any(|input| matches!(input, SingleDerivedPath::Built { .. }));
                 tracing::info!(
                     is_ca_with_built_inputs,
                     ca_floating = drv_ref
                         .outputs
                         .iter()
-                        .all(|o| matches!(o.1, nix_utils::DerivationOutput::CAFloating(_))),
+                        .all(|o| matches!(o.1, DerivationOutput::CAFloating(_))),
                     has_built_inputs = drv_ref
                         .inputs
                         .iter()
-                        .any(|i| matches!(i, nix_utils::SingleDerivedPath::Built { .. })),
+                        .any(|i| matches!(i, SingleDerivedPath::Built { .. })),
                     "resolution check for {drv}"
                 );
                 if !is_ca_with_built_inputs {
@@ -589,10 +594,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), fields(%drv), err)]
-    async fn construct_log_file_path(
-        &self,
-        drv: &nix_utils::StorePath,
-    ) -> anyhow::Result<std::path::PathBuf> {
+    async fn construct_log_file_path(&self, drv: &StorePath) -> anyhow::Result<std::path::PathBuf> {
         let mut log_file = self.log_dir.clone();
         let base = drv.to_string();
         let (dir, file) = base.split_at(2);
@@ -603,10 +605,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), fields(%drv), err)]
-    pub async fn new_log_file(
-        &self,
-        drv: &nix_utils::StorePath,
-    ) -> anyhow::Result<fs_err::tokio::File> {
+    pub async fn new_log_file(&self, drv: &StorePath) -> anyhow::Result<fs_err::tokio::File> {
         let log_file = self.construct_log_file_path(drv).await?;
         tracing::debug!("opening {log_file:?}");
 
@@ -625,11 +624,9 @@ impl State {
         &self,
         new_ids: Vec<BuildID>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: HashMap<nix_utils::StorePath, HashSet<BuildID>>,
+        new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
     ) {
-        let finished_drvs = Arc::new(parking_lot::RwLock::new(
-            HashSet::<nix_utils::StorePath>::new(),
-        ));
+        let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
 
         let starttime = jiff::Timestamp::now();
         for id in new_ids {
@@ -728,7 +725,7 @@ impl State {
     pub async fn queue_one_build(
         &self,
         jobset_id: i32,
-        drv_path: &nix_utils::StorePath,
+        drv_path: &StorePath,
     ) -> anyhow::Result<()> {
         let mut db = self.db.get().await?;
         let drv = nix_utils::query_drv(&self.store, drv_path)
@@ -752,7 +749,7 @@ impl State {
     pub(crate) async fn manually_add_queue_build(&self, build_id: BuildID) -> anyhow::Result<()> {
         let mut new_ids = Vec::<BuildID>::new();
         let mut new_builds_by_id = HashMap::<BuildID, Arc<Build>>::new();
-        let mut new_builds_by_path = HashMap::<nix_utils::StorePath, HashSet<BuildID>>::new();
+        let mut new_builds_by_path = HashMap::<StorePath, HashSet<BuildID>>::new();
 
         {
             let mut conn = self.db.get().await?;
@@ -794,8 +791,7 @@ impl State {
 
         let mut new_ids = Vec::<BuildID>::with_capacity(1000);
         let mut new_builds_by_id = HashMap::<BuildID, Arc<Build>>::with_capacity(1000);
-        let mut new_builds_by_path =
-            HashMap::<nix_utils::StorePath, HashSet<BuildID>>::with_capacity(1000);
+        let mut new_builds_by_path = HashMap::<StorePath, HashSet<BuildID>>::with_capacity(1000);
 
         {
             let mut conn = self.db.get().await?;
@@ -1094,7 +1090,7 @@ impl State {
     pub async fn succeed_step(
         &self,
         machine_id: uuid::Uuid,
-        drv_path: &nix_utils::StorePath,
+        drv_path: &StorePath,
         output: BuildOutput,
     ) -> anyhow::Result<()> {
         tracing::info!("marking job as done: drv_path={drv_path}");
@@ -1232,7 +1228,7 @@ impl State {
             let has_ca_floating = drv_ref
                 .outputs
                 .values()
-                .any(|o| matches!(o, nix_utils::DerivationOutput::CAFloating(_)));
+                .any(|o| matches!(o, DerivationOutput::CAFloating(_)));
             if has_ca_floating {
                 let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                     let r = self.remote_stores.read();
@@ -1244,12 +1240,12 @@ impl State {
                         .collect()
                 };
                 for (output_name, out_path) in &output.outputs {
-                    let realisation = nix_utils::Realisation {
-                        key: nix_utils::DrvOutput {
+                    let realisation = Realisation {
+                        key: DrvOutput {
                             drv_path: drv_path.clone(),
                             output_name: output_name.clone(),
                         },
-                        value: nix_utils::UnkeyedRealisation {
+                        value: UnkeyedRealisation {
                             out_path: out_path.clone(),
                             signatures: Default::default(),
                         },
@@ -1388,7 +1384,7 @@ impl State {
     pub async fn fail_step(
         &self,
         machine_id: uuid::Uuid,
-        drv_path: &nix_utils::StorePath,
+        drv_path: &StorePath,
         state: BuildResultState,
         timings: BuildTimings,
     ) -> anyhow::Result<()> {
@@ -1520,7 +1516,7 @@ impl State {
     #[tracing::instrument(skip(self, machine, job, step), fields(%drv_path), err)]
     async fn inner_fail_job(
         &self,
-        drv_path: &nix_utils::StorePath,
+        drv_path: &StorePath,
         machine: Option<Arc<Machine>>,
         mut job: machine::Job,
         step: Arc<Step>,
@@ -1780,8 +1776,8 @@ impl State {
         build: Arc<Build>,
         nr_added: Arc<AtomicI64>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: &HashMap<nix_utils::StorePath, HashSet<BuildID>>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<nix_utils::StorePath>>>,
+        new_builds_by_path: &HashMap<StorePath, HashSet<BuildID>>,
+        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
     ) {
         self.metrics.queue_build_loads.inc();
@@ -1919,10 +1915,10 @@ impl State {
     async fn create_step(
         &self,
         build: Arc<Build>,
-        drv_path: nix_utils::StorePath,
+        drv_path: StorePath,
         referring_build: Option<Arc<Build>>,
         referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<nix_utils::StorePath>>>,
+        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
     ) -> CreateStepResult {
@@ -2049,7 +2045,7 @@ impl State {
             if !missing.is_empty() && missing_local_outputs.is_empty() {
                 // we have all paths locally, so we can just upload them to the remote_store
                 if let Ok(log_file) = self.construct_log_file_path(&drv_path).await {
-                    let missing_paths: Vec<nix_utils::StorePath> =
+                    let missing_paths: Vec<StorePath> =
                         missing.values().filter_map(Clone::clone).collect();
                     self.uploader
                         .schedule_upload(
@@ -2182,8 +2178,8 @@ impl State {
     #[tracing::instrument(skip(self))]
     async fn query_known_drv_outputs(
         &self,
-        drv_path: &nix_utils::StorePath,
-    ) -> anyhow::Result<BTreeMap<nix_utils::OutputName, nix_utils::StorePath>> {
+        drv_path: &StorePath,
+    ) -> anyhow::Result<BTreeMap<OutputName, StorePath>> {
         let mut db = self.db.get().await?;
         let mut tx = db.begin_transaction().await?;
         Ok(tx
@@ -2241,10 +2237,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn get_build_output_cached(
-        &self,
-        drv_path: &nix_utils::StorePath,
-    ) -> anyhow::Result<BuildOutput> {
+    async fn get_build_output_cached(&self, drv_path: &StorePath) -> anyhow::Result<BuildOutput> {
         let drv = nix_utils::query_drv(&self.store, drv_path)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Derivation not found"))?;
@@ -2296,7 +2289,7 @@ impl State {
     }
 
     #[allow(unused)]
-    fn add_root(&self, store_path: &nix_utils::StorePath) {
+    fn add_root(&self, store_path: &StorePath) {
         let roots_dir = self.config.get_roots_dir();
         nix_utils::add_root(&self.store, &roots_dir, store_path);
     }

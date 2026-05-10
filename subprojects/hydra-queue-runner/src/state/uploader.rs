@@ -1,5 +1,6 @@
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
+use harmonia_store_core::store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 #[allow(clippy::unnecessary_wraps)]
@@ -14,7 +15,7 @@ where
 struct Message {
     #[serde(skip_serializing, deserialize_with = "deserialize_with_new_v4")]
     id: uuid::Uuid,
-    store_paths: std::sync::Arc<Vec<nix_utils::StorePath>>,
+    store_paths: std::sync::Arc<Vec<StorePath>>,
     log_remote_path: std::sync::Arc<String>,
     log_local_path: std::sync::Arc<String>,
 }
@@ -77,7 +78,7 @@ impl Uploader {
     #[tracing::instrument(skip(self))]
     pub async fn schedule_upload(
         &self,
-        store_paths: Vec<nix_utils::StorePath>,
+        store_paths: Vec<StorePath>,
         log_remote_path: String,
         log_local_path: String,
     ) {
@@ -237,7 +238,7 @@ impl Uploader {
         self.queue.len()
     }
 
-    pub fn paths_in_queue(&self) -> Vec<nix_utils::StorePath> {
+    pub fn paths_in_queue(&self) -> Vec<StorePath> {
         self.queue
             .inspect()
             .into_iter()

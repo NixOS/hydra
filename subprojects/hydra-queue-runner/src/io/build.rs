@@ -1,10 +1,11 @@
+use harmonia_store_core::store_path::StorePath;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Build {
     id: db::models::BuildID,
-    drv_path: nix_utils::StorePath,
+    drv_path: StorePath,
     jobset_id: crate::state::JobsetID,
     name: String,
     timestamp: jiff::Timestamp,

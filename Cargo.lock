@@ -3497,6 +3497,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "fs-err",
+ "harmonia-store-core",
  "nix-utils",
  "regex",
  "sha2 0.10.9",

@@ -4,6 +4,7 @@
 //! from NIX store paths that contain debug symbols in the standard
 //! `lib/debug/.build-id` directory structure.
 
+use harmonia_store_core::store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 use crate::CacheError;
@@ -19,7 +20,7 @@ pub(crate) struct DebugInfoLink {
 pub(crate) async fn process_debug_info<C>(
     nar_url: &str,
     store: &nix_utils::LocalStore,
-    store_path: &nix_utils::StorePath,
+    store_path: &StorePath,
     client: C,
 ) -> Result<(), CacheError>
 where
@@ -54,7 +55,7 @@ where
 
 pub async fn get_debug_info_build_ids(
     store: &nix_utils::LocalStore,
-    store_path: &nix_utils::StorePath,
+    store_path: &StorePath,
 ) -> Result<Vec<String>, CacheError> {
     let full_path = store.print_store_path(store_path);
     let build_id_path = std::path::Path::new(&full_path).join("lib/debug/.build-id");
@@ -130,6 +131,8 @@ pub(crate) trait DebugInfoClient {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
+
+    use harmonia_store_core::store_path::StoreDir;
 
     use super::*;
 
@@ -236,7 +239,7 @@ mod tests {
             .unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
+        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -378,7 +381,7 @@ mod tests {
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
+        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -405,7 +408,7 @@ mod tests {
         fs_err::tokio::create_dir_all(&build_id_dir).await.unwrap();
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
+        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("test.nar", &local, &store_path, mock_client.clone())
             .await
@@ -446,7 +449,7 @@ mod tests {
         }
 
         let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(nix_utils::StoreDir::new(store_prefix.as_path()).unwrap());
+        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
 
         process_debug_info("multi.nar", &local, &store_path, mock_client.clone())
             .await

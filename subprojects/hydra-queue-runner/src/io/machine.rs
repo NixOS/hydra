@@ -1,3 +1,4 @@
+use harmonia_store_core::store_path::StorePath;
 use std::sync::{Arc, atomic::Ordering};
 
 use smallvec::SmallVec;
@@ -162,7 +163,7 @@ pub struct Machine {
     use_substitutes: bool,
     nix_version: String,
     stats: MachineStats,
-    jobs: Vec<nix_utils::StorePath>,
+    jobs: Vec<StorePath>,
 
     has_capacity: bool,
     has_dynamic_capacity: bool,

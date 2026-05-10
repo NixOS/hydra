@@ -1,3 +1,4 @@
+use harmonia_store_core::store_path::StorePath;
 use tokio::io::BufReader;
 use tokio_stream::wrappers::LinesStream;
 use tokio_util::io::ReaderStream;
@@ -10,7 +11,7 @@ pub(crate) type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdD
 pub(crate) const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
 
 pub(crate) fn compressed_log_stream(
-    drv: &nix_utils::StorePath,
+    drv: &StorePath,
     log_output: LinesStream<BufReader<tokio::process::ChildStderr>>,
 ) -> impl tokio_stream::Stream<Item = LogChunk> + use<> {
     let (raw_writer, raw_reader) = tokio::io::duplex(DUPLEX_BUFFER_SIZE);

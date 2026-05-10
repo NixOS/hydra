@@ -20,7 +20,9 @@ use std::collections::BTreeMap;
 use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
 
-use nix_utils::{BaseStore as _, StorePath};
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::{StoreDir, StorePath};
+use nix_utils::BaseStore as _;
 
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> =
@@ -93,7 +95,7 @@ trait FsOperations {
 
 #[derive(Debug, Clone)]
 struct FilesystemOperations {
-    store_dir: nix_utils::StoreDir,
+    store_dir: StoreDir,
 }
 
 impl FilesystemOperations {
@@ -247,7 +249,7 @@ where
 #[tracing::instrument(skip(store), err)]
 pub async fn parse_nix_support_from_outputs(
     store: &nix_utils::LocalStore,
-    derivation_outputs: &BTreeMap<nix_utils::OutputName, StorePath>,
+    derivation_outputs: &BTreeMap<OutputName, StorePath>,
 ) -> anyhow::Result<NixSupport> {
     let mut metrics = Vec::new();
     let mut failed = false;

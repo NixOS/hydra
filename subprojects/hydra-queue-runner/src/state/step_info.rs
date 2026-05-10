@@ -2,7 +2,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use nix_utils::SingleDerivedPath;
+use harmonia_store_core::derivation::{BasicDerivation, Derivation, DerivationOutput};
+use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 
 use super::Step;
 use super::drv::flatten_chain;
@@ -28,7 +30,7 @@ impl StepInfo {
     }
 
     /// Resolve a derivation's inputs into concrete store paths, returning a
-    /// [`BasicDerivation`](nix_utils::BasicDerivation).
+    /// [`BasicDerivation`](BasicDerivation).
     ///
     /// Returns [`None`] if the derivation is input-addressed (shouldn't be resolved),
     /// or if resolution fails because required outputs haven't been built yet.
@@ -39,17 +41,17 @@ impl StepInfo {
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
     pub(super) async fn try_resolve(
-        store_dir: &nix_utils::StoreDir,
+        store_dir: &StoreDir,
         db: &db::Database,
-        drv: &nix_utils::Derivation,
-        resolved_drv_map: &hashbrown::HashMap<nix_utils::StorePath, nix_utils::StorePath>,
-    ) -> Option<nix_utils::BasicDerivation> {
+        drv: &Derivation,
+        resolved_drv_map: &hashbrown::HashMap<StorePath, StorePath>,
+    ) -> Option<BasicDerivation> {
         // Input-addressed derivations should not be resolved because this would change their
         // output paths.
         let all_input_addressed = drv
             .outputs
             .values()
-            .any(|o| matches!(o, nix_utils::DerivationOutput::InputAddressed(_)));
+            .any(|o| matches!(o, DerivationOutput::InputAddressed(_)));
         if all_input_addressed {
             return None;
         }
@@ -74,10 +76,8 @@ impl StepInfo {
         let mut conn = db.get().await.ok()?;
 
         // Memoize depth-1 lookups across all chains resolved in this call.
-        let mut memo = std::collections::HashMap::<
-            (nix_utils::StorePath, nix_utils::OutputName),
-            Option<nix_utils::StorePath>,
-        >::new();
+        let mut memo =
+            std::collections::HashMap::<(StorePath, OutputName), Option<StorePath>>::new();
 
         drv.try_resolve(store_dir, &mut |inputs| {
             tokio::task::block_in_place(|| {
