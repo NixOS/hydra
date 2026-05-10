@@ -8,11 +8,10 @@
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
-  withOtel ? false,
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "hydra-queue-runner";
+  pname = "hydra-evaluator";
   inherit version;
 
   src = lib.fileset.toSource {
@@ -22,10 +21,8 @@ rustPlatform.buildRustPackage {
       ../../Cargo.lock
       ../../.cargo
       ../../.sqlx
-      ../../subprojects/hydra-queue-runner/Cargo.toml
-      ../../subprojects/hydra-queue-runner/build.rs
-      ../../subprojects/hydra-queue-runner/src
-      ../../subprojects/hydra-queue-runner/examples
+      ../../subprojects/hydra-evaluator/Cargo.toml
+      ../../subprojects/hydra-evaluator/src
       ../../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../../subprojects/hydra/sql/hydra.sql
@@ -35,18 +32,19 @@ rustPlatform.buildRustPackage {
 
   cargoLock = {
     lockFile = ../../Cargo.lock;
-    outputHashes = import ../../cargo-output-hashes.nix;
+    outputHashes = {
+      "harmonia-store-core-0.0.0-alpha.0" = "sha256-g7JJGrjWnnzBtxtxLaqL/wKehPBZAHh8C7U7ALYW6o0=";
+    };
   };
 
   # Drop the other Rust binary crates from the workspace; their sources
   # are excluded from the fileset above, so cargo would otherwise fail
   # trying to load their (absent) manifests.
   postPatch = ''
-    sed -i '/hydra-queue-runner/!{/"subprojects\/hydra-/d;}' Cargo.toml
+    sed -i '/hydra-evaluator/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
-  buildAndTestSubdir = "subprojects/hydra-queue-runner";
-  buildFeatures = lib.optional withOtel "otel";
+  buildAndTestSubdir = "subprojects/hydra-evaluator";
 
   nativeBuildInputs = [
     pkg-config
@@ -62,5 +60,5 @@ rustPlatform.buildRustPackage {
   # FIXME: get these passing in a prod build
   doCheck = false;
 
-  meta.description = "Hydra queue runner (Rust)";
+  meta.description = "Hydra evaluator (Rust)";
 }
