@@ -6,10 +6,13 @@ license                = "GPL-3.0"
 rust-version.workspace = true
 
 [dependencies]
-harmonia-store-core.workspace = true
-prost.workspace               = true
-tonic.workspace               = true
-tonic-prost.workspace         = true
+harmonia-store-core.workspace      = true
+harmonia-store-nar-info.workspace  = true
+harmonia-store-path-info.workspace = true
+harmonia-utils-hash.workspace      = true
+prost.workspace                    = true
+tonic.workspace                    = true
+tonic-prost.workspace              = true
 
 db                         = { workspace = true, optional = true }
 store-path-utils.workspace = true

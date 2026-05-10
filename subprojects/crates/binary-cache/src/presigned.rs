@@ -112,13 +112,11 @@ impl PresignedUploadClient {
         mut narinfo: crate::NarInfo,
         req: PresignedUploadResponse,
     ) -> Result<crate::NarInfo, CacheError> {
-        narinfo.url = req.nar_url;
-        narinfo.compression = req.nar_upload.compression;
+        narinfo.info.url = Some(req.nar_url.clone());
+        narinfo.info.compression = Some(req.nar_upload.compression.as_str().to_owned());
 
         if let Some(ls_upload) = req.ls_upload {
-            let _ = self
-                .upload_ls(store, &narinfo.store_path, &ls_upload)
-                .await?;
+            let _ = self.upload_ls(store, &narinfo.path, &ls_upload).await?;
         }
 
         if !req.debug_info_upload.is_empty() {
@@ -127,19 +125,19 @@ impl PresignedUploadClient {
                 debug_info_urls: std::sync::Arc::new(req.debug_info_upload),
             };
             crate::debug_info::process_debug_info(
-                &narinfo.url,
+                &req.nar_url,
                 store,
-                &narinfo.store_path,
+                &narinfo.path,
                 debug_info_client.clone(),
             )
             .await?;
         }
 
         let upload_res = self
-            .upload_nar(store, &narinfo.store_path, &req.nar_upload)
+            .upload_nar(store, &narinfo.path, &req.nar_upload)
             .await?;
-        narinfo.file_hash = Some(upload_res.file_hash);
-        narinfo.file_size = Some(upload_res.file_size);
+        narinfo.info.download_hash = Some(upload_res.file_hash);
+        narinfo.info.download_size = Some(upload_res.file_size);
 
         Ok(narinfo)
     }

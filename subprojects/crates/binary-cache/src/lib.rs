@@ -38,7 +38,10 @@ pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Schem
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 use crate::narinfo::NarInfoError;
-pub use crate::narinfo::{NarInfo, parse_hash};
+pub use crate::narinfo::{
+    NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
+    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo, render_narinfo,
+};
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
     PresignedUploadResult,
@@ -55,16 +58,13 @@ pub async fn path_to_narinfo(
             path: path.to_string(),
         });
     };
-    let narinfo = NarInfo::simple(path, path_info, Compression::None);
+    let narinfo = narinfo_simple(path, path_info, Compression::None, store.get_store_dir());
     let queried_references = store
-        .query_path_infos(&narinfo.references.iter().collect::<Vec<_>>())
+        .query_path_infos(&narinfo.info.info.references.iter().collect::<Vec<_>>())
         .await;
-    for r in &narinfo.references {
+    for r in &narinfo.info.info.references {
         if !queried_references.contains_key(r) {
-            return Err(CacheError::ReferenceVerifyError(
-                narinfo.store_path,
-                r.to_owned(),
-            ));
+            return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
         }
     }
     Ok(narinfo)
@@ -529,10 +529,14 @@ impl S3BinaryCacheClient {
         store_dir: &nix_utils::StoreDir,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
-        let base = narinfo.store_path.hash().to_string();
+        let base = narinfo.path.hash().to_string();
         let info_key = format!("{base}.narinfo");
-        self.upsert_file(&info_key, narinfo.render(store_dir)?, "text/x-nix-narinfo")
-            .await?;
+        self.upsert_file(
+            &info_key,
+            render_narinfo(store_dir, &narinfo),
+            "text/x-nix-narinfo",
+        )
+        .await?;
         Ok(info_key)
     }
 
@@ -547,7 +551,7 @@ impl S3BinaryCacheClient {
                 path: path.to_string(),
             });
         };
-        let narinfo = NarInfo::new(
+        let narinfo = narinfo_from_path_info(
             path,
             path_info,
             self.cfg.compression,
@@ -555,14 +559,11 @@ impl S3BinaryCacheClient {
             &self.signing_keys,
         );
         let queried_references = store
-            .query_path_infos(&narinfo.references.iter().collect::<Vec<_>>())
+            .query_path_infos(&narinfo.info.info.references.iter().collect::<Vec<_>>())
             .await;
-        for r in &narinfo.references {
+        for r in &narinfo.info.info.references {
             if !queried_references.contains_key(r) {
-                return Err(CacheError::ReferenceVerifyError(
-                    narinfo.store_path,
-                    r.to_owned(),
-                ));
+                return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
             }
         }
         Ok(narinfo)
@@ -582,13 +583,15 @@ impl S3BinaryCacheClient {
         tracing::debug!("start copying path: {path}");
         let mut narinfo = self.path_to_narinfo(store, path).await?;
         if self.cfg.write_nar_listing {
-            let ls = store.list_nar_deep(&narinfo.store_path).await?;
-            self.upload_listing(&narinfo.get_ls_path(), ls).await?;
+            let ls = store.list_nar_deep(&narinfo.path).await?;
+            self.upload_listing(&get_ls_path(&narinfo), ls).await?;
         }
 
+        let nar_url = narinfo.info.url.clone().unwrap_or_default();
+        let compression = self.cfg.compression;
+
         if self.cfg.write_debug_info {
-            debug_info::process_debug_info(&narinfo.url, store, &narinfo.store_path, self.clone())
-                .await?;
+            debug_info::process_debug_info(&nar_url, store, &narinfo.path, self.clone()).await?;
         }
 
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, std::io::Error>>();
@@ -598,7 +601,7 @@ impl S3BinaryCacheClient {
         };
 
         tokio::task::spawn({
-            let path = narinfo.store_path.clone();
+            let path = narinfo.path.clone();
             let store = store.clone();
             async move {
                 let _ = store.nar_from_path(&path, closure);
@@ -607,17 +610,17 @@ impl S3BinaryCacheClient {
         let stream = tokio_util::io::StreamReader::new(
             tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
         );
-        let compressor = narinfo.compression.get_compression_fn(
+        let compressor = compression.get_compression_fn(
             self.cfg.get_compression_level(),
             self.cfg.parallel_compression,
         );
         let compressed_stream = compressor(stream);
         let (mut hashing_reader, _) = streaming_hash::HashingReader::new(compressed_stream);
         self.upload_file(
-            &narinfo.url,
+            &nar_url,
             &mut hashing_reader,
-            narinfo.compression.content_type(),
-            narinfo.compression.content_encoding(),
+            compression.content_type(),
+            compression.content_encoding(),
         )
         .await?;
 
@@ -626,8 +629,8 @@ impl S3BinaryCacheClient {
         if let Ok(file_hash) =
             Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, file_hash.as_slice())
         {
-            narinfo.file_hash = Some(file_hash);
-            narinfo.file_size = Some(file_size as u64);
+            narinfo.info.download_hash = Some(file_hash);
+            narinfo.info.download_size = Some(file_size as u64);
         }
 
         // Realisation writing for CA derivations is handled by the caller
@@ -698,7 +701,7 @@ impl S3BinaryCacheClient {
             .await?
         {
             Some(v) => {
-                let narinfo: NarInfo = String::from_utf8_lossy(&v).parse()?;
+                let narinfo = parse_narinfo(&String::from_utf8_lossy(&v))?;
                 self.narinfo_cache
                     .insert(store_path.to_owned(), narinfo.clone())
                     .await;
@@ -884,21 +887,19 @@ impl S3BinaryCacheClient {
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
         if self.cfg.write_nar_listing {
-            self.head_object(&narinfo.get_ls_path())
+            let ls_path = get_ls_path(&narinfo);
+            self.head_object(&ls_path)
                 .await?
                 .then_some(())
-                .ok_or(CacheError::PathNotFound {
-                    path: narinfo.get_ls_path(),
-                })?;
+                .ok_or(CacheError::PathNotFound { path: ls_path })?;
         }
-        self.head_object(&narinfo.url)
+        let nar_url = narinfo.info.url.clone().unwrap_or_default();
+        self.head_object(&nar_url)
             .await?
             .then_some(())
-            .ok_or(CacheError::PathNotFound {
-                path: narinfo.url.clone(),
-            })?;
+            .ok_or(CacheError::PathNotFound { path: nar_url })?;
 
-        let narinfo = narinfo.clear_sigs_and_sign(store.get_store_dir(), &self.signing_keys);
+        let narinfo = clear_sigs_and_sign(narinfo, store.get_store_dir(), &self.signing_keys);
         // TODO: we also need to integarte realisation into this!
         self.upload_narinfo(store.get_store_dir(), narinfo).await
     }

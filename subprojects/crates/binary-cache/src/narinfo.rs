@@ -1,179 +1,180 @@
-use std::fmt::Write as _;
+use std::collections::BTreeSet;
 
-use harmonia_store_core::signature::{SecretKey, fingerprint_path};
+use harmonia_store_core::signature::{SecretKey, Signature, fingerprint_path};
 use harmonia_store_core::store_path::StoreDir;
+use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
+use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
 use harmonia_utils_hash::fmt::CommonHash as _;
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
 
-#[derive(Debug, Clone)]
-pub struct NarInfo {
-    pub store_path: nix_utils::StorePath,
-    pub url: String,
-    pub compression: Compression,
-    pub file_hash: Option<Hash>,
-    pub file_size: Option<u64>,
-    pub nar_hash: Hash,
-    pub nar_size: u64,
-    pub references: Vec<nix_utils::StorePath>,
-    pub deriver: Option<nix_utils::StorePath>,
-    pub ca: Option<String>,
-    pub sigs: Vec<String>,
-}
+pub use harmonia_store_nar_info::NarInfo;
 
-impl NarInfo {
-    #[must_use]
-    pub fn new(
-        path: &nix_utils::StorePath,
-        path_info: nix_utils::PathInfo,
-        compression: Compression,
-        store_dir: &StoreDir,
-        signing_keys: &[secrecy::SecretString],
-    ) -> Self {
-        let nar_hash = parse_hash(&path_info.nar_hash);
-        let nar_hash_url = nar_hash.as_ref().map_or_else(
-            || path.hash().to_string(),
-            |h| format!("{:#}", h.as_base32()),
-        );
-
-        let narinfo = Self {
-            store_path: path.clone(),
-            url: format!("nar/{}.{}", nar_hash_url, compression.ext()),
-            compression,
-            file_hash: None,
-            file_size: None,
-            nar_hash: nar_hash.unwrap_or_else(|| {
-                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
-                    .expect("sha256 zero hash")
-            }),
-            nar_size: path_info.nar_size,
-            references: path_info.refs,
-            deriver: path_info.deriver,
-            ca: path_info.ca.clone(),
-            sigs: vec![],
-        };
-
-        let mut narinfo = narinfo.clear_sigs_and_sign(store_dir, signing_keys);
-        if narinfo.sigs.is_empty() && !path_info.sigs.is_empty() {
-            narinfo.sigs = path_info.sigs;
-        }
-
-        narinfo
-    }
-
-    #[must_use]
-    pub fn simple(
-        path: &nix_utils::StorePath,
-        path_info: nix_utils::PathInfo,
-        compression: Compression,
-    ) -> Self {
-        let nar_hash = parse_hash(&path_info.nar_hash);
-        let nar_hash_url = nar_hash.as_ref().map_or_else(
-            || path.hash().to_string(),
-            |h| format!("{:#}", h.as_base32()),
-        );
-
-        Self {
-            store_path: path.clone(),
-            url: format!("nar/{}.{}", nar_hash_url, compression.ext()),
-            compression,
-            file_hash: None,
-            file_size: None,
-            nar_hash: nar_hash.unwrap_or_else(|| {
-                Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
-                    .expect("sha256 zero hash")
-            }),
-            nar_size: path_info.nar_size,
-            references: path_info.refs,
-            deriver: path_info.deriver,
-            ca: path_info.ca,
-            sigs: vec![],
-        }
-    }
-
-    #[must_use]
-    pub fn clear_sigs_and_sign(
-        mut self,
-        store_dir: &StoreDir,
-        signing_keys: &[secrecy::SecretString],
-    ) -> Self {
-        self.sigs.clear();
-        if !signing_keys.is_empty()
-            && let Some(fp) = self.fingerprint(store_dir)
-        {
-            for s in signing_keys {
-                if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
-                    self.sigs.push(sk.sign(&fp).to_string());
-                }
-            }
-        }
-        self
-    }
-
-    #[must_use]
-    fn fingerprint(&self, store_dir: &StoreDir) -> Option<Vec<u8>> {
-        let refs = self.references.iter().cloned().collect();
-        let nar_hash_str = format!("{}", self.nar_hash.as_base32());
-        fingerprint_path(
-            store_dir,
-            &self.store_path,
-            nar_hash_str.as_bytes(),
-            self.nar_size,
-            &refs,
-        )
-        .ok()
-    }
-
-    #[must_use]
-    pub fn get_ls_path(&self) -> String {
-        format!("{}.ls", self.store_path.hash())
-    }
-
-    pub fn render(&self, store_dir: &StoreDir) -> Result<String, std::fmt::Error> {
-        let mut o = String::with_capacity(200);
-        writeln!(o, "StorePath: {}", store_dir.display(&self.store_path))?;
-        writeln!(o, "URL: {}", self.url)?;
-        writeln!(o, "Compression: {}", self.compression.as_str())?;
-        if let Some(h) = &self.file_hash {
-            writeln!(o, "FileHash: {}", h.as_base32())?;
-        }
-        if let Some(s) = self.file_size {
-            writeln!(o, "FileSize: {s}")?;
-        }
-        writeln!(o, "NarHash: {}", self.nar_hash.as_base32())?;
-        writeln!(o, "NarSize: {}", self.nar_size)?;
-
-        writeln!(
-            o,
-            "References: {}",
-            self.references
-                .iter()
-                .map(nix_utils::StorePath::to_string)
-                .collect::<Vec<_>>()
-                .join(" ")
-        )?;
-
-        if let Some(d) = &self.deriver {
-            writeln!(o, "Deriver: {d}")?;
-        }
-        if let Some(ca) = &self.ca {
-            writeln!(o, "CA: {ca}")?;
-        }
-
-        for sig in &self.sigs {
-            writeln!(o, "Sig: {sig}")?;
-        }
-        Ok(o)
-    }
-}
+/// Re-export the harmonia narinfo formatter.
+pub use harmonia_store_nar_info::format_narinfo_txt;
 
 /// Parse a hash string (in any format: hex, nix32, sri) into a typed `Hash`.
 pub fn parse_hash(raw: &str) -> Option<Hash> {
     raw.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
         .map(harmonia_utils_hash::fmt::Any::into_hash)
         .ok()
+}
+
+/// Parse a hash string into a `NarHash` (SHA256 only).
+pub fn parse_nar_hash(raw: &str) -> Option<NarHash> {
+    parse_hash(raw).and_then(|h| NarHash::try_from(h).ok())
+}
+
+/// Build a `NarInfo` from a `nix_utils::PathInfo`, optionally signing it.
+pub fn narinfo_from_path_info(
+    path: &nix_utils::StorePath,
+    path_info: nix_utils::PathInfo,
+    compression: Compression,
+    store_dir: &StoreDir,
+    signing_keys: &[secrecy::SecretString],
+) -> NarInfo {
+    let nar_hash = parse_nar_hash(&path_info.nar_hash)
+        .unwrap_or_else(|| NarHash::from_slice(&[0; 32]).expect("sha256 zero hash"));
+
+    let nar_hash_url = {
+        let h: Hash = nar_hash.into();
+        format!("{:#}", h.as_base32())
+    };
+
+    let references: BTreeSet<nix_utils::StorePath> = path_info.refs.into_iter().collect();
+    let signatures: BTreeSet<Signature> = path_info
+        .sigs
+        .iter()
+        .filter_map(|s| s.parse().ok())
+        .collect();
+
+    let ca = path_info.ca.as_deref().and_then(|s| s.parse().ok());
+
+    let unkeyed = UnkeyedValidPathInfo {
+        deriver: path_info.deriver,
+        nar_hash,
+        references: references.clone(),
+        registration_time: std::num::NonZero::new(path_info.registration_time),
+        nar_size: path_info.nar_size,
+        ultimate: false,
+        signatures: signatures.clone(),
+        ca,
+        store_dir: store_dir.clone(),
+    };
+
+    let url = format!("nar/{}.{}", nar_hash_url, compression.ext());
+
+    let mut narinfo = NarInfo {
+        path: path.clone(),
+        info: UnkeyedNarInfo {
+            info: unkeyed,
+            url: Some(url),
+            compression: Some(compression.as_str().to_owned()),
+            download_hash: None,
+            download_size: None,
+        },
+    };
+
+    // Sign with the provided signing keys (clears existing sigs first)
+    narinfo = clear_sigs_and_sign(narinfo, store_dir, signing_keys);
+
+    // If signing produced no sigs but path_info had sigs, restore them
+    if narinfo.info.info.signatures.is_empty() && !signatures.is_empty() {
+        narinfo.info.info.signatures = signatures;
+    }
+
+    narinfo
+}
+
+/// Build a simple `NarInfo` without signing.
+pub fn narinfo_simple(
+    path: &nix_utils::StorePath,
+    path_info: nix_utils::PathInfo,
+    compression: Compression,
+    store_dir: &StoreDir,
+) -> NarInfo {
+    let nar_hash = parse_nar_hash(&path_info.nar_hash)
+        .unwrap_or_else(|| NarHash::from_slice(&[0; 32]).expect("sha256 zero hash"));
+
+    let nar_hash_url = {
+        let h: Hash = nar_hash.into();
+        format!("{:#}", h.as_base32())
+    };
+
+    let references: BTreeSet<nix_utils::StorePath> = path_info.refs.into_iter().collect();
+    let signatures: BTreeSet<Signature> = path_info
+        .sigs
+        .iter()
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    let ca = path_info.ca.as_deref().and_then(|s| s.parse().ok());
+
+    NarInfo {
+        path: path.clone(),
+        info: UnkeyedNarInfo {
+            info: UnkeyedValidPathInfo {
+                deriver: path_info.deriver,
+                nar_hash,
+                references,
+                registration_time: std::num::NonZero::new(path_info.registration_time),
+                nar_size: path_info.nar_size,
+                ultimate: false,
+                signatures,
+                ca,
+                store_dir: store_dir.clone(),
+            },
+            url: Some(format!("nar/{}.{}", nar_hash_url, compression.ext())),
+            compression: Some(compression.as_str().to_owned()),
+            download_hash: None,
+            download_size: None,
+        },
+    }
+}
+
+/// Clear signatures and re-sign with the provided signing keys.
+pub fn clear_sigs_and_sign(
+    mut narinfo: NarInfo,
+    store_dir: &StoreDir,
+    signing_keys: &[secrecy::SecretString],
+) -> NarInfo {
+    narinfo.info.info.signatures.clear();
+    if !signing_keys.is_empty()
+        && let Some(fp) = narinfo_fingerprint(&narinfo, store_dir)
+    {
+        for s in signing_keys {
+            if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
+                narinfo.info.info.signatures.insert(sk.sign(&fp));
+            }
+        }
+    }
+    narinfo
+}
+
+fn narinfo_fingerprint(narinfo: &NarInfo, store_dir: &StoreDir) -> Option<Vec<u8>> {
+    let nar_hash_str = {
+        let h: Hash = narinfo.info.info.nar_hash.into();
+        format!("{}", h.as_base32())
+    };
+    fingerprint_path(
+        store_dir,
+        &narinfo.path,
+        nar_hash_str.as_bytes(),
+        narinfo.info.info.nar_size,
+        &narinfo.info.info.references,
+    )
+    .ok()
+}
+
+/// Return the `.ls` listing key for this narinfo.
+pub fn get_ls_path(narinfo: &NarInfo) -> String {
+    format!("{}.ls", narinfo.path.hash())
+}
+
+/// Render the narinfo as a text string (for upload).
+pub fn render_narinfo(store_dir: &StoreDir, narinfo: &NarInfo) -> String {
+    String::from_utf8_lossy(&harmonia_format_narinfo_txt(store_dir, narinfo)).into_owned()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -191,139 +192,135 @@ pub enum NarInfoError {
     },
 }
 
-impl std::str::FromStr for NarInfo {
-    type Err = NarInfoError;
+/// Parse a narinfo text into a [`NarInfo`].
+///
+/// `FromStr` cannot be implemented directly on the re-exported type due to
+/// Rust's orphan rules, so this free function is provided instead.
+// TODO: harmonia should grow its own narinfo parser so we can use that instead
+#[tracing::instrument(skip(input), err)]
+#[allow(clippy::too_many_lines)]
+pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
+    let mut store_path_opt: Option<nix_utils::StorePath> = None;
+    let mut url_opt: Option<String> = None;
+    let mut compression_opt: Option<String> = None;
+    let mut file_hash: Option<Hash> = None;
+    let mut file_size: Option<u64> = None;
+    let mut nar_hash_opt: Option<NarHash> = None;
+    let mut nar_size: u64 = 0;
+    let mut have_nar_size = false;
+    let mut references: BTreeSet<nix_utils::StorePath> = BTreeSet::new();
+    let mut deriver: Option<nix_utils::StorePath> = None;
+    let mut ca_str: Option<String> = None;
+    let mut sigs: BTreeSet<Signature> = BTreeSet::new();
 
-    #[tracing::instrument(skip(input), err)]
-    #[allow(clippy::too_many_lines)]
-    fn from_str(input: &str) -> Result<Self, Self::Err> {
-        let mut out = Self {
-            store_path: nix_utils::parse_store_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bla"),
-            url: String::new(),
-            compression: Compression::None,
-            file_hash: None,
-            file_size: None,
-            nar_hash: Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &[0; 32])
-                .expect("sha256 zero hash"),
-            nar_size: 0,
-            references: vec![],
-            deriver: None,
-            ca: None,
-            sigs: vec![],
+    for (idx, raw_line) in input.lines().enumerate() {
+        let line_no = idx + 1;
+        let line = raw_line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let Some((k, v)) = line.split_once(':') else {
+            return Err(NarInfoError::Line {
+                line: line_no,
+                reason: "expected `Key: value`".into(),
+            });
         };
+        let key = k.trim();
+        let val = v
+            .strip_prefix(' ')
+            .map_or(v, |stripped| stripped)
+            .trim_end();
 
-        // Temporaries to know what was present
-        let mut have_store_path = false;
-        let mut have_url = false;
-        let mut have_compression = false;
-        let mut have_nar_hash = false;
-        let mut have_nar_size = false;
-
-        for (idx, raw_line) in input.lines().enumerate() {
-            let line_no = idx + 1;
-            let line = raw_line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
+        match key {
+            "StorePath" => {
+                store_path_opt = Some(nix_utils::parse_store_path(val));
             }
-
-            let Some((k, v)) = line.split_once(':') else {
-                return Err(NarInfoError::Line {
-                    line: line_no,
-                    reason: "expected `Key: value`".into(),
-                });
-            };
-            let key = k.trim();
-            let val = v
-                .strip_prefix(' ')
-                .map_or(v, |stripped| stripped)
-                .trim_end();
-
-            match key {
-                "StorePath" => {
-                    out.store_path = nix_utils::parse_store_path(val);
-                    have_store_path = true;
-                }
-                "URL" => {
-                    out.url = val.to_string();
-                    have_url = true;
-                }
-                "Compression" => {
-                    out.compression = val.parse().map_err(|e| NarInfoError::InvalidField {
-                        field: "Compression".into(),
-                        value: e,
-                    })?;
-                    have_compression = true;
-                }
-                "FileHash" => {
-                    out.file_hash = parse_hash(val);
-                }
-                "FileSize" => {
-                    out.file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                        field: "FileSize",
-                        err: e,
-                    })?);
-                }
-                "NarHash" => {
-                    if let Some(h) = parse_hash(val) {
-                        out.nar_hash = h;
-                        have_nar_hash = true;
+            "URL" => {
+                url_opt = Some(val.to_string());
+            }
+            "Compression" => {
+                compression_opt = Some(val.to_string());
+            }
+            "FileHash" => {
+                file_hash = parse_hash(val);
+            }
+            "FileSize" => {
+                file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
+                    field: "FileSize",
+                    err: e,
+                })?);
+            }
+            "NarHash" => {
+                nar_hash_opt = parse_nar_hash(val);
+            }
+            "NarSize" => {
+                nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
+                    field: "NarSize",
+                    err: e,
+                })?;
+                have_nar_size = true;
+            }
+            "References" => {
+                references = val
+                    .split_whitespace()
+                    .filter(|s| !s.is_empty())
+                    .map(nix_utils::parse_store_path)
+                    .collect();
+            }
+            "Deriver" => {
+                deriver = if val.is_empty() {
+                    None
+                } else {
+                    Some(nix_utils::parse_store_path(val))
+                };
+            }
+            "CA" => {
+                ca_str = if val.is_empty() {
+                    None
+                } else {
+                    Some(val.to_string())
+                };
+            }
+            "Sig" => {
+                if !val.is_empty() {
+                    if let Ok(sig) = val.parse() {
+                        sigs.insert(sig);
                     }
                 }
-                "NarSize" => {
-                    out.nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                        field: "NarSize",
-                        err: e,
-                    })?;
-                    have_nar_size = true;
-                }
-                "References" => {
-                    let refs = val
-                        .split_whitespace()
-                        .filter(|s| !s.is_empty())
-                        .map(nix_utils::parse_store_path)
-                        .collect::<Vec<_>>();
-                    out.references = refs;
-                }
-                "Deriver" => {
-                    out.deriver = if val.is_empty() {
-                        None
-                    } else {
-                        Some(nix_utils::parse_store_path(val))
-                    };
-                }
-                "CA" => {
-                    out.ca = if val.is_empty() {
-                        None
-                    } else {
-                        Some(val.to_string())
-                    };
-                }
-                "Sig" => {
-                    if !val.is_empty() {
-                        out.sigs.push(val.to_string());
-                    }
-                }
-                _ => {}
             }
+            _ => {}
         }
-
-        // Validate requireds
-        if !have_store_path {
-            return Err(NarInfoError::MissingField("StorePath"));
-        }
-        if !have_url {
-            return Err(NarInfoError::MissingField("URL"));
-        }
-        if !have_compression {
-            return Err(NarInfoError::MissingField("Compression"));
-        }
-        if !have_nar_hash {
-            return Err(NarInfoError::MissingField("NarHash"));
-        }
-        if !have_nar_size {
-            return Err(NarInfoError::MissingField("NarSize"));
-        }
-
-        Ok(out)
     }
+
+    let store_path = store_path_opt.ok_or(NarInfoError::MissingField("StorePath"))?;
+    let url = url_opt.ok_or(NarInfoError::MissingField("URL"))?;
+    let compression = compression_opt.ok_or(NarInfoError::MissingField("Compression"))?;
+    let nar_hash = nar_hash_opt.ok_or(NarInfoError::MissingField("NarHash"))?;
+    if !have_nar_size {
+        return Err(NarInfoError::MissingField("NarSize"));
+    }
+
+    let ca = ca_str.as_deref().and_then(|s| s.parse().ok());
+
+    Ok(NarInfo {
+        path: store_path,
+        info: UnkeyedNarInfo {
+            info: UnkeyedValidPathInfo {
+                deriver,
+                nar_hash,
+                references,
+                registration_time: None,
+                nar_size,
+                ultimate: false,
+                signatures: sigs,
+                ca,
+                store_dir: StoreDir::default(),
+            },
+            url: Some(url),
+            compression: Some(compression),
+            download_hash: file_hash,
+            download_size: file_size,
+        },
+    })
 }

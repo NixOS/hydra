@@ -37,9 +37,11 @@ tokio = { workspace = true, features = [ "full" ] }
 tokio-stream = { workspace = true, features = [ "io-util" ] }
 tokio-util = { workspace = true, features = [ "io", "io-util" ] }
 
-harmonia-store-core.workspace = true
-harmonia-utils-hash.workspace = true
-nix-utils.workspace           = true
+harmonia-store-core.workspace      = true
+harmonia-store-nar-info.workspace  = true
+harmonia-store-path-info.workspace = true
+harmonia-utils-hash.workspace      = true
+nix-utils.workspace                = true
 
 [dev-dependencies]
 hydra-tracing.workspace = true

@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let presigned_request = client
                     .generate_nar_upload_presigned_url(
-                        &narinfo.store_path,
-                        &format!("{}", narinfo.nar_hash.as_base32()),
+                        &narinfo.path,
+                        &format!("{}", narinfo.info.info.nar_hash.as_base32()),
                         binary_cache::get_debug_info_build_ids(&store, &p).await?,
                     )
                     .await?;
