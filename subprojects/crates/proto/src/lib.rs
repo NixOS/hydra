@@ -23,11 +23,11 @@ include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
 
 pub const FILE_DESCRIPTOR_SET: &[u8] = tonic::include_file_descriptor_set!("streaming_descriptor");
 
-impl From<store_path_utils::RelativeStorePath> for RelativeStorePath {
-    fn from(r: store_path_utils::RelativeStorePath) -> Self {
+impl From<&store_path_utils::RelativeStorePath> for RelativeStorePath {
+    fn from(r: &store_path_utils::RelativeStorePath) -> Self {
         Self {
-            store_path: Some(ProtoStorePath::from(r.base_path)),
-            sub_path: r.relative_path.into(),
+            store_path: Some(ProtoStorePath::from(&r.base_path)),
+            sub_path: r.relative_path.to_string(),
         }
     }
 }
@@ -44,59 +44,9 @@ impl TryFrom<RelativeStorePath> for store_path_utils::RelativeStorePath {
     }
 }
 
-// -- NarInfo / ValidPathInfo conversions --
+// -- Conversions between proto types and harmonia types --
 
-use harmonia_utils_hash::Hash;
-use harmonia_utils_hash::fmt::CommonHash as _;
-
-fn parse_hash(raw: &str) -> Option<Hash> {
-    raw.parse::<harmonia_utils_hash::fmt::Any<Hash>>()
-        .map(harmonia_utils_hash::fmt::Any::into_hash)
-        .ok()
-}
-
-impl From<harmonia_store_path_info::UnkeyedValidPathInfo> for UnkeyedValidPathInfo {
-    fn from(v: harmonia_store_path_info::UnkeyedValidPathInfo) -> Self {
-        let nar_hash_obj: Hash = v.nar_hash.into();
-        Self {
-            deriver: v.deriver.map(ProtoStorePath::from),
-            nar_hash: format!("{}", nar_hash_obj.as_base32()),
-            references: v.references.into_iter().map(ProtoStorePath::from).collect(),
-            registration_time: v.registration_time.map(|t| t.get()),
-            nar_size: v.nar_size,
-            ultimate: v.ultimate,
-            signatures: v.signatures.iter().map(|s| s.to_string()).collect(),
-            ca: v.ca.map(|ca| ca.to_string()),
-            store_dir: v.store_dir.to_string(),
-        }
-    }
-}
-
-impl From<harmonia_store_nar_info::UnkeyedNarInfo> for UnkeyedNarInfo {
-    fn from(n: harmonia_store_nar_info::UnkeyedNarInfo) -> Self {
-        Self {
-            info: Some(n.info.into()),
-            url: n.url.unwrap_or_default(),
-            compression: n.compression.unwrap_or_default(),
-            file_hash: n
-                .download_hash
-                .map(|h| format!("{}", h.as_base32()))
-                .unwrap_or_default(),
-            file_size: n.download_size.unwrap_or(0),
-        }
-    }
-}
-
-impl From<harmonia_store_nar_info::NarInfo> for NarInfo {
-    fn from(n: harmonia_store_nar_info::NarInfo) -> Self {
-        Self {
-            path: Some(ProtoStorePath::from(n.path)),
-            info: Some(n.info.into()),
-        }
-    }
-}
-
-/// Error type for converting proto `NarInfo` to harmonia `NarInfo`.
+/// Error type for converting proto types to harmonia types.
 #[derive(Debug, Clone)]
 pub struct NarInfoConvertError(pub &'static str);
 
@@ -106,11 +56,138 @@ impl std::fmt::Display for NarInfoConvertError {
     }
 }
 
+// -- Hash --
+
+impl From<&harmonia_utils_hash::Hash> for nix::store::v1::Hash {
+    fn from(h: &harmonia_utils_hash::Hash) -> Self {
+        use harmonia_utils_hash::Algorithm;
+        let algorithm = match h.algorithm() {
+            Algorithm::SHA256 => nix::store::v1::hash::Algorithm::Sha256,
+            Algorithm::SHA512 => nix::store::v1::hash::Algorithm::Sha512,
+            Algorithm::SHA1 => nix::store::v1::hash::Algorithm::Sha1,
+            Algorithm::MD5 => nix::store::v1::hash::Algorithm::Md5,
+        };
+        Self {
+            algorithm: algorithm as i32,
+            digest: h.as_ref().to_vec(),
+        }
+    }
+}
+
+impl TryFrom<nix::store::v1::Hash> for harmonia_utils_hash::Hash {
+    type Error = &'static str;
+
+    fn try_from(h: nix::store::v1::Hash) -> Result<Self, Self::Error> {
+        use harmonia_utils_hash::Algorithm;
+        let algo = match nix::store::v1::hash::Algorithm::try_from(h.algorithm) {
+            Ok(nix::store::v1::hash::Algorithm::Sha256) => Algorithm::SHA256,
+            Ok(nix::store::v1::hash::Algorithm::Sha512) => Algorithm::SHA512,
+            Ok(nix::store::v1::hash::Algorithm::Sha1) => Algorithm::SHA1,
+            Ok(nix::store::v1::hash::Algorithm::Md5) => Algorithm::MD5,
+            Err(_) => return Err("unknown hash algorithm"),
+        };
+        harmonia_utils_hash::Hash::from_slice(algo, &h.digest)
+            .map_err(|_| "invalid hash digest length")
+    }
+}
+
+// -- Signature --
+
+impl From<&harmonia_store_core::signature::Signature> for nix::store::v1::Signature {
+    fn from(sig: &harmonia_store_core::signature::Signature) -> Self {
+        Self {
+            key_name: sig.key_name.clone(),
+            sig: sig.sig.to_string(),
+        }
+    }
+}
+
+impl TryFrom<nix::store::v1::Signature> for harmonia_store_core::signature::Signature {
+    type Error = &'static str;
+
+    fn try_from(sig: nix::store::v1::Signature) -> Result<Self, Self::Error> {
+        Ok(Self {
+            key_name: sig.key_name.clone(),
+            sig: sig.sig.parse().map_err(|_| "invalid signature")?,
+        })
+    }
+}
+
+// -- ContentAddress --
+
+impl From<&harmonia_store_core::store_path::ContentAddress> for nix::store::v1::ContentAddress {
+    fn from(ca: &harmonia_store_core::store_path::ContentAddress) -> Self {
+        use harmonia_store_core::store_path::ContentAddress as CA;
+        match ca {
+            CA::Text(h) => Self {
+                method: nix::store::v1::content_address::Method::Text as i32,
+                hash: Some(nix::store::v1::Hash::from(
+                    &harmonia_utils_hash::Hash::from(*h),
+                )),
+            },
+            CA::Flat(h) => Self {
+                method: nix::store::v1::content_address::Method::Flat as i32,
+                hash: Some(nix::store::v1::Hash::from(h)),
+            },
+            CA::NixArchive(h) => Self {
+                method: nix::store::v1::content_address::Method::NixArchive as i32,
+                hash: Some(nix::store::v1::Hash::from(h)),
+            },
+        }
+    }
+}
+
+impl TryFrom<nix::store::v1::ContentAddress> for harmonia_store_core::store_path::ContentAddress {
+    type Error = &'static str;
+
+    fn try_from(ca: nix::store::v1::ContentAddress) -> Result<Self, Self::Error> {
+        use harmonia_store_core::store_path::ContentAddress as CA;
+        let hash: harmonia_utils_hash::Hash = ca.hash.ok_or("missing CA hash")?.try_into()?;
+        match nix::store::v1::content_address::Method::try_from(ca.method) {
+            Ok(nix::store::v1::content_address::Method::Text) => {
+                let sha256 = harmonia_utils_hash::Sha256::try_from(hash)
+                    .map_err(|_| "Text CA requires SHA256")?;
+                Ok(CA::Text(sha256))
+            }
+            Ok(nix::store::v1::content_address::Method::Flat) => Ok(CA::Flat(hash)),
+            Ok(nix::store::v1::content_address::Method::NixArchive) => Ok(CA::NixArchive(hash)),
+            Err(_) => Err("unknown CA method"),
+        }
+    }
+}
+
+// -- UnkeyedValidPathInfo --
+
+impl From<&harmonia_store_path_info::UnkeyedValidPathInfo> for UnkeyedValidPathInfo {
+    fn from(v: &harmonia_store_path_info::UnkeyedValidPathInfo) -> Self {
+        let nar_hash: harmonia_utils_hash::Hash = v.nar_hash.into();
+        Self {
+            deriver: v.deriver.as_ref().map(ProtoStorePath::from),
+            nar_hash: Some(nix::store::v1::Hash::from(&nar_hash)),
+            references: v.references.iter().map(ProtoStorePath::from).collect(),
+            registration_time: v.registration_time.map(|t| t.get()),
+            nar_size: v.nar_size,
+            ultimate: v.ultimate,
+            signatures: v
+                .signatures
+                .iter()
+                .map(nix::store::v1::Signature::from)
+                .collect(),
+            ca: v.ca.as_ref().map(nix::store::v1::ContentAddress::from),
+            store_dir: v.store_dir.to_string(),
+        }
+    }
+}
+
 impl TryFrom<UnkeyedValidPathInfo> for harmonia_store_path_info::UnkeyedValidPathInfo {
     type Error = NarInfoConvertError;
 
     fn try_from(v: UnkeyedValidPathInfo) -> Result<Self, Self::Error> {
-        let raw_hash = parse_hash(&v.nar_hash).ok_or(NarInfoConvertError("invalid nar_hash"))?;
+        let raw_hash: harmonia_utils_hash::Hash = v
+            .nar_hash
+            .ok_or(NarInfoConvertError("missing nar_hash"))?
+            .try_into()
+            .map_err(|_| NarInfoConvertError("invalid nar_hash"))?;
         let nar_hash = harmonia_store_path_info::NarHash::try_from(raw_hash)
             .map_err(|_| NarInfoConvertError("nar_hash is not sha256"))?;
 
@@ -124,12 +201,30 @@ impl TryFrom<UnkeyedValidPathInfo> for harmonia_store_path_info::UnkeyedValidPat
             signatures: v
                 .signatures
                 .into_iter()
-                .filter_map(|s| s.parse().ok())
+                .filter_map(|s| harmonia_store_core::signature::Signature::try_from(s).ok())
                 .collect(),
-            ca: v.ca.as_deref().and_then(|s| s.parse().ok()),
+            ca: v
+                .ca
+                .map(harmonia_store_core::store_path::ContentAddress::try_from)
+                .transpose()
+                .map_err(|_| NarInfoConvertError("invalid ca"))?,
             store_dir: harmonia_store_core::store_path::StoreDir::new(&v.store_dir)
                 .unwrap_or_default(),
         })
+    }
+}
+
+// -- UnkeyedNarInfo --
+
+impl From<&harmonia_store_nar_info::UnkeyedNarInfo> for UnkeyedNarInfo {
+    fn from(n: &harmonia_store_nar_info::UnkeyedNarInfo) -> Self {
+        Self {
+            info: Some(UnkeyedValidPathInfo::from(&n.info)),
+            url: n.url.clone().unwrap_or_default(),
+            compression: n.compression.clone().unwrap_or_default(),
+            download_hash: n.download_hash.as_ref().map(nix::store::v1::Hash::from),
+            download_size: n.download_size,
+        }
     }
 }
 
@@ -149,13 +244,24 @@ impl TryFrom<UnkeyedNarInfo> for harmonia_store_nar_info::UnkeyedNarInfo {
             } else {
                 Some(n.compression)
             },
-            download_hash: parse_hash(&n.file_hash),
-            download_size: if n.file_size == 0 {
-                None
-            } else {
-                Some(n.file_size)
-            },
+            download_hash: n
+                .download_hash
+                .map(harmonia_utils_hash::Hash::try_from)
+                .transpose()
+                .map_err(|_| NarInfoConvertError("invalid download_hash"))?,
+            download_size: n.download_size,
         })
+    }
+}
+
+// -- NarInfo --
+
+impl From<&harmonia_store_nar_info::NarInfo> for NarInfo {
+    fn from(n: &harmonia_store_nar_info::NarInfo) -> Self {
+        Self {
+            path: Some(ProtoStorePath::from(n.path.clone())),
+            info: Some(UnkeyedNarInfo::from(&n.info)),
+        }
     }
 }
 

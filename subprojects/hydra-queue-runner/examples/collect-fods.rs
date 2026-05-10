@@ -1,3 +1,6 @@
+use harmonia_store_core::derivation::Derivation;
+use harmonia_store_core::store_path::StorePath;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let p = nix_utils::parse_store_path("dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv");
@@ -8,11 +11,9 @@ async fn main() -> anyhow::Result<()> {
     fod.to_traverse(&p);
     fod.trigger_traverse();
     let _ = rx.recv().await;
-    fod.process(
-        async move |path: nix_utils::StorePath, _: nix_utils::Derivation| {
-            println!("{path}");
-        },
-    )
+    fod.process(async move |path: StorePath, _: Derivation| {
+        println!("{path}");
+    })
     .await;
     Ok(())
 }
