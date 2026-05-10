@@ -7,6 +7,8 @@ use hashbrown::{HashMap, HashSet};
 
 use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 use nix_utils::BaseStore as _;
 use store_path_utils::RelativeStorePath;
 
@@ -15,8 +17,8 @@ pub(super) type AtomicBuildID = AtomicI32;
 #[derive(Debug)]
 pub struct Build {
     pub id: BuildID,
-    pub drv_path: nix_utils::StorePath,
-    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
+    pub drv_path: StorePath,
+    pub outputs: BTreeMap<OutputName, StorePath>,
     pub jobset_id: JobsetID,
     pub name: String,
     pub timestamp: jiff::Timestamp,
@@ -49,7 +51,7 @@ impl Hash for Build {
 
 impl Build {
     #[must_use]
-    pub fn new_debug(drv_path: &nix_utils::StorePath) -> Arc<Self> {
+    pub fn new_debug(drv_path: &StorePath) -> Arc<Self> {
         Arc::new(Self {
             id: BuildID::MAX,
             drv_path: drv_path.to_owned(),
@@ -379,10 +381,7 @@ impl BuildProduct {
         })
     }
 
-    pub fn from_shared(
-        store_dir: &nix_utils::StoreDir,
-        v: shared::BuildProduct,
-    ) -> anyhow::Result<Self> {
+    pub fn from_shared(store_dir: &StoreDir, v: shared::BuildProduct) -> anyhow::Result<Self> {
         Ok(Self {
             path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
@@ -446,7 +445,7 @@ pub struct BuildOutput {
     pub size: u64,
 
     pub products: Vec<BuildProduct>,
-    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
+    pub outputs: BTreeMap<OutputName, StorePath>,
     pub metrics: Vec<BuildMetric>,
 }
 
@@ -535,7 +534,7 @@ impl BuildOutput {
     #[tracing::instrument(skip(store, outputs), err)]
     pub async fn new(
         store: &nix_utils::LocalStore,
-        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
+        outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> anyhow::Result<Self> {
         let resolved: BTreeMap<_, _> = outputs
             .iter()
@@ -709,7 +708,7 @@ mod tests {
             filesize: None,
             sha256hash: None,
             path: path.map(|(base, rel)| RelativeStorePath {
-                base_path: nix_utils::StorePath::from_base_path(base).unwrap(),
+                base_path: StorePath::from_base_path(base).unwrap(),
                 relative_path: rel.into(),
             }),
             name: "test-product".into(),

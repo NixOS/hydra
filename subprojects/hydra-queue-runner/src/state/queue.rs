@@ -4,6 +4,8 @@ use std::sync::{Arc, Weak};
 use hashbrown::{HashMap, HashSet};
 use smallvec::SmallVec;
 
+use harmonia_store_core::store_path::StorePath;
+
 use super::{StepInfo, System};
 use crate::config::StepSortFn;
 
@@ -173,10 +175,10 @@ impl ScheduledItem {
 #[derive(Debug)]
 pub(super) struct InnerQueues {
     // flat list of all step infos in queues, owning those steps inner queue dont own them
-    jobs: HashMap<nix_utils::StorePath, Arc<StepInfo>>,
+    jobs: HashMap<StorePath, Arc<StepInfo>>,
     inner: HashMap<System, Arc<BuildQueue>>,
     #[allow(clippy::type_complexity)]
-    scheduled: parking_lot::RwLock<HashMap<nix_utils::StorePath, ScheduledItem>>,
+    scheduled: parking_lot::RwLock<HashMap<StorePath, ScheduledItem>>,
 }
 
 impl Default for InnerQueues {
@@ -261,14 +263,14 @@ impl InnerQueues {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    fn remove_job_from_scheduled(&self, drv: &nix_utils::StorePath) -> Option<ScheduledItem> {
+    fn remove_job_from_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
         let item = self.scheduled.write().remove(drv)?;
         item.step_info.set_already_scheduled(false);
         item.build_queue.decr_active();
         Some(item)
     }
 
-    fn remove_job_by_path(&mut self, drv: &nix_utils::StorePath) {
+    fn remove_job_by_path(&mut self, drv: &StorePath) {
         if self.jobs.remove(drv).is_none() {
             tracing::error!("Failed to remove stepinfo drv={drv} from jobs!");
         }
@@ -287,7 +289,7 @@ impl InnerQueues {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn kill_active_steps(&self) -> Vec<(nix_utils::StorePath, uuid::Uuid)> {
+    async fn kill_active_steps(&self) -> Vec<(StorePath, uuid::Uuid)> {
         tracing::info!("Kill all active steps");
         let active = {
             let scheduled = self.scheduled.read();
@@ -548,15 +550,12 @@ impl Queues {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub async fn remove_job_from_scheduled(
-        &self,
-        drv: &nix_utils::StorePath,
-    ) -> Option<ScheduledItem> {
+    pub async fn remove_job_from_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
         let rq = self.inner.read().await;
         rq.remove_job_from_scheduled(drv)
     }
 
-    pub async fn remove_job_by_path(&self, drv: &nix_utils::StorePath) {
+    pub async fn remove_job_by_path(&self, drv: &StorePath) {
         let mut wq = self.inner.write().await;
         wq.remove_job_by_path(drv);
     }
@@ -568,7 +567,7 @@ impl Queues {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn kill_active_steps(&self) -> Vec<(nix_utils::StorePath, uuid::Uuid)> {
+    pub async fn kill_active_steps(&self) -> Vec<(StorePath, uuid::Uuid)> {
         let rq = self.inner.read().await;
         rq.kill_active_steps().await
     }

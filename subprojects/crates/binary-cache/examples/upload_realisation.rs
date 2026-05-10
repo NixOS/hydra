@@ -1,4 +1,5 @@
 use binary_cache::S3BinaryCacheClient;
+use harmonia_store_core::realisation::DrvOutput;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     tracing::info!("{:#?}", client.cfg);
 
-    let id = nix_utils::DrvOutput {
+    let id = DrvOutput {
         drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv"
             .parse()
             .unwrap(),

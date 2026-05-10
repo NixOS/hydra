@@ -5,6 +5,7 @@ use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 use db::models::BuildID;
+use harmonia_store_core::store_path::StorePath;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
@@ -457,14 +458,14 @@ impl Machines {
 #[derive(Debug, Clone)]
 pub struct Job {
     pub internal_build_id: uuid::Uuid,
-    pub path: nix_utils::StorePath,
+    pub path: StorePath,
     pub build_id: BuildID,
     pub step_nr: i32,
     pub result: RemoteBuild,
 }
 
 impl Job {
-    pub fn new(build_id: BuildID, path: nix_utils::StorePath) -> Self {
+    pub fn new(build_id: BuildID, path: StorePath) -> Self {
         Self {
             internal_build_id: uuid::Uuid::new_v4(),
             path,
@@ -482,7 +483,7 @@ pub enum Message {
     ConfigUpdate(ConfigUpdate),
     BuildMessage {
         build_id: uuid::Uuid,
-        drv: nix_utils::StorePath,
+        drv: StorePath,
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
@@ -635,7 +636,7 @@ impl Machine {
     pub async fn build_drv(
         &self,
         job: Job,
-        effective_drv: nix_utils::StorePath,
+        effective_drv: StorePath,
         opts: &nix_utils::BuildOptions,
         presigned_url_opts: Option<PresignedUploadOpts>,
     ) -> anyhow::Result<()> {
@@ -780,7 +781,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn get_build_id_and_step_nr(&self, drv: &nix_utils::StorePath) -> Option<(i32, i32)> {
+    pub fn get_build_id_and_step_nr(&self, drv: &StorePath) -> Option<(i32, i32)> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| &j.path == drv)
@@ -796,7 +797,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%build_id))]
-    pub fn get_job_drv_for_build_id(&self, build_id: uuid::Uuid) -> Option<nix_utils::StorePath> {
+    pub fn get_job_drv_for_build_id(&self, build_id: uuid::Uuid) -> Option<StorePath> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| j.internal_build_id == build_id)
@@ -804,7 +805,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn get_internal_build_id_for_drv(&self, drv: &nix_utils::StorePath) -> Option<uuid::Uuid> {
+    pub fn get_internal_build_id_for_drv(&self, drv: &StorePath) -> Option<uuid::Uuid> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| &j.path == drv)
@@ -819,7 +820,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn remove_job(&self, drv: &nix_utils::StorePath) -> Option<Job> {
+    pub fn remove_job(&self, drv: &StorePath) -> Option<Job> {
         let job = {
             let mut jobs = self.jobs.write();
             let job = jobs.iter().find(|j| &j.path == drv).cloned();

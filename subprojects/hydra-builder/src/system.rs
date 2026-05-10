@@ -1,3 +1,4 @@
+use harmonia_store_core::store_path::StoreDir;
 use hashbrown::HashMap;
 use procfs_core::FromRead as _;
 
@@ -159,7 +160,7 @@ impl SystemLoad {
         let meminfo = procfs_core::Meminfo::from_file("/proc/meminfo")?;
         let load = procfs_core::LoadAverage::from_file("/proc/loadavg")?;
 
-        let store_dir = nix_utils::StoreDir::new(
+        let store_dir = StoreDir::new(
             std::env::var("NIX_STORE_DIR").unwrap_or_else(|_| "/nix/store".to_owned()),
         )
         .unwrap_or_default();
@@ -182,7 +183,7 @@ impl SystemLoad {
         sys.refresh_memory();
         let load = sysinfo::System::load_average();
 
-        let store_dir = nix_utils::StoreDir::new(
+        let store_dir = StoreDir::new(
             std::env::var("NIX_STORE_DIR").unwrap_or_else(|_| "/nix/store".to_owned()),
         )
         .unwrap_or_default();

@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use harmonia_store_core::derivation::{Derivation, DerivationOutput};
+use harmonia_store_core::store_path::StorePath;
 use hashbrown::{HashMap, HashSet};
-use nix_utils::{Derivation, LocalStore, StorePath};
+use nix_utils::LocalStore;
 
 #[derive(Debug)]
 pub struct FodChecker {
@@ -35,7 +37,7 @@ async fn collect_ca_derivations(
     };
 
     let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-        nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+        DerivationOutput::CAFixed(ca) => Some(ca.hash()),
         _ => None,
     });
     let input_drvs: Vec<StorePath> =
@@ -76,7 +78,7 @@ impl FodChecker {
 
     pub(super) fn add_ca_drv_parsed(&self, drv: &StorePath, parsed: &Derivation) {
         let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-            nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+            DerivationOutput::CAFixed(ca) => Some(ca.hash()),
             _ => None,
         });
         if ca_fixed_hash.is_some() {

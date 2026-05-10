@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use harmonia_store_core::signature::{SecretKey, Signature, fingerprint_path};
-use harmonia_store_core::store_path::StoreDir;
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
@@ -29,7 +29,7 @@ pub fn parse_nar_hash(raw: &str) -> Option<NarHash> {
 
 /// Build a `NarInfo` from a `nix_utils::PathInfo`, optionally signing it.
 pub fn narinfo_from_path_info(
-    path: &nix_utils::StorePath,
+    path: &StorePath,
     path_info: nix_utils::PathInfo,
     compression: Compression,
     store_dir: &StoreDir,
@@ -43,7 +43,7 @@ pub fn narinfo_from_path_info(
         format!("{:#}", h.as_base32())
     };
 
-    let references: BTreeSet<nix_utils::StorePath> = path_info.refs.into_iter().collect();
+    let references: BTreeSet<StorePath> = path_info.refs.into_iter().collect();
     let signatures: BTreeSet<Signature> = path_info
         .sigs
         .iter()
@@ -90,7 +90,7 @@ pub fn narinfo_from_path_info(
 
 /// Build a simple `NarInfo` without signing.
 pub fn narinfo_simple(
-    path: &nix_utils::StorePath,
+    path: &StorePath,
     path_info: nix_utils::PathInfo,
     compression: Compression,
     store_dir: &StoreDir,
@@ -103,7 +103,7 @@ pub fn narinfo_simple(
         format!("{:#}", h.as_base32())
     };
 
-    let references: BTreeSet<nix_utils::StorePath> = path_info.refs.into_iter().collect();
+    let references: BTreeSet<StorePath> = path_info.refs.into_iter().collect();
     let signatures: BTreeSet<Signature> = path_info
         .sigs
         .iter()
@@ -200,7 +200,7 @@ pub enum NarInfoError {
 #[tracing::instrument(skip(input), err)]
 #[allow(clippy::too_many_lines)]
 pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
-    let mut store_path_opt: Option<nix_utils::StorePath> = None;
+    let mut store_path_opt: Option<StorePath> = None;
     let mut url_opt: Option<String> = None;
     let mut compression_opt: Option<String> = None;
     let mut file_hash: Option<Hash> = None;
@@ -208,8 +208,8 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
     let mut nar_hash_opt: Option<NarHash> = None;
     let mut nar_size: u64 = 0;
     let mut have_nar_size = false;
-    let mut references: BTreeSet<nix_utils::StorePath> = BTreeSet::new();
-    let mut deriver: Option<nix_utils::StorePath> = None;
+    let mut references: BTreeSet<StorePath> = BTreeSet::new();
+    let mut deriver: Option<StorePath> = None;
     let mut ca_str: Option<String> = None;
     let mut sigs: BTreeSet<Signature> = BTreeSet::new();
 

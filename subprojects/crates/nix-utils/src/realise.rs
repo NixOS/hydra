@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use harmonia_store_core::derived_path::{DerivedPath, OutputSpec, SingleDerivedPath};
+use harmonia_store_core::store_path::StorePath;
 use tokio::io::{AsyncBufReadExt as _, BufReader};
 use tokio_stream::wrappers::LinesStream;
 
 use crate::BaseStore as _;
-use crate::{DerivedPath, OutputSpec, SingleDerivedPath, StorePath};
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildOptions {

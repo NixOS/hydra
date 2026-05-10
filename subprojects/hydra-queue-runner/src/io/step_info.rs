@@ -1,10 +1,11 @@
+use harmonia_store_core::store_path::StorePath;
 use std::sync::atomic::Ordering;
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepInfo {
-    drv_path: nix_utils::StorePath,
+    drv_path: StorePath,
     already_scheduled: bool,
     runnable: bool,
     finished: bool,

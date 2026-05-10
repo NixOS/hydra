@@ -1,3 +1,4 @@
+use harmonia_store_core::store_path::StorePath;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -53,7 +54,7 @@ impl BuilderClient {
         &mut self,
         build_id: &str,
         machine_id: &str,
-        store_paths: Vec<(nix_utils::StorePath, String, Vec<String>)>,
+        store_paths: Vec<(StorePath, String, Vec<String>)>,
     ) -> anyhow::Result<Vec<hydra_proto::PresignedNarResponse>> {
         use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 

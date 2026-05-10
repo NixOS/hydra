@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
 use db::models::BuildID;
-use nix_utils::{BaseStore as _, StorePath};
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::StorePath;
+use nix_utils::BaseStore as _;
 
 use crate::state::RemoteBuild;
 
@@ -13,7 +15,7 @@ pub async fn finish_build_step(
     step_nr: i32,
     res: &RemoteBuild,
     machine: Option<&str>,
-    output_paths: Option<&BTreeMap<nix_utils::OutputName, StorePath>>,
+    output_paths: Option<&BTreeMap<OutputName, StorePath>>,
 ) -> anyhow::Result<()> {
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
@@ -62,7 +64,7 @@ pub async fn finish_build_step(
 pub async fn substitute_output(
     db: db::Database,
     store: nix_utils::LocalStore,
-    o: (nix_utils::OutputName, Option<StorePath>),
+    o: (OutputName, Option<StorePath>),
     build_id: BuildID,
     drv_path: &StorePath,
     remote_store: Option<&binary_cache::S3BinaryCacheClient>,
@@ -114,7 +116,7 @@ pub async fn make_local_step(
     store: &nix_utils::LocalStore,
     build_id: BuildID,
     drv_path: &StorePath,
-    missing: &BTreeMap<nix_utils::OutputName, Option<StorePath>>,
+    missing: &BTreeMap<OutputName, Option<StorePath>>,
 ) -> anyhow::Result<()> {
     let time = i32::try_from(jiff::Timestamp::now().as_second())?;
 

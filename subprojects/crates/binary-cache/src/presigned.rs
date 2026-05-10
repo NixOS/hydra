@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use backon::Retryable;
 
 use bytes::Bytes;
+use harmonia_store_core::store_path::StorePath;
 use nix_utils::{BaseStore as _, LocalStore};
 
 use tokio_util::io::StreamReader;
@@ -146,7 +147,7 @@ impl PresignedUploadClient {
     async fn upload_nar(
         &self,
         store: &LocalStore,
-        store_path: &nix_utils::StorePath,
+        store_path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
@@ -200,7 +201,7 @@ impl PresignedUploadClient {
     async fn upload_ls(
         &self,
         store: &LocalStore,
-        store_path: &nix_utils::StorePath,
+        store_path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();

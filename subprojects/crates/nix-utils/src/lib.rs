@@ -18,6 +18,8 @@ mod store_path;
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use harmonia_store_core::derivation::{BasicDerivation, DerivationT};
+use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
 use hashbrown::HashMap;
 
 #[derive(thiserror::Error, Debug)]
@@ -47,20 +49,11 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 }
 
-pub use drv::{Derivation, output_paths, query_drv};
-pub use harmonia_store_core::derivation::{
-    BasicDerivation, DerivationOutput, DerivationOutputs, DerivationT,
-};
-pub use harmonia_store_core::derived_path::{
-    DerivedPath, OutputName, OutputSpec, SingleDerivedPath,
-};
-pub use harmonia_store_core::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
-pub use harmonia_store_core::signature::Signature;
+pub use drv::{output_paths, query_drv};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::{
-    ParseStorePathError, StoreDir, StoreDirDisplay, StorePath, StorePathHash, StorePathName,
-    parse_store_path,
-};
+pub use store_path::parse_store_path;
+
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {

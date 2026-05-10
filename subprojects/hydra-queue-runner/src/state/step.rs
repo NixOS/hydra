@@ -7,6 +7,9 @@ use hashbrown::{HashMap, HashSet};
 
 use super::{Build, Jobset};
 use db::models::BuildID;
+use harmonia_store_core::derivation::Derivation;
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 
 use super::drv::OutputNameChain;
 
@@ -105,8 +108,8 @@ impl StepState {
 
 #[derive(Debug)]
 pub struct Step {
-    drv_path: nix_utils::StorePath,
-    drv: arc_swap::ArcSwapOption<nix_utils::Derivation>,
+    drv_path: StorePath,
+    drv: arc_swap::ArcSwapOption<Derivation>,
 
     runnable: AtomicBool,
     finished: AtomicBool,
@@ -133,7 +136,7 @@ impl Hash for Step {
 
 impl Step {
     #[must_use]
-    pub fn new(drv_path: nix_utils::StorePath) -> Arc<Self> {
+    pub fn new(drv_path: StorePath) -> Arc<Self> {
         Arc::new(Self {
             drv_path,
             drv: arc_swap::ArcSwapOption::from(None),
@@ -149,7 +152,7 @@ impl Step {
     }
 
     #[inline]
-    pub const fn get_drv_path(&self) -> &nix_utils::StorePath {
+    pub const fn get_drv_path(&self) -> &StorePath {
         &self.drv_path
     }
 
@@ -178,12 +181,12 @@ impl Step {
         self.runnable.load(Ordering::SeqCst)
     }
 
-    pub fn get_drv(&self) -> Option<arc_swap::Guard<Option<Arc<nix_utils::Derivation>>>> {
+    pub fn get_drv(&self) -> Option<arc_swap::Guard<Option<Arc<Derivation>>>> {
         let drv = self.drv.load();
         if drv.is_some() { Some(drv) } else { None }
     }
 
-    pub fn set_drv(&self, drv: nix_utils::Derivation) {
+    pub fn set_drv(&self, drv: Derivation) {
         self.drv.store(Some(Arc::new(drv)));
     }
 
@@ -220,8 +223,8 @@ impl Step {
 
     pub fn get_output_paths(
         &self,
-        store_dir: &nix_utils::StoreDir,
-    ) -> Option<BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>> {
+        store_dir: &StoreDir,
+    ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
         let drv = self.drv.load_full();
         drv.as_ref()
             .map(|drv| nix_utils::output_paths(drv, store_dir))
@@ -399,7 +402,7 @@ impl Step {
     /// We collect into a `Vec` rather than returning an iterator because the
     /// write lock on the step's state must be released before the caller can
     /// do async work (e.g. `create_step`) with the results.
-    pub fn pop_dynamic_rdeps(&self) -> Vec<(Weak<Step>, nix_utils::OutputName, OutputNameChain)> {
+    pub fn pop_dynamic_rdeps(&self) -> Vec<(Weak<Step>, OutputName, OutputNameChain)> {
         let mut state = self.state.write();
         state
             .rdeps
@@ -463,7 +466,7 @@ impl Step {
 
 #[derive(Debug, Clone)]
 pub struct Steps {
-    inner: Arc<parking_lot::RwLock<HashMap<nix_utils::StorePath, Weak<Step>>>>,
+    inner: Arc<parking_lot::RwLock<HashMap<StorePath, Weak<Step>>>>,
 }
 
 impl Default for Steps {
@@ -558,7 +561,7 @@ impl Steps {
     #[must_use]
     pub fn create(
         &self,
-        drv_path: &nix_utils::StorePath,
+        drv_path: &StorePath,
         referring_build: Option<&Arc<Build>>,
         referring_step: Option<(&Arc<Step>, OutputNameChain)>,
     ) -> (Arc<Step>, bool) {
@@ -583,7 +586,7 @@ impl Steps {
         (step, is_new)
     }
 
-    pub fn remove(&self, drv_path: &nix_utils::StorePath) {
+    pub fn remove(&self, drv_path: &StorePath) {
         let mut steps = self.inner.write();
         steps.remove(drv_path);
     }
@@ -593,7 +596,7 @@ impl Steps {
 mod tests {
     use super::*;
 
-    fn drv(name: &str) -> nix_utils::StorePath {
+    fn drv(name: &str) -> StorePath {
         nix_utils::parse_store_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
     }
 

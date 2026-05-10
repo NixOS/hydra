@@ -1,3 +1,5 @@
+use harmonia_store_core::derived_path::OutputName;
+use harmonia_store_core::store_path::{ParseStorePathError, StorePath};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -18,7 +20,7 @@ use hydra_proto::{
     FetchRequisitesRequest, JoinMessage, NarData, NixSupport, Output, OutputNameOnly,
     OutputWithPath, PingMessage, StepStatus, StepUpdate, StorePaths, output,
 };
-use nix_utils::{BaseStore as _, OutputName};
+use nix_utils::BaseStore as _;
 
 const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
 const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
@@ -65,7 +67,7 @@ impl From<JobFailure> for BuildResultState {
 
 #[derive(Debug)]
 pub struct BuildInfo {
-    drv_path: nix_utils::StorePath,
+    drv_path: StorePath,
     handle: tokio::task::JoinHandle<()>,
     was_cancelled: Arc<AtomicBool>,
 }
@@ -339,7 +341,7 @@ impl State {
         Ok(())
     }
 
-    fn contains_build(&self, drv: &nix_utils::StorePath) -> bool {
+    fn contains_build(&self, drv: &StorePath) -> bool {
         let active = self.active_builds.read();
         active.values().any(|b| b.drv_path == *drv)
     }
@@ -504,10 +506,10 @@ impl State {
             )));
         }
 
-        let actual_out_drv: nix_utils::StorePath = store
+        let actual_out_drv: StorePath = store
             .store_dir()
             .parse(&output_raw[0].drv_path)
-            .map_err(|e: nix_utils::ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
+            .map_err(|e: ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
         if actual_out_drv != drv {
             return Err(JobFailure::PostProcessing(anyhow::anyhow!(
                 "Nix returned outputs for {actual_out_drv} when we expected {drv}"
@@ -519,13 +521,8 @@ impl State {
             .unwrap()
             .outputs
             .into_iter()
-            .map(|(name, path)| {
-                Ok((
-                    name,
-                    store.store_dir().parse::<nix_utils::StorePath>(&path)?,
-                ))
-            })
-            .collect::<anyhow::Result<BTreeMap<OutputName, nix_utils::StorePath>>>()
+            .map(|(name, path)| Ok((name, store.store_dir().parse::<StorePath>(&path)?)))
+            .collect::<anyhow::Result<BTreeMap<OutputName, StorePath>>>()
             .map_err(JobFailure::PostProcessing)?;
 
         for o in outputs.values() {
@@ -635,7 +632,7 @@ impl State {
     async fn upload_nars(
         &self,
         store: nix_utils::LocalStore,
-        nars: Vec<nix_utils::StorePath>,
+        nars: Vec<StorePath>,
         build_id: &str,
         machine_id: &str,
         presigned_url_opts: Option<hydra_proto::PresignedUploadOpts>,
@@ -661,8 +658,8 @@ impl State {
 async fn filter_missing(
     store: &nix_utils::LocalStore,
     gcroot: &Gcroot,
-    path: nix_utils::StorePath,
-) -> Option<nix_utils::StorePath> {
+    path: StorePath,
+) -> Option<StorePath> {
     if store.is_valid_path(&path).await {
         nix_utils::add_root(store, &gcroot.root, &path);
         None
@@ -673,7 +670,7 @@ async fn filter_missing(
 
 async fn substitute_paths(
     store: &nix_utils::LocalStore,
-    paths: &[nix_utils::StorePath],
+    paths: &[StorePath],
 ) -> anyhow::Result<()> {
     for p in paths {
         store.ensure_path(p).await?;
@@ -698,7 +695,7 @@ async fn import_paths(
     store: nix_utils::LocalStore,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
-    paths: Vec<nix_utils::StorePath>,
+    paths: Vec<StorePath>,
     filter: bool,
     use_substitutes: bool,
 ) -> anyhow::Result<()> {
@@ -765,12 +762,12 @@ async fn import_paths(
 
 #[tracing::instrument(skip(client, store, metrics, requisites), fields(%gcroot, %drv), err)]
 #[allow(clippy::too_many_arguments)]
-async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
+async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
     store: nix_utils::LocalStore,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
-    drv: &nix_utils::StorePath,
+    drv: &StorePath,
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
@@ -785,9 +782,8 @@ async fn import_requisites<T: IntoIterator<Item = nix_utils::StorePath>>(
     .collect::<Vec<_>>()
     .await;
 
-    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) = requisites
-        .into_iter()
-        .partition(nix_utils::StorePath::is_derivation);
+    let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
+        requisites.into_iter().partition(StorePath::is_derivation);
 
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
@@ -857,7 +853,7 @@ async fn upload_nars_regular(
     mut client: BuilderClient,
     store: nix_utils::LocalStore,
     metrics: Arc<crate::metrics::Metrics>,
-    nars: Vec<nix_utils::StorePath>,
+    nars: Vec<StorePath>,
 ) -> anyhow::Result<()> {
     // Compute the full closure of output paths so that all referenced
     // store paths (e.g. dynamically-created derivations from recursive-nix)
@@ -958,7 +954,7 @@ async fn upload_nars_presigned(
     mut client: BuilderClient,
     upload_client: PresignedUploadClient,
     store: nix_utils::LocalStore,
-    output_paths: &[nix_utils::StorePath],
+    output_paths: &[StorePath],
     opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
     machine_id: &str,
@@ -1043,7 +1039,7 @@ async fn upload_nars_presigned(
 #[tracing::instrument(skip(store, nar_path, presigned_response), err)]
 async fn upload_single_nar_presigned(
     store: &nix_utils::LocalStore,
-    nar_path: &nix_utils::StorePath,
+    nar_path: &StorePath,
     build_id: &str,
     machine_id: &str,
     presigned_response: &hydra_proto::PresignedNarResponse,
@@ -1116,8 +1112,8 @@ async fn upload_single_nar_presigned(
 async fn new_success_build_result_info(
     store: nix_utils::LocalStore,
     machine_id: uuid::Uuid,
-    drv: &nix_utils::StorePath,
-    outputs: &BTreeMap<OutputName, nix_utils::StorePath>,
+    drv: &StorePath,
+    outputs: &BTreeMap<OutputName, StorePath>,
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
