@@ -5,6 +5,16 @@ pub mod store_path;
 
 pub use store_path::ProtoStorePath;
 
+pub mod nix {
+    pub mod store {
+        pub mod v1 {
+            tonic::include_proto!("nix.store.v1");
+        }
+    }
+}
+
+pub use nix::store::v1::{NarInfo, RelativeStorePath, StorePaths, ValidPathInfo};
+
 tonic::include_proto!("runner.v1");
 
 include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));

@@ -744,7 +744,6 @@ impl RunnerService for Server {
         fields(
             build_id=req.get_ref().build_id,
             machine_id=req.get_ref().machine_id,
-            store_path=req.get_ref().store_path
         ),
         err,
     )]
@@ -783,26 +782,32 @@ impl RunnerService for Server {
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
+        let nar_info = req
+            .nar_info
+            .ok_or_else(|| tonic::Status::invalid_argument("missing nar_info"))?;
+        let path_info = nar_info
+            .path_info
+            .ok_or_else(|| tonic::Status::invalid_argument("missing path_info"))?;
+        let store_path = path_info
+            .path
+            .ok_or_else(|| tonic::Status::invalid_argument("missing store_path"))?
+            .0;
+
         let narinfo = binary_cache::NarInfo {
-            store_path: nix_utils::parse_store_path(&req.store_path),
-            url: req.url.clone(),
+            store_path: store_path.clone(),
+            url: nar_info.url.clone(),
             compression: remote_store.cfg.compression,
-            file_hash: binary_cache::parse_hash(&req.file_hash),
-            file_size: Some(req.file_size),
-            nar_hash: binary_cache::parse_hash(&req.nar_hash).ok_or_else(|| {
-                tonic::Status::invalid_argument(format!("invalid nar hash: {}", req.nar_hash))
+            file_hash: binary_cache::parse_hash(&nar_info.file_hash),
+            file_size: Some(nar_info.file_size),
+            nar_hash: binary_cache::parse_hash(&path_info.nar_hash).ok_or_else(|| {
+                tonic::Status::invalid_argument(format!("invalid nar hash: {}", path_info.nar_hash))
             })?,
-            nar_size: req.nar_size,
-            references: req
-                .references
-                .into_iter()
-                .map(|p| nix_utils::parse_store_path(&p))
-                .collect(),
-            deriver: req.deriver.map(|p| nix_utils::parse_store_path(&p)),
-            ca: req.ca,
+            nar_size: path_info.nar_size,
+            references: path_info.references.into_iter().map(|p| p.0).collect(),
+            deriver: path_info.deriver.map(|p| p.0),
+            ca: path_info.ca,
             sigs: vec![],
         };
-        let store_path = narinfo.store_path.clone();
 
         let narinfo_url = remote_store
             .upload_narinfo_after_presigned_upload(&self.state.store, narinfo)
@@ -815,8 +820,8 @@ impl RunnerService for Server {
         tracing::debug!(
             "Presigned upload completed and narinfo uploaded for path: {}, url: {}, size: {} bytes, narinfo: {}",
             store_path,
-            req.url,
-            req.file_size,
+            nar_info.url,
+            nar_info.file_size,
             narinfo_url
         );
 

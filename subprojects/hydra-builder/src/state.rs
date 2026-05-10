@@ -1104,20 +1104,24 @@ async fn upload_single_nar_presigned(
         let completion_msg = hydra_proto::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
-            store_path: nar_path.to_string().clone(),
-            url: updated_narinfo.url.clone(),
-            compression: updated_narinfo.compression.as_str().to_owned(),
-            file_hash: format!("{}", file_hash.as_base32()),
-            file_size,
-            nar_hash: format!("{}", updated_narinfo.nar_hash.as_base32()),
-            nar_size: updated_narinfo.nar_size,
-            references: updated_narinfo
-                .references
-                .iter()
-                .map(|p| p.to_string().clone())
-                .collect(),
-            deriver: updated_narinfo.deriver.map(|p| p.to_string().clone()),
-            ca: updated_narinfo.ca,
+            nar_info: Some(hydra_proto::nix::store::v1::NarInfo {
+                path_info: Some(hydra_proto::nix::store::v1::ValidPathInfo {
+                    path: Some(ProtoStorePath::from(nar_path.clone())),
+                    nar_hash: format!("{}", updated_narinfo.nar_hash.as_base32()),
+                    nar_size: updated_narinfo.nar_size,
+                    references: updated_narinfo
+                        .references
+                        .iter()
+                        .map(|p| ProtoStorePath::from(p.clone()))
+                        .collect(),
+                    deriver: updated_narinfo.deriver.map(ProtoStorePath::from),
+                    ca: updated_narinfo.ca,
+                }),
+                url: updated_narinfo.url.clone(),
+                compression: updated_narinfo.compression.as_str().to_owned(),
+                file_hash: format!("{}", file_hash.as_base32()),
+                file_size,
+            }),
         };
 
         client

@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package runner.v1;
 
+import "v1/store.proto";
+
 option java_multiple_files = true;
 option java_outer_classname = "RunnerProto";
 option java_package = "io.grpc.hydra.runner";
@@ -14,9 +16,9 @@ service RunnerService {
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
   rpc FetchDrvRequisites(FetchRequisitesRequest) returns (DrvRequisitesMessage) {}
-  rpc HasPath(StorePath) returns (HasPathResponse) {}
-  rpc StreamFile(StorePath) returns (stream NarData) {}
-  rpc StreamFiles(StorePaths) returns (stream NarData) {}
+  rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
+  rpc StreamFile(nix.store.v1.StorePath) returns (stream NarData) {}
+  rpc StreamFiles(nix.store.v1.StorePaths) returns (stream NarData) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
 }
@@ -124,7 +126,7 @@ message PresignedUploadOpts {
 
 message BuildMessage {
   string build_id = 1; // UUIDv4
-  StorePath drv = 2;
+  nix.store.v1.StorePath drv = 2;
   reserved 3;
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
@@ -135,7 +137,7 @@ message BuildMessage {
 }
 
 message DrvRequisitesMessage {
-  repeated StorePath requisites = 1;
+  repeated nix.store.v1.StorePath requisites = 1;
 }
 
 message AbortMessage {
@@ -143,21 +145,13 @@ message AbortMessage {
 }
 
 message LogChunk {
-  StorePath drv = 1;
+  nix.store.v1.StorePath drv = 1;
   bytes data = 2;
 }
 
 message FetchRequisitesRequest {
-  StorePath path = 1;
+  nix.store.v1.StorePath path = 1;
   bool include_outputs = 2;
-}
-
-message StorePath {
-  string path = 1;
-}
-
-message StorePaths {
-  repeated StorePath paths = 1;
 }
 
 message HasPathResponse {
@@ -174,7 +168,7 @@ message OutputNameOnly {
 
 message OutputWithPath {
   string name = 1;
-  StorePath path = 2;
+  nix.store.v1.StorePath path = 2;
   uint64 closure_size = 3;
   uint64 nar_size = 4;
   string nar_hash = 5;
@@ -194,13 +188,8 @@ message BuildMetric {
   double value = 4;
 }
 
-message RelativeStorePath {
-  StorePath store_path = 1;
-  string sub_path = 2;
-}
-
 message BuildProduct {
-  RelativeStorePath path = 1;
+  nix.store.v1.RelativeStorePath path = 1;
   string default_path = 2;
 
   string type = 3;
@@ -291,14 +280,5 @@ message PresignedUrlResponse {
 message PresignedUploadComplete {
   string build_id = 1; // UUIDv4
   string machine_id = 2; // UUIDv4
-  string store_path = 3;
-  string url = 4;
-  string compression = 5;
-  string file_hash = 6;
-  uint64 file_size = 7;
-  string nar_hash = 8;
-  uint64 nar_size = 9;
-  repeated string references = 10;
-  optional string deriver = 11;
-  optional string ca = 12;
+  nix.store.v1.NarInfo nar_info = 13;
 }
