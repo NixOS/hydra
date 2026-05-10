@@ -31,6 +31,8 @@ gethostname = "1"
 h2 = "0.4"
 harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-nar-info = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path-info = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
 hashbrown = "0.16"
@@ -106,5 +108,7 @@ test-utils       = { path = "subprojects/crates/test-utils" }
 [patch.crates-io]
 harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-nar-info      = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path-info     = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git" }

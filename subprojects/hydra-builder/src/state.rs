@@ -5,7 +5,6 @@ use std::time::Instant;
 
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
-use binary_cache::harmonia_utils_hash::fmt::CommonHash as _;
 use futures::TryFutureExt as _;
 use hashbrown::HashMap;
 use tonic::Request;
@@ -1094,34 +1093,15 @@ async fn upload_single_nar_presigned(
     tracing::debug!(
         "Successfully uploaded presigned NAR for {} to {}",
         nar_path,
-        updated_narinfo.url
+        updated_narinfo.info.url.as_deref().unwrap_or("")
     );
 
-    if let (Some(file_hash), Some(file_size)) = (
-        updated_narinfo.file_hash.as_ref(),
-        updated_narinfo.file_size,
-    ) {
+    if updated_narinfo.info.download_hash.is_some() && updated_narinfo.info.download_size.is_some()
+    {
         let completion_msg = hydra_proto::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
-            nar_info: Some(hydra_proto::nix::store::v1::NarInfo {
-                path_info: Some(hydra_proto::nix::store::v1::ValidPathInfo {
-                    path: Some(ProtoStorePath::from(nar_path.clone())),
-                    nar_hash: format!("{}", updated_narinfo.nar_hash.as_base32()),
-                    nar_size: updated_narinfo.nar_size,
-                    references: updated_narinfo
-                        .references
-                        .iter()
-                        .map(|p| ProtoStorePath::from(p.clone()))
-                        .collect(),
-                    deriver: updated_narinfo.deriver.map(ProtoStorePath::from),
-                    ca: updated_narinfo.ca,
-                }),
-                url: updated_narinfo.url.clone(),
-                compression: updated_narinfo.compression.as_str().to_owned(),
-                file_hash: format!("{}", file_hash.as_base32()),
-                file_size,
-            }),
+            nar_info: Some(updated_narinfo.into()),
         };
 
         client

@@ -290,6 +290,8 @@ dependencies = [
  "fs-err",
  "futures",
  "harmonia-store-core",
+ "harmonia-store-nar-info",
+ "harmonia-store-path-info",
  "harmonia-utils-hash",
  "hashbrown 0.16.1",
  "hydra-tracing",
@@ -1334,6 +1336,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "harmonia-store-nar-info"
+version = "3.1.0"
+source = "git+https://github.com/nix-community/harmonia.git#cc307ffd78901217062ccfd5c9415999aa43485c"
+dependencies = [
+ "harmonia-store-core",
+ "harmonia-store-path-info",
+ "harmonia-utils-hash",
+ "serde",
+]
+
+[[package]]
+name = "harmonia-store-path-info"
+version = "3.1.0"
+source = "git+https://github.com/nix-community/harmonia.git#cc307ffd78901217062ccfd5c9415999aa43485c"
+dependencies = [
+ "harmonia-store-core",
+ "harmonia-utils-hash",
+ "serde",
+]
+
+[[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
 source = "git+https://github.com/nix-community/harmonia.git#cc307ffd78901217062ccfd5c9415999aa43485c"
@@ -1562,6 +1585,9 @@ dependencies = [
  "db",
  "fs-err",
  "harmonia-store-core",
+ "harmonia-store-nar-info",
+ "harmonia-store-path-info",
+ "harmonia-utils-hash",
  "prost",
  "sha2 0.10.9",
  "store-path-utils",
@@ -1589,6 +1615,8 @@ dependencies = [
  "futures-util",
  "h2",
  "harmonia-store-core",
+ "harmonia-store-nar-info",
+ "harmonia-store-path-info",
  "hashbrown 0.16.1",
  "http-body-util",
  "hydra-proto",

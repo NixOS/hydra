@@ -15,19 +15,32 @@ message RelativeStorePath {
   string sub_path = 2;
 }
 
-message ValidPathInfo {
-  StorePath path = 1;
+message UnkeyedValidPathInfo {
+  optional StorePath deriver = 1;
   string nar_hash = 2;
-  uint64 nar_size = 3;
-  repeated StorePath references = 4;
-  optional StorePath deriver = 5;
-  optional string ca = 6;
+  repeated StorePath references = 3;
+  optional int64 registration_time = 4;
+  uint64 nar_size = 5;
+  bool ultimate = 6;
+  repeated string signatures = 7;
+  optional string ca = 8;
+  string store_dir = 9;
 }
 
-message NarInfo {
-  ValidPathInfo path_info = 1;
+message ValidPathInfo {
+  StorePath path = 1;
+  UnkeyedValidPathInfo info = 2;
+}
+
+message UnkeyedNarInfo {
+  UnkeyedValidPathInfo info = 1;
   string url = 2;
   string compression = 3;
   string file_hash = 4;
   uint64 file_size = 5;
+}
+
+message NarInfo {
+  StorePath path = 1;
+  UnkeyedNarInfo info = 2;
 }

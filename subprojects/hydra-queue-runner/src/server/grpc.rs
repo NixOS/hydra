@@ -782,32 +782,29 @@ impl RunnerService for Server {
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
-        let nar_info = req
+        let proto_nar_info = req
             .nar_info
             .ok_or_else(|| tonic::Status::invalid_argument("missing nar_info"))?;
-        let path_info = nar_info
-            .path_info
-            .ok_or_else(|| tonic::Status::invalid_argument("missing path_info"))?;
-        let store_path = path_info
-            .path
-            .ok_or_else(|| tonic::Status::invalid_argument("missing store_path"))?
-            .0;
 
-        let narinfo = binary_cache::NarInfo {
-            store_path: store_path.clone(),
-            url: nar_info.url.clone(),
-            compression: remote_store.cfg.compression,
-            file_hash: binary_cache::parse_hash(&nar_info.file_hash),
-            file_size: Some(nar_info.file_size),
-            nar_hash: binary_cache::parse_hash(&path_info.nar_hash).ok_or_else(|| {
-                tonic::Status::invalid_argument(format!("invalid nar hash: {}", path_info.nar_hash))
-            })?,
-            nar_size: path_info.nar_size,
-            references: path_info.references.into_iter().map(|p| p.0).collect(),
-            deriver: path_info.deriver.map(|p| p.0),
-            ca: path_info.ca,
-            sigs: vec![],
-        };
+        let mut narinfo: binary_cache::NarInfo = proto_nar_info
+            .try_into()
+            .map_err(|e: hydra_proto::NarInfoConvertError| tonic::Status::invalid_argument(e.0))?;
+
+        if &narinfo.info.info.store_dir != self.state.store.get_store_dir() {
+            return Err(tonic::Status::invalid_argument(format!(
+                "store_dir mismatch: expected {}, got {}",
+                self.state.store.get_store_dir(),
+                narinfo.info.info.store_dir
+            )));
+        }
+
+        let store_path = narinfo.path.clone();
+
+        // Override compression from server config
+        narinfo.info.compression = Some(remote_store.cfg.compression.as_str().to_owned());
+
+        let url = narinfo.info.url.clone();
+        let size = narinfo.info.download_size;
 
         let narinfo_url = remote_store
             .upload_narinfo_after_presigned_upload(&self.state.store, narinfo)
@@ -818,10 +815,10 @@ impl RunnerService for Server {
             })?;
 
         tracing::debug!(
-            "Presigned upload completed and narinfo uploaded for path: {}, url: {}, size: {} bytes, narinfo: {}",
+            "Presigned upload completed and narinfo uploaded for path: {}, url: {:?}, size: {:?} bytes, narinfo: {}",
             store_path,
-            nar_info.url,
-            nar_info.file_size,
+            url,
+            size,
             narinfo_url
         );
 
