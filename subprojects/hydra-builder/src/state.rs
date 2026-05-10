@@ -1097,7 +1097,7 @@ async fn upload_single_nar_presigned(
         let completion_msg = hydra_proto::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
-            nar_info: Some(updated_narinfo.into()),
+            nar_info: Some((&updated_narinfo).into()),
         };
 
         client
@@ -1168,7 +1168,7 @@ async fn new_success_build_result_info(
                     let rel =
                         store_path_utils::RelativeStorePath::from_path(store.store_dir(), &p.path)?;
                     Ok(BuildProduct {
-                        path: Some(rel.into()),
+                        path: Some((&rel).into()),
                         default_path: p.default_path,
                         r#type: p.r#type,
                         subtype: p.subtype,

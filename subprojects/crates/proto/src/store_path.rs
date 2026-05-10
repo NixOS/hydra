@@ -40,6 +40,12 @@ impl From<StorePath> for ProtoStorePath {
     }
 }
 
+impl From<&StorePath> for ProtoStorePath {
+    fn from(p: &StorePath) -> Self {
+        Self(p.clone())
+    }
+}
+
 impl From<ProtoStorePath> for StorePath {
     fn from(p: ProtoStorePath) -> StorePath {
         p.0

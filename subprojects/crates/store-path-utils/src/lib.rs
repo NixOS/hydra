@@ -5,7 +5,7 @@ use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 /// Represents paths like `/nix/store/<hash>-<name>/share/doc/nix/manual`,
 /// split into the base `StorePath` (`<hash>-<name>`) and the relative
 /// suffix (`share/doc/nix/manual`).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RelativeStorePath {
     pub base_path: StorePath,
     pub relative_path: Box<str>,
