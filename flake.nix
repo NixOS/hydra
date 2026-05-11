@@ -153,7 +153,7 @@
 
         builder = forEachSystemIncDarwin (system: packages.${system}.hydra-builder);
 
-        nixosTests = import ./nixos-tests.nix {
+        nixosTests = import ./nixos-tests {
           inherit forEachSystem nixpkgs nixosModules;
         };
 
