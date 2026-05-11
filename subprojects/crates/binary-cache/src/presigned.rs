@@ -206,8 +206,12 @@ impl PresignedUploadClient {
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let ls = store.list_nar_deep(store_path).await?;
-        let stream = Box::new(std::io::Cursor::new(Bytes::from(ls)));
+        let listing = super::nar_listing(store, store_path).await?;
+        let ls_json = serde_json::json!({
+            "version": 1,
+            "root": listing,
+        });
+        let stream = Box::new(std::io::Cursor::new(Bytes::from(ls_json.to_string())));
         let compressor = upload
             .compression
             .get_compression_fn(upload.compression_level, false);
