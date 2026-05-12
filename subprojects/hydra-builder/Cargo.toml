@@ -44,8 +44,8 @@ procfs-core.workspace = true
 binary-cache.workspace     = true
 hydra-proto                = { workspace = true, features = [ "client" ] }
 hydra-tracing              = { workspace = true, features = [ "tonic" ] }
+nix-support.workspace      = true
 nix-utils.workspace        = true
-shared.workspace           = true
 store-path-utils.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]

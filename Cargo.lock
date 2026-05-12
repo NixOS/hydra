@@ -1614,6 +1614,7 @@ dependencies = [
  "hydra-tracing",
  "hyper-util",
  "nix",
+ "nix-support",
  "nix-utils",
  "parking_lot",
  "procfs-core 0.18.0",
@@ -1621,7 +1622,6 @@ dependencies = [
  "sd-notify",
  "serde",
  "serde_json",
- "shared",
  "store-path-utils",
  "sysinfo",
  "thiserror",
@@ -1684,6 +1684,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "listenfd",
+ "nix-support",
  "nix-utils",
  "parking_lot",
  "procfs 0.18.0",
@@ -1693,7 +1694,6 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
- "shared",
  "smallvec",
  "store-path-utils",
  "thiserror",
@@ -2277,6 +2277,19 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "nix-support"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fs-err",
+ "harmonia-store-core",
+ "regex",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3548,19 +3561,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
-]
-
-[[package]]
-name = "shared"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "fs-err",
- "harmonia-store-core",
- "regex",
- "sha2 0.10.9",
- "tokio",
- "tracing",
 ]
 
 [[package]]
