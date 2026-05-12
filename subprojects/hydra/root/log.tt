@@ -37,12 +37,62 @@
   [% END %]
 </p>
 
-<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
+<div class="card bg-light" style="position: relative">
+  <div class="card-body" style="padding: 0">
+    <pre class="log" id="contents" style="max-height: 70vh; overflow-y: auto; margin: 0; padding: 1rem">
 <em>Loading...</em>
-</pre></div></div>
+    </pre>
+  </div>
+  <button id="scrollBtn" title="Scroll to bottom"
+    style="display: none; position: absolute; bottom: 1rem; right: 1.5rem;
+           border-radius: 50%; width: 2rem; height: 2rem; cursor: pointer;
+           background: #333; color: #fff; border: none; font-size: 1rem; line-height: 1">
+    ↓
+  </button>
+</div>
 
 <script type="text/javascript">
-  $(document).ready(function() {
+  let loaded = false;
+  let autoScroll = true;
+  const MAX_LOG_LINES = 5000;
+
+  function ensureLoaded() {
+    if (!loaded) {
+      $("#contents").empty();
+      loaded = true;
+    }
+  }
+
+  function scrollToLatest() {
+    if (!autoScroll) return;
+    const pre = $("#contents")[0];
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function appendStatus(message, color) {
+    ensureLoaded();
+    const span = $("<span>").css({ color: color, userSelect: "none" }).text(message + '\n');
+    $("#contents").append(span);
+    scrollToLatest();
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '';
+    const cleaned = ts.replace(/\.(\d{3})\d*Z$/, '.$1Z');
+    const d = new Date(cleaned);
+    if (isNaN(d.getTime())) return ts;
+    const pad = n => String(n).padStart(2, '0');
+    const y = d.getFullYear();
+    const mo = pad(d.getMonth() + 1);
+    const da = pad(d.getDate());
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    const ms = String(d.getMilliseconds()).padStart(3, '0');
+    return `${h}:${mi}:${s}`;
+  }
+
+  function plainLoadFileContent() {
     requestPlainFile({
       url: "[% HTML.escape(log_uri) %]",
       dataType: "text",
@@ -62,6 +112,97 @@
         $("#contents").text("(Unavailable)");
       }
     });
+  }
+
+  $(document).ready(function() {
+    $("#contents").on("scroll", function() {
+      const atBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 32;
+      autoScroll = atBottom;
+      $("#scrollBtn").toggle(!atBottom);
+    });
+
+    $("#scrollBtn").on("click", function() {
+      const pre = $("#contents")[0];
+      pre.scrollTop = pre.scrollHeight;
+      autoScroll = true;
+      $(this).hide();
+    });
+
+    [% UNLESS live %]
+      plainLoadFileContent();
+    [% ELSE %]
+      let connected = false;
+      const socket = new WebSocket("[% HTML.escape(ws_endpoint) %]");
+      const wsTimeout = setTimeout(() => {
+        if (!connected) {
+          socket.close();
+          plainLoadFileContent();
+        }
+      }, 5000);
+
+      socket.addEventListener("open", (event) => {
+        connected = true;
+        clearTimeout(wsTimeout);
+        const msg = {
+          "type":"logsStart",
+          "buildId": [% build.id %],
+        };
+        [% IF step %]msg.stepId = [% step.stepnr %];[% END %]
+        socket.send(JSON.stringify(msg));
+      });
+
+      socket.addEventListener("error", (event) => {
+        if (!connected) {
+          plainLoadFileContent();
+        }
+      });
+
+      socket.addEventListener("close", (event) => {
+        if (connected) {
+          appendStatus("Connection to server closed", "green");
+        }
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case "logsStart":
+            if (data.success) {
+              appendStatus("Connected", "green");
+            } else {
+              appendStatus(data.details || "Failed to open log", "red");
+            }
+            break;
+          case "logsEnd":
+            appendStatus("Logs closed by server", "green");
+            break;
+          case "stepFinished":
+            appendStatus("Build finished", "green");
+            break;
+          case "buildFinished":
+            appendStatus("Build finished", "green");
+            break;
+          case "logLine":
+            ensureLoaded();
+            const pre = $("#contents")[0];
+            while (pre.childNodes.length >= MAX_LOG_LINES * 2) {
+              pre.removeChild(pre.childNodes[0]);
+              pre.removeChild(pre.childNodes[0]);
+            }
+            const ts = $("<span>").css({ userSelect: "none" });
+            if (data.timestamp) {
+              ts.css({ color: "#888" }).text(formatTimestamp(data.timestamp) + ' ');
+            } else {
+              ts.css({ color: "transparent" }).text('\u00a0'.repeat(9));
+            }
+            $("#contents").append(ts);
+            $("#contents").append(document.createTextNode(data.line.trimEnd() + '\n'));
+            scrollToLatest();
+            break;
+        }
+      });
+    [% END %]
   });
 </script>
 
