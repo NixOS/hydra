@@ -64,7 +64,6 @@ graph BT
     binary-cache --> nix-utils
     db --> store-path-utils
     hydra-proto --> store-path-utils
-    shared --> nix-utils
     hydra-builder --> binary-cache
     hydra-builder --> hydra-proto
     hydra-builder --> hydra-tracing

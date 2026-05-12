@@ -543,8 +543,11 @@ impl BuildOutput {
         let pathinfos = store
             .query_path_infos(&resolved.values().collect::<Vec<_>>())
             .await;
-        let nix_support =
-            Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
+        let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
+            store.get_store_dir(),
+            &resolved,
+        ))
+        .await?;
 
         let mut outputs_map = BTreeMap::new();
         let mut closure_size = 0;

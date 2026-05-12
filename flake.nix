@@ -189,42 +189,9 @@
             inherit (packages.${system}) hydra;
           };
           formatter = (treefmtEval system).config.build.check self;
-          dependency-diagram =
-            let
-              generated =
-                pkgs.runCommand "generate-dependency-diagram"
-                  {
-                    nativeBuildInputs = [
-                      pkgs.python3
-                      pkgs.cargo
-                    ];
-                    src = self;
-                    script = ./scripts/dependency-diagram.py;
-                    doc = ./subprojects/hydra-manual/src/architecture.md;
-                  }
-                  ''
-                    python3 "$script" \
-                      --doc "$doc" \
-                      --manifest-path $src/Cargo.toml \
-                      > "$out"
-                  '';
-            in
-            pkgs.runCommand "check-dependency-diagram"
-              {
-                nativeBuildInputs = [ pkgs.diffutils ];
-              }
-              ''
-                if ! diff \
-                  --unified \
-                  --color=always \
-                  ${./subprojects/hydra-manual/src/architecture.md} \
-                  ${generated}; then
-                  echo "Dependency diagram is out of date. Update with:"
-                  echo "  python3 scripts/dependency-diagram.py --update"
-                  exit 1
-                fi
-                touch $out
-              '';
+          dependency-diagram = pkgs.callPackage ./packaging/check-dependency-diagram.nix {
+            src = self;
+          };
         }
       );
 

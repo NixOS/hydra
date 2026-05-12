@@ -14,4 +14,3 @@ tokio             = { workspace = true, features = [ "full" ] }
 tracing.workspace = true
 
 harmonia-store-core.workspace = true
-nix-utils.workspace           = true
