@@ -103,8 +103,8 @@ binary-cache     = { path = "subprojects/crates/binary-cache" }
 db               = { path = "subprojects/crates/db" }
 hydra-proto      = { path = "subprojects/crates/proto" }
 hydra-tracing    = { path = "subprojects/crates/tracing" }
+nix-support      = { path = "subprojects/crates/nix-support" }
 nix-utils        = { path = "subprojects/crates/nix-utils" }
-shared           = { path = "subprojects/crates/shared" }
 store-path-utils = { path = "subprojects/crates/store-path-utils" }
 test-utils       = { path = "subprojects/crates/test-utils" }
 

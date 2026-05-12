@@ -1120,7 +1120,7 @@ async fn new_success_build_result_info(
     let pathinfos = store
         .query_path_infos(&outputs.values().collect::<Vec<_>>())
         .await;
-    let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
+    let nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
         store.get_store_dir(),
         outputs,
     ))

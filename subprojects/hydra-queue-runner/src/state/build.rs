@@ -381,7 +381,7 @@ impl BuildProduct {
         })
     }
 
-    pub fn from_shared(store_dir: &StoreDir, v: shared::BuildProduct) -> anyhow::Result<Self> {
+    pub fn from_shared(store_dir: &StoreDir, v: nix_support::BuildProduct) -> anyhow::Result<Self> {
         Ok(Self {
             path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
             default_path: Some(v.default_path),
@@ -543,7 +543,7 @@ impl BuildOutput {
         let pathinfos = store
             .query_path_infos(&resolved.values().collect::<Vec<_>>())
             .await;
-        let nix_support = Box::pin(shared::parse_nix_support_from_outputs(
+        let nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
             store.get_store_dir(),
             &resolved,
         ))

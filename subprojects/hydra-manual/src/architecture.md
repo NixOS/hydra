@@ -67,12 +67,12 @@ graph BT
     hydra-builder --> binary-cache
     hydra-builder --> hydra-proto
     hydra-builder --> hydra-tracing
-    hydra-builder --> shared
+    hydra-builder --> nix-support
     hydra-queue-runner --> binary-cache
     hydra-queue-runner --> db
     hydra-queue-runner --> hydra-proto
     hydra-queue-runner --> hydra-tracing
-    hydra-queue-runner --> shared
+    hydra-queue-runner --> nix-support
     binary-cache -.-> hydra-tracing
     db -.-> test-utils
 ```
@@ -83,7 +83,7 @@ graph BT
 - `db` — PostgreSQL database access via SQLx (models, queries, connection pooling)
 - `binary-cache` — reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
 - `nix-utils` — Nix store path parsing, derivation reading, and local store operations
-- `shared` — common types used across components (protobuf newtypes, `nix-support` file parsing)
+- `nix-support` — Infrastructure for interpreting the `${store_object}/nix-support` directory convention
 - `store-path-utils` — lightweight store path utilities built on harmonia types
 - `tracing` — OpenTelemetry/tracing setup with optional gRPC export
 - `test-utils` — test fixtures and helpers for integration tests
