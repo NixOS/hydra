@@ -47,6 +47,7 @@ let
       entries = {
         greeting = {
           type = "regular";
+          executable = false;
           size = 6; # "hello\n"
         };
         link = {
@@ -63,6 +64,7 @@ let
           entries = {
             file = {
               type = "regular";
+              executable = false;
               size = 7; # "nested\n"
             };
           };

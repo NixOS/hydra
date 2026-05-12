@@ -586,8 +586,13 @@ impl S3BinaryCacheClient {
         tracing::debug!("start copying path: {path}");
         let mut narinfo = self.path_to_narinfo(store, path).await?;
         if self.cfg.write_nar_listing {
-            let ls = store.list_nar_deep(&narinfo.path).await?;
-            self.upload_listing(&get_ls_path(&narinfo), ls).await?;
+            let listing = nar_listing(store, &narinfo.path).await?;
+            let ls_json = serde_json::json!({
+                "version": 1,
+                "root": listing,
+            });
+            self.upload_listing(&get_ls_path(&narinfo), ls_json.to_string())
+                .await?;
         }
 
         let nar_url = narinfo.info.url.clone().unwrap_or_default();
@@ -948,4 +953,32 @@ impl debug_info::DebugInfoClient for S3BinaryCacheClient {
 
         Ok(())
     }
+}
+
+/// Generate a NAR listing from a store path using harmonia's NAR parser,
+/// avoiding the Nix C++ FFI.
+async fn nar_listing(
+    store: &nix_utils::LocalStore,
+    path: &StorePath,
+) -> Result<harmonia_file_core::FileTree<harmonia_file_nar::NarFileInfo>, CacheError> {
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, std::io::Error>>();
+    let closure = move |data: &[u8]| {
+        let data = Bytes::copy_from_slice(data);
+        tx.send(Ok(data)).is_ok()
+    };
+
+    tokio::task::spawn({
+        let path = path.clone();
+        let store = store.clone();
+        async move {
+            let _ = store.nar_from_path(&path, closure);
+        }
+    });
+
+    let stream =
+        tokio_util::io::StreamReader::new(tokio_stream::wrappers::UnboundedReceiverStream::new(rx));
+    let reader = harmonia_utils_io::BytesReader::new(stream);
+    let listing = harmonia_file_nar::parse_nar_listing(reader).await?;
+
+    Ok(listing)
 }

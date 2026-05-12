@@ -66,8 +66,6 @@ void nar_from_path(const StoreWrapper &src_store, rust::Str path,
                    rust::Fn<bool(rust::Slice<const uint8_t>, size_t)> callback,
                    size_t userdata);
 
-rust::String list_nar_deep(const StoreWrapper &wrapper, rust::Str path);
-
 void ensure_path(const StoreWrapper &wrapper, rust::Str path);
 rust::String to_real_path(const StoreWrapper &wrapper, rust::Str path);
 rust::String write_derivation(const StoreWrapper &wrapper, rust::Str json);

@@ -198,8 +198,6 @@ mod ffi {
             user_data: usize,
         ) -> Result<()>;
 
-        fn list_nar_deep(store: &StoreWrapper, path: &str) -> Result<String>;
-
         fn ensure_path(store: &StoreWrapper, path: &str) -> Result<()>;
         fn to_real_path(store: &StoreWrapper, path: &str) -> Result<String>;
         fn write_derivation(store: &StoreWrapper, json: &str) -> Result<String>;
@@ -443,8 +441,6 @@ pub trait BaseStore {
     fn nar_from_path<F>(&self, path: &StorePath, callback: F) -> Result<(), cxx::Exception>
     where
         F: FnMut(&[u8]) -> bool;
-
-    fn list_nar_deep(&self, path: &StorePath) -> impl Future<Output = Result<String, Error>>;
 
     fn ensure_path(&self, path: &StorePath) -> impl Future<Output = Result<(), Error>>;
 
@@ -722,14 +718,6 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn list_nar_deep(&self, path: &StorePath) -> Result<String, Error> {
-        let store = self.wrapper.clone();
-        let path = self.print_store_path(path);
-        asyncify(move || ffi::list_nar_deep(store.as_raw(), &path)).await
-    }
-
-    #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         let store = self.wrapper.clone();
         let path = self.print_store_path(path);
@@ -972,12 +960,6 @@ impl BaseStore for LocalStore {
     }
 
     #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn list_nar_deep(&self, path: &StorePath) -> Result<String, Error> {
-        self.base.list_nar_deep(path).await
-    }
-
-    #[inline]
     async fn ensure_path(&self, path: &StorePath) -> Result<(), Error> {
         self.base.ensure_path(path).await
     }
@@ -1187,12 +1169,6 @@ impl BaseStore for RemoteStore {
         F: FnMut(&[u8]) -> bool,
     {
         self.base.nar_from_path(path, callback)
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn list_nar_deep(&self, path: &StorePath) -> Result<String, Error> {
-        self.base.list_nar_deep(path).await
     }
 
     #[inline]

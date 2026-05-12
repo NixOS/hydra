@@ -305,19 +305,6 @@ void nar_from_path(const StoreWrapper &wrapper, rust::Str path,
   }
 }
 
-rust::String list_nar_deep(const StoreWrapper &wrapper, rust::Str path) {
-  auto store = wrapper._store;
-  auto [store_path, rest] = store->toStorePath(AS_VIEW(path));
-
-  nlohmann::json j = {
-      {"version", 1},
-      {"root", nix::listNarDeep(*store->getFSAccessor(),
-                                nix::CanonPath{store_path.to_string()} /
-                                    nix::CanonPath{rest})},
-  };
-
-  return j.dump();
-}
 
 void ensure_path(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;

@@ -10,7 +10,7 @@ use crate::StorePath;
 pub(crate) fn parse_drv(
     store_dir: &StoreDir,
     drv_path: &StorePath,
-    input: &str,
+    input: &[u8],
 ) -> Result<Derivation, crate::Error> {
     let drv_name_str = drv_path.name().to_string();
     let name: StorePathName = drv_name_str
@@ -39,7 +39,7 @@ pub async fn query_drv(
     }
 
     let real_path = store.to_real_path(drv).await?;
-    let input = fs_err::tokio::read_to_string(&real_path).await?;
+    let input = fs_err::tokio::read(&real_path).await?;
     Ok(Some(parse_drv(store.get_store_dir(), drv, &input)?))
 }
 
@@ -82,10 +82,10 @@ mod tests {
         let drv = parse_drv(
             &store_dir,
             &drv_path,
-            &format!(
+            format!(
                 r#"Derive([("out","/nix/store/{HASH}-test-src","sha256","deadbeef00000000000000000000000000000000000000000000000000000000")],[],[],"{0}","{0}",[],[("name","test-src")])"#,
                 "/bin/sh",
-            ),
+            ).as_bytes(),
         )
         .unwrap();
 
@@ -101,10 +101,10 @@ mod tests {
         let drv = parse_drv(
             &store_dir,
             &drv_path,
-            &format!(
+            format!(
                 r#"Derive([("lib","/nix/store/{HASH}-hello-1.0-lib","",""),("out","/nix/store/{HASH}-hello-1.0","","")],[],[],"{0}","{0}",[],[("name","hello-1.0")])"#,
                 "x86_64-linux",
-            ),
+            ).as_bytes(),
         )
         .unwrap();
 
