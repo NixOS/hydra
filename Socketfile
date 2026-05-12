@@ -1,2 +1,3 @@
 hydra-server: http=:63333
 hydra-queue-runner: rest=:64446 grpc=:50051
+hydra-ws: ws=:9283

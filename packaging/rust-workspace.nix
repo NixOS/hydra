@@ -29,6 +29,8 @@ let
       ../subprojects/hydra-builder/src
       ../subprojects/hydra-evaluator/Cargo.toml
       ../subprojects/hydra-evaluator/src
+      ../subprojects/hydra-ws/Cargo.toml
+      ../subprojects/hydra-ws/src
       ../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../subprojects/hydra/sql/hydra.sql
@@ -60,6 +62,7 @@ let
   features = lib.optionals withOtel [
     "hydra-builder/otel"
     "hydra-queue-runner/otel"
+    "hydra-ws/otel"
   ];
 
   # `cargoArtifacts` is a whole-workspace `buildDepsOnly`, so its dependencies
@@ -116,5 +119,10 @@ in
   hydra-evaluator = mkCrate {
     pname = "hydra-evaluator";
     meta.description = "Hydra evaluator (Rust)";
+  };
+
+  hydra-ws = mkCrate {
+    pname = "hydra-ws";
+    meta.description = "Hydra ws server (Rust)";
   };
 }
