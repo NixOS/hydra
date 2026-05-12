@@ -38,12 +38,73 @@
   [% END %]
 </p>
 
-<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
+<div class="card bg-light" style="position: relative">
+  <div class="card-body" style="padding: 0">
+    <pre class="log" id="contents" style="max-height: 70vh; overflow-y: auto; margin: 0; padding: 1rem">
 <em>Loading...</em>
-</pre></div></div>
+    </pre>
+  </div>
+  <button id="scrollBtn" title="Scroll to bottom"
+    style="display: none; position: absolute; bottom: 1rem; right: 1.5rem;
+           border-radius: 50%; width: 2rem; height: 2rem; cursor: pointer;
+           background: #333; color: #fff; border: none; font-size: 1rem; line-height: 1">
+    ↓
+  </button>
+</div>
 
 <script type="text/javascript">
-  $(document).ready(function() {
+  let loaded = false;
+  let autoScroll = true;
+  const MAX_LOG_LINES = 5000;
+
+  function ensureLoaded() {
+    if (!loaded) {
+      $("#contents").empty();
+      loaded = true;
+    }
+  }
+
+  function scrollToLatest() {
+    if (!autoScroll) return;
+    const pre = $("#contents")[0];
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function appendEntry(node) {
+    ensureLoaded();
+    const pre = $("#contents")[0];
+    while (pre.childNodes.length >= MAX_LOG_LINES) {
+      pre.removeChild(pre.firstChild);
+    }
+    pre.appendChild(node);
+    scrollToLatest();
+  }
+
+  function appendStatus(message, color) {
+    const span = $("<span>").css({ color: color, userSelect: "none" }).text(message + '\n')[0];
+    appendEntry(span);
+  }
+
+  function appendStatusLink(message, href, linkText, color) {
+    const span = $("<span>").css({ color: color, userSelect: "none" }).text(message + ' ');
+    span.append($("<a>").attr("href", href).text(linkText));
+    span.append(document.createTextNode('\n'));
+    appendEntry(span[0]);
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '';
+    const cleaned = ts.replace(/\.(\d{3})\d*Z$/, '.$1Z');
+    const d = new Date(cleaned);
+    if (isNaN(d.getTime())) return ts;
+    const pad = n => String(n).padStart(2, '0');
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    return `${h}:${mi}:${s}`;
+  }
+
+  function plainLoadFileContent() {
     requestPlainFile({
       url: "[% HTML.escape(log_uri) %]",
       dataType: "text",
@@ -63,6 +124,221 @@
         $("#contents").text("(Unavailable)");
       }
     });
+  }
+
+  $(document).ready(function() {
+    $("#contents").on("scroll", function() {
+      const atBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 32;
+      autoScroll = atBottom;
+      $("#scrollBtn").toggle(!atBottom);
+    });
+
+    $("#scrollBtn").on("click", function() {
+      const pre = $("#contents")[0];
+      pre.scrollTop = pre.scrollHeight;
+      autoScroll = true;
+      $(this).hide();
+    });
+
+    [% UNLESS live %]
+      plainLoadFileContent();
+    [% ELSE %]
+      const WS_URL = "[% HTML.escape(ws_endpoint) %]";
+      const FULL_LOG_URL = "[% logUrl %]";
+      const PING_INTERVAL_MS = 30000;
+      const RECONNECT_DELAYS_MS = [1000, 2000, 5000, 10000, 30000];
+      const LOGS_START_RETRIES_MS = [2000, 4000, 8000, 15000];
+
+      let socket = null;
+      let everConnected = false;
+      let streaming = false;
+      let done = false;
+      let fellBack = false;
+      let receivedLines = false;
+      let attempt = 0;
+      let logsStartAttempt = 0;
+      let pingTimer = null;
+      let retryTimer = null;
+
+      function showStaticLog(reason) {
+        if (fellBack) return;
+        fellBack = true;
+        if (reason) console.warn("falling back to the static log: " + reason);
+        plainLoadFileContent();
+      }
+
+      function fallBackToPlainFile() {
+        if (everConnected) return;
+        showStaticLog(null);
+      }
+
+      function stopPing() {
+        if (pingTimer !== null) {
+          clearInterval(pingTimer);
+          pingTimer = null;
+        }
+      }
+
+      function stopRetry() {
+        if (retryTimer !== null) {
+          clearTimeout(retryTimer);
+          retryTimer = null;
+        }
+      }
+
+      function finish() {
+        if (done) return;
+        done = true;
+        stopPing();
+        stopRetry();
+        setTimeout(() => { if (socket) socket.close(); }, 2000);
+      }
+
+      function handOffToFullLog(message) {
+        if (autoScroll) {
+          appendStatus(message, "green");
+          setTimeout(() => { window.location.href = FULL_LOG_URL; }, 1000);
+        } else {
+          appendStatusLink(message + " \u2014", FULL_LOG_URL, "view the full log", "green");
+        }
+        finish();
+      }
+
+      function sendLogsStart() {
+        const msg = {
+          "type":"logsStart",
+          "buildId": [% build.id %],
+        };
+        [% IF step %]msg.stepId = [% step.stepnr %];[% END %]
+        socket.send(JSON.stringify(msg));
+      }
+
+      function retryLogsStart(reason) {
+        if (logsStartAttempt >= LOGS_START_RETRIES_MS.length) {
+          showStaticLog(reason);
+          finish();
+          return;
+        }
+        if (logsStartAttempt === 0) {
+          appendStatus("Waiting for build output...", "green");
+        }
+        const delay = LOGS_START_RETRIES_MS[logsStartAttempt];
+        logsStartAttempt++;
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            sendLogsStart();
+          }
+        }, delay);
+      }
+
+      function connect() {
+        const ws = new WebSocket(WS_URL);
+        socket = ws;
+        let opened = false;
+
+        const wsTimeout = setTimeout(() => {
+          if (!opened) {
+            ws.close();
+            fallBackToPlainFile();
+          }
+        }, 5000);
+
+        ws.addEventListener("open", (event) => {
+          opened = true;
+          clearTimeout(wsTimeout);
+          if (everConnected) {
+            appendStatus("Reconnected \u2014 some lines may be repeated", "green");
+          }
+          everConnected = true;
+          attempt = 0;
+          logsStartAttempt = 0;
+          stopRetry();
+          sendLogsStart();
+          stopPing();
+          pingTimer = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ "type": "ping" }));
+            }
+          }, PING_INTERVAL_MS);
+        });
+
+        ws.addEventListener("error", (event) => {
+          clearTimeout(wsTimeout);
+          fallBackToPlainFile();
+        });
+
+        ws.addEventListener("close", (event) => {
+          clearTimeout(wsTimeout);
+          stopPing();
+          stopRetry();
+          if (!everConnected || done) {
+            return;
+          }
+          if (attempt >= RECONNECT_DELAYS_MS.length) {
+            appendStatus("Connection to server closed", "green");
+            return;
+          }
+          const delay = RECONNECT_DELAYS_MS[attempt];
+          attempt++;
+          appendStatus("Connection lost, reconnecting in " + (delay / 1000) + "s...", "orange");
+          setTimeout(connect, delay);
+        });
+
+        ws.addEventListener("message", (event) => {
+          const data = JSON.parse(event.data);
+
+          switch (data.type) {
+            case "pong":
+              break;
+            case "logsStart":
+              if (data.success) {
+                if (!streaming) {
+                  streaming = true;
+                  appendStatus("Connected", "green");
+                }
+              } else {
+                retryLogsStart(data.details || "failed to open log");
+              }
+              break;
+            case "logsEnd":
+              if (data.success === false) {
+                if (receivedLines) {
+                  appendStatus(data.details || "Log stream failed", "red");
+                } else {
+                  showStaticLog(data.details || "log stream failed");
+                }
+              } else {
+                appendStatus("Logs closed by server", "green");
+              }
+              finish();
+              break;
+            case "stepFinished":
+              handOffToFullLog("Step finished");
+              break;
+            case "buildFinished":
+              handOffToFullLog("Build finished");
+              break;
+            case "logLine": {
+              receivedLines = true;
+              const ts = $("<span>").css({ userSelect: "none" });
+              if (data.timestamp) {
+                ts.css({ color: "#888" }).text(formatTimestamp(data.timestamp) + ' ');
+              } else {
+                ts.css({ color: "transparent" }).text('\u00a0'.repeat(9));
+              }
+              const entry = document.createElement("span");
+              entry.appendChild(ts[0]);
+              entry.appendChild(document.createTextNode(data.line.trimEnd() + '\n'));
+              appendEntry(entry);
+              break;
+            }
+          }
+        });
+      }
+
+      connect();
+    [% END %]
   });
 </script>
 
