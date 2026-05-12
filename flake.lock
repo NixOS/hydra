@@ -3,11 +3,11 @@
     "foreman": {
       "flake": false,
       "locked": {
-        "lastModified": 1778004604,
-        "narHash": "sha256-YdFYx5/91pK0LdBpD6Xb2xPaTNCS3GvwErPaDiKt3OY=",
+        "lastModified": 1778098942,
+        "narHash": "sha256-BWVGk2CQvxy34UjIoLYYsNXgwgiQCNGFYY0ii3AW4mI=",
         "owner": "Ericson2314",
         "repo": "foreman",
-        "rev": "dabe4b3b95034d30df68c196cd3824bf8860ee52",
+        "rev": "d15eded9294e6efcc5934d8e46abe3e86c8d2b01",
         "type": "github"
       },
       "original": {
