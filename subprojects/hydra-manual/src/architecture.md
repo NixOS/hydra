@@ -52,6 +52,43 @@ Builders have their own Nix store — they do not need access to the coordinator
     - connects to the queue runner's gRPC service
     - receives derivations to build, streams back logs and results
 
+## Rust crate dependencies
+
+The following is the [transitive reduction](https://en.wikipedia.org/wiki/Transitive_reduction) of the dependency graph between the Rust crates in this repo.
+Solid arrows are normal dependencies; dashed arrows are dev (test-only) dependencies.
+
+<!-- Regenerate with: python3 scripts/dependency-diagram.py --update -->
+
+```mermaid
+graph BT
+    binary-cache --> nix-utils
+    db --> store-path-utils
+    hydra-proto --> store-path-utils
+    shared --> nix-utils
+    hydra-builder --> binary-cache
+    hydra-builder --> hydra-proto
+    hydra-builder --> hydra-tracing
+    hydra-builder --> shared
+    hydra-queue-runner --> binary-cache
+    hydra-queue-runner --> db
+    hydra-queue-runner --> hydra-proto
+    hydra-queue-runner --> hydra-tracing
+    hydra-queue-runner --> shared
+    binary-cache -.-> hydra-tracing
+    db -.-> test-utils
+```
+
+### Shared Rust libraries
+
+- `proto` — generated gRPC/protobuf code for the builder ↔ queue-runner interface (message types, client stubs, server traits)
+- `db` — PostgreSQL database access via SQLx (models, queries, connection pooling)
+- `binary-cache` — reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
+- `nix-utils` — Nix store path parsing, derivation reading, and local store operations
+- `shared` — common types used across components (protobuf newtypes, `nix-support` file parsing)
+- `store-path-utils` — lightweight store path utilities built on harmonia types
+- `tracing` — OpenTelemetry/tracing setup with optional gRPC export
+- `test-utils` — test fixtures and helpers for integration tests
+
 ## Source layout
 
 The repository is organized into subprojects:
@@ -63,15 +100,7 @@ The repository is organized into subprojects:
 - [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)
   — the Rust build agent
 - [`subprojects/crates/`](https://github.com/NixOS/hydra/tree/master/subprojects/crates)
-  — shared Rust libraries:
-  - `proto` — generated gRPC/protobuf code for the builder ↔ queue-runner interface (message types, client stubs, server traits)
-  - `db` — PostgreSQL database access via SQLx (models, queries, connection pooling)
-  - `binary-cache` — reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
-  - `nix-utils` — Nix store path parsing, derivation reading, and local store operations
-  - `shared` — common types used across components (protobuf newtypes, `nix-support` file parsing)
-  - `store-path-utils` — lightweight store path utilities built on harmonia types
-  - `tracing` — OpenTelemetry/tracing setup with optional gRPC export
-  - `test-utils` — test fixtures and helpers for integration tests
+  — shared Rust libraries
 - [`subprojects/proto/`](https://github.com/NixOS/hydra/tree/master/subprojects/proto)
   — Protocol Buffer `.proto` source files (compiled by the `proto` crate's build script)
 - [`subprojects/nix-perl/`](https://github.com/NixOS/hydra/tree/master/subprojects/nix-perl)

@@ -32,7 +32,7 @@ rustPlatform.buildRustPackage {
 
   cargoLock = {
     lockFile = ../../Cargo.lock;
-    outputHashes = import ../../cargo-output-hashes.nix;
+    outputHashes = import ../../packaging/cargo-output-hashes.nix;
   };
 
   # The source fileset above intentionally excludes hydra-queue-runner,
