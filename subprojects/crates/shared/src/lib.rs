@@ -22,7 +22,6 @@ use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
 
 use harmonia_store_core::derived_path::OutputName;
 use harmonia_store_core::store_path::{StoreDir, StorePath};
-use nix_utils::BaseStore as _;
 
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> =
@@ -98,17 +97,9 @@ struct FilesystemOperations {
     store_dir: StoreDir,
 }
 
-impl FilesystemOperations {
-    fn new() -> Self {
-        Self {
-            store_dir: nix_utils::get_store_dir(),
-        }
-    }
-}
-
 impl FsOperations for FilesystemOperations {
     fn is_inside_store(&self, path: &std::path::Path) -> bool {
-        nix_utils::is_subpath(self.store_dir.to_path(), path)
+        path.starts_with(self.store_dir.to_path())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -155,18 +146,14 @@ fn parse_release_name(content: &str) -> Option<String> {
     }
 }
 
-fn parse_metric(
-    store: &nix_utils::LocalStore,
-    line: &str,
-    output: &StorePath,
-) -> Option<BuildMetric> {
+fn parse_metric(store_dir: &StoreDir, line: &str, output: &StorePath) -> Option<BuildMetric> {
     let fields: Vec<String> = line.split_whitespace().map(ToOwned::to_owned).collect();
     if fields.len() < 2 || !VALIDATE_METRICS_NAME.is_match(&fields[0]) {
         return None;
     }
 
     Some(BuildMetric {
-        path: store.print_store_path(output),
+        path: store_dir.display(output).to_string(),
         name: fields[0].clone(),
         value: fields[1].parse::<f64>().unwrap_or(0.0),
         unit: if fields.len() >= 3 && VALIDATE_METRICS_UNIT.is_match(&fields[2]) {
@@ -178,7 +165,7 @@ fn parse_metric(
 }
 
 async fn parse_build_product<Op>(
-    store: &nix_utils::LocalStore,
+    store_dir: &StoreDir,
     handle: Op,
     output: &StorePath,
     line: &str,
@@ -204,7 +191,7 @@ where
     let metadata = handle.get_metadata(&path).await.ok()?;
 
     let name = {
-        let name = if path == store.print_store_path(output) {
+        let name = if path == store_dir.display(output).to_string() {
             String::new()
         } else {
             std::path::Path::new(&path)
@@ -246,9 +233,9 @@ where
     })
 }
 
-#[tracing::instrument(skip(store), err)]
+#[tracing::instrument(skip(store_dir), err)]
 pub async fn parse_nix_support_from_outputs(
-    store: &nix_utils::LocalStore,
+    store_dir: &StoreDir,
     derivation_outputs: &BTreeMap<OutputName, StorePath>,
 ) -> anyhow::Result<NixSupport> {
     let mut metrics = Vec::new();
@@ -256,7 +243,7 @@ pub async fn parse_nix_support_from_outputs(
     let mut hydra_release_name = None;
 
     for output in derivation_outputs.values() {
-        let output_full_path = store.print_store_path(output);
+        let output_full_path = store_dir.display(output).to_string();
         let file_path = std::path::Path::new(&output_full_path).join("nix-support/hydra-metrics");
         let Ok(file) = fs_err::tokio::File::open(&file_path).await else {
             continue;
@@ -266,7 +253,7 @@ pub async fn parse_nix_support_from_outputs(
         let mut lines = reader.lines();
 
         while let Some(line) = lines.next_line().await? {
-            if let Some(m) = parse_metric(store, &line, output) {
+            if let Some(m) = parse_metric(store_dir, &line, output) {
                 metrics.push(m);
             }
         }
@@ -274,7 +261,7 @@ pub async fn parse_nix_support_from_outputs(
 
     for output in derivation_outputs.values() {
         let file_path =
-            std::path::Path::new(&store.print_store_path(output)).join("nix-support/failed");
+            std::path::Path::new(&store_dir.display(output).to_string()).join("nix-support/failed");
         if fs_err::tokio::try_exists(file_path)
             .await
             .unwrap_or_default()
@@ -285,7 +272,7 @@ pub async fn parse_nix_support_from_outputs(
     }
 
     for output in derivation_outputs.values() {
-        let file_path = std::path::Path::new(&store.print_store_path(output))
+        let file_path = std::path::Path::new(&store_dir.display(output).to_string())
             .join("nix-support/hydra-release-name");
         if let Ok(v) = fs_err::tokio::read_to_string(file_path).await
             && let Some(v) = parse_release_name(&v)
@@ -298,7 +285,7 @@ pub async fn parse_nix_support_from_outputs(
     let mut explicit_products = false;
     let mut products = Vec::new();
     for output in derivation_outputs.values() {
-        let output_full_path = store.print_store_path(output);
+        let output_full_path = store_dir.display(output).to_string();
         let file_path =
             std::path::Path::new(&output_full_path).join("nix-support/hydra-build-products");
         let Ok(file) = fs_err::tokio::File::open(&file_path).await else {
@@ -309,9 +296,12 @@ pub async fn parse_nix_support_from_outputs(
 
         let reader = BufReader::new(file);
         let mut lines = reader.lines();
-        let fsop = FilesystemOperations::new();
+        let fsop = FilesystemOperations {
+            store_dir: store_dir.clone(),
+        };
         while let Some(line) = lines.next_line().await? {
-            if let Some(o) = Box::pin(parse_build_product(store, fsop.clone(), output, &line)).await
+            if let Some(o) =
+                Box::pin(parse_build_product(store_dir, fsop.clone(), output, &line)).await
             {
                 products.push(o);
             }
@@ -320,7 +310,7 @@ pub async fn parse_nix_support_from_outputs(
 
     if !explicit_products {
         for (output_name, path) in derivation_outputs {
-            let full_path = store.print_store_path(path);
+            let full_path = store_dir.display(path).to_string();
             let Ok(metadata) = fs_err::tokio::metadata(&full_path).await else {
                 continue;
             };
@@ -386,12 +376,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_build_products() {
-        let store = nix_utils::LocalStore::init();
-        let output = nix_utils::parse_store_path("ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso");
-        let line = format!(
-            "file iso {}/iso/custom.iso",
-            store.print_store_path(&output)
-        );
+        let store_dir = StoreDir::default();
+        let output: StorePath = "ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso"
+            .parse()
+            .unwrap();
+        let line = format!("file iso {}/iso/custom.iso", store_dir.display(&output));
         let fsop = DummyFsOperations {
             valid_file: true,
             metadata: FileMetadata {
@@ -400,7 +389,7 @@ mod tests {
             },
             file_hash: "4306152c73d2a7a01dbac16ba48f45fa4ae5b746a1d282638524ae2ae93af210".into(),
         };
-        let build_product = parse_build_product(&store, fsop, &output, &line)
+        let build_product = parse_build_product(&store_dir, fsop, &output, &line)
             .await
             .unwrap();
         assert!(build_product.is_regular);
@@ -418,19 +407,23 @@ mod tests {
 
     #[test]
     fn test_parse_invalid_metric() {
-        let output = nix_utils::parse_store_path("ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso");
+        let store_dir = StoreDir::default();
+        let output: StorePath = "ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso"
+            .parse()
+            .unwrap();
         let line = "nix-env.qaCount";
-        let store = nix_utils::LocalStore::init();
-        let m = parse_metric(&store, line, &output);
+        let m = parse_metric(&store_dir, line, &output);
         assert!(m.is_none());
     }
 
     #[test]
     fn test_parse_metric_without_unit() {
-        let output = nix_utils::parse_store_path("ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso");
+        let store_dir = StoreDir::default();
+        let output: StorePath = "ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso"
+            .parse()
+            .unwrap();
         let line = "nix-env.qaCount 4";
-        let store = nix_utils::LocalStore::init();
-        let m = parse_metric(&store, line, &output).unwrap();
+        let m = parse_metric(&store_dir, line, &output).unwrap();
         assert_eq!(m.name, "nix-env.qaCount");
         assert!((m.value - 4.0_f64).abs() < f64::EPSILON);
         assert_eq!(m.unit, None);
@@ -438,10 +431,12 @@ mod tests {
 
     #[test]
     fn test_parse_metric_with_unit() {
-        let output = nix_utils::parse_store_path("ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso");
+        let store_dir = StoreDir::default();
+        let output: StorePath = "ir3rqjyj5cz3js5lr7d0zw0gn6crzs6w-custom.iso"
+            .parse()
+            .unwrap();
         let line = "xzy.time 123.321 s";
-        let store = nix_utils::LocalStore::init();
-        let m = parse_metric(&store, line, &output).unwrap();
+        let m = parse_metric(&store_dir, line, &output).unwrap();
         assert_eq!(m.name, "xzy.time");
         assert!((m.value - 123.321_f64).abs() < f64::EPSILON);
         assert_eq!(m.unit, Some("s".into()));

@@ -3557,7 +3557,6 @@ dependencies = [
  "anyhow",
  "fs-err",
  "harmonia-store-core",
- "nix-utils",
  "regex",
  "sha2 0.10.9",
  "tokio",
