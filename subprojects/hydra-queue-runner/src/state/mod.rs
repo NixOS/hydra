@@ -1274,7 +1274,7 @@ impl State {
             for b in &direct {
                 let is_cached = job.build_id != b.id || job.result.is_cached;
                 tx.mark_succeeded_build(
-                    get_mark_build_sccuess_data(&self.store, b, &output),
+                    get_mark_build_sccuess_data(b, &output),
                     is_cached,
                     start_time,
                     stop_time,
@@ -2219,7 +2219,7 @@ impl State {
             tracing::info!("marking build {} as succeeded (cached)", build.id);
             let now = jiff::Timestamp::now().as_second();
             tx.mark_succeeded_build(
-                get_mark_build_sccuess_data(&self.store, &build, &res),
+                get_mark_build_sccuess_data(&build, &res),
                 true,
                 i32::try_from(now)?, // TODO
                 i32::try_from(now)?, // TODO
@@ -2262,15 +2262,11 @@ impl State {
 
                 res.products = db
                     .get_build_products_for_build_id(build_id, self.store.store_dir())
-                    .await?
-                    .into_iter()
-                    .map(build::BuildProduct::from_db)
-                    .collect();
+                    .await?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
                     .await?
                     .into_iter()
-                    .map(Into::into)
                     .collect();
 
                 return Ok(res);

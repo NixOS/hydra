@@ -278,6 +278,100 @@ impl TryFrom<NarInfo> for harmonia_store_nar_info::NarInfo {
     }
 }
 
+// -- BuildProduct --
+
+impl From<nix_support::BuildProduct> for BuildProduct {
+    fn from(p: nix_support::BuildProduct) -> Self {
+        Self {
+            path: Some((&p.path).into()),
+            default_path: p.default_path,
+            r#type: p.r#type,
+            subtype: p.subtype,
+            name: p.name,
+            is_regular: p.is_regular,
+            sha256hash: p.sha256hash.map(|h| {
+                harmonia_utils_hash::fmt::Bare::<harmonia_utils_hash::fmt::Base16<_>>::from(h)
+                    .to_string()
+            }),
+            file_size: p.file_size,
+        }
+    }
+}
+
+impl TryFrom<BuildProduct> for nix_support::BuildProduct {
+    type Error = &'static str;
+
+    fn try_from(p: BuildProduct) -> Result<Self, Self::Error> {
+        let path: store_path_utils::RelativeStorePath =
+            p.path.ok_or("BuildProduct missing path")?.try_into()?;
+        Ok(Self {
+            path,
+            default_path: p.default_path,
+            r#type: p.r#type,
+            subtype: p.subtype,
+            name: p.name,
+            is_regular: p.is_regular,
+            sha256hash: p.sha256hash.as_deref().and_then(|s| {
+                s.parse::<harmonia_utils_hash::fmt::Bare<
+                    harmonia_utils_hash::fmt::Base16<harmonia_utils_hash::Sha256>,
+                >>()
+                .ok()
+                .map(Into::into)
+            }),
+            file_size: p.file_size,
+        })
+    }
+}
+
+// -- BuildMetric --
+
+impl From<nix_support::BuildMetric> for BuildMetric {
+    fn from(m: nix_support::BuildMetric) -> Self {
+        Self {
+            unit: m.unit,
+            value: m.value,
+        }
+    }
+}
+
+impl From<BuildMetric> for nix_support::BuildMetric {
+    fn from(m: BuildMetric) -> Self {
+        Self {
+            unit: m.unit,
+            value: m.value,
+        }
+    }
+}
+
+// -- NixSupport --
+
+impl From<nix_support::NixSupport> for NixSupport {
+    fn from(ns: nix_support::NixSupport) -> Self {
+        Self {
+            failed: ns.failed,
+            hydra_release_name: ns.hydra_release_name,
+            metrics: ns.metrics.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            products: ns.products.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<NixSupport> for nix_support::NixSupport {
+    fn from(ns: NixSupport) -> Self {
+        Self {
+            failed: ns.failed,
+            hydra_release_name: ns.hydra_release_name,
+            metrics: ns.metrics.into_iter().map(|(k, v)| (k, v.into())).collect(),
+            products: ns
+                .products
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()
+                .unwrap_or_default(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests;
 

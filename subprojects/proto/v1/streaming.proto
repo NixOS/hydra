@@ -3,6 +3,7 @@ syntax = "proto3";
 package runner.v1;
 
 import "v1/store.proto";
+import "v1/nix-support.proto";
 
 option java_multiple_files = true;
 option java_outer_classname = "RunnerProto";
@@ -162,40 +163,12 @@ message NarData {
   bytes chunk = 1;
 }
 
-message OutputPathInfo {
-  string name = 1;
-  nix.store.v1.StorePath path = 2;
-  uint64 closure_size = 3;
-  uint64 nar_size = 4;
-  nix.store.v1.Hash nar_hash = 5;
-}
-
-message BuildMetric {
-  string path = 1;
-  string name = 2;
-  optional string unit = 3;
-  double value = 4;
-}
-
-message BuildProduct {
-  nix.store.v1.RelativeStorePath path = 1;
-  string default_path = 2;
-
-  string type = 3;
-  string subtype = 4;
-  string name = 5;
-
-  bool is_regular = 6;
-
-  optional string sha256hash = 7;
-  optional uint64 file_size = 8;
-}
-
-message NixSupport {
-  bool failed = 1;
-  optional string hydra_release_name = 2;
-  repeated BuildMetric metrics = 3;
-  repeated BuildProduct products = 4;
+message OutputInfo {
+  nix.store.v1.StorePath path = 1;
+  uint64 closure_size = 2;
+  uint64 nar_size = 3;
+  nix.store.v1.Hash nar_hash = 4;
+  optional NixSupport nixSupport = 5;
 }
 
 enum StepStatus {
@@ -231,8 +204,7 @@ message BuildResultInfo {
   uint64 build_time_ms = 4;
   uint64 upload_time_ms = 5;
   BuildResultState result_state = 6;
-  NixSupport nix_support = 7;
-  repeated OutputPathInfo outputs = 8;
+  map<string, OutputInfo> outputInfos = 7;
 }
 
 message PresignedNarRequest {
