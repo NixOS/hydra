@@ -31,6 +31,16 @@ rec {
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-builder;
     };
 
+  ws-server =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./ws-server-module.nix ];
+      services.hydra-ws-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-ws;
+    };
+
   hydra =
     { ... }:
     {
