@@ -115,7 +115,12 @@ InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
   auto info = store->queryPathInfo(store->parseStorePath(AS_VIEW(path)));
 
-  std::string narhash = info->narHash.to_string(nix::HashFormat::Nix32, true);
+  // Return raw SHA256 bytes (32 bytes) — Rust side converts to NarHash directly.
+  rust::Vec<uint8_t> narhash_bytes;
+  narhash_bytes.reserve(info->narHash.hashSize);
+  for (size_t i = 0; i < info->narHash.hashSize; i++) {
+    narhash_bytes.push_back(info->narHash.hash[i]);
+  }
 
   rust::Vec<rust::String> refs = extract_path_set(*store, info->references);
 
@@ -128,7 +133,7 @@ InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
   // TODO(conni2461): Replace "" with option
   return InternalPathInfo{
       extract_opt_path(*store, info->deriver),
-      narhash,
+      narhash_bytes,
       info->registrationTime,
       info->narSize,
       refs,

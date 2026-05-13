@@ -171,7 +171,7 @@ message OutputWithPath {
   nix.store.v1.StorePath path = 2;
   uint64 closure_size = 3;
   uint64 nar_size = 4;
-  string nar_hash = 5;
+  nix.store.v1.Hash nar_hash = 5;
 }
 
 message Output {
@@ -248,7 +248,7 @@ message BuildResultInfo {
 
 message PresignedNarRequest {
   string store_path = 1;
-  string nar_hash = 2;
+  nix.store.v1.Hash nar_hash = 2;
   repeated string debug_info_build_ids = 3;
 }
 

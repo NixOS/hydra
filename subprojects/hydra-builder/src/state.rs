@@ -1135,7 +1135,10 @@ async fn new_success_build_result_info(
                     closure_size: store.compute_closure_size(path).await,
                     path: Some(ProtoStorePath::from(path.clone())),
                     nar_size: info.nar_size,
-                    nar_hash: info.nar_hash.clone(),
+                    nar_hash: {
+                        let h: harmonia_utils_hash::Hash = info.nar_hash.into();
+                        Some((&h).into())
+                    },
                 }),
                 None => output::Output::Nameonly(OutputNameOnly {
                     name: name.to_string(),

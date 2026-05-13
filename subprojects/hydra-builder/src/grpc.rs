@@ -54,16 +54,19 @@ impl BuilderClient {
         &mut self,
         build_id: &str,
         machine_id: &str,
-        store_paths: Vec<(StorePath, String, Vec<String>)>,
+        store_paths: Vec<(StorePath, harmonia_store_path_info::NarHash, Vec<String>)>,
     ) -> anyhow::Result<Vec<hydra_proto::PresignedNarResponse>> {
         use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 
         let request = store_paths
             .into_iter()
-            .map(|(path, nar_hash, build_ids)| PresignedNarRequest {
-                store_path: path.to_string(),
-                nar_hash,
-                debug_info_build_ids: build_ids,
+            .map(|(path, nar_hash, build_ids)| {
+                let hash: harmonia_utils_hash::Hash = nar_hash.into();
+                PresignedNarRequest {
+                    store_path: path.to_string(),
+                    nar_hash: Some((&hash).into()),
+                    debug_info_build_ids: build_ids,
+                }
             })
             .collect::<Vec<_>>();
 

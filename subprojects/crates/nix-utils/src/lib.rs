@@ -20,6 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use harmonia_store_core::derivation::{BasicDerivation, DerivationT};
 use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path_info::UnkeyedValidPathInfo;
 use hashbrown::HashMap;
 
 #[derive(thiserror::Error, Debug)]
@@ -82,7 +83,7 @@ mod ffi {
     #[derive(Debug, Clone)]
     struct InternalPathInfo {
         deriver: String,
-        nar_hash: String,
+        nar_hash: Vec<u8>,
         registration_time: i64,
         nar_size: u64,
         refs: Vec<String>,
@@ -341,18 +342,22 @@ pub async fn copy_paths(
     .await
 }
 
-#[derive(Debug)]
-pub struct PathInfo {
-    pub deriver: Option<StorePath>,
-    pub nar_hash: String,
-    pub registration_time: i64,
-    pub nar_size: u64,
-    pub refs: Vec<StorePath>,
-    pub sigs: Vec<String>,
-    pub ca: Option<String>,
+fn nar_hash_from_bytes(bytes: &[u8]) -> harmonia_store_path_info::NarHash {
+    let sha256 = harmonia_utils_hash::Sha256::from_slice(bytes)
+        .expect("invalid nar hash length from nix FFI");
+    let hash: harmonia_utils_hash::Hash = sha256.into();
+    hash.try_into().expect("sha256 should convert to NarHash")
 }
 
-impl From<ffi::InternalPathInfo> for PathInfo {
+fn parse_signature(s: &str) -> harmonia_store_core::signature::Signature {
+    s.parse().expect("invalid signature from nix FFI")
+}
+
+fn parse_ca(s: &str) -> Option<harmonia_store_core::store_path::ContentAddress> {
+    if s.is_empty() { None } else { s.parse().ok() }
+}
+
+impl From<ffi::InternalPathInfo> for UnkeyedValidPathInfo {
     fn from(val: ffi::InternalPathInfo) -> Self {
         Self {
             deriver: if val.deriver.is_empty() {
@@ -360,16 +365,14 @@ impl From<ffi::InternalPathInfo> for PathInfo {
             } else {
                 Some(parse_store_path(&val.deriver))
             },
-            nar_hash: val.nar_hash,
-            registration_time: val.registration_time,
+            nar_hash: nar_hash_from_bytes(&val.nar_hash),
+            registration_time: std::num::NonZero::new(val.registration_time),
             nar_size: val.nar_size,
-            refs: val.refs.iter().map(|v| parse_store_path(v)).collect(),
-            sigs: val.sigs,
-            ca: if val.ca.is_empty() {
-                None
-            } else {
-                Some(val.ca)
-            },
+            references: val.refs.iter().map(|v| parse_store_path(v)).collect(),
+            signatures: val.sigs.iter().map(|s| parse_signature(s)).collect(),
+            ca: parse_ca(&val.ca),
+            ultimate: false,
+            store_dir: get_store_dir(),
         }
     }
 }
@@ -379,11 +382,14 @@ pub trait BaseStore {
     /// Check whether a path is valid.
     fn is_valid_path(&self, path: &StorePath) -> impl Future<Output = bool>;
 
-    fn query_path_info(&self, path: &StorePath) -> impl Future<Output = Option<PathInfo>>;
+    fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> impl Future<Output = Option<UnkeyedValidPathInfo>>;
     fn query_path_infos(
         &self,
         paths: &[&StorePath],
-    ) -> impl Future<Output = HashMap<StorePath, PathInfo>>;
+    ) -> impl Future<Output = HashMap<StorePath, UnkeyedValidPathInfo>>;
     fn compute_closure_size(&self, path: &StorePath) -> impl Future<Output = u64>;
 
     fn clear_path_info_cache(&self);
@@ -530,7 +536,7 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<PathInfo> {
+    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
         let store = self.wrapper.clone();
         let path = self.print_store_path(path);
         asyncify(move || {
@@ -544,7 +550,10 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[inline]
-    async fn query_path_infos(&self, paths: &[&StorePath]) -> HashMap<StorePath, PathInfo> {
+    async fn query_path_infos(
+        &self,
+        paths: &[&StorePath],
+    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
         let paths = paths.iter().map(|v| (*v).to_owned()).collect::<Vec<_>>();
 
         asyncify({
@@ -852,12 +861,15 @@ impl BaseStore for LocalStore {
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<PathInfo> {
+    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
         self.base.query_path_info(path).await
     }
 
     #[inline]
-    async fn query_path_infos(&self, paths: &[&StorePath]) -> HashMap<StorePath, PathInfo> {
+    async fn query_path_infos(
+        &self,
+        paths: &[&StorePath],
+    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
         self.base.query_path_infos(paths).await
     }
 
@@ -1064,12 +1076,15 @@ impl BaseStore for RemoteStore {
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<PathInfo> {
+    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
         self.base.query_path_info(path).await
     }
 
     #[inline]
-    async fn query_path_infos(&self, paths: &[&StorePath]) -> HashMap<StorePath, PathInfo> {
+    async fn query_path_infos(
+        &self,
+        paths: &[&StorePath],
+    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
         self.base.query_path_infos(paths).await
     }
 
