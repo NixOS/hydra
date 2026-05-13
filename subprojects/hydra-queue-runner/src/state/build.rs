@@ -480,21 +480,13 @@ impl BuildOutput {
         let mut nar_size = 0;
 
         for o in v.outputs {
-            match o.output {
-                Some(hydra_proto::output::Output::Nameonly(_)) => {
-                    // We dont care about outputs that dont have a path,
-                }
-                Some(hydra_proto::output::Output::Withpath(o)) => {
-                    let path = o
-                        .path
-                        .ok_or_else(|| anyhow::anyhow!("output missing path"))?
-                        .0;
-                    outputs.insert(o.name.parse()?, path);
-                    closure_size += o.closure_size;
-                    nar_size += o.nar_size;
-                }
-                None => (),
-            }
+            let path = o
+                .path
+                .ok_or_else(|| anyhow::anyhow!("output missing path"))?
+                .0;
+            outputs.insert(o.name.parse()?, path);
+            closure_size += o.closure_size;
+            nar_size += o.nar_size;
         }
         let (failed, release_name, products, metrics) = if let Some(nix_support) = v.nix_support {
             (

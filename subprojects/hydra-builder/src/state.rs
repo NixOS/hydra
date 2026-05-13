@@ -17,8 +17,8 @@ use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
-    FetchRequisitesRequest, JoinMessage, NarData, NixSupport, Output, OutputNameOnly,
-    OutputWithPath, PingMessage, StepStatus, StepUpdate, StorePaths, output,
+    FetchRequisitesRequest, JoinMessage, NarData, NixSupport, OutputPathInfo, PingMessage,
+    StepStatus, StepUpdate, StorePaths,
 };
 use nix_utils::BaseStore as _;
 
@@ -532,6 +532,23 @@ impl State {
         timings.build_elapsed = before_build.elapsed();
         tracing::info!("Finished building {drv}");
 
+        // Query path info for each output up front — these are needed both
+        // for building the result message and are expected to exist for a
+        // successful build.
+        let mut output_infos = BTreeMap::new();
+        for (name, path) in &outputs {
+            let info = store.query_path_info(path).await.ok_or_else(|| {
+                JobFailure::PostProcessing(anyhow::anyhow!("missing path info for output `{name}`"))
+            })?;
+            output_infos.insert(
+                name.clone(),
+                harmonia_store_path_info::ValidPathInfo {
+                    path: path.clone(),
+                    info,
+                },
+            );
+        }
+
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
                 build_id: m.build_id.clone(),
@@ -563,7 +580,7 @@ impl State {
             store.clone(),
             machine_id,
             &drv,
-            &outputs,
+            &output_infos,
             *timings,
             m.build_id.clone(),
         ))
@@ -1108,42 +1125,36 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(store, outputs), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(store, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
 async fn new_success_build_result_info(
     store: nix_utils::LocalStore,
     machine_id: uuid::Uuid,
     drv: &StorePath,
-    outputs: &BTreeMap<OutputName, StorePath>,
+    output_infos: &BTreeMap<OutputName, harmonia_store_path_info::ValidPathInfo>,
     timings: BuildTimings,
     build_id: String,
 ) -> anyhow::Result<BuildResultInfo> {
-    let pathinfos = store
-        .query_path_infos(&outputs.values().collect::<Vec<_>>())
-        .await;
+    let outputs: BTreeMap<_, _> = output_infos
+        .iter()
+        .map(|(name, vpi)| (name.clone(), vpi.path.clone()))
+        .collect();
     let nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
         store.get_store_dir(),
-        outputs,
+        &outputs,
     ))
     .await?;
 
     let mut build_outputs = vec![];
-    for (name, path) in outputs {
-        build_outputs.push(Output {
-            output: Some(match pathinfos.get(path) {
-                Some(info) => output::Output::Withpath(OutputWithPath {
-                    name: name.to_string(),
-                    closure_size: store.compute_closure_size(path).await,
-                    path: Some(ProtoStorePath::from(path.clone())),
-                    nar_size: info.nar_size,
-                    nar_hash: {
-                        let h: harmonia_utils_hash::Hash = info.nar_hash.into();
-                        Some((&h).into())
-                    },
-                }),
-                None => output::Output::Nameonly(OutputNameOnly {
-                    name: name.to_string(),
-                }),
-            }),
+    for (name, vpi) in output_infos {
+        build_outputs.push(OutputPathInfo {
+            name: name.to_string(),
+            path: Some(ProtoStorePath::from(vpi.path.clone())),
+            closure_size: store.compute_closure_size(&vpi.path).await,
+            nar_size: vpi.info.nar_size,
+            nar_hash: {
+                let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
+                Some((&h).into())
+            },
         });
     }
 
