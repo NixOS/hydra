@@ -162,23 +162,12 @@ message NarData {
   bytes chunk = 1;
 }
 
-message OutputNameOnly {
-  string name = 1;
-}
-
-message OutputWithPath {
+message OutputPathInfo {
   string name = 1;
   nix.store.v1.StorePath path = 2;
   uint64 closure_size = 3;
   uint64 nar_size = 4;
   nix.store.v1.Hash nar_hash = 5;
-}
-
-message Output {
-  oneof output {
-    OutputNameOnly nameonly = 1;
-    OutputWithPath withpath = 2;
-  }
 }
 
 message BuildMetric {
@@ -243,7 +232,7 @@ message BuildResultInfo {
   uint64 upload_time_ms = 5;
   BuildResultState result_state = 6;
   NixSupport nix_support = 7;
-  repeated Output outputs = 8;
+  repeated OutputPathInfo outputs = 8;
 }
 
 message PresignedNarRequest {

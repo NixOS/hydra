@@ -6,6 +6,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let workspace_version = env::var("CARGO_PKG_VERSION")?;
 
+    println!("cargo:rerun-if-changed=../../proto/v1/streaming.proto");
+    println!("cargo:rerun-if-changed=../../proto/v1/store.proto");
+
     let proto_path = "../../proto/v1/streaming.proto";
     let proto_content = fs_err::read_to_string(proto_path)?;
     let mut hasher = sha2::Sha256::new();
