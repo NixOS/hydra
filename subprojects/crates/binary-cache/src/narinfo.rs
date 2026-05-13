@@ -27,49 +27,26 @@ pub fn parse_nar_hash(raw: &str) -> Option<NarHash> {
     parse_hash(raw).and_then(|h| NarHash::try_from(h).ok())
 }
 
-/// Build a `NarInfo` from a `nix_utils::PathInfo`, optionally signing it.
+/// Build a `NarInfo` from a `PathInfo` (`UnkeyedValidPathInfo`), optionally signing it.
 pub fn narinfo_from_path_info(
     path: &StorePath,
-    path_info: nix_utils::PathInfo,
+    path_info: UnkeyedValidPathInfo,
     compression: Compression,
     store_dir: &StoreDir,
     signing_keys: &[secrecy::SecretString],
 ) -> NarInfo {
-    let nar_hash = parse_nar_hash(&path_info.nar_hash)
-        .unwrap_or_else(|| NarHash::from_slice(&[0; 32]).expect("sha256 zero hash"));
-
     let nar_hash_url = {
-        let h: Hash = nar_hash.into();
+        let h: Hash = path_info.nar_hash.into();
         format!("{:#}", h.as_base32())
     };
 
-    let references: BTreeSet<StorePath> = path_info.refs.into_iter().collect();
-    let signatures: BTreeSet<Signature> = path_info
-        .sigs
-        .iter()
-        .filter_map(|s| s.parse().ok())
-        .collect();
-
-    let ca = path_info.ca.as_deref().and_then(|s| s.parse().ok());
-
-    let unkeyed = UnkeyedValidPathInfo {
-        deriver: path_info.deriver,
-        nar_hash,
-        references: references.clone(),
-        registration_time: std::num::NonZero::new(path_info.registration_time),
-        nar_size: path_info.nar_size,
-        ultimate: false,
-        signatures: signatures.clone(),
-        ca,
-        store_dir: store_dir.clone(),
-    };
-
+    let original_signatures = path_info.signatures.clone();
     let url = format!("nar/{}.{}", nar_hash_url, compression.ext());
 
     let mut narinfo = NarInfo {
         path: path.clone(),
         info: UnkeyedNarInfo {
-            info: unkeyed,
+            info: path_info,
             url: Some(url),
             compression: Some(compression.as_str().to_owned()),
             download_hash: None,
@@ -81,8 +58,8 @@ pub fn narinfo_from_path_info(
     narinfo = clear_sigs_and_sign(narinfo, store_dir, signing_keys);
 
     // If signing produced no sigs but path_info had sigs, restore them
-    if narinfo.info.info.signatures.is_empty() && !signatures.is_empty() {
-        narinfo.info.info.signatures = signatures;
+    if narinfo.info.info.signatures.is_empty() && !original_signatures.is_empty() {
+        narinfo.info.info.signatures = original_signatures;
     }
 
     narinfo
@@ -91,40 +68,18 @@ pub fn narinfo_from_path_info(
 /// Build a simple `NarInfo` without signing.
 pub fn narinfo_simple(
     path: &StorePath,
-    path_info: nix_utils::PathInfo,
+    path_info: UnkeyedValidPathInfo,
     compression: Compression,
-    store_dir: &StoreDir,
 ) -> NarInfo {
-    let nar_hash = parse_nar_hash(&path_info.nar_hash)
-        .unwrap_or_else(|| NarHash::from_slice(&[0; 32]).expect("sha256 zero hash"));
-
     let nar_hash_url = {
-        let h: Hash = nar_hash.into();
+        let h: Hash = path_info.nar_hash.into();
         format!("{:#}", h.as_base32())
     };
-
-    let references: BTreeSet<StorePath> = path_info.refs.into_iter().collect();
-    let signatures: BTreeSet<Signature> = path_info
-        .sigs
-        .iter()
-        .filter_map(|s| s.parse().ok())
-        .collect();
-    let ca = path_info.ca.as_deref().and_then(|s| s.parse().ok());
 
     NarInfo {
         path: path.clone(),
         info: UnkeyedNarInfo {
-            info: UnkeyedValidPathInfo {
-                deriver: path_info.deriver,
-                nar_hash,
-                references,
-                registration_time: std::num::NonZero::new(path_info.registration_time),
-                nar_size: path_info.nar_size,
-                ultimate: false,
-                signatures,
-                ca,
-                store_dir: store_dir.clone(),
-            },
+            info: path_info,
             url: Some(format!("nar/{}.{}", nar_hash_url, compression.ext())),
             compression: Some(compression.as_str().to_owned()),
             download_hash: None,

@@ -61,7 +61,7 @@ pub async fn path_to_narinfo(
             path: path.to_string(),
         });
     };
-    let narinfo = narinfo_simple(path, path_info, Compression::None, store.get_store_dir());
+    let narinfo = narinfo_simple(path, path_info, Compression::None);
     let queried_references = store
         .query_path_infos(&narinfo.info.info.references.iter().collect::<Vec<_>>())
         .await;
@@ -784,12 +784,12 @@ impl S3BinaryCacheClient {
     pub async fn generate_nar_upload_presigned_url(
         &self,
         path: &StorePath,
-        nix32_nar_hash: &str,
+        nar_hash: &harmonia_store_path_info::NarHash,
         debug_info_build_ids: Vec<String>,
     ) -> Result<PresignedUploadResponse, CacheError> {
-        let nar_hash_url = nix32_nar_hash
-            .strip_prefix("sha256:")
-            .map_or_else(|| path.hash().to_string(), ToOwned::to_owned);
+        use harmonia_utils_hash::fmt::CommonHash as _;
+        let h: Hash = (*nar_hash).into();
+        let nar_hash_url = format!("{:#}", h.as_base32());
 
         let nar_url = format!("nar/{}.{}", nar_hash_url, self.cfg.compression.ext());
         let url = self

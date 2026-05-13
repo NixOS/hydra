@@ -36,17 +36,19 @@ serde.workspace      = true
 serde_json.workspace = true
 
 harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
 
 gethostname.workspace = true
 nix                   = { workspace = true, features = [ "fs" ] }
 procfs-core.workspace = true
 
-binary-cache.workspace     = true
-hydra-proto                = { workspace = true, features = [ "client" ] }
-hydra-tracing              = { workspace = true, features = [ "tonic" ] }
-nix-support.workspace      = true
-nix-utils.workspace        = true
-store-path-utils.workspace = true
+binary-cache.workspace             = true
+harmonia-store-path-info.workspace = true
+hydra-proto                        = { workspace = true, features = [ "client" ] }
+hydra-tracing                      = { workspace = true, features = [ "tonic" ] }
+nix-support.workspace              = true
+nix-utils.workspace                = true
+store-path-utils.workspace         = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 sysinfo.workspace = true

@@ -687,10 +687,19 @@ impl RunnerService for Server {
         for presigned_request in req.request {
             let store_path = nix_utils::parse_store_path(&presigned_request.store_path);
 
+            let proto_hash = presigned_request
+                .nar_hash
+                .ok_or_else(|| tonic::Status::invalid_argument("missing nar_hash"))?;
+            let hash: harmonia_utils_hash::Hash = proto_hash
+                .try_into()
+                .map_err(|e: &str| tonic::Status::invalid_argument(e))?;
+            let nar_hash: harmonia_store_path_info::NarHash = hash
+                .try_into()
+                .map_err(|_| tonic::Status::invalid_argument("nar_hash is not sha256"))?;
             let presigned_response = remote_store
                 .generate_nar_upload_presigned_url(
                     &store_path,
-                    &presigned_request.nar_hash,
+                    &nar_hash,
                     presigned_request.debug_info_build_ids,
                 )
                 .await

@@ -1319,7 +1319,7 @@ dependencies = [
 [[package]]
 name = "harmonia-file-core"
 version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "serde",
  "serde_json",
@@ -1329,7 +1329,7 @@ dependencies = [
 [[package]]
 name = "harmonia-file-nar"
 version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "bstr",
  "bytes",
@@ -1353,7 +1353,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-aterm"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "harmonia-store-core",
  "harmonia-utils-hash",
@@ -1365,7 +1365,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-core"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1386,7 +1386,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-nar-info"
 version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "harmonia-store-core",
  "harmonia-store-path-info",
@@ -1397,7 +1397,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-path-info"
 version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "harmonia-store-core",
  "harmonia-utils-hash",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1417,7 +1417,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-hash"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1433,7 +1433,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-io"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#586f6c7fed5326d3bc1460284cd70c54007515a4"
+source = "git+https://github.com/nix-community/harmonia.git#a00729d8917d9155e7144c532f867499a89006c6"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1609,6 +1609,8 @@ dependencies = [
  "futures",
  "gethostname",
  "harmonia-store-core",
+ "harmonia-store-path-info",
+ "harmonia-utils-hash",
  "hashbrown 0.16.1",
  "hydra-proto",
  "hydra-tracing",
@@ -1676,6 +1678,7 @@ dependencies = [
  "harmonia-store-core",
  "harmonia-store-nar-info",
  "harmonia-store-path-info",
+ "harmonia-utils-hash",
  "hashbrown 0.16.1",
  "http-body-util",
  "hydra-proto",
@@ -2304,6 +2307,7 @@ dependencies = [
  "futures",
  "harmonia-store-aterm",
  "harmonia-store-core",
+ "harmonia-store-path-info",
  "harmonia-utils-hash",
  "hashbrown 0.16.1",
  "pkg-config",
