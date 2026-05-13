@@ -8,11 +8,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("cargo:rerun-if-changed=../../proto/v1/streaming.proto");
     println!("cargo:rerun-if-changed=../../proto/v1/store.proto");
+    println!("cargo:rerun-if-changed=../../proto/v1/nix-support.proto");
 
-    let proto_path = "../../proto/v1/streaming.proto";
-    let proto_content = fs_err::read_to_string(proto_path)?;
     let mut hasher = sha2::Sha256::new();
-    hasher.update(proto_content.as_bytes());
+    hasher.update(fs_err::read_to_string("../../proto/v1/streaming.proto")?.as_bytes());
+    hasher.update(fs_err::read_to_string("../../proto/v1/nix-support.proto")?.as_bytes());
     let proto_hash = format!("{:x}", hasher.finalize());
     let version = format!("{}-{}", workspace_version, &proto_hash[..8]);
 
@@ -45,6 +45,12 @@ pub const PROTO_API_VERSION: &str = "{version}";
         .build_client(cfg!(feature = "client"))
         .build_server(cfg!(feature = "server"))
         .file_descriptor_set_path(out_dir.join("streaming_descriptor.bin"))
-        .compile_protos(&["../../proto/v1/streaming.proto"], &["../../proto"])?;
+        .compile_protos(
+            &[
+                "../../proto/v1/nix-support.proto",
+                "../../proto/v1/streaming.proto",
+            ],
+            &["../../proto"],
+        )?;
     Ok(())
 }

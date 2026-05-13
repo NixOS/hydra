@@ -262,9 +262,9 @@ impl Connection {
         &mut self,
         build_id: i32,
         store_dir: &StoreDir,
-    ) -> anyhow::Result<Vec<crate::models::OwnedBuildProduct>> {
+    ) -> anyhow::Result<Vec<nix_support::BuildProduct>> {
         let rows = sqlx::query_as!(
-            crate::models::OwnedBuildProduct::<String>,
+            crate::models::BuildProductRow,
             r#"
             SELECT
               type,
@@ -281,15 +281,15 @@ impl Connection {
         .fetch_all(&mut *self.conn)
         .await?;
         rows.into_iter()
-            .map(|r| Ok(r.parse_path(store_dir)?))
+            .map(|r| Ok(r.into_build_product(store_dir)?))
             .collect()
     }
 
     pub async fn get_build_metrics_for_build_id(
         &mut self,
         build_id: i32,
-    ) -> sqlx::Result<Vec<crate::models::OwnedBuildMetric>> {
-        sqlx::query_as!(
+    ) -> sqlx::Result<Vec<(nix_support::BuildMetricName, nix_support::BuildMetric)>> {
+        let rows = sqlx::query_as!(
             crate::models::OwnedBuildMetric,
             r#"
             SELECT
@@ -299,7 +299,8 @@ impl Connection {
             build_id
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Resolve output paths for derivation chains via `buildstepoutputs`.
@@ -841,7 +842,10 @@ impl Transaction<'_> {
             p.r#type,
             p.subtype,
             p.file_size,
-            p.sha256hash,
+            p.sha256hash.map(|h| {
+                let bytes: &[u8] = h.as_ref();
+                bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+            }) as Option<String>,
             p.path,
             p.name,
             p.default_path,
@@ -1148,26 +1152,27 @@ impl Transaction<'_> {
         self.delete_build_products_by_build_id(build.id).await?;
 
         for (nr, p) in build.products.iter().enumerate() {
+            let path_str = p.path.print(store_dir);
             self.insert_build_product(InsertBuildProduct {
                 build_id: build.id,
                 product_nr: i32::try_from(nr + 1)?,
-                r#type: p.r#type,
-                subtype: p.subtype,
-                file_size: p.filesize,
-                sha256hash: p.sha256hash,
-                path: p.path.as_deref().unwrap_or_default(),
-                name: p.name,
-                default_path: p.defaultpath.unwrap_or_default(),
+                r#type: &p.r#type,
+                subtype: &p.subtype,
+                file_size: p.file_size.and_then(|s| i64::try_from(s).ok()),
+                sha256hash: p.sha256hash.as_ref(),
+                path: &path_str,
+                name: &p.name,
+                default_path: &p.default_path,
             })
             .await?;
         }
 
         self.delete_build_metrics_by_build_id(build.id).await?;
-        for m in &build.metrics {
+        for (name, m) in &build.metrics {
             self.insert_build_metric(InsertBuildMetric {
                 build_id: build.id,
-                name: m.name,
-                unit: m.unit,
+                name,
+                unit: m.unit.as_deref(),
                 value: m.value,
                 project: build.project_name,
                 jobset: build.jobset_name,

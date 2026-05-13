@@ -15,6 +15,7 @@ tonic.workspace                    = true
 tonic-prost.workspace              = true
 
 db                         = { workspace = true, optional = true }
+nix-support.workspace      = true
 store-path-utils.workspace = true
 
 [features]

@@ -1,6 +1,6 @@
 [package]
 name                   = "nix-support"
-version                = "0.1.0"
+version.workspace      = true
 edition                = "2024"
 license                = "GPL-3.0"
 rust-version.workspace = true
@@ -14,3 +14,5 @@ tokio             = { workspace = true, features = [ "full" ] }
 tracing.workspace = true
 
 harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
+store-path-utils.workspace    = true

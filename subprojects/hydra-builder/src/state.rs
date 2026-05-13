@@ -16,9 +16,8 @@ use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    AbortMessage, BuildMessage, BuildMetric, BuildProduct, BuildResultInfo, BuildResultState,
-    FetchRequisitesRequest, JoinMessage, NarData, NixSupport, OutputPathInfo, PingMessage,
-    StepStatus, StepUpdate, StorePaths,
+    AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, FetchRequisitesRequest,
+    JoinMessage, NarData, OutputInfo, PingMessage, StepStatus, StepUpdate, StorePaths,
 };
 use nix_utils::BaseStore as _;
 
@@ -306,8 +305,7 @@ impl State {
                             upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())
                                 .unwrap_or_default(),
                             result_state: BuildResultState::from(e) as i32,
-                            nix_support: None,
-                            outputs: vec![],
+                            output_infos: std::collections::HashMap::new(),
                         };
 
                         if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
@@ -1138,24 +1136,36 @@ async fn new_success_build_result_info(
         .iter()
         .map(|(name, vpi)| (name.clone(), vpi.path.clone()))
         .collect();
-    let nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
+    let fs = nix_support::FilesystemOperations {
+        real_store_dir: store.get_store_dir().to_path().to_owned(),
+    };
+    let per_output_nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
         store.get_store_dir(),
+        store.get_store_dir().to_path(),
+        &fs,
         &outputs,
     ))
     .await?;
 
-    let mut build_outputs = vec![];
+    let mut result_infos = std::collections::HashMap::new();
     for (name, vpi) in output_infos {
-        build_outputs.push(OutputPathInfo {
-            name: name.to_string(),
-            path: Some(ProtoStorePath::from(vpi.path.clone())),
-            closure_size: store.compute_closure_size(&vpi.path).await,
-            nar_size: vpi.info.nar_size,
-            nar_hash: {
-                let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
-                Some((&h).into())
+        let ns = per_output_nix_support
+            .get(name)
+            .cloned()
+            .unwrap_or_default();
+        result_infos.insert(
+            name.to_string(),
+            OutputInfo {
+                path: Some(ProtoStorePath::from(vpi.path.clone())),
+                closure_size: store.compute_closure_size(&vpi.path).await,
+                nar_size: vpi.info.nar_size,
+                nar_hash: {
+                    let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
+                    Some((&h).into())
+                },
+                nix_support: Some(ns.into()),
             },
-        });
+        );
     }
 
     Ok(BuildResultInfo {
@@ -1165,38 +1175,6 @@ async fn new_success_build_result_info(
         build_time_ms: u64::try_from(timings.build_elapsed.as_millis())?,
         upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())?,
         result_state: BuildResultState::Success as i32,
-        outputs: build_outputs,
-        nix_support: Some(NixSupport {
-            metrics: nix_support
-                .metrics
-                .into_iter()
-                .map(|m| BuildMetric {
-                    path: m.path,
-                    name: m.name,
-                    unit: m.unit,
-                    value: m.value,
-                })
-                .collect(),
-            failed: nix_support.failed,
-            hydra_release_name: nix_support.hydra_release_name,
-            products: nix_support
-                .products
-                .into_iter()
-                .map(|p| {
-                    let rel =
-                        store_path_utils::RelativeStorePath::from_path(store.store_dir(), &p.path)?;
-                    Ok(BuildProduct {
-                        path: Some((&rel).into()),
-                        default_path: p.default_path,
-                        r#type: p.r#type,
-                        subtype: p.subtype,
-                        name: p.name,
-                        is_regular: p.is_regular,
-                        sha256hash: p.sha256hash,
-                        file_size: p.file_size,
-                    })
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?,
-        }),
+        output_infos: result_infos,
     })
 }

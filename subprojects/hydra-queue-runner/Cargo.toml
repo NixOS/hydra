@@ -62,7 +62,6 @@ hydra-proto                        = { workspace = true, features = [ "db", "ser
 hydra-tracing                      = { workspace = true, features = [ "tonic" ] }
 nix-support.workspace              = true
 nix-utils.workspace                = true
-store-path-utils.workspace         = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true

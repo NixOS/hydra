@@ -9,7 +9,9 @@ rust-version.workspace = true
 anyhow.workspace              = true
 futures.workspace             = true
 harmonia-store-core.workspace = true
+harmonia-utils-hash.workspace = true
 hashbrown.workspace           = true
+nix-support.workspace         = true
 store-path-utils.workspace    = true
 tracing.workspace             = true
 

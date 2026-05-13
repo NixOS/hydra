@@ -1,5 +1,5 @@
 use super::*;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use harmonia_store_core::signature::Signature;
 use harmonia_store_core::store_path::{ContentAddress, StoreDir, StorePath};
@@ -219,4 +219,102 @@ fn narinfo_missing_info_fails() {
     };
     let result: Result<harmonia_store_nar_info::NarInfo, _> = proto.try_into();
     assert!(result.is_err());
+}
+
+// -- NixSupport round-trips --
+
+fn owned_roundtrip<A, B>(original: A) -> A
+where
+    A: Clone + Into<B>,
+    B: TryInto<A>,
+    <B as TryInto<A>>::Error: std::fmt::Debug,
+{
+    let proto: B = original.clone().into();
+    proto.try_into().unwrap()
+}
+
+#[test]
+fn build_product_roundtrip() {
+    let bp = nix_support::BuildProduct {
+        path: store_path_utils::RelativeStorePath {
+            base_path: test_path(),
+            relative_path: "bin/hello".into(),
+        },
+        default_path: "bin/hello".into(),
+        r#type: "doc".into(),
+        subtype: "readme".into(),
+        name: "README.md".into(),
+        is_regular: true,
+        sha256hash: Some(Sha256::from_slice(&[0xab; 32]).unwrap()),
+        file_size: Some(1024),
+    };
+    assert_eq!(
+        owned_roundtrip::<nix_support::BuildProduct, BuildProduct>(bp.clone()),
+        bp
+    );
+}
+
+#[test]
+fn build_product_roundtrip_no_hash() {
+    let bp = nix_support::BuildProduct {
+        path: store_path_utils::RelativeStorePath {
+            base_path: test_path(),
+            relative_path: "".into(),
+        },
+        default_path: String::new(),
+        r#type: "nix-build".into(),
+        subtype: "out-path".into(),
+        name: "output".into(),
+        is_regular: false,
+        sha256hash: None,
+        file_size: None,
+    };
+    assert_eq!(
+        owned_roundtrip::<nix_support::BuildProduct, BuildProduct>(bp.clone()),
+        bp
+    );
+}
+
+#[test]
+fn build_metric_roundtrip() {
+    let bm = nix_support::BuildMetric {
+        unit: Some("seconds".into()),
+        value: 42.5,
+    };
+    assert_eq!(
+        owned_roundtrip::<nix_support::BuildMetric, BuildMetric>(bm.clone()),
+        bm
+    );
+}
+
+#[test]
+fn nix_support_roundtrip() {
+    let ns = nix_support::NixSupport {
+        failed: false,
+        hydra_release_name: Some("hello-1.0".into()),
+        metrics: BTreeMap::from([(
+            "build_time".into(),
+            nix_support::BuildMetric {
+                unit: Some("seconds".into()),
+                value: 42.5,
+            },
+        )]),
+        products: vec![nix_support::BuildProduct {
+            path: store_path_utils::RelativeStorePath {
+                base_path: test_path(),
+                relative_path: "bin/hello".into(),
+            },
+            default_path: "bin/hello".into(),
+            r#type: "doc".into(),
+            subtype: "readme".into(),
+            name: "README.md".into(),
+            is_regular: true,
+            sha256hash: Some(Sha256::from_slice(&[0xab; 32]).unwrap()),
+            file_size: Some(1024),
+        }],
+    };
+    assert_eq!(
+        owned_roundtrip::<nix_support::NixSupport, NixSupport>(ns.clone()),
+        ns
+    );
 }

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use harmonia_store_core::derived_path::OutputName;
 use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 use hashbrown::HashMap;
@@ -194,20 +196,20 @@ pub struct UpdateBuildStepInFinish<'a> {
 }
 
 #[derive(Debug)]
-pub struct InsertBuildProduct<'a> {
+pub(crate) struct InsertBuildProduct<'a> {
     pub build_id: BuildID,
     pub product_nr: i32,
     pub r#type: &'a str,
     pub subtype: &'a str,
     pub file_size: Option<i64>,
-    pub sha256hash: Option<&'a str>,
+    pub sha256hash: Option<&'a harmonia_utils_hash::Sha256>,
     pub path: &'a str,
     pub name: &'a str,
     pub default_path: &'a str,
 }
 
 #[derive(Debug)]
-pub struct InsertBuildMetric<'a> {
+pub(crate) struct InsertBuildMetric<'a> {
     pub build_id: BuildID,
     pub name: &'a str,
     pub unit: Option<&'a str>,
@@ -233,62 +235,70 @@ pub struct BuildOutput {
 /// a store output (e.g. `doc manual $doc/share/doc/nix/manual index.html`).
 /// The type parameter `Path` controls how that column is represented:
 ///
-/// - `String` — raw DB value, used by `sqlx::query_as!`.
-/// - `RelativeStorePath` — parsed store path + relative suffix (default).
+/// Raw DB row for build products. Column names match the SQL schema.
+/// Use [`BuildProductRow::into_build_product`] to convert to the typed
+/// [`nix_support::BuildProduct`].
 #[derive(Debug)]
-pub struct OwnedBuildProduct<Path = store_path_utils::RelativeStorePath> {
+pub(crate) struct BuildProductRow {
     pub r#type: String,
     pub subtype: String,
     pub filesize: Option<i64>,
     pub sha256hash: Option<String>,
-    pub path: Option<Path>,
+    pub path: Option<String>,
     pub name: String,
     pub defaultpath: Option<String>,
 }
 
-impl OwnedBuildProduct<String> {
-    pub fn parse_path(
+impl BuildProductRow {
+    pub(crate) fn into_build_product(
         self,
         store_dir: &StoreDir,
-    ) -> Result<OwnedBuildProduct, ParseStorePathError> {
-        Ok(OwnedBuildProduct {
+    ) -> anyhow::Result<nix_support::BuildProduct> {
+        let path_str = self
+            .path
+            .ok_or_else(|| anyhow::anyhow!("build product has no path"))?;
+        let path = store_path_utils::RelativeStorePath::from_path(store_dir, &path_str)?;
+        let sha256hash = self.sha256hash.and_then(|s| {
+            let mut bytes = [0u8; 32];
+            if s.len() != 64 {
+                return None;
+            }
+            for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
+                bytes[i] = u8::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?;
+            }
+            harmonia_utils_hash::Sha256::from_slice(&bytes).ok()
+        });
+        Ok(nix_support::BuildProduct {
+            path,
+            default_path: self.defaultpath.unwrap_or_default(),
             r#type: self.r#type,
             subtype: self.subtype,
-            filesize: self.filesize,
-            sha256hash: self.sha256hash,
-            path: self
-                .path
-                .map(|p| store_path_utils::RelativeStorePath::from_path(store_dir, &p))
-                .transpose()?,
             name: self.name,
-            defaultpath: self.defaultpath,
+            is_regular: self.filesize.is_some(),
+            #[allow(clippy::cast_sign_loss)]
+            file_size: self.filesize.map(|v| v as u64),
+            sha256hash,
         })
     }
 }
 
 #[derive(Debug)]
-pub struct BuildProduct<'a> {
-    pub r#type: &'a str,
-    pub subtype: &'a str,
-    pub filesize: Option<i64>,
-    pub sha256hash: Option<&'a str>,
-    pub path: Option<String>,
-    pub name: &'a str,
-    pub defaultpath: Option<&'a str>,
-}
-
-#[derive(Debug)]
-pub struct OwnedBuildMetric {
+pub(crate) struct OwnedBuildMetric {
     pub name: String,
     pub unit: Option<String>,
     pub value: f64,
 }
 
-#[derive(Debug)]
-pub struct BuildMetric<'a> {
-    pub name: &'a str,
-    pub unit: Option<&'a str>,
-    pub value: f64,
+impl From<OwnedBuildMetric> for (nix_support::BuildMetricName, nix_support::BuildMetric) {
+    fn from(m: OwnedBuildMetric) -> Self {
+        (
+            m.name,
+            nix_support::BuildMetric {
+                unit: m.unit,
+                value: m.value,
+            },
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -305,6 +315,96 @@ pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_core::store_path:
     pub size: u64,
     pub release_name: Option<&'a str>,
     pub outputs: HashMap<OutputName, StorePath>,
-    pub products: Vec<BuildProduct<'a>>,
-    pub metrics: Vec<BuildMetric<'a>>,
+    pub products: Vec<nix_support::BuildProduct>,
+    pub metrics: BTreeMap<nix_support::BuildMetricName, nix_support::BuildMetric>,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn make_row(path: Option<&str>) -> BuildProductRow {
+        BuildProductRow {
+            r#type: "doc".into(),
+            subtype: "manual".into(),
+            filesize: None,
+            sha256hash: None,
+            path: path.map(Into::into),
+            name: "test-product".into(),
+            defaultpath: Some("index.html".into()),
+        }
+    }
+
+    #[test]
+    fn into_build_product_subpath() {
+        let store_dir = StoreDir::default();
+        let bp = make_row(Some(
+            "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+        ))
+        .into_build_product(&store_dir)
+        .unwrap();
+
+        assert_eq!(
+            bp.path.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*bp.path.relative_path, "share/doc/nix/manual");
+    }
+
+    #[test]
+    fn into_build_product_bare_store_path() {
+        let store_dir = StoreDir::default();
+        let bp = make_row(Some(
+            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+        ))
+        .into_build_product(&store_dir)
+        .unwrap();
+
+        assert_eq!(
+            bp.path.base_path.to_string(),
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
+        );
+        assert!(bp.path.relative_path.is_empty());
+    }
+
+    #[test]
+    fn into_build_product_no_path_errors() {
+        let store_dir = StoreDir::default();
+        let result = make_row(None).into_build_product(&store_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn into_build_product_sha256_roundtrip() {
+        let store_dir = StoreDir::default();
+        let bp = BuildProductRow {
+            sha256hash: Some(
+                "4306152c73d2a7a01dbac16ba48f45fa4ae5b746a1d282638524ae2ae93af210".into(),
+            ),
+            filesize: Some(12345),
+            ..make_row(Some(
+                "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
+            ))
+        }
+        .into_build_product(&store_dir)
+        .unwrap();
+
+        assert!(bp.sha256hash.is_some());
+        assert_eq!(bp.file_size, Some(12345));
+        assert!(bp.is_regular);
+    }
+
+    #[test]
+    fn build_metric_from_db() {
+        let owned = OwnedBuildMetric {
+            name: "closureSize".into(),
+            unit: Some("bytes".into()),
+            value: 145623040.0,
+        };
+        let (name, metric): (nix_support::BuildMetricName, nix_support::BuildMetric) = owned.into();
+        assert_eq!(name, "closureSize");
+        assert_eq!(metric.unit, Some("bytes".into()));
+        assert!((metric.value - 145623040.0).abs() < f64::EPSILON);
+    }
 }

@@ -8,9 +8,8 @@ use hashbrown::{HashMap, HashSet};
 use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
 use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_core::store_path::StorePath;
 use nix_utils::BaseStore as _;
-use store_path_utils::RelativeStorePath;
 
 pub(super) type AtomicBuildID = AtomicI32;
 
@@ -333,84 +332,7 @@ impl RemoteBuild {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BuildProduct {
-    pub path: Option<RelativeStorePath>,
-    pub default_path: Option<String>,
-
-    pub r#type: String,
-    pub subtype: String,
-    pub name: String,
-
-    pub is_regular: bool,
-
-    pub sha256hash: Option<String>,
-    pub file_size: Option<u64>,
-}
-
-impl BuildProduct {
-    pub fn from_db(v: db::models::OwnedBuildProduct) -> Self {
-        Self {
-            path: v.path,
-            default_path: v.defaultpath,
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.filesize.is_some(),
-            sha256hash: v.sha256hash,
-            #[allow(clippy::cast_sign_loss)]
-            file_size: v.filesize.map(|v| v as u64),
-        }
-    }
-
-    pub fn from_grpc(v: hydra_proto::BuildProduct) -> anyhow::Result<Self> {
-        let path = v
-            .path
-            .ok_or_else(|| anyhow::anyhow!("BuildProduct missing path"))?
-            .try_into()
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
-        Ok(Self {
-            path: Some(path),
-            default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
-        })
-    }
-
-    pub fn from_shared(store_dir: &StoreDir, v: nix_support::BuildProduct) -> anyhow::Result<Self> {
-        Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
-            default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BuildMetric {
-    pub name: String,
-    pub unit: Option<String>,
-    pub value: f64,
-}
-
-impl From<db::models::OwnedBuildMetric> for BuildMetric {
-    fn from(v: db::models::OwnedBuildMetric) -> Self {
-        Self {
-            name: v.name,
-            unit: v.unit,
-            value: v.value,
-        }
-    }
-}
+pub(crate) use nix_support::{BuildMetric, BuildProduct};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BuildTimings {
@@ -446,7 +368,7 @@ pub struct BuildOutput {
 
     pub products: Vec<BuildProduct>,
     pub outputs: BTreeMap<OutputName, StorePath>,
-    pub metrics: Vec<BuildMetric>,
+    pub metrics: BTreeMap<String, BuildMetric>,
 }
 
 impl TryFrom<db::models::BuildOutput> for BuildOutput {
@@ -468,7 +390,7 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
             size: v.size.unwrap_or_default() as u64,
             products: vec![],
             outputs: BTreeMap::new(),
-            metrics: Vec::with_capacity(10),
+            metrics: BTreeMap::new(),
         })
     }
 }
@@ -478,46 +400,31 @@ impl BuildOutput {
         let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
+        let mut merged = nix_support::NixSupport::default();
 
-        for o in v.outputs {
-            let path = o
+        for (name, info) in v.output_infos {
+            let path = info
                 .path
                 .ok_or_else(|| anyhow::anyhow!("output missing path"))?
                 .0;
-            outputs.insert(o.name.parse()?, path);
-            closure_size += o.closure_size;
-            nar_size += o.nar_size;
+            closure_size += info.closure_size;
+            nar_size += info.nar_size;
+            outputs.insert(name.parse()?, path);
+            if let Some(ns) = info.nix_support {
+                let ns: nix_support::NixSupport = ns.into();
+                merged.combine(ns);
+            }
         }
-        let (failed, release_name, products, metrics) = if let Some(nix_support) = v.nix_support {
-            (
-                nix_support.failed,
-                nix_support.hydra_release_name,
-                nix_support.products,
-                nix_support.metrics,
-            )
-        } else {
-            (false, None, vec![], vec![])
-        };
 
         Ok(Self {
-            failed,
+            failed: merged.failed,
             timings: BuildTimings::new(v.import_time_ms, v.build_time_ms, v.upload_time_ms),
-            release_name,
+            release_name: merged.hydra_release_name,
             closure_size,
             size: nar_size,
-            products: products
-                .into_iter()
-                .map(BuildProduct::from_grpc)
-                .collect::<anyhow::Result<Vec<_>>>()?,
+            products: merged.products,
             outputs,
-            metrics: metrics
-                .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
-                })
-                .collect(),
+            metrics: merged.metrics,
         })
     }
 }
@@ -535,11 +442,21 @@ impl BuildOutput {
         let pathinfos = store
             .query_path_infos(&resolved.values().collect::<Vec<_>>())
             .await;
-        let nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
+        let fs = nix_support::FilesystemOperations {
+            real_store_dir: store.get_store_dir().to_path().to_owned(),
+        };
+        let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
             store.get_store_dir(),
+            store.get_store_dir().to_path(),
+            &fs,
             &resolved,
         ))
         .await?;
+
+        let mut merged = nix_support::NixSupport::default();
+        for ns in per_output.into_values() {
+            merged.combine(ns);
+        }
 
         let mut outputs_map = BTreeMap::new();
         let mut closure_size = 0;
@@ -554,32 +471,19 @@ impl BuildOutput {
         }
 
         Ok(Self {
-            failed: nix_support.failed,
+            failed: merged.failed,
             timings: BuildTimings::default(),
-            release_name: nix_support.hydra_release_name,
+            release_name: merged.hydra_release_name,
             closure_size,
             size: nar_size,
-            products: nix_support
-                .products
-                .into_iter()
-                .map(|p| BuildProduct::from_shared(store.store_dir(), p))
-                .collect::<anyhow::Result<Vec<_>>>()?,
+            products: merged.products,
             outputs: outputs_map,
-            metrics: nix_support
-                .metrics
-                .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
-                })
-                .collect(),
+            metrics: merged.metrics,
         })
     }
 }
 
 pub(super) fn get_mark_build_sccuess_data<'a>(
-    store: &nix_utils::LocalStore,
     b: &'a Arc<Build>,
     res: &'a BuildOutput,
 ) -> db::models::MarkBuildSuccessData<'a> {
@@ -599,28 +503,8 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
             .iter()
             .map(|(name, path)| (name.clone(), path.clone()))
             .collect(),
-        products: res
-            .products
-            .iter()
-            .map(|v| db::models::BuildProduct {
-                r#type: &v.r#type,
-                subtype: &v.subtype,
-                filesize: v.file_size.and_then(|v| i64::try_from(v).ok()),
-                sha256hash: v.sha256hash.as_deref(),
-                path: v.path.as_ref().map(|p| p.print(store.store_dir())),
-                name: &v.name,
-                defaultpath: v.default_path.as_deref(),
-            })
-            .collect(),
-        metrics: res
-            .metrics
-            .iter()
-            .map(|m| db::models::BuildMetric {
-                name: &m.name,
-                unit: m.unit.as_deref(),
-                value: m.value,
-            })
-            .collect(),
+        products: res.products.clone(),
+        metrics: res.metrics.clone(),
     }
 }
 
@@ -686,64 +570,5 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::*;
-
-    /// Helper to construct a parsed `OwnedBuildProduct` with a given path,
-    /// leaving other fields at harmless defaults.
-    fn make_db_product(path: Option<(&str, &str)>) -> db::models::OwnedBuildProduct {
-        db::models::OwnedBuildProduct {
-            r#type: "doc".into(),
-            subtype: "manual".into(),
-            filesize: None,
-            sha256hash: None,
-            path: path.map(|(base, rel)| RelativeStorePath {
-                base_path: StorePath::from_base_path(base).unwrap(),
-                relative_path: rel.into(),
-            }),
-            name: "test-product".into(),
-            defaultpath: Some("index.html".into()),
-        }
-    }
-
-    #[test]
-    fn from_db_subpath_product() {
-        let bp = BuildProduct::from_db(make_db_product(Some((
-            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4",
-            "share/doc/nix/manual",
-        ))));
-
-        let rel = bp.path.expect("path must be Some");
-        assert_eq!(
-            rel.base_path.to_string(),
-            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
-        );
-        assert_eq!(&*rel.relative_path, "share/doc/nix/manual");
-    }
-
-    #[test]
-    fn from_db_bare_store_path() {
-        let bp = BuildProduct::from_db(make_db_product(Some((
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
-            "",
-        ))));
-
-        let rel = bp.path.expect("path must be Some");
-        assert_eq!(
-            rel.base_path.to_string(),
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"
-        );
-        assert!(rel.relative_path.is_empty());
-    }
-
-    #[test]
-    fn from_db_handles_none_path() {
-        let bp = BuildProduct::from_db(make_db_product(None));
-        assert!(bp.path.is_none());
     }
 }
