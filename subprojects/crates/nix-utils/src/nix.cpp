@@ -11,12 +11,12 @@
 #include <nix/store/store-api.hh>
 #include <nix/store/store-open.hh>
 
-#include "nix/store/export-import.hh"
 #include <nix/main/shared.hh>
 #include <nix/store/binary-cache-store.hh>
 #include <nix/store/globals.hh>
 #include <nix/store/s3-binary-cache-store.hh>
 #include <nix/util/nar-accessor.hh>
+#include <nix/util/signature/local-keys.hh>
 
 #include <nlohmann/json.hpp>
 
@@ -216,62 +216,64 @@ void copy_paths(const StoreWrapper &src_store, const StoreWrapper &dst_store,
                  substitute ? nix::Substitute : nix::NoSubstitute);
 }
 
-void import_paths(
-    const StoreWrapper &wrapper, bool check_sigs, size_t runtime, size_t reader,
+static nix::ValidPathInfo
+reconstruct_vpi(nix::ref<nix::Store> store, rust::Str path,
+                const InternalPathInfo &info) {
+  auto storePath = store->parseStorePath(AS_VIEW(path));
+
+  nix::Hash narHash(nix::HashAlgorithm::SHA256);
+  if (info.nar_hash.size() != narHash.hashSize) {
+    throw nix::Error("nar hash has wrong size: %d (expected %d)",
+                     info.nar_hash.size(), narHash.hashSize);
+  }
+  memcpy(narHash.hash, info.nar_hash.data(), narHash.hashSize);
+
+  nix::UnkeyedValidPathInfo upi(std::string(store->storeDir), narHash);
+  upi.narSize = info.nar_size;
+  upi.registrationTime = info.registration_time;
+
+  if (!info.deriver.empty()) {
+    upi.deriver = nix::StorePath(AS_VIEW(info.deriver));
+  }
+  for (const auto &r : info.refs) {
+    upi.references.insert(nix::StorePath(AS_VIEW(r)));
+  }
+  for (const auto &sig : info.sigs) {
+    upi.sigs.insert(nix::Signature::parse(AS_VIEW(sig)));
+  }
+  upi.ca = nix::ContentAddress::parseOpt(AS_VIEW(info.ca));
+
+  return nix::ValidPathInfo(storePath, std::move(upi));
+}
+
+void add_multiple_to_store(
+    const StoreWrapper &wrapper, rust::Slice<const rust::Str> paths,
+    const rust::Vec<InternalPathInfo> &infos, bool check_sigs,
+    size_t runtime, size_t reader,
     rust::Fn<size_t(rust::Slice<uint8_t>, size_t, size_t, size_t)> callback,
     size_t user_data) {
+  auto store = wrapper._store;
+
   nix::LambdaSource source([=](char *out, size_t out_len) {
     auto data = rust::Slice<uint8_t>((uint8_t *)out, out_len);
     size_t ret = (*callback)(data, runtime, reader, user_data);
     if (!ret) {
-      throw nix::EndOfFile("End of stream reached");
+      throw nix::EndOfFile("End of NAR stream");
     }
     return ret;
   });
 
-  auto store = wrapper._store;
-  auto paths = nix::importPaths(*store, source,
-                                check_sigs ? nix::CheckSigs : nix::NoCheckSigs);
-}
-
-void import_paths_with_fd(const StoreWrapper &wrapper, bool check_sigs,
-                          int32_t fd) {
-  nix::FdSource source(fd);
-
-  auto store = wrapper._store;
-  nix::importPaths(*store, source,
-                   check_sigs ? nix::CheckSigs : nix::NoCheckSigs);
+  for (size_t i = 0; i < paths.size(); i++) {
+    auto vpi = reconstruct_vpi(store, paths[i], infos[i]);
+    store->addToStore(vpi, source, nix::NoRepair,
+                      check_sigs ? nix::CheckSigs : nix::NoCheckSigs);
+  }
 }
 
 class StopExport : public std::exception {
 public:
   const char *what() { return "Stop exporting nar"; }
 };
-
-void export_paths(const StoreWrapper &wrapper,
-                  rust::Slice<const rust::Str> paths,
-                  rust::Fn<bool(rust::Slice<const uint8_t>, size_t)> callback,
-                  size_t user_data) {
-  nix::LambdaSink sink([=](std::string_view v) {
-    auto data = rust::Slice<const uint8_t>((const uint8_t *)v.data(), v.size());
-    bool ret = (*callback)(data, user_data);
-    if (!ret) {
-      throw StopExport();
-    }
-  });
-
-  auto store = wrapper._store;
-  nix::StorePathSet path_set;
-  for (auto &path : paths) {
-    path_set.insert(store->followLinksToStorePath(AS_VIEW(path)));
-  }
-  try {
-    nix::exportPaths(*store, path_set, sink);
-  } catch (StopExport &e) {
-    // Intentionally do nothing. We're only using the exception as a
-    // short-circuiting mechanism.
-  }
-}
 
 void nar_from_path(const StoreWrapper &wrapper, rust::Str path,
                    rust::Fn<bool(rust::Slice<const uint8_t>, size_t)> callback,

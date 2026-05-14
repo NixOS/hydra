@@ -9,10 +9,9 @@ use tracing::Instrument as _;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, NarData, PROTO_API_VERSION,
+    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, PROTO_API_VERSION,
     PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StepUpdate, StorePaths, VersionCheckRequest, VersionCheckResponse,
-    builder_request,
+    SimplePingMessage, StepUpdate, VersionCheckRequest, VersionCheckResponse, builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
 use nix_utils::BaseStore as _;
@@ -20,59 +19,10 @@ use nix_utils::BaseStore as _;
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<RunnerRequest, tonic::Status>> + Send>>;
-type StreamFileResponseStream =
-    std::pin::Pin<Box<dyn futures::Stream<Item = Result<NarData, tonic::Status>> + Send>>;
-
-type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
+type FetchPathsResponseStream = std::pin::Pin<
+    Box<dyn futures::Stream<Item = Result<hydra_proto::AddToStoreRequest, tonic::Status>> + Send>,
+>;
 type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
-
-const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
-
-fn decode_stream<S>(
-    stream: S,
-) -> impl tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
-where
-    S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
-{
-    let reader = tokio_util::io::StreamReader::new(stream);
-    let decoder = CompressionDecoder::new(reader);
-    tokio_util::io::ReaderStream::new(decoder)
-}
-
-fn compression_encode_channel() -> (
-    tokio::io::DuplexStream,
-    mpsc::UnboundedReceiver<Result<NarData, tonic::Status>>,
-) {
-    let (raw_writer, raw_reader) = tokio::io::duplex(DUPLEX_BUFFER_SIZE);
-    let (tx, rx) = mpsc::unbounded_channel();
-
-    tokio::task::spawn(async move {
-        use tokio_stream::StreamExt as _;
-        let encoder = CompressionEncoder::new(tokio::io::BufReader::new(raw_reader));
-        let mut stream = tokio_util::io::ReaderStream::new(encoder);
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    if tx
-                        .send(Ok(NarData {
-                            chunk: bytes.into(),
-                        }))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to compress chunk: {e}");
-                    let _ = tx.send(Err(tonic::Status::internal("Compression error")));
-                    break;
-                }
-            }
-        }
-    });
-
-    (raw_writer, rx)
-}
 
 // there is no reason to make this configurable, it only exists so we ensure the channel is not
 // closed. we dont use this to write any actual information.
@@ -233,8 +183,7 @@ impl Server {
 #[tonic::async_trait]
 impl RunnerService for Server {
     type OpenTunnelStream = OpenTunnelResponseStream;
-    type StreamFileStream = StreamFileResponseStream;
-    type StreamFilesStream = StreamFileResponseStream;
+    type FetchPathsStream = FetchPathsResponseStream;
 
     #[tracing::instrument(skip(self, req), err)]
     async fn check_version(
@@ -441,23 +390,15 @@ impl RunnerService for Server {
     #[tracing::instrument(skip(self, req), err)]
     async fn build_result(
         &self,
-        req: tonic::Request<tonic::Streaming<NarData>>,
+        req: tonic::Request<tonic::Streaming<hydra_proto::AddToStoreRequest>>,
     ) -> BuilderResult<hydra_proto::Empty> {
-        let stream = req.into_inner();
-
         // We leak memory if we use the store from state, so we open and close a new
         // connection for each import. This sucks but using the state.store will result in the path
         // not being closed!
-        {
-            let data_stream = tokio_stream::StreamExt::map(stream, |s| {
-                s.map(|v| bytes::Bytes::from(v.chunk))
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
-            });
-
-            let store = nix_utils::LocalStore::init();
-            store.import_paths(decode_stream(data_stream), false).await
-        }
-        .map_err(|_| tonic::Status::internal("Failed to import path."))?;
+        let store = nix_utils::LocalStore::init();
+        store_transfer::import::import(&store, req.into_inner())
+            .await
+            .map_err(|e| tonic::Status::internal(format!("import error: {e}")))?;
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
@@ -596,51 +537,28 @@ impl RunnerService for Server {
     }
 
     #[tracing::instrument(skip(self, req), err)]
-    async fn stream_file(
+    async fn fetch_paths(
         &self,
-        req: tonic::Request<ProtoStorePath>,
-    ) -> BuilderResult<Self::StreamFileStream> {
-        let path = req.into_inner().0;
-        let (raw_writer, rx) = compression_encode_channel();
+        req: tonic::Request<hydra_proto::StorePaths>,
+    ) -> BuilderResult<Self::FetchPathsStream> {
+        let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
+
+        let infos = self
+            .state
+            .store
+            .query_path_infos(&paths.iter().collect::<Vec<_>>())
+            .await;
+
+        let (tx, rx) = mpsc::unbounded_channel();
 
         tokio::task::spawn_blocking(move || {
             let store = nix_utils::LocalStore::init();
-            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
-            let closure = move |data: &[u8]| {
-                use std::io::Write;
-                sync_writer.write_all(data).is_ok()
-            };
-            let _ = store.export_paths(&[path], closure);
+            store_transfer::export::export(&store, &paths, &infos, &tx);
         });
 
         Ok(tonic::Response::new(
             Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
-                as Self::StreamFileStream,
-        ))
-    }
-
-    #[tracing::instrument(skip(self, req), err)]
-    async fn stream_files(
-        &self,
-        req: tonic::Request<StorePaths>,
-    ) -> BuilderResult<Self::StreamFilesStream> {
-        let req = req.into_inner();
-        let paths = req.paths.into_iter().map(|p| p.0).collect::<Vec<_>>();
-        let (raw_writer, rx) = compression_encode_channel();
-
-        tokio::task::spawn_blocking(move || {
-            let store = nix_utils::LocalStore::init();
-            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
-            let closure = move |data: &[u8]| {
-                use std::io::Write;
-                sync_writer.write_all(data).is_ok()
-            };
-            let _ = store.export_paths(&paths, closure);
-        });
-
-        Ok(tonic::Response::new(
-            Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
-                as Self::StreamFilesStream,
+                as Self::FetchPathsStream,
         ))
     }
 

@@ -49,6 +49,7 @@ hydra-tracing                      = { workspace = true, features = [ "tonic" ] 
 nix-support.workspace              = true
 nix-utils.workspace                = true
 store-path-utils.workspace         = true
+store-transfer.workspace           = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 sysinfo.workspace = true
