@@ -18,15 +18,7 @@ sub runBuilds {
     ref $ctx eq 'HydraTestContext' or die "runBuilds requires a HydraTestContext as first argument\n";
     my @build_ids = map { $_->id } @builds;
 
-    my $pg = ProcessGroup->new;
-
-    my ($qr_harness, $base_url, $grpc_addr, $qr_out, $qr_err, $qr_daemon) = start_queue_runner($ctx,
-        rust_log => "queue_runner=debug,info",
-    );
-    $pg->{procs}{"queue-runner"} = {
-        label => "queue-runner", harness => $qr_harness, out => $qr_out, err => $qr_err,
-    };
-    push @{$pg->{order}}, "queue-runner";
+    my ($pg, $base_url, $grpc_addr, $qr_daemon) = start_queue_runner($ctx);
 
     my $bl_daemon = QueueRunnerContext::start_nix_daemon($ctx->{builder});
 
@@ -56,6 +48,7 @@ sub runBuilds {
         }) or die "Timed out waiting for builder to register\n";
 
         for my $bid (@build_ids) {
+            $pg->pump_logs;
             my $req = HTTP::Request->new(POST => "$base_url/build_one");
             $req->header('Content-Type' => 'application/json');
             $req->content(encode_json({ buildId => $bid + 0 }));
