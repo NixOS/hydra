@@ -122,17 +122,19 @@ InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
     narhash_bytes.push_back(info->narHash.hash[i]);
   }
 
-  rust::Vec<rust::String> refs = extract_path_set(*store, info->references);
+  rust::Vec<rust::String> refs = extract_path_set(info->references);
 
   rust::Vec<rust::String> sigs;
   sigs.reserve(info->sigs.size());
   for (const auto &sig : info->sigs) {
-    sigs.push_back(sig.to_string());
+    auto s = sig.to_string();
+    sigs.push_back(rust::String(s.data(), s.size()));
   }
 
   // TODO(conni2461): Replace "" with option
   return InternalPathInfo{
-      extract_opt_path(*store, info->deriver),
+      rust::String(store->storeDir.data(), store->storeDir.size()),
+      extract_opt_path(info->deriver),
       narhash_bytes,
       info->registrationTime,
       info->narSize,
@@ -169,7 +171,7 @@ rust::Vec<rust::String> compute_fs_closures(const StoreWrapper &wrapper,
                             false, false, false);
   }
   auto sorted = store->topoSortPaths(path_set);
-  return extract_paths(*store, sorted);
+  return extract_paths(sorted);
 }
 
 void upsert_file(const StoreWrapper &wrapper, rust::Str path, rust::Str data,

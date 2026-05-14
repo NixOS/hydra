@@ -79,6 +79,7 @@ mod ffi {
 
     #[derive(Debug, Clone)]
     struct InternalPathInfo {
+        store_dir: String,
         deriver: String,
         nar_hash: Vec<u8>,
         registration_time: i64,
@@ -334,15 +335,16 @@ fn parse_ca(s: &str) -> Option<harmonia_store_core::store_path::ContentAddress> 
 
 impl From<ffi::InternalPathInfo> for UnkeyedValidPathInfo {
     fn from(val: ffi::InternalPathInfo) -> Self {
-        let store_dir = get_store_dir();
+        let store_dir = StoreDir::new(&val.store_dir)
+            .unwrap_or_else(|e| panic!("invalid store dir '{}': {e}", val.store_dir));
         Self {
             deriver: if val.deriver.is_empty() {
                 None
             } else {
                 Some(
-                    store_dir
-                        .parse::<StorePath>(&val.deriver)
-                        .unwrap_or_else(|e| panic!("invalid deriver path '{}': {e}", val.deriver)),
+                    val.deriver
+                        .parse::<StorePath>()
+                        .unwrap_or_else(|e| panic!("invalid deriver '{}': {e}", val.deriver)),
                 )
             },
             nar_hash: nar_hash_from_bytes(&val.nar_hash),
@@ -352,9 +354,8 @@ impl From<ffi::InternalPathInfo> for UnkeyedValidPathInfo {
                 .refs
                 .iter()
                 .map(|v| {
-                    store_dir
-                        .parse::<StorePath>(v)
-                        .unwrap_or_else(|e| panic!("invalid reference path '{v}': {e}"))
+                    v.parse::<StorePath>()
+                        .unwrap_or_else(|e| panic!("invalid reference '{v}': {e}"))
                 })
                 .collect(),
             signatures: val.sigs.iter().map(|s| parse_signature(s)).collect(),
@@ -461,7 +462,6 @@ impl BaseStoreImpl {
 
     async fn query_requisites(&self, paths: &[&StorePath]) -> Result<Vec<StorePath>, Error> {
         let store = self.wrapper.clone();
-        let store_dir = self.store_dir.clone();
         let paths = paths
             .iter()
             .map(|v| self.print_store_path(v))
@@ -472,8 +472,7 @@ impl BaseStoreImpl {
             Ok(ffi::compute_fs_closures(store.as_raw(), &slice)?
                 .into_iter()
                 .map(|v| {
-                    store_dir
-                        .parse::<StorePath>(&v)
+                    v.parse::<StorePath>()
                         .unwrap_or_else(|e| panic!("invalid store path '{v}': {e}"))
                 })
                 .collect())
