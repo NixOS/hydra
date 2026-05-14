@@ -820,7 +820,10 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, p), err)]
-    pub async fn insert_build_product(&mut self, p: InsertBuildProduct<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn insert_build_product(
+        &mut self,
+        p: InsertBuildProduct<'_>,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
               INSERT INTO buildproducts (
@@ -864,7 +867,10 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, metric), err)]
-    pub async fn insert_build_metric(&mut self, metric: InsertBuildMetric<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn insert_build_metric(
+        &mut self,
+        metric: InsertBuildMetric<'_>,
+    ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
               INSERT INTO buildmetrics (

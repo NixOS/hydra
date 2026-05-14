@@ -8,6 +8,7 @@ use IPC::Run;
 use LWP::UserAgent;
 use POSIX qw(dup2);
 use Hydra::Config;
+use ProcessGroup;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     start_queue_runner
@@ -59,8 +60,9 @@ sub start_nix_daemon {
 # Start a queue runner process using systemd socket activation.
 # We bind TCP sockets ourselves (port 0 for OS-assigned ports), then
 # pass them to the queue runner via LISTEN_FDS/LISTEN_FDNAMES.
-# Returns ($harness, $rest_url, $grpc_addr, \$stdout_buf, \$stderr_buf, $daemon_harness).
-# Caller is responsible for calling $harness->kill_kill when done.
+# Returns ($process_group, $rest_url, $grpc_addr, $daemon_harness).
+# The ProcessGroup has the queue-runner registered as "queue-runner".
+# Caller is responsible for calling $pg->stop and $daemon_harness->kill_kill when done.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
@@ -125,7 +127,7 @@ sub start_queue_runner {
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         local $ENV{NIX_REMOTE} = $ctx->{central}{nix_daemon_uri};
-        local $ENV{RUST_LOG} = $opts{rust_log} // "error";
+        local $ENV{RUST_LOG} = "hydra_queue_runner=debug,info";
         local $ENV{NO_COLOR} = "1";
         local $ENV{LISTEN_FDS} = "2";
         local $ENV{LISTEN_FDNAMES} = "rest:grpc";
@@ -157,7 +159,13 @@ sub start_queue_runner {
     my $rest_url = "http://[::1]:$rest_port";
     my $grpc_addr = "[::1]:$grpc_port";
 
-    return ($qr_harness, $rest_url, $grpc_addr, \$qr_out, \$qr_err, $daemon_harness);
+    my $pg = ProcessGroup->new;
+    $pg->{procs}{"queue-runner"} = {
+        label => "queue-runner", harness => $qr_harness, out => \$qr_out, err => \$qr_err,
+    };
+    push @{$pg->{order}}, "queue-runner";
+
+    return ($pg, $rest_url, $grpc_addr, $daemon_harness);
 }
 
 # Poll the queue runner REST API until all given build IDs are no longer
