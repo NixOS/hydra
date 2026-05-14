@@ -9,7 +9,7 @@ use tracing::Instrument as _;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, PROTO_API_VERSION,
+    BuildResultInfo, BuilderRequest, CreateBuildRequest, JoinResponse, LogChunk, PROTO_API_VERSION,
     PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
     SimplePingMessage, StepUpdate, VersionCheckRequest, VersionCheckResponse, builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
@@ -754,5 +754,27 @@ impl RunnerService for Server {
         );
 
         Ok(tonic::Response::new(hydra_proto::Empty {}))
+    }
+
+    #[tracing::instrument(skip(self, req), err)]
+    async fn create_build(
+        &self,
+        req: tonic::Request<CreateBuildRequest>,
+    ) -> BuilderResult<hydra_proto::CreateBuildResponse> {
+        use std::collections::HashMap;
+
+        let req = req.into_inner();
+        let paths: Vec<_> = req.drv_paths.into_iter().map(|p| p.0).collect();
+        let build_ids = self
+            .state
+            .queue_builds(req.jobset_id, &paths)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create builds: {e}");
+                tonic::Status::internal(e.to_string())
+            })?;
+        Ok(tonic::Response::new(hydra_proto::CreateBuildResponse {
+            build_ids: build_ids.into_iter().collect::<HashMap<_, _>>(),
+        }))
     }
 }

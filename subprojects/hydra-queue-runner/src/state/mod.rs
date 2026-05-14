@@ -730,11 +730,12 @@ impl State {
         let drv = nix_utils::query_drv(&self.store, drv_path)
             .await?
             .ok_or_else(|| anyhow::anyhow!("drv not found"))?;
-        db.insert_debug_build(
+        db.insert_build(
             self.store.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform)?,
+            "debug",
         )
         .await?;
 
@@ -742,6 +743,48 @@ impl State {
         tx.notify_builds_added().await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn queue_builds(
+        &self,
+        jobset_id: i32,
+        drv_paths: &[StorePath],
+    ) -> anyhow::Result<HashMap<String, BuildID>> {
+        let mut build_ids = HashMap::with_capacity(drv_paths.len());
+        let mut drv_entries = Vec::with_capacity(drv_paths.len());
+
+        for drv_path in drv_paths {
+            let drv = nix_utils::query_drv(&self.store, &drv_path)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("drv not found: {drv_path}"))?;
+            if let Some(job) = drv
+                .env
+                .get(b"name".as_slice())
+                .and_then(|v| std::str::from_utf8(v).ok())
+                .map(ToString::to_string)
+            {
+                drv_entries.push((
+                    drv_path,
+                    std::str::from_utf8(&drv.platform)?.to_owned(),
+                    job,
+                ));
+            }
+        }
+
+        let mut db = self.db.get().await?;
+        for (drv_path, system, job) in &drv_entries {
+            let build_id = db
+                .insert_build(self.store.store_dir(), jobset_id, drv_path, system, job)
+                .await?;
+            build_ids.insert(self.store.print_store_path(*drv_path), build_id);
+        }
+
+        let mut tx = db.begin_transaction().await?;
+        tx.notify_builds_added().await?;
+        tx.commit().await?;
+
+        Ok(build_ids)
     }
 
     #[tracing::instrument(skip(self), err)]
