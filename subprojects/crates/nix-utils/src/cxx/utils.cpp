@@ -2,28 +2,29 @@
 
 #include <nix/store/store-api.hh>
 
-rust::String extract_opt_path(const nix::Store &store,
-                              const std::optional<nix::StorePath> &v) {
+rust::String extract_opt_path(const std::optional<nix::StorePath> &v) {
   // TODO(conni2461): Replace with option
-  return v ? store.printStorePath(*v) : "";
+  if (!v) return "";
+  auto s = v->to_string();
+  return rust::String(s.data(), s.size());
 }
 
-rust::Vec<rust::String> extract_path_set(const nix::Store &store,
-                                         const nix::StorePathSet &set) {
+rust::Vec<rust::String> extract_path_set(const nix::StorePathSet &set) {
   rust::Vec<rust::String> data;
   data.reserve(set.size());
   for (const nix::StorePath &path : set) {
-    data.emplace_back(store.printStorePath(path));
+    auto s = path.to_string();
+    data.push_back(rust::String(s.data(), s.size()));
   }
   return data;
 }
 
-rust::Vec<rust::String> extract_paths(const nix::Store &store,
-                                      const nix::StorePaths &set) {
+rust::Vec<rust::String> extract_paths(const nix::StorePaths &set) {
   rust::Vec<rust::String> data;
   data.reserve(set.size());
   for (const nix::StorePath &path : set) {
-    data.emplace_back(store.printStorePath(path));
+    auto s = path.to_string();
+    data.push_back(rust::String(s.data(), s.size()));
   }
   return data;
 }
