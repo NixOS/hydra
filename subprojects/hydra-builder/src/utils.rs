@@ -7,8 +7,7 @@ use hydra_proto::LogChunk;
 use hydra_proto::ProtoStorePath;
 
 pub(crate) type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
-pub(crate) type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
-pub(crate) const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
+const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
 
 pub(crate) fn compressed_log_stream(
     drv: &StorePath,

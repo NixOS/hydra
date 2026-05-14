@@ -65,27 +65,47 @@ graph BT
     nix-support --> store-path-utils
     db --> nix-support
     hydra-proto --> nix-support
+    store-transfer --> hydra-proto
+    store-transfer --> nix-utils
     hydra-builder --> binary-cache
-    hydra-builder --> hydra-proto
     hydra-builder --> hydra-tracing
+    hydra-builder --> store-transfer
     hydra-queue-runner --> binary-cache
     hydra-queue-runner --> db
-    hydra-queue-runner --> hydra-proto
     hydra-queue-runner --> hydra-tracing
+    hydra-queue-runner --> store-transfer
     binary-cache -.-> hydra-tracing
     db -.-> test-utils
 ```
 
 ### Shared Rust libraries
 
-- `proto` — generated gRPC/protobuf code for the builder ↔ queue-runner interface (message types, client stubs, server traits)
-- `db` — PostgreSQL database access via SQLx (models, queries, connection pooling)
-- `binary-cache` — reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
-- `nix-utils` — Nix store path parsing, derivation reading, and local store operations
-- `nix-support` — Infrastructure for interpreting the `${store_object}/nix-support` directory convention
-- `store-path-utils` — lightweight store path utilities built on harmonia types
-- `tracing` — OpenTelemetry/tracing setup with optional gRPC export
-- `test-utils` — test fixtures and helpers for integration tests
+- `hydra-proto`:
+  generated gRPC/protobuf code for the builder ↔ queue-runner interface (message types, client stubs, server traits)
+
+- `db`:
+  PostgreSQL database access via SQLx (models, queries, connection pooling)
+
+- `binary-cache`:
+  reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
+
+- `nix-utils`:
+  Nix store path parsing, derivation reading, and local store operations via C++ FFI
+
+- `store-transfer`:
+  shared import/export logic for streaming store objects as `AddToStoreRequest` protobuf messages, used by both the builder and queue-runner
+
+- `nix-support`:
+  Infrastructure for interpreting the `${store_object}/nix-support` directory convention
+
+- `store-path-utils`:
+  lightweight store path utilities built on harmonia types
+
+- `tracing`:
+  OpenTelemetry/tracing setup with optional gRPC export
+
+- `test-utils`:
+  test fixtures and helpers for integration tests
 
 ## Source layout
 

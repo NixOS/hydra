@@ -16,8 +16,8 @@ use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, NarData,
-    OutputInfo, PingMessage, StepStatus, StepUpdate, StorePaths,
+    AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
+    PingMessage, StepStatus, StepUpdate,
 };
 use nix_utils::BaseStore as _;
 
@@ -689,17 +689,6 @@ async fn substitute_paths(
     Ok(())
 }
 
-fn decode_stream<S>(
-    stream: S,
-) -> impl tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
-where
-    S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
-{
-    let reader = tokio_util::io::StreamReader::new(stream);
-    let decoder = crate::utils::CompressionDecoder::new(reader);
-    tokio_util::io::ReaderStream::new(decoder)
-}
-
 #[tracing::instrument(skip(client, store, metrics), fields(%gcroot), err)]
 async fn import_paths(
     mut client: BuilderClient,
@@ -724,7 +713,6 @@ async fn import_paths(
         paths
     };
     let paths = if use_substitutes {
-        // we can ignore the error
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&store, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
@@ -743,9 +731,16 @@ async fn import_paths(
         paths
     };
 
-    tracing::debug!("Start importing paths");
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let num_paths = paths.len() as u64;
+    tracing::debug!("Start importing {num_paths} paths");
+    metrics.add_downloading_path(num_paths);
+
     let stream = client
-        .stream_files(StorePaths {
+        .fetch_paths(hydra_proto::StorePaths {
             paths: paths
                 .iter()
                 .map(|p| ProtoStorePath::from(p.clone()))
@@ -754,20 +749,14 @@ async fn import_paths(
         .await?
         .into_inner();
 
-    metrics.add_downloading_path(paths.len() as u64);
+    let imported = store_transfer::import::import(&store, stream).await?;
 
-    let byte_stream = tokio_stream::StreamExt::map(stream, |s| {
-        s.map(|v| bytes::Bytes::from(v.chunk))
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
-    });
-    let import_result = store.import_paths(decode_stream(byte_stream), false).await;
-    metrics.sub_downloading_path(paths.len() as u64);
-    import_result?;
-    tracing::debug!("Finished importing paths");
-
-    for p in paths {
-        nix_utils::add_root(&store, &gcroot.root, &p);
+    for p in &imported {
+        nix_utils::add_root(&store, &gcroot.root, p);
     }
+
+    metrics.sub_downloading_path(num_paths);
+    tracing::debug!("Finished importing paths");
     Ok(())
 }
 
@@ -862,55 +851,32 @@ async fn upload_nars_regular(
     }
 
     tracing::info!("Start uploading paths to queue runner directly");
-    let (raw_writer, raw_reader) = tokio::io::duplex(crate::utils::DUPLEX_BUFFER_SIZE);
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<NarData>();
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<
+        Result<hydra_proto::AddToStoreRequest, tonic::Status>,
+    >();
     let before_upload = Instant::now();
     let nars_len = nars.len() as u64;
 
     metrics.add_uploading_path(nars_len);
 
-    tokio::task::spawn(async move {
-        use tokio_stream::StreamExt as _;
-        let encoder = crate::utils::CompressionEncoder::new(tokio::io::BufReader::new(raw_reader));
-        let mut encoded_stream = tokio_util::io::ReaderStream::new(encoder);
-        while let Some(chunk) = encoded_stream.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    if tx
-                        .send(NarData {
-                            chunk: bytes.into(),
-                        })
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to compress NAR chunk: {e}");
-                    break;
-                }
-            }
-        }
-    });
-
-    let a = client
-        .build_result(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
-        .map_err(Into::<anyhow::Error>::into);
-
-    let b = tokio::task::spawn_blocking(move || {
-        let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
-        let closure = move |data: &[u8]| {
-            use std::io::Write as _;
-            sync_writer.write_all(data).is_ok()
-        };
-
-        store.export_paths(&nars, closure)?;
-        tracing::debug!("Finished exporting paths");
+    let store_clone = store.clone();
+    let sender = tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Runtime::new()?;
+        let infos = rt.block_on(store_clone.query_path_infos(&nars.iter().collect::<Vec<_>>()));
+        store_transfer::export::export(&store_clone, &nars, &infos, &tx);
         Ok::<(), anyhow::Error>(())
     });
-    let (a, b) = futures::future::join(a, b).await;
-    a?;
-    b??;
+
+    let upload = client
+        .build_result(tokio_stream::StreamExt::filter_map(
+            tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
+            |r| r.ok(),
+        ))
+        .map_err(Into::<anyhow::Error>::into);
+
+    let (upload_result, sender_result) = futures::future::join(upload, sender).await;
+    upload_result?;
+    sender_result??;
 
     tracing::info!(
         "Finished uploading paths to queue runner directly. elapsed={:?}",

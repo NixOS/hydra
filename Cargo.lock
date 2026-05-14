@@ -1627,6 +1627,7 @@ dependencies = [
  "serde",
  "serde_json",
  "store-path-utils",
+ "store-transfer",
  "sysinfo",
  "thiserror",
  "tikv-jemallocator",
@@ -1701,6 +1702,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+ "store-transfer",
  "thiserror",
  "tikv-jemallocator",
  "tokio",
@@ -3854,6 +3856,27 @@ name = "store-path-utils"
 version = "0.1.0"
 dependencies = [
  "harmonia-store-core",
+]
+
+[[package]]
+name = "store-transfer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-compression",
+ "bytes",
+ "futures",
+ "harmonia-store-core",
+ "harmonia-store-path-info",
+ "hashbrown 0.16.1",
+ "hydra-proto",
+ "nix-utils",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tonic",
+ "tracing",
+ "zstd",
 ]
 
 [[package]]

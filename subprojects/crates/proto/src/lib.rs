@@ -214,6 +214,27 @@ impl TryFrom<UnkeyedValidPathInfo> for harmonia_store_path_info::UnkeyedValidPat
     }
 }
 
+// -- ValidPathInfo (keyed) --
+
+impl
+    From<(
+        &harmonia_store_core::store_path::StorePath,
+        &harmonia_store_path_info::UnkeyedValidPathInfo,
+    )> for ValidPathInfo
+{
+    fn from(
+        (path, info): (
+            &harmonia_store_core::store_path::StorePath,
+            &harmonia_store_path_info::UnkeyedValidPathInfo,
+        ),
+    ) -> Self {
+        Self {
+            path: Some(ProtoStorePath::from(path)),
+            info: Some(UnkeyedValidPathInfo::from(info)),
+        }
+    }
+}
+
 // -- UnkeyedNarInfo --
 
 impl From<&harmonia_store_nar_info::UnkeyedNarInfo> for UnkeyedNarInfo {

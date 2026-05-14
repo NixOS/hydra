@@ -154,8 +154,10 @@ mod ffi {
             substitute: bool,
         ) -> Result<()>;
 
-        fn import_paths(
+        fn add_multiple_to_store(
             store: &StoreWrapper,
+            paths: &[&str],
+            infos: &Vec<InternalPathInfo>,
             check_sigs: bool,
             runtime: usize,
             reader: usize,
@@ -165,13 +167,6 @@ mod ffi {
                 reader: usize,
                 user_data: usize,
             ) -> usize,
-            user_data: usize,
-        ) -> Result<()>;
-        fn import_paths_with_fd(store: &StoreWrapper, check_sigs: bool, fd: i32) -> Result<()>;
-        fn export_paths(
-            store: &StoreWrapper,
-            paths: &[&str],
-            callback: unsafe extern "C" fn(data: &[u8], user_data: usize) -> bool,
             user_data: usize,
         ) -> Result<()>;
         fn nar_from_path(
@@ -366,6 +361,30 @@ impl From<ffi::InternalPathInfo> for UnkeyedValidPathInfo {
     }
 }
 
+fn to_internal_path_info(
+    store_dir: &StoreDir,
+    info: &UnkeyedValidPathInfo,
+) -> ffi::InternalPathInfo {
+    let nar_hash_bytes: Vec<u8> = AsRef::<[u8]>::as_ref(&info.nar_hash).to_vec();
+
+    ffi::InternalPathInfo {
+        store_dir: store_dir.to_str().to_owned(),
+        deriver: info
+            .deriver
+            .as_ref()
+            .map_or_else(String::new, |d| d.to_string()),
+        nar_hash: nar_hash_bytes,
+        registration_time: info.registration_time.map_or(0, |t| t.get()),
+        nar_size: info.nar_size,
+        refs: info.references.iter().map(|r| r.to_string()).collect(),
+        sigs: info.signatures.iter().map(|s| s.to_string()).collect(),
+        ca: info
+            .ca
+            .as_ref()
+            .map_or_else(String::new, |ca| ca.to_string()),
+    }
+}
+
 pub trait BaseStore {
     #[must_use]
     /// Check whether a path is valid.
@@ -390,10 +409,14 @@ pub trait BaseStore {
 
     fn get_store_stats(&self) -> Result<StoreStats, cxx::Exception>;
 
-    /// Import paths from nar
-    fn import_paths<S>(
+    /// Add multiple store paths with their NAR data to the store.
+    /// Paths must be in dependency order (references before referrers).
+    /// The NAR stream must contain the NARs for all paths concatenated
+    /// in the same order.
+    fn add_multiple_to_store<S>(
         &self,
-        stream: S,
+        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        nar_stream: S,
         check_sigs: bool,
     ) -> impl Future<Output = Result<(), Error>>
     where
@@ -401,16 +424,6 @@ pub trait BaseStore {
             + Send
             + Unpin
             + 'static;
-
-    /// Import paths from nar
-    fn import_paths_with_fd<Fd>(&self, fd: Fd, check_sigs: bool) -> Result<(), cxx::Exception>
-    where
-        Fd: std::os::fd::AsFd + std::os::fd::AsRawFd;
-
-    /// Export a store path in NAR format. The data is passed in chunks to callback
-    fn export_paths<F>(&self, paths: &[StorePath], callback: F) -> Result<(), cxx::Exception>
-    where
-        F: FnMut(&[u8]) -> bool;
 
     /// Export a store path in NAR format. The data is passed in chunks to callback
     fn nar_from_path<F>(&self, path: &StorePath, callback: F) -> Result<(), cxx::Exception>
@@ -589,58 +602,34 @@ impl BaseStore for BaseStoreImpl {
         ffi::get_store_stats(self.wrapper.as_raw())
     }
 
-    #[inline]
-    #[tracing::instrument(skip(self, stream), err)]
-    async fn import_paths<S>(&self, stream: S, check_sigs: bool) -> Result<(), Error>
+    #[tracing::instrument(skip(self, nar_stream), err)]
+    async fn add_multiple_to_store<S>(
+        &self,
+        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        nar_stream: S,
+        check_sigs: bool,
+    ) -> Result<(), Error>
     where
         S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
             + Send
             + Unpin
             + 'static,
     {
-        use tokio::io::AsyncReadExt as _;
-
-        let callback = |runtime: &tokio::runtime::Runtime,
-                        reader: &mut Box<tokio_util::io::StreamReader<_, bytes::Bytes>>,
-                        data: &mut [u8]| {
-            runtime.block_on(async { reader.read(data).await.unwrap_or(0) })
-        };
-
-        let reader = Box::new(tokio_util::io::StreamReader::new(stream));
+        let store_dir = self.store_dir();
+        let path_strs: Vec<String> = path_infos
+            .iter()
+            .map(|pi| self.print_store_path(&pi.path))
+            .collect();
+        let internal_infos: Vec<ffi::InternalPathInfo> = path_infos
+            .iter()
+            .map(|pi| to_internal_path_info(store_dir, &pi.info))
+            .collect();
+        let reader = Box::new(tokio_util::io::StreamReader::new(nar_stream));
         let store = self.clone();
         tokio::task::spawn_blocking(move || {
-            store.import_paths_with_cb(callback, reader, check_sigs)
+            store.add_multiple_to_store_with_cb(path_strs, internal_infos, reader, check_sigs)
         })
-        .await??;
-        Ok(())
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, fd), err)]
-    fn import_paths_with_fd<Fd>(&self, fd: Fd, check_sigs: bool) -> Result<(), cxx::Exception>
-    where
-        Fd: std::os::fd::AsFd + std::os::fd::AsRawFd,
-    {
-        ffi::import_paths_with_fd(self.wrapper.as_raw(), check_sigs, fd.as_raw_fd())
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, paths, callback), err)]
-    fn export_paths<F>(&self, paths: &[StorePath], callback: F) -> Result<(), cxx::Exception>
-    where
-        F: FnMut(&[u8]) -> bool,
-    {
-        let paths = paths
-            .iter()
-            .map(|v| self.print_store_path(v))
-            .collect::<Vec<_>>();
-        let slice = paths.iter().map(String::as_str).collect::<Vec<_>>();
-        ffi::export_paths(
-            self.wrapper.as_raw(),
-            &slice,
-            export_paths_trampoline::<F>,
-            std::ptr::addr_of!(callback).cast::<std::ffi::c_void>() as usize,
-        )
+        .await?
     }
 
     #[inline]
@@ -676,30 +665,39 @@ impl BaseStore for BaseStoreImpl {
 }
 
 impl BaseStoreImpl {
-    #[inline]
-    #[tracing::instrument(skip(self, callback, reader), err)]
-    fn import_paths_with_cb<F, S, E>(
+    #[tracing::instrument(skip(self, reader), err)]
+    fn add_multiple_to_store_with_cb<S>(
         &self,
-        callback: F,
+        paths: Vec<String>,
+        infos: Vec<ffi::InternalPathInfo>,
         reader: Box<tokio_util::io::StreamReader<S, bytes::Bytes>>,
         check_sigs: bool,
     ) -> Result<(), Error>
     where
-        F: FnMut(
+        S: futures::stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
+    {
+        use tokio::io::AsyncReadExt as _;
+
+        type Callback<S> = fn(
             &tokio::runtime::Runtime,
             &mut Box<tokio_util::io::StreamReader<S, bytes::Bytes>>,
             &mut [u8],
-        ) -> usize,
-        S: futures::stream::Stream<Item = Result<bytes::Bytes, E>>,
-        E: Into<std::io::Error>,
-    {
+        ) -> usize;
+
+        let callback: Callback<S> = |runtime, reader, data| {
+            runtime.block_on(async { reader.read(data).await.unwrap_or(0) })
+        };
+
+        let path_strs: Vec<&str> = paths.iter().map(String::as_str).collect();
         let runtime = Box::new(tokio::runtime::Runtime::new()?);
-        ffi::import_paths(
+        ffi::add_multiple_to_store(
             self.wrapper.as_raw(),
+            &path_strs,
+            &infos,
             check_sigs,
             std::ptr::addr_of!(runtime).cast::<std::ffi::c_void>() as usize,
             std::ptr::addr_of!(reader).cast::<std::ffi::c_void>() as usize,
-            import_paths_trampoline::<F, S, E>,
+            import_paths_trampoline::<Callback<S>, S, std::io::Error>,
             std::ptr::addr_of!(callback).cast::<std::ffi::c_void>() as usize,
         )?;
         drop(reader);
@@ -828,34 +826,21 @@ impl BaseStore for LocalStore {
         self.base.get_store_stats()
     }
 
-    #[inline]
-    #[tracing::instrument(skip(self, stream), err)]
-    async fn import_paths<S>(&self, stream: S, check_sigs: bool) -> Result<(), Error>
+    async fn add_multiple_to_store<S>(
+        &self,
+        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        nar_stream: S,
+        check_sigs: bool,
+    ) -> Result<(), Error>
     where
         S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
             + Send
             + Unpin
             + 'static,
     {
-        self.base.import_paths::<S>(stream, check_sigs).await
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, fd), err)]
-    fn import_paths_with_fd<Fd>(&self, fd: Fd, check_sigs: bool) -> Result<(), cxx::Exception>
-    where
-        Fd: std::os::fd::AsFd + std::os::fd::AsRawFd,
-    {
-        self.base.import_paths_with_fd(fd, check_sigs)
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, paths, callback), err)]
-    fn export_paths<F>(&self, paths: &[StorePath], callback: F) -> Result<(), cxx::Exception>
-    where
-        F: FnMut(&[u8]) -> bool,
-    {
-        self.base.export_paths(paths, callback)
+        self.base
+            .add_multiple_to_store(path_infos, nar_stream, check_sigs)
+            .await
     }
 
     #[inline]
@@ -1005,34 +990,21 @@ impl BaseStore for RemoteStore {
         self.base.get_store_stats()
     }
 
-    #[inline]
-    #[tracing::instrument(skip(self, stream), err)]
-    async fn import_paths<S>(&self, stream: S, check_sigs: bool) -> Result<(), Error>
+    async fn add_multiple_to_store<S>(
+        &self,
+        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        nar_stream: S,
+        check_sigs: bool,
+    ) -> Result<(), Error>
     where
         S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
             + Send
             + Unpin
             + 'static,
     {
-        self.base.import_paths::<S>(stream, check_sigs).await
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, fd), err)]
-    fn import_paths_with_fd<Fd>(&self, fd: Fd, check_sigs: bool) -> Result<(), cxx::Exception>
-    where
-        Fd: std::os::fd::AsFd + std::os::fd::AsRawFd,
-    {
-        self.base.import_paths_with_fd(fd, check_sigs)
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self, paths, callback), err)]
-    fn export_paths<F>(&self, paths: &[StorePath], callback: F) -> Result<(), cxx::Exception>
-    where
-        F: FnMut(&[u8]) -> bool,
-    {
-        self.base.export_paths(paths, callback)
+        self.base
+            .add_multiple_to_store(path_infos, nar_stream, check_sigs)
+            .await
     }
 
     #[inline]

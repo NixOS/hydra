@@ -13,13 +13,12 @@ service RunnerService {
   rpc CheckVersion(VersionCheckRequest) returns (VersionCheckResponse) {}
   rpc OpenTunnel(stream BuilderRequest) returns (stream RunnerRequest) {}
   rpc BuildLog(stream LogChunk) returns (Empty) {}
-  rpc BuildResult(stream NarData) returns (Empty) {}
+  rpc BuildResult(stream AddToStoreRequest) returns (Empty) {}
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
   rpc FetchRequisites(nix.store.v1.StorePath) returns (RequisitesResponse) {}
   rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
-  rpc StreamFile(nix.store.v1.StorePath) returns (stream NarData) {}
-  rpc StreamFiles(nix.store.v1.StorePaths) returns (stream NarData) {}
+  rpc FetchPaths(nix.store.v1.StorePaths) returns (stream AddToStoreRequest) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
 }
@@ -154,8 +153,19 @@ message HasPathResponse {
   bool has_path = 1;
 }
 
-message NarData {
-  bytes chunk = 1;
+message AddToStoreRequest {
+  // Rules below for streaming (i.e. `stream AddToStoreRequest`). Pity we cannot
+  // encode this in gRPC types.
+  oneof content {
+    // First send one of these
+    AddToStoreHeader header = 1;
+    // Then send as many of these as are needed.
+    bytes nar_chunk = 2;
+  }
+}
+
+message AddToStoreHeader {
+  repeated nix.store.v1.ValidPathInfo path_infos = 1;
 }
 
 message OutputInfo {
