@@ -104,7 +104,7 @@ impl Uploader {
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
         let paths_to_copy = match local_store
-            .query_requisites(&msg.store_paths.iter().collect::<Vec<_>>(), true)
+            .query_requisites(&msg.store_paths.iter().collect::<Vec<_>>())
             .await
         {
             Ok(paths) => paths,

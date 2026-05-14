@@ -16,8 +16,8 @@ use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, FetchRequisitesRequest,
-    JoinMessage, NarData, OutputInfo, PingMessage, StepStatus, StepUpdate, StorePaths,
+    AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, NarData,
+    OutputInfo, PingMessage, StepStatus, StepUpdate, StorePaths,
 };
 use nix_utils::BaseStore as _;
 
@@ -411,10 +411,7 @@ impl State {
             })
             .await;
         let requisites = client
-            .fetch_drv_requisites(FetchRequisitesRequest {
-                path: Some(ProtoStorePath::from(drv.clone())),
-                include_outputs: false,
-            })
+            .fetch_requisites(ProtoStorePath::from(drv.clone()))
             .await
             .map_err(|e| JobFailure::Import(e.into()))?
             .into_inner()
@@ -425,7 +422,6 @@ impl State {
             store.clone(),
             self.metrics.clone(),
             &gcroot,
-            &drv,
             requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
@@ -775,14 +771,12 @@ async fn import_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, metrics, requisites), fields(%gcroot, %drv), err)]
-#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(skip(client, store, metrics, requisites), fields(%gcroot), err)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
     store: nix_utils::LocalStore,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
-    drv: &StorePath,
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
@@ -826,40 +820,6 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
         .await?;
     }
 
-    let full_requisites = client
-        .clone()
-        .fetch_drv_requisites(FetchRequisitesRequest {
-            path: Some(ProtoStorePath::from(drv.clone())),
-            include_outputs: true,
-        })
-        .await?
-        .into_inner()
-        .requisites
-        .into_iter()
-        .map(|s| s.0)
-        .collect::<Vec<_>>();
-    let full_requisites = futures::StreamExt::map(tokio_stream::iter(full_requisites), |p| {
-        filter_missing(&store, gcroot, p)
-    })
-    .buffered(50)
-    .filter_map(|o| async { o })
-    .collect::<Vec<_>>()
-    .await;
-
-    for other in full_requisites.chunks(max_concurrent_downloads) {
-        // we can skip filtering here as we already done that
-        import_paths(
-            client.clone(),
-            store.clone(),
-            metrics.clone(),
-            gcroot,
-            other.to_vec(),
-            false,
-            use_substitutes,
-        )
-        .await?;
-    }
-
     Ok(())
 }
 
@@ -870,11 +830,8 @@ async fn upload_nars_regular(
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> anyhow::Result<()> {
-    // Compute the full closure of output paths so that all referenced
-    // store paths (e.g. dynamically-created derivations from recursive-nix)
-    // are uploaded alongside the direct outputs.
     let nars = store
-        .query_requisites(&nars.iter().collect::<Vec<_>>(), true)
+        .query_requisites(&nars.iter().collect::<Vec<_>>())
         .await
         .unwrap_or(nars);
 
@@ -980,7 +937,7 @@ async fn upload_nars_presigned(
     let before_upload = Instant::now();
 
     let paths_to_upload = store
-        .query_requisites(&output_paths.iter().collect::<Vec<_>>(), true)
+        .query_requisites(&output_paths.iter().collect::<Vec<_>>())
         .await
         .unwrap_or_default();
     let paths_to_upload_ref = paths_to_upload.iter().collect::<Vec<_>>();

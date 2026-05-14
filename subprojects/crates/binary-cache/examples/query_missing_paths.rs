@@ -15,13 +15,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let drv = "z3d15qi11dvljq5qz84kak3h0nb12wca-rsyslog-8.2510.0"
         .parse()
         .unwrap();
-    let ps = store.query_requisites(&[&drv], false).await.unwrap();
+    let ps = store.query_requisites(&[&drv]).await.unwrap();
     println!("ps before: {}", ps.len());
 
     let ps = client.query_missing_paths(ps.clone()).await;
     println!("ps after: {}", ps.len());
 
-    let ps = store.query_requisites(&[&drv], true).await.unwrap();
+    let ps = store.query_requisites(&[&drv]).await.unwrap();
     for p in ps {
         println!("{}", store.print_store_path(&p));
     }

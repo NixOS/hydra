@@ -17,12 +17,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let paths_to_copy = local
-        .query_requisites(
-            &[&"m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1"
-                .parse()
-                .unwrap()],
-            true,
-        )
+        .query_requisites(&[&"m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1"
+            .parse()
+            .unwrap()])
         .await
         .unwrap_or_default();
 
