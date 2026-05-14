@@ -597,7 +597,9 @@ mod tests {
     use super::*;
 
     fn drv(name: &str) -> StorePath {
-        nix_utils::parse_store_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+        format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")
+            .parse()
+            .unwrap()
     }
 
     #[test]

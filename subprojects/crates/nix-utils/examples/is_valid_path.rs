@@ -7,7 +7,7 @@ async fn main() {
     println!(
         "storepath={store_dir} valid={}",
         store
-            .is_valid_path(&nix_utils::parse_store_path(store_dir.as_ref()))
+            .is_valid_path(&AsRef::<str>::as_ref(&store_dir).parse().unwrap())
             .await
     );
 }

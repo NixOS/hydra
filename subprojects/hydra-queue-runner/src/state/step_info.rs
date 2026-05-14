@@ -246,9 +246,7 @@ mod tests {
         lowest_share_used: f64,
         rdeps_len: u64,
     ) -> StepInfo {
-        let step = Step::new(nix_utils::parse_store_path(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv",
-        ));
+        let step = Step::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv".parse().unwrap());
 
         step.atomic_state
             .highest_global_priority

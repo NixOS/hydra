@@ -178,8 +178,10 @@ mod tests {
     #[tokio::test]
     async fn test_traverse() {
         let store = nix_utils::LocalStore::init();
-        let hello_drv =
-            nix_utils::parse_store_path("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv");
+        let hello_drv: harmonia_store_core::store_path::StorePath =
+            "rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv"
+                .parse()
+                .unwrap();
         store.ensure_path(&hello_drv).await.unwrap();
 
         let fod = FodChecker::new(None);

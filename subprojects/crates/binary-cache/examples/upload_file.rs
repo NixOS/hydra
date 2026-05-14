@@ -18,9 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let paths_to_copy = local
         .query_requisites(
-            &[&nix_utils::parse_store_path(
-                "m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1",
-            )],
+            &[&"m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1"
+                .parse()
+                .unwrap()],
             true,
         )
         .await
