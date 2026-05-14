@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use harmonia_store_core::signature::{SecretKey, Signature, fingerprint_path};
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
@@ -145,6 +145,8 @@ pub enum NarInfoError {
         field: &'static str,
         err: std::num::ParseIntError,
     },
+    #[error("store path parse error: {0}")]
+    StorePath(#[from] ParseStorePathError),
 }
 
 /// Parse a narinfo text into a [`NarInfo`].
@@ -189,7 +191,7 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
 
         match key {
             "StorePath" => {
-                store_path_opt = Some(nix_utils::parse_store_path(val));
+                store_path_opt = Some(StoreDir::default().parse::<StorePath>(val)?);
             }
             "URL" => {
                 url_opt = Some(val.to_string());
@@ -220,14 +222,14 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 references = val
                     .split_whitespace()
                     .filter(|s| !s.is_empty())
-                    .map(nix_utils::parse_store_path)
-                    .collect();
+                    .map(StorePath::from_base_path)
+                    .collect::<Result<_, _>>()?;
             }
             "Deriver" => {
                 deriver = if val.is_empty() {
                     None
                 } else {
-                    Some(nix_utils::parse_store_path(val))
+                    Some(StorePath::from_base_path(val)?)
                 };
             }
             "CA" => {

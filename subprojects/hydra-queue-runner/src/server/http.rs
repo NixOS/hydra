@@ -28,6 +28,9 @@ pub enum Error {
     #[error("db error: `{0}`")]
     Sqlx(#[from] db::Error),
 
+    #[error("store path parse error: `{0}`")]
+    StorePath(#[from] harmonia_store_core::store_path::ParseStorePathError),
+
     #[error("Not found")]
     NotFound,
 
@@ -47,6 +50,7 @@ impl Error {
             | Self::Anyhow(_)
             | Self::Sqlx(_)
             | Self::Fatal => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+            Self::StorePath(_) => hyper::StatusCode::BAD_REQUEST,
             Self::NotFound => hyper::StatusCode::NOT_FOUND,
         }
     }
@@ -353,9 +357,8 @@ mod handler {
             let whole_body = req.collect().await?.aggregate();
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
-            state
-                .queue_one_build(data.jobset_id, &nix_utils::parse_store_path(&data.drv))
-                .await?;
+            let drv_path: harmonia_store_core::store_path::StorePath = data.drv.parse()?;
+            state.queue_one_build(data.jobset_id, &drv_path).await?;
             construct_json_ok_response(&io::Empty {})
         }
     }

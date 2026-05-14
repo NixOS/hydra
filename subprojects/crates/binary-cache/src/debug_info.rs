@@ -224,7 +224,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-debug-output";
-        let store_path = nix_utils::parse_store_path(store_path_str);
+        let store_path = store_path_str.parse::<StorePath>().unwrap();
         let full_path = store_prefix.join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -375,7 +375,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-no-debug";
-        let store_path = nix_utils::parse_store_path(store_path_str);
+        let store_path = store_path_str.parse::<StorePath>().unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -400,7 +400,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-empty-debug";
-        let store_path = nix_utils::parse_store_path(store_path_str);
+        let store_path = store_path_str.parse::<StorePath>().unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -427,7 +427,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-multi-debug";
-        let store_path = nix_utils::parse_store_path(store_path_str);
+        let store_path = store_path_str.parse::<StorePath>().unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();

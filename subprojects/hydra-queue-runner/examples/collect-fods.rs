@@ -3,7 +3,9 @@ use harmonia_store_core::store_path::StorePath;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let p = nix_utils::parse_store_path("dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv");
+    let p: StorePath = "dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv"
+        .parse()
+        .unwrap();
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(4);
 
     let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(Some(tx)));

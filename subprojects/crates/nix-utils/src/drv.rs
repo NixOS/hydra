@@ -71,7 +71,7 @@ mod tests {
     const HASH: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     fn fake_drv_path(name: &str) -> crate::StorePath {
-        crate::parse_store_path(&format!("{HASH}-{name}.drv"))
+        format!("{HASH}-{name}.drv").parse().unwrap()
     }
 
     /// Minimal CA fixed-output derivation (fetchurl-style).

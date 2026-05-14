@@ -685,7 +685,10 @@ impl RunnerService for Server {
 
         let mut responses = Vec::new();
         for presigned_request in req.request {
-            let store_path = nix_utils::parse_store_path(&presigned_request.store_path);
+            let store_path = presigned_request
+                .store_path
+                .parse::<harmonia_store_core::store_path::StorePath>()
+                .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
             let proto_hash = presigned_request
                 .nar_hash

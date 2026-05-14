@@ -10,16 +10,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let has_info = client
-        .has_narinfo(&nix_utils::parse_store_path(
-            "lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66",
-        ))
+        .has_narinfo(
+            &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
+                .parse()
+                .unwrap(),
+        )
         .await?;
     tracing::info!("has narinfo? {has_info}");
 
     let narinfo = client
-        .download_narinfo(&nix_utils::parse_store_path(
-            "lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66",
-        ))
+        .download_narinfo(
+            &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
+                .parse()
+                .unwrap(),
+        )
         .await?;
     tracing::info!("narinfo:\n{narinfo:?}");
 

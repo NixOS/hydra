@@ -1034,7 +1034,7 @@ async fn upload_nars_presigned(
     for presigned_response in presigned_responses {
         upload_single_nar_presigned(
             &store,
-            &nix_utils::parse_store_path(&presigned_response.store_path),
+            &presigned_response.store_path.parse::<StorePath>()?,
             build_id,
             machine_id,
             &presigned_response,

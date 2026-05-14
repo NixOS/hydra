@@ -14,12 +14,12 @@
 
 mod drv;
 mod realise;
-mod store_path;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use harmonia_store_core::derivation::{BasicDerivation, DerivationT};
 use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_core::store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::UnkeyedValidPathInfo;
 use hashbrown::HashMap;
 
@@ -52,9 +52,6 @@ pub enum Error {
 
 pub use drv::{output_paths, query_drv};
 pub use realise::{BuildOptions, realise_drv, realise_drvs};
-pub use store_path::parse_store_path;
-
-use harmonia_store_core::store_path::{StoreDir, StorePath};
 
 pub fn validate_statuscode(status: std::process::ExitStatus) -> Result<(), Error> {
     if status.success() {
@@ -230,12 +227,6 @@ impl StoreStats {
 }
 
 #[inline]
-#[must_use]
-pub fn is_subpath(base: &std::path::Path, path: &std::path::Path) -> bool {
-    path.starts_with(base)
-}
-
-#[inline]
 pub fn init_nix() {
     ffi::init_nix();
 }
@@ -359,20 +350,33 @@ fn parse_ca(s: &str) -> Option<harmonia_store_core::store_path::ContentAddress> 
 
 impl From<ffi::InternalPathInfo> for UnkeyedValidPathInfo {
     fn from(val: ffi::InternalPathInfo) -> Self {
+        let store_dir = get_store_dir();
         Self {
             deriver: if val.deriver.is_empty() {
                 None
             } else {
-                Some(parse_store_path(&val.deriver))
+                Some(
+                    store_dir
+                        .parse::<StorePath>(&val.deriver)
+                        .unwrap_or_else(|e| panic!("invalid deriver path '{}': {e}", val.deriver)),
+                )
             },
             nar_hash: nar_hash_from_bytes(&val.nar_hash),
             registration_time: std::num::NonZero::new(val.registration_time),
             nar_size: val.nar_size,
-            references: val.refs.iter().map(|v| parse_store_path(v)).collect(),
+            references: val
+                .refs
+                .iter()
+                .map(|v| {
+                    store_dir
+                        .parse::<StorePath>(v)
+                        .unwrap_or_else(|e| panic!("invalid reference path '{v}': {e}"))
+                })
+                .collect(),
             signatures: val.sigs.iter().map(|s| parse_signature(s)).collect(),
             ca: parse_ca(&val.ca),
             ultimate: false,
-            store_dir: get_store_dir(),
+            store_dir,
         }
     }
 }
@@ -619,6 +623,7 @@ impl BaseStore for BaseStoreImpl {
         toposort: bool,
     ) -> Result<Vec<StorePath>, Error> {
         let store = self.wrapper.clone();
+        let store_dir = self.store_dir.clone();
         let paths = paths
             .iter()
             .map(|v| self.print_store_path(v))
@@ -635,7 +640,11 @@ impl BaseStore for BaseStoreImpl {
                 toposort,
             )?
             .into_iter()
-            .map(|v| parse_store_path(&v))
+            .map(|v| {
+                store_dir
+                    .parse::<StorePath>(&v)
+                    .unwrap_or_else(|e| panic!("invalid store path '{v}': {e}"))
+            })
             .collect())
         })
         .await
@@ -837,7 +846,9 @@ impl LocalStore {
         let store = self.base.wrapper.clone();
         asyncify(move || {
             let path = ffi::write_derivation(store.as_raw(), &json)?;
-            Ok(parse_store_path(&path))
+            Ok(path
+                .parse::<StorePath>()
+                .unwrap_or_else(|e| panic!("invalid store path '{path}': {e}")))
         })
         .await
     }
