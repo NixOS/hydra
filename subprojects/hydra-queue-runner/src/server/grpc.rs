@@ -9,10 +9,10 @@ use tracing::Instrument as _;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
-    PROTO_API_VERSION, PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse,
-    RunnerRequest, SimplePingMessage, StepUpdate, StorePaths, VersionCheckRequest,
-    VersionCheckResponse, builder_request,
+    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, NarData, PROTO_API_VERSION,
+    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
+    SimplePingMessage, StepUpdate, StorePaths, VersionCheckRequest, VersionCheckResponse,
+    builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
 use nix_utils::BaseStore as _;
@@ -557,20 +557,16 @@ impl RunnerService for Server {
     }
 
     #[tracing::instrument(skip(self, req), err)]
-    async fn fetch_drv_requisites(
+    async fn fetch_requisites(
         &self,
-        req: tonic::Request<FetchRequisitesRequest>,
-    ) -> BuilderResult<hydra_proto::DrvRequisitesMessage> {
+        req: tonic::Request<ProtoStorePath>,
+    ) -> BuilderResult<hydra_proto::RequisitesResponse> {
         let state = self.state.clone();
-        let req = req.into_inner();
-        let drv = req
-            .path
-            .ok_or_else(|| tonic::Status::invalid_argument("missing path"))?
-            .0;
+        let path = req.into_inner().0;
 
         let requisites = state
             .store
-            .query_requisites(&[&drv], req.include_outputs)
+            .query_requisites(&[&path])
             .await
             .map_err(|e| {
                 tracing::error!("failed to toposort drv e={e}");
@@ -580,7 +576,7 @@ impl RunnerService for Server {
             .map(ProtoStorePath::from)
             .collect();
 
-        Ok(tonic::Response::new(hydra_proto::DrvRequisitesMessage {
+        Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
             requisites,
         }))
     }

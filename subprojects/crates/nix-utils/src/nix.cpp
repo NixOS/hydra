@@ -160,35 +160,16 @@ void clear_path_info_cache(const StoreWrapper &wrapper) {
   store->clearPathInfoCache();
 }
 
-rust::Vec<rust::String> compute_fs_closure(const StoreWrapper &wrapper,
-                                           rust::Str path, bool flip_direction,
-                                           bool include_outputs,
-                                           bool include_derivers) {
-  auto store = wrapper._store;
-  nix::StorePathSet path_set;
-  store->computeFSClosure(store->parseStorePath(AS_VIEW(path)), path_set,
-                          flip_direction, include_outputs, include_derivers);
-  return extract_path_set(*store, path_set);
-}
-
 rust::Vec<rust::String> compute_fs_closures(const StoreWrapper &wrapper,
-                                            rust::Slice<const rust::Str> paths,
-                                            bool flip_direction,
-                                            bool include_outputs,
-                                            bool include_derivers,
-                                            bool toposort) {
+                                            rust::Slice<const rust::Str> paths) {
   auto store = wrapper._store;
   nix::StorePathSet path_set;
   for (auto &path : paths) {
     store->computeFSClosure(store->parseStorePath(AS_VIEW(path)), path_set,
-                            flip_direction, include_outputs, include_derivers);
+                            false, false, false);
   }
-  if (toposort) {
-    auto sorted = store->topoSortPaths(path_set);
-    return extract_paths(*store, sorted);
-  } else {
-    return extract_path_set(*store, path_set);
-  }
+  auto sorted = store->topoSortPaths(path_set);
+  return extract_paths(*store, sorted);
 }
 
 void upsert_file(const StoreWrapper &wrapper, rust::Str path, rust::Str data,

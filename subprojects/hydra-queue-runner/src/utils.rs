@@ -80,10 +80,7 @@ pub async fn substitute_output(
         return Ok(false);
     }
     if let Some(remote_store) = remote_store {
-        let paths_to_copy = store
-            .query_requisites(&[&path], false)
-            .await
-            .unwrap_or_default();
+        let paths_to_copy = store.query_requisites(&[&path]).await.unwrap_or_default();
         let paths_to_copy = remote_store.query_missing_paths(paths_to_copy).await;
         if let Err(e) = remote_store.copy_paths(&store, paths_to_copy, false).await {
             tracing::error!(

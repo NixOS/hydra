@@ -16,7 +16,7 @@ service RunnerService {
   rpc BuildResult(stream NarData) returns (Empty) {}
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
-  rpc FetchDrvRequisites(FetchRequisitesRequest) returns (DrvRequisitesMessage) {}
+  rpc FetchRequisites(nix.store.v1.StorePath) returns (RequisitesResponse) {}
   rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
   rpc StreamFile(nix.store.v1.StorePath) returns (stream NarData) {}
   rpc StreamFiles(nix.store.v1.StorePaths) returns (stream NarData) {}
@@ -137,7 +137,7 @@ message BuildMessage {
   // bool enforce_determinism = 6;
 }
 
-message DrvRequisitesMessage {
+message RequisitesResponse {
   repeated nix.store.v1.StorePath requisites = 1;
 }
 
@@ -148,11 +148,6 @@ message AbortMessage {
 message LogChunk {
   nix.store.v1.StorePath drv = 1;
   bytes data = 2;
-}
-
-message FetchRequisitesRequest {
-  nix.store.v1.StorePath path = 1;
-  bool include_outputs = 2;
 }
 
 message HasPathResponse {

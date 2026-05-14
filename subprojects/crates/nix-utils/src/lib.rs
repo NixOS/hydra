@@ -140,23 +140,7 @@ mod ffi {
         fn query_path_info(store: &StoreWrapper, path: &str) -> Result<InternalPathInfo>;
         fn compute_closure_size(store: &StoreWrapper, path: &str) -> Result<u64>;
         fn clear_path_info_cache(store: &StoreWrapper) -> Result<()>;
-        #[allow(clippy::fn_params_excessive_bools)]
-        fn compute_fs_closure(
-            store: &StoreWrapper,
-            path: &str,
-            flip_direction: bool,
-            include_outputs: bool,
-            include_derivers: bool,
-        ) -> Result<Vec<String>>;
-        #[allow(clippy::fn_params_excessive_bools)]
-        fn compute_fs_closures(
-            store: &StoreWrapper,
-            paths: &[&str],
-            flip_direction: bool,
-            include_outputs: bool,
-            include_derivers: bool,
-            toposort: bool,
-        ) -> Result<Vec<String>>;
+        fn compute_fs_closures(store: &StoreWrapper, paths: &[&str]) -> Result<Vec<String>>;
         fn upsert_file(store: &StoreWrapper, path: &str, data: &str, mime_type: &str)
         -> Result<()>;
         fn get_store_stats(store: &StoreWrapper) -> Result<StoreStats>;
@@ -398,29 +382,9 @@ pub trait BaseStore {
 
     fn clear_path_info_cache(&self);
 
-    #[allow(clippy::fn_params_excessive_bools)]
-    fn compute_fs_closure(
-        &self,
-        path: &str,
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception>;
-
-    #[allow(clippy::fn_params_excessive_bools)]
-    fn compute_fs_closures(
-        &self,
-        paths: &[&StorePath],
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-        toposort: bool,
-    ) -> impl Future<Output = Result<Vec<StorePath>, Error>>;
-
     fn query_requisites(
         &self,
-        drvs: &[&StorePath],
-        include_outputs: bool,
+        paths: &[&StorePath],
     ) -> impl Future<Output = Result<Vec<StorePath>, Error>>;
 
     fn get_store_stats(&self) -> Result<StoreStats, cxx::Exception>;
@@ -493,6 +457,30 @@ impl BaseStoreImpl {
             wrapper: std::sync::Arc::new(FFIStore(std::cell::UnsafeCell::new(store))),
             store_dir,
         }
+    }
+
+    async fn query_requisites(&self, paths: &[&StorePath]) -> Result<Vec<StorePath>, Error> {
+        let store = self.wrapper.clone();
+        let store_dir = self.store_dir.clone();
+        let paths = paths
+            .iter()
+            .map(|v| self.print_store_path(v))
+            .collect::<Vec<_>>();
+
+        let mut out: Vec<StorePath> = asyncify(move || {
+            let slice = paths.iter().map(String::as_str).collect::<Vec<_>>();
+            Ok(ffi::compute_fs_closures(store.as_raw(), &slice)?
+                .into_iter()
+                .map(|v| {
+                    store_dir
+                        .parse::<StorePath>(&v)
+                        .unwrap_or_else(|e| panic!("invalid store path '{v}': {e}"))
+                })
+                .collect())
+        })
+        .await?;
+        out.reverse();
+        Ok(out)
     }
 }
 
@@ -594,72 +582,8 @@ impl BaseStore for BaseStoreImpl {
         let _ = ffi::clear_path_info_cache(self.wrapper.as_raw());
     }
 
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    fn compute_fs_closure(
-        &self,
-        path: &str,
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
-        ffi::compute_fs_closure(
-            self.wrapper.as_raw(),
-            path,
-            flip_direction,
-            include_outputs,
-            include_derivers,
-        )
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn compute_fs_closures(
-        &self,
-        paths: &[&StorePath],
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-        toposort: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        let store = self.wrapper.clone();
-        let store_dir = self.store_dir.clone();
-        let paths = paths
-            .iter()
-            .map(|v| self.print_store_path(v))
-            .collect::<Vec<_>>();
-
-        asyncify(move || {
-            let slice = paths.iter().map(String::as_str).collect::<Vec<_>>();
-            Ok(ffi::compute_fs_closures(
-                store.as_raw(),
-                &slice,
-                flip_direction,
-                include_outputs,
-                include_derivers,
-                toposort,
-            )?
-            .into_iter()
-            .map(|v| {
-                store_dir
-                    .parse::<StorePath>(&v)
-                    .unwrap_or_else(|e| panic!("invalid store path '{v}': {e}"))
-            })
-            .collect())
-        })
-        .await
-    }
-
-    async fn query_requisites(
-        &self,
-        drvs: &[&StorePath],
-        include_outputs: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        let mut out = self
-            .compute_fs_closures(drvs, false, include_outputs, false, true)
-            .await?;
-        out.reverse();
-        Ok(out)
+    async fn query_requisites(&self, paths: &[&StorePath]) -> Result<Vec<StorePath>, Error> {
+        BaseStoreImpl::query_requisites(self, paths).await
     }
 
     fn get_store_stats(&self) -> Result<StoreStats, cxx::Exception> {
@@ -896,46 +820,8 @@ impl BaseStore for LocalStore {
 
     #[inline]
     #[tracing::instrument(skip(self), err)]
-    fn compute_fs_closure(
-        &self,
-        path: &str,
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
-        self.base
-            .compute_fs_closure(path, flip_direction, include_outputs, include_derivers)
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn compute_fs_closures(
-        &self,
-        paths: &[&StorePath],
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-        toposort: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        self.base
-            .compute_fs_closures(
-                paths,
-                flip_direction,
-                include_outputs,
-                include_derivers,
-                toposort,
-            )
-            .await
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn query_requisites(
-        &self,
-        drvs: &[&StorePath],
-        include_outputs: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        self.base.query_requisites(drvs, include_outputs).await
+    async fn query_requisites(&self, paths: &[&StorePath]) -> Result<Vec<StorePath>, Error> {
+        self.base.query_requisites(paths).await
     }
 
     #[inline]
@@ -1111,46 +997,8 @@ impl BaseStore for RemoteStore {
 
     #[inline]
     #[tracing::instrument(skip(self), err)]
-    fn compute_fs_closure(
-        &self,
-        path: &str,
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-    ) -> Result<Vec<String>, cxx::Exception> {
-        self.base
-            .compute_fs_closure(path, flip_direction, include_outputs, include_derivers)
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn compute_fs_closures(
-        &self,
-        paths: &[&StorePath],
-        flip_direction: bool,
-        include_outputs: bool,
-        include_derivers: bool,
-        toposort: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        self.base
-            .compute_fs_closures(
-                paths,
-                flip_direction,
-                include_outputs,
-                include_derivers,
-                toposort,
-            )
-            .await
-    }
-
-    #[inline]
-    #[tracing::instrument(skip(self), err)]
-    async fn query_requisites(
-        &self,
-        drvs: &[&StorePath],
-        include_outputs: bool,
-    ) -> Result<Vec<StorePath>, Error> {
-        self.base.query_requisites(drvs, include_outputs).await
+    async fn query_requisites(&self, paths: &[&StorePath]) -> Result<Vec<StorePath>, Error> {
+        self.base.query_requisites(paths).await
     }
 
     #[inline]
