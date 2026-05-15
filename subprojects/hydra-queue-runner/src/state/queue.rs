@@ -471,6 +471,23 @@ impl Queues {
     }
 
     #[tracing::instrument(skip(self, jobs))]
+    pub async fn insert_new_jobs<S: Into<String> + std::fmt::Debug + Clone>(
+        &self,
+        system: S,
+        jobs: Vec<StepInfo>,
+        now: &jiff::Timestamp,
+        sort_fn: StepSortFn,
+        metrics: &super::metrics::PromMetrics,
+    ) {
+        let (main_jobs, ofborg_jobs): (Vec<_>, Vec<_>) =
+            jobs.into_iter().partition(|s| !s.step.is_ofborg);
+        self.insert_new_jobs_into_main(system.clone(), main_jobs, now, sort_fn, metrics)
+            .await;
+        self.insert_new_jobs_into_ofborg(system, ofborg_jobs, now, sort_fn)
+            .await;
+    }
+
+    #[tracing::instrument(skip(self, jobs))]
     pub async fn insert_new_jobs_into_main<S: Into<String> + std::fmt::Debug>(
         &self,
         system: S,

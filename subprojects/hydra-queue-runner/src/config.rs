@@ -255,6 +255,16 @@ struct AppConfig {
 
     #[serde(default)]
     forced_substituters: Vec<String>,
+
+    #[serde(default)]
+    ofborg: Option<OfborgConfig>,
+}
+
+#[derive(Debug, serde::Deserialize, Clone, Copy)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct OfborgConfig {
+    pub jobset_id: i32,
 }
 
 /// A token entry with optional feature restrictions.
@@ -298,6 +308,7 @@ pub struct PreparedApp {
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
     pub forced_substituters: Vec<String>,
+    ofborg: Option<OfborgConfig>,
 }
 
 fn load_tokens(paths: Option<Vec<std::path::PathBuf>>) -> Option<Vec<TokenEntry>> {
@@ -419,6 +430,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
             forced_substituters: val.forced_substituters,
+            ofborg: val.ofborg,
         })
     }
 }
@@ -600,6 +612,12 @@ impl App {
     pub fn get_forced_substituters(&self) -> Vec<String> {
         let inner = self.inner.load();
         inner.forced_substituters.clone()
+    }
+
+    #[must_use]
+    pub fn get_ofborg_config(&self) -> Option<OfborgConfig> {
+        let inner = self.inner.load();
+        inner.ofborg
     }
 }
 

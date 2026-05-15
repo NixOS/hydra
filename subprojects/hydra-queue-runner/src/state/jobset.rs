@@ -19,6 +19,8 @@ pub struct Jobset {
     shares: AtomicU32,
     // The start time and duration of the most recent build steps.
     steps: parking_lot::RwLock<BTreeMap<i64, i64>>,
+
+    pub is_ofborg: bool,
 }
 
 impl PartialEq for Jobset {
@@ -38,7 +40,7 @@ impl Hash for Jobset {
 }
 
 impl Jobset {
-    pub fn new<S: Into<String>>(id: JobsetID, project_name: S, name: S) -> Self {
+    pub fn new<S: Into<String>>(id: JobsetID, project_name: S, name: S, is_ofborg: bool) -> Self {
         Self {
             id,
             project_name: project_name.into(),
@@ -46,6 +48,7 @@ impl Jobset {
             seconds: 0.into(),
             shares: 0.into(),
             steps: parking_lot::RwLock::new(BTreeMap::new()),
+            is_ofborg,
         }
     }
 
@@ -161,6 +164,7 @@ impl Jobsets {
         jobset_id: i32,
         project_name: &str,
         jobset_name: &str,
+        ofborg_config: Option<crate::config::OfborgConfig>,
     ) -> anyhow::Result<Arc<Jobset>> {
         let key = (project_name.to_owned(), jobset_name.to_owned());
         {
@@ -174,7 +178,12 @@ impl Jobsets {
             .get_jobset_scheduling_shares(jobset_id)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scheduling Shares not found for jobset not found."))?;
-        let jobset = Jobset::new(jobset_id, project_name, jobset_name);
+        let jobset = Jobset::new(
+            jobset_id,
+            project_name,
+            jobset_name,
+            ofborg_config.is_some_and(|c| c.jobset_id == jobset_id),
+        );
         jobset.set_shares(shares);
 
         for step in conn

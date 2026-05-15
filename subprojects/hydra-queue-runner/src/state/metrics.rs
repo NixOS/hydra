@@ -908,7 +908,7 @@ impl PromMetrics {
         self.wait_time_per_machine_type.reset();
 
         let mut relevant_queues = vec![state.queues.get_stats_per_queue(QueueType::Main).await];
-        if state.config.get_enable_fod_checker() {
+        if state.config.get_ofborg_config().is_some() {
             relevant_queues.push(state.queues.get_stats_per_queue(QueueType::OfBorg).await);
         }
 

@@ -116,6 +116,8 @@ pub struct Step {
     previous_failure: AtomicBool,
     pub atomic_state: StepAtomicState,
     state: parking_lot::RwLock<StepState>,
+
+    pub is_ofborg: bool,
 }
 
 impl PartialEq for Step {
@@ -136,7 +138,7 @@ impl Hash for Step {
 
 impl Step {
     #[must_use]
-    pub fn new(drv_path: StorePath) -> Arc<Self> {
+    pub fn new(drv_path: StorePath, is_ofborg: bool) -> Arc<Self> {
         Arc::new(Self {
             drv_path,
             drv: arc_swap::ArcSwapOption::from(None),
@@ -148,6 +150,7 @@ impl Step {
                 jiff::Timestamp::UNIX_EPOCH,
             ),
             state: parking_lot::RwLock::new(StepState::new()),
+            is_ofborg,
         })
     }
 
@@ -157,7 +160,7 @@ impl Step {
         use std::collections::{BTreeMap, BTreeSet};
 
         let system = system.to_owned();
-        let step = Self::new(drv_path.clone());
+        let step = Self::new(drv_path.clone(), false);
         let mut env = BTreeMap::new();
         if !features.is_empty() {
             env.insert(
@@ -596,6 +599,7 @@ impl Steps {
         drv_path: &StorePath,
         referring_build: Option<&Arc<Build>>,
         referring_step: Option<(&Arc<Step>, OutputNameChain)>,
+        is_ofborg: bool,
     ) -> (Arc<Step>, bool) {
         let mut is_new = false;
         let mut steps = self.inner.write();
@@ -604,13 +608,13 @@ impl Steps {
                 || {
                     steps.remove(drv_path);
                     is_new = true;
-                    Step::new(drv_path.to_owned())
+                    Step::new(drv_path.to_owned(), is_ofborg)
                 },
                 |step| step,
             )
         } else {
             is_new = true;
-            Step::new(drv_path.to_owned())
+            Step::new(drv_path.to_owned(), is_ofborg)
         };
 
         step.add_referring_data(referring_build, referring_step);
@@ -639,7 +643,7 @@ mod tests {
     #[test]
     fn steps_create_and_remove() {
         let steps = Steps::new();
-        let (step, is_new) = steps.create(&drv("test"), None, None);
+        let (step, is_new) = steps.create(&drv("test"), None, None, false);
         assert!(is_new);
         assert_eq!(steps.len(), 1);
 
@@ -650,7 +654,7 @@ mod tests {
     #[test]
     fn steps_weak_ref_dies_without_strong_ref() {
         let steps = Steps::new();
-        let (step, _) = steps.create(&drv("ephemeral"), None, None);
+        let (step, _) = steps.create(&drv("ephemeral"), None, None, false);
         assert_eq!(steps.len(), 1);
 
         drop(step);

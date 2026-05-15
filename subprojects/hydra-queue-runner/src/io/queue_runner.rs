@@ -86,7 +86,7 @@ impl QueueRunnerStats {
                 .map(|(system, stats)| (system, stats.into()))
                 .collect()
         };
-        let ofborg_queue_stats = if state.config.get_enable_fod_checker() {
+        let ofborg_queue_stats = if state.config.get_ofborg_config().is_some() {
             Some(
                 state
                     .queues

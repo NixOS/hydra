@@ -806,7 +806,13 @@ impl State {
             {
                 let jobset = self
                     .jobsets
-                    .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
+                    .create(
+                        &mut conn,
+                        b.jobset_id,
+                        &b.project,
+                        &b.jobset,
+                        self.config.get_ofborg_config(),
+                    )
                     .await?;
                 let build = Build::new(b, jobset)?;
                 new_ids.push(build.id);
@@ -843,7 +849,13 @@ impl State {
             for b in conn.get_not_finished_builds(self.store.store_dir()).await? {
                 let jobset = self
                     .jobsets
-                    .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
+                    .create(
+                        &mut conn,
+                        b.jobset_id,
+                        &b.project,
+                        &b.jobset,
+                        self.config.get_ofborg_config(),
+                    )
                     .await?;
                 let build = Build::new(b, jobset)?;
                 new_ids.push(build.id);
@@ -1067,7 +1079,7 @@ impl State {
 
         for (system, jobs) in new_queues {
             self.queues
-                .insert_new_jobs_into_main(
+                .insert_new_jobs(
                     system,
                     jobs,
                     &now,
@@ -1989,6 +2001,7 @@ impl State {
             referring_step
                 .as_ref()
                 .map(|(step, relation)| (step, relation.clone())),
+            build.jobset.is_ofborg,
         );
         if !is_new {
             // Re-check whether the step's outputs have appeared in the store
@@ -2387,8 +2400,12 @@ impl State {
                 continue;
             };
 
-            // this is a core hydra thing. so QueueType::Main
-            let mut job = machine::Job::new(build.id, drv.to_owned(), QueueType::Main);
+            let queue_type = if step.is_ofborg {
+                QueueType::OfBorg
+            } else {
+                QueueType::Main
+            };
+            let mut job = machine::Job::new(build.id, drv.to_owned(), queue_type);
             job.result.set_start_and_stop(now);
             job.result.step_status = BuildStatus::Unsupported;
             job.result.error_msg = Some(format!(
@@ -2401,15 +2418,17 @@ impl State {
         }
 
         {
-            // this is a core hydra thing. so QueueType::Main
             for step in &aborted {
+                let queue_type = if step.is_ofborg {
+                    QueueType::OfBorg
+                } else {
+                    QueueType::Main
+                };
                 self.queues
-                    .remove_job_by_path(step.get_drv_path(), QueueType::Main)
+                    .remove_job_by_path(step.get_drv_path(), queue_type)
                     .await;
             }
-            self.queues
-                .remove_all_weak_pointer(Some(QueueType::Main))
-                .await;
+            self.queues.remove_all_weak_pointer(None).await;
         }
         self.metrics.nr_unsupported_steps.set(count);
         self.metrics

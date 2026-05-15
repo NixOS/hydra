@@ -256,7 +256,10 @@ mod tests {
         lowest_share_used: f64,
         rdeps_len: u64,
     ) -> StepInfo {
-        let step = Step::new("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv".parse().unwrap());
+        let step = Step::new(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv".parse().unwrap(),
+            false,
+        );
 
         step.atomic_state
             .highest_global_priority
