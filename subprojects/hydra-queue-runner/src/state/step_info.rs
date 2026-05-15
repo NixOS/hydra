@@ -123,6 +123,17 @@ impl StepInfo {
         })
     }
 
+    #[cfg(test)]
+    pub fn dummy(step: Arc<Step>) -> Self {
+        Self {
+            already_scheduled: false.into(),
+            cancelled: false.into(),
+            runnable_since: step.get_runnable_since(),
+            lowest_share_used: step.get_lowest_share_used().into(),
+            step,
+        }
+    }
+
     pub fn update_internal_stats(&self) {
         self.lowest_share_used
             .store(self.step.get_lowest_share_used(), Ordering::Relaxed);

@@ -151,6 +151,35 @@ impl Step {
         })
     }
 
+    #[cfg(test)]
+    #[must_use]
+    pub fn dummy(drv_path: &StorePath, system: &str, features: &[String]) -> Arc<Self> {
+        use std::collections::{BTreeMap, BTreeSet};
+
+        let system = system.to_owned();
+        let step = Self::new(drv_path.clone());
+        let mut env = BTreeMap::new();
+        if !features.is_empty() {
+            env.insert(
+                bytes::Bytes::from("requiredSystemFeatures"),
+                bytes::Bytes::from(features.join(" ")),
+            );
+        }
+        step.set_drv(Derivation {
+            name: drv_path.name().clone(),
+            outputs: BTreeMap::default(),
+            inputs: BTreeSet::default(),
+            platform: bytes::Bytes::from(system),
+            builder: bytes::Bytes::from(""),
+            args: vec![],
+            env,
+            structured_attrs: None,
+        });
+
+        step.atomic_state.set_created(true);
+        step
+    }
+
     #[inline]
     pub const fn get_drv_path(&self) -> &StorePath {
         &self.drv_path
