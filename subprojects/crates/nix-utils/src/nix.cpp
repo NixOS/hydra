@@ -246,13 +246,14 @@ reconstruct_vpi(nix::ref<nix::Store> store, rust::Str path,
   return nix::ValidPathInfo(storePath, std::move(upi));
 }
 
-void add_multiple_to_store(
-    const StoreWrapper &wrapper, rust::Slice<const rust::Str> paths,
-    const rust::Vec<InternalPathInfo> &infos, bool check_sigs,
+void add_to_store(
+    const StoreWrapper &wrapper, rust::Str path,
+    const InternalPathInfo &info, bool check_sigs,
     size_t runtime, size_t reader,
     rust::Fn<size_t(rust::Slice<uint8_t>, size_t, size_t, size_t)> callback,
     size_t user_data) {
   auto store = wrapper._store;
+  auto vpi = reconstruct_vpi(store, path, info);
 
   nix::LambdaSource source([=](char *out, size_t out_len) {
     auto data = rust::Slice<uint8_t>((uint8_t *)out, out_len);
@@ -263,11 +264,8 @@ void add_multiple_to_store(
     return ret;
   });
 
-  for (size_t i = 0; i < paths.size(); i++) {
-    auto vpi = reconstruct_vpi(store, paths[i], infos[i]);
-    store->addToStore(vpi, source, nix::NoRepair,
-                      check_sigs ? nix::CheckSigs : nix::NoCheckSigs);
-  }
+  store->addToStore(vpi, source, nix::NoRepair,
+                    check_sigs ? nix::CheckSigs : nix::NoCheckSigs);
 }
 
 class StopExport : public std::exception {

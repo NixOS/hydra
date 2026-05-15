@@ -154,10 +154,10 @@ mod ffi {
             substitute: bool,
         ) -> Result<()>;
 
-        fn add_multiple_to_store(
+        fn add_to_store(
             store: &StoreWrapper,
-            paths: &[&str],
-            infos: &Vec<InternalPathInfo>,
+            path: &str,
+            info: &InternalPathInfo,
             check_sigs: bool,
             runtime: usize,
             reader: usize,
@@ -409,13 +409,11 @@ pub trait BaseStore {
 
     fn get_store_stats(&self) -> Result<StoreStats, cxx::Exception>;
 
-    /// Add multiple store paths with their NAR data to the store.
-    /// Paths must be in dependency order (references before referrers).
-    /// The NAR stream must contain the NARs for all paths concatenated
-    /// in the same order.
-    fn add_multiple_to_store<S>(
+    /// Add a single store path with its NAR data to the store.
+    /// The C++ side verifies that exactly `nar_size` bytes are consumed.
+    fn add_to_store<S>(
         &self,
-        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        path_info: &harmonia_store_path_info::ValidPathInfo,
         nar_stream: S,
         check_sigs: bool,
     ) -> impl Future<Output = Result<(), Error>>
@@ -603,9 +601,9 @@ impl BaseStore for BaseStoreImpl {
     }
 
     #[tracing::instrument(skip(self, nar_stream), err)]
-    async fn add_multiple_to_store<S>(
+    async fn add_to_store<S>(
         &self,
-        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        path_info: &harmonia_store_path_info::ValidPathInfo,
         nar_stream: S,
         check_sigs: bool,
     ) -> Result<(), Error>
@@ -615,19 +613,12 @@ impl BaseStore for BaseStoreImpl {
             + Unpin
             + 'static,
     {
-        let store_dir = self.store_dir();
-        let path_strs: Vec<String> = path_infos
-            .iter()
-            .map(|pi| self.print_store_path(&pi.path))
-            .collect();
-        let internal_infos: Vec<ffi::InternalPathInfo> = path_infos
-            .iter()
-            .map(|pi| to_internal_path_info(store_dir, &pi.info))
-            .collect();
+        let path_str = self.print_store_path(&path_info.path);
+        let internal_info = to_internal_path_info(self.store_dir(), &path_info.info);
         let reader = Box::new(tokio_util::io::StreamReader::new(nar_stream));
         let store = self.clone();
         tokio::task::spawn_blocking(move || {
-            store.add_multiple_to_store_with_cb(path_strs, internal_infos, reader, check_sigs)
+            store.add_to_store_with_cb(path_str, internal_info, reader, check_sigs)
         })
         .await?
     }
@@ -666,10 +657,10 @@ impl BaseStore for BaseStoreImpl {
 
 impl BaseStoreImpl {
     #[tracing::instrument(skip(self, reader), err)]
-    fn add_multiple_to_store_with_cb<S>(
+    fn add_to_store_with_cb<S>(
         &self,
-        paths: Vec<String>,
-        infos: Vec<ffi::InternalPathInfo>,
+        path: String,
+        info: ffi::InternalPathInfo,
         reader: Box<tokio_util::io::StreamReader<S, bytes::Bytes>>,
         check_sigs: bool,
     ) -> Result<(), Error>
@@ -688,12 +679,11 @@ impl BaseStoreImpl {
             runtime.block_on(async { reader.read(data).await.unwrap_or(0) })
         };
 
-        let path_strs: Vec<&str> = paths.iter().map(String::as_str).collect();
         let runtime = Box::new(tokio::runtime::Runtime::new()?);
-        ffi::add_multiple_to_store(
+        ffi::add_to_store(
             self.wrapper.as_raw(),
-            &path_strs,
-            &infos,
+            &path,
+            &info,
             check_sigs,
             std::ptr::addr_of!(runtime).cast::<std::ffi::c_void>() as usize,
             std::ptr::addr_of!(reader).cast::<std::ffi::c_void>() as usize,
@@ -826,9 +816,9 @@ impl BaseStore for LocalStore {
         self.base.get_store_stats()
     }
 
-    async fn add_multiple_to_store<S>(
+    async fn add_to_store<S>(
         &self,
-        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        path_info: &harmonia_store_path_info::ValidPathInfo,
         nar_stream: S,
         check_sigs: bool,
     ) -> Result<(), Error>
@@ -839,7 +829,7 @@ impl BaseStore for LocalStore {
             + 'static,
     {
         self.base
-            .add_multiple_to_store(path_infos, nar_stream, check_sigs)
+            .add_to_store(path_info, nar_stream, check_sigs)
             .await
     }
 
@@ -990,9 +980,9 @@ impl BaseStore for RemoteStore {
         self.base.get_store_stats()
     }
 
-    async fn add_multiple_to_store<S>(
+    async fn add_to_store<S>(
         &self,
-        path_infos: &[harmonia_store_path_info::ValidPathInfo],
+        path_info: &harmonia_store_path_info::ValidPathInfo,
         nar_stream: S,
         check_sigs: bool,
     ) -> Result<(), Error>
@@ -1003,7 +993,7 @@ impl BaseStore for RemoteStore {
             + 'static,
     {
         self.base
-            .add_multiple_to_store(path_infos, nar_stream, check_sigs)
+            .add_to_store(path_info, nar_stream, check_sigs)
             .await
     }
 

@@ -157,9 +157,12 @@ message AddToStoreRequest {
   // Rules below for streaming (i.e. `stream AddToStoreRequest`). Pity we cannot
   // encode this in gRPC types.
   oneof content {
-    // First send one of these
+    // First send one of these. The header includes NAR sizes so the
+    // receiver knows how many uncompressed bytes to expect per path.
     AddToStoreHeader header = 1;
-    // Then send as many of these as are needed.
+    // Then send as many of these as are needed. These are for a single
+    // zstd-compressed NAR data for all paths concatenated in header
+    // order.
     bytes nar_chunk = 2;
   }
 }

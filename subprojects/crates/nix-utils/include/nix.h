@@ -47,10 +47,10 @@ void copy_paths(const StoreWrapper &src_store, const StoreWrapper &dst_store,
                 rust::Slice<const rust::Str> paths, bool repair,
                 bool check_sigs, bool substitute);
 
-void add_multiple_to_store(
-    const StoreWrapper &wrapper, rust::Slice<const rust::Str> paths,
-    const rust::Vec<InternalPathInfo> &infos, bool check_sigs,
-    size_t runtime, size_t reader,
+void add_to_store(
+    const StoreWrapper &wrapper, rust::Str path,
+    const InternalPathInfo &info, bool check_sigs, size_t runtime,
+    size_t reader,
     rust::Fn<size_t(rust::Slice<uint8_t>, size_t, size_t, size_t)> callback,
     size_t user_data);
 void nar_from_path(const StoreWrapper &src_store, rust::Str path,
