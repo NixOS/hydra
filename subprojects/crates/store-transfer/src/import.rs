@@ -3,11 +3,13 @@
 /// Import store paths from a gRPC `stream AddToStoreRequest`.
 ///
 /// The first message must be an [`AddToStoreHeader`] containing all
-/// [`ValidPathInfo`]s. Subsequent messages must be zstd-compressed
-/// `nar_chunk` bytes containing the NARs for all paths concatenated
-/// in the same (dependency) order as the header.
-pub async fn import(
-    store: &impl nix_utils::BaseStore,
+/// [`ValidPathInfo`]s (including NAR sizes). Then zstd-compressed
+/// `nar_chunk` bytes with all NARs concatenated in header order.
+///
+/// Rust splits the decompressed stream by counting `nar_size` bytes
+/// per path and feeds each slice into `add_to_store`.
+pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
+    store: &Store,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
 ) -> Result<Vec<harmonia_store_core::store_path::StorePath>, nix_utils::Error> {
     use futures::StreamExt as _;
@@ -49,14 +51,10 @@ pub async fn import(
         return Ok(paths);
     }
 
-    // Pipe compressed NAR data through a zstd decoder into
-    // add_multiple_to_store. Spawn the stream reader so it can write
-    // concurrently while add_multiple_to_store reads from the other end.
+    // Pipe compressed gRPC chunks through a zstd decoder. A spawned
+    // task writes the compressed data; we read decompressed bytes
+    // from the other end.
     let (mut compressed_writer, compressed_reader) = tokio::io::duplex(256 * 1024);
-    let decoder = async_compression::tokio::bufread::ZstdDecoder::new(tokio::io::BufReader::new(
-        compressed_reader,
-    ));
-    let nar_stream = tokio_util::io::ReaderStream::new(decoder);
 
     let writer_handle = tokio::spawn(async move {
         while let Some(msg) = stream.next().await {
@@ -70,9 +68,43 @@ pub async fn import(
         Ok::<(), anyhow::Error>(())
     });
 
-    store
-        .add_multiple_to_store(&path_infos, nar_stream, false)
-        .await?;
+    let mut decoder = async_compression::tokio::bufread::ZstdDecoder::new(
+        tokio::io::BufReader::new(compressed_reader),
+    );
+
+    // Import each path by reading exactly nar_size decompressed bytes
+    // into a per-path duplex pipe feeding add_to_store.
+    for pi in &path_infos {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let (mut nar_writer, nar_reader) = tokio::io::duplex(256 * 1024);
+        let nar_stream = tokio_util::io::ReaderStream::new(nar_reader);
+
+        let copy_fut = async {
+            let mut remaining = pi.info.nar_size;
+            let mut buf = vec![0u8; 64 * 1024];
+            while remaining > 0 {
+                let to_read = buf.len().min(remaining as usize);
+                let n = decoder.read(&mut buf[..to_read]).await?;
+                if n == 0 {
+                    return Err(anyhow::anyhow!(
+                        "unexpected end of NAR stream for {}, {remaining} bytes remaining",
+                        pi.path
+                    ));
+                }
+                nar_writer.write_all(&buf[..n]).await?;
+                remaining -= n as u64;
+            }
+            drop(nar_writer);
+            Ok::<(), anyhow::Error>(())
+        };
+
+        let store_fut = store.add_to_store(pi, nar_stream, false);
+
+        let (copy_result, store_result) = futures::future::join(copy_fut, store_fut).await;
+        copy_result.map_err(Error::Anyhow)?;
+        store_result?;
+    }
 
     writer_handle
         .await

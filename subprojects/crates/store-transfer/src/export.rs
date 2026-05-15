@@ -7,8 +7,8 @@ use nix_utils::BaseStore;
 /// Export store paths as `AddToStoreRequest` messages over a gRPC channel.
 ///
 /// Sends an [`AddToStoreHeader`] containing all path infos first,
-/// then zstd-compressed `nar_chunk` messages for each path's NAR
-/// data concatenated in the same order.
+/// then zstd-compressed `nar_chunk` messages with all NARs
+/// concatenated in the same order. One continuous zstd stream.
 ///
 /// The `infos` map must contain an entry for every path. Paths
 /// missing from the map are skipped.
@@ -45,22 +45,32 @@ pub fn export(
         return;
     }
 
-    // Stream all NARs compressed with zstd.
+    // Stream all NARs as one continuous zstd-compressed stream.
     let mut encoder =
         zstd::stream::Encoder::new(NarChunkWriter(tx), 3).expect("failed to create zstd encoder");
 
     for path in paths {
-        if !infos.contains_key(path) {
+        let Some(info) = infos.get(path) else {
             continue;
-        }
+        };
+
+        let mut bytes_written: u64 = 0;
         let enc = &mut encoder;
+        let written = &mut bytes_written;
         let closure = |data: &[u8]| -> bool {
             use std::io::Write;
+            *written += data.len() as u64;
             enc.write_all(data).is_ok()
         };
         if store.nar_from_path(path, closure).is_err() {
             break;
         }
+
+        assert_eq!(
+            bytes_written, info.nar_size,
+            "NAR size mismatch for {path}: wrote {bytes_written} bytes, expected {}",
+            info.nar_size
+        );
     }
 
     let _ = encoder.finish();
