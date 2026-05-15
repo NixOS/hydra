@@ -382,6 +382,7 @@ impl InnerQueues {
     }
 }
 
+#[derive(Debug)]
 pub(super) struct JobConstraint<'a> {
     job: Arc<StepInfo>,
     system: System,
@@ -493,19 +494,25 @@ impl Queues {
         jobs: Vec<StepInfo>,
         now: &jiff::Timestamp,
         sort_fn: StepSortFn,
-        metrics: &super::metrics::PromMetrics,
     ) {
-        let sort_duration = self
+        let _ = self
             .ofborg
             .write()
             .await
             .insert_new_jobs(system, jobs, now, sort_fn);
-        metrics.queue_sort_duration_ms_total.inc_by(sort_duration);
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn remove_all_weak_pointer(&self) {
-        for inner in [&self.main, &self.ofborg] {
+    pub async fn remove_all_weak_pointer(&self, hint: Option<QueueType>) {
+        let arr = match hint {
+            Some(v) => match v {
+                QueueType::Main => vec![&self.main],
+                QueueType::OfBorg => vec![&self.ofborg],
+            },
+            None => vec![&self.main, &self.ofborg],
+        };
+
+        for inner in arr {
             let rq = inner.write().await;
             rq.remove_all_weak_pointer();
         }
@@ -906,13 +913,7 @@ mod tests {
             )
             .await;
         queues
-            .insert_new_jobs_into_ofborg(
-                "x86_64-linux",
-                vec![job1, job3],
-                &now,
-                StepSortFn::Legacy,
-                &metrics,
-            )
+            .insert_new_jobs_into_ofborg("x86_64-linux", vec![job1, job3], &now, StepSortFn::Legacy)
             .await;
 
         let captured_constraints = Arc::new(tokio::sync::Mutex::new(Vec::new()));
@@ -998,13 +999,7 @@ mod tests {
             )
             .await;
         queues
-            .insert_new_jobs_into_ofborg(
-                "x86_64-linux",
-                vec![job1, job3],
-                &now,
-                StepSortFn::Legacy,
-                &metrics,
-            )
+            .insert_new_jobs_into_ofborg("x86_64-linux", vec![job1, job3], &now, StepSortFn::Legacy)
             .await;
 
         let captured_constraints = Arc::new(tokio::sync::Mutex::new(Vec::new()));
