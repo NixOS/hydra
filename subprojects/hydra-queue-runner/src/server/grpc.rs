@@ -6,6 +6,7 @@ use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
 use tracing::Instrument as _;
 
+use crate::config::TokenEntry;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
@@ -71,20 +72,21 @@ pub struct CheckAuthInterceptor {
 }
 
 impl tonic::service::Interceptor for CheckAuthInterceptor {
-    fn call(&mut self, req: tonic::Request<()>) -> Result<tonic::Request<()>, tonic::Status> {
+    fn call(&mut self, mut req: tonic::Request<()>) -> Result<tonic::Request<()>, tonic::Status> {
         if self.config.has_token_list() {
-            match req.metadata().get("authorization") {
-                Some(t)
-                    if self.config.check_if_contains_token(
-                        t.to_str()
-                            .map_err(|_| tonic::Status::unauthenticated("No valid auth token"))?
-                            .strip_prefix("Bearer ")
-                            .ok_or_else(|| tonic::Status::unauthenticated("No valid auth token"))?,
-                    ) =>
-                {
+            let token = req
+                .metadata()
+                .get("authorization")
+                .and_then(|t| t.to_str().ok())
+                .and_then(|t| t.strip_prefix("Bearer "))
+                .ok_or_else(|| tonic::Status::unauthenticated("No valid auth token"))?;
+
+            match self.config.find_token_entry(token) {
+                Some(entry) => {
+                    req.extensions_mut().insert(entry);
                     Ok(req)
                 }
-                _ => Err(tonic::Status::unauthenticated("No valid auth token")),
+                None => Err(tonic::Status::unauthenticated("No valid auth token")),
             }
         } else {
             Ok(req)
@@ -235,6 +237,9 @@ impl RunnerService for Server {
     ) -> BuilderResult<Self::OpenTunnelStream> {
         use tokio_stream::StreamExt as _;
 
+        // Extract token entry before consuming req
+        let token_entry = req.extensions().get::<TokenEntry>().cloned();
+
         let mut stream = req.into_inner();
         let (input_tx, mut input_rx) = mpsc::channel::<MachineMessage>(128);
         let use_presigned_uploads = self.state.config.use_presigned_uploads();
@@ -261,6 +266,51 @@ impl RunnerService for Server {
         let Some(machine) = machine else {
             return Err(tonic::Status::invalid_argument("No Ping message was sent"));
         };
+
+        // Validate claimed features against token restrictions
+        if let Some(entry) = &token_entry {
+            if let Some(allowed) = &entry.allowed_supported_features {
+                let has_disallowed = machine
+                    .supported_features
+                    .iter()
+                    .any(|f| !allowed.contains(f));
+                if has_disallowed {
+                    let disallowed: Vec<&String> = machine
+                        .supported_features
+                        .iter()
+                        .filter(|f| !allowed.contains(f))
+                        .collect();
+                    tracing::error!(
+                        "Machine {} claims disallowed supported_features: {disallowed:?}. Allowed: {allowed:?}",
+                        machine.hostname,
+                    );
+                    return Err(tonic::Status::permission_denied(
+                        "Token does not allow one or more claimed supported features",
+                    ));
+                }
+            }
+
+            if let Some(allowed) = &entry.allowed_mandatory_features {
+                let has_disallowed = machine
+                    .mandatory_features
+                    .iter()
+                    .any(|f| !allowed.contains(f));
+                if has_disallowed {
+                    let disallowed: Vec<&String> = machine
+                        .mandatory_features
+                        .iter()
+                        .filter(|f| !allowed.contains(f))
+                        .collect();
+                    tracing::error!(
+                        "Machine {} claims disallowed mandatory_features: {disallowed:?}. Allowed: {allowed:?}",
+                        machine.hostname,
+                    );
+                    return Err(tonic::Status::permission_denied(
+                        "Token does not allow one or more claimed mandatory features",
+                    ));
+                }
+            }
+        }
 
         let state = self.state.clone();
         let machine_id = state.insert_machine(machine.clone()).await;
