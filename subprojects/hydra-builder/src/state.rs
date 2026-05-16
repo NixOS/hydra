@@ -87,6 +87,28 @@ pub enum BuildError {
     },
 }
 
+/// Submit a build result to the queue-runner with retries.
+async fn submit_build_result(
+    client: &BuilderClient,
+    result: BuildResultInfo,
+    context: &'static str,
+) -> Result<(), tonic::Status> {
+    let (_, res) = (|tuple: (BuilderClient, BuildResultInfo)| async {
+        let (mut client, body) = tuple;
+        let res = client.complete_build(body.clone()).await;
+        ((client, body), res)
+    })
+    .retry(retry_strategy())
+    .sleep(tokio::time::sleep)
+    .context((client.clone(), result))
+    .notify(|err: &tonic::Status, dur: core::time::Duration| {
+        tracing::error!("{context}: err={err}, retrying in={dur:?}");
+    })
+    .await;
+    res.map(|_| ())
+}
+
+
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("missing drv in build message")]
@@ -127,7 +149,7 @@ impl From<&JobFailure> for BuildResultState {
 #[derive(Debug)]
 pub struct BuildInfo {
     drv_path: StorePath,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<Result<(), JobFailure>>,
     was_cancelled: Arc<AtomicBool>,
 }
 
@@ -379,7 +401,7 @@ impl State {
                             tracing::error!(
                                 "Build of {drv} was cancelled, not reporting Error: {e:?}",
                             );
-                            return;
+                            return Err(e);
                         }
 
                         let result_state = BuildResultState::from(&e) as i32;
@@ -399,23 +421,16 @@ impl State {
                             output_infos: std::collections::HashMap::new(),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
+                        submit_build_result(
+                            &self_.client,
+                            failed_build,
+                            "Failed to submit build failure info",
+                        )
                         .await
-                        {
-                            tracing::error!("Failed to submit build failure info: {e}");
-                        }
+                        .map_err(|e| JobFailure::Upload(UploadError::from(e)))?;
                     }
                 }
+                Ok(())
             }
         });
 
@@ -728,23 +743,13 @@ impl State {
 
         // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
         // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
+        submit_build_result(
+            &client,
+            build_results,
+            "Failed to submit build success info",
+        )
         .await
-        .1
-        .map_err(|e| {
-            tracing::error!("Failed to submit build success info. Will fail build: err={e}");
-            JobFailure::Upload(UploadError::from(e))
-        })?;
+        .map_err(|e| JobFailure::Upload(UploadError::from(e)))?;
         Ok(())
     }
 

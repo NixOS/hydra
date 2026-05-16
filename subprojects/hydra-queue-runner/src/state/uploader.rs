@@ -52,6 +52,8 @@ impl Uploader {
         };
 
         if let Err(e) = uploader.load_state().await {
+            // Non-fatal: `PersistError` is IO/JSON — no DB.
+            // Starting with an empty upload queue is fine.
             tracing::warn!(
                 "Failed to load uploader state from {}: {}",
                 uploader.state_file_path.display(),
@@ -126,6 +128,9 @@ impl Uploader {
         {
             Ok(c) => c,
             Err(e) => {
+                // Non-fatal: outputs remain in the local store. The
+                // uploader is best-effort — a transient daemon issue
+                // shouldn't stop other uploads from proceeding.
                 tracing::error!("Failed to query requisites: {e}");
                 return;
             }

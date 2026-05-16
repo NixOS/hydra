@@ -6,7 +6,9 @@ use harmonia_store_path::{StoreDir, StorePath};
 
 use crate::state::RemoteBuild;
 
-/// Errors from queue-runner utility functions (DB + store operations).
+/// Errors from queue-runner utility functions that record build steps
+/// in the database. Only `Db` and `IntConversion` can escape — store
+/// and cache errors are handled internally where they occur.
 #[derive(Debug, thiserror::Error)]
 pub enum UtilError {
     #[error(transparent)]
@@ -90,10 +92,13 @@ pub async fn substitute_output(
 
     let store_dir = pool.store_dir();
     let starttime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
+    // Non-fatal: path simply isn't available for substitution.
     if let Err(e) = daemon_client_utils::ensure_path(&pool, &path).await {
         tracing::debug!("Path not found, can't import={e}");
         return Ok(false);
     }
+    // Best-effort replication to S3. Non-fatal: the substitution
+    // succeeded locally, so the build can proceed regardless.
     if let Some(remote_store) = remote_store {
         let _: Result<(), Box<dyn std::error::Error>> = async {
             let closure =
@@ -113,7 +118,7 @@ pub async fn substitute_output(
         .await
         .inspect_err(|e| {
             tracing::error!(
-                "Failed to copy paths to remote store({}): {e}",
+                "Failed to replicate to remote store({}): {e}",
                 remote_store.cfg.client_config.bucket
             );
         });

@@ -112,6 +112,9 @@ impl Server {
                         .instrument(server_span.clone())
                         .await
                     {
+                        // Non-fatal: `hyper::Error` — per-connection HTTP
+                        // error, no DB. A bad client shouldn't bring
+                        // down the server.
                         tracing::error!("Error serving connection: {err:?}");
                     }
                 }

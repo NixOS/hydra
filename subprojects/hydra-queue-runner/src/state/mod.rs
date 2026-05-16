@@ -40,17 +40,14 @@ pub enum StateError {
     #[error("I/O")]
     Io(#[source] std::io::Error),
 
-    #[error("utility")]
-    Util(#[source] crate::utils::UtilError),
-
     #[error("jobset")]
     Jobset(#[source] jobset::JobsetError),
 
     #[error("build output")]
     BuildOutput(#[source] build::BuildOutputError),
 
-    #[error("machine")]
-    Machine(#[source] machine::MachineError),
+    #[error("channel closed")]
+    ChannelClosed(#[source] machine::ChannelClosedError),
 
     #[error("metrics")]
     Metrics(#[source] prometheus::Error),
@@ -70,6 +67,9 @@ pub enum StateError {
     #[error("time")]
     Jiff(#[source] jiff::Error),
 
+    #[error("task join")]
+    Join(#[source] tokio::task::JoinError),
+
     #[error("invalid platform UTF-8: {0}")]
     InvalidPlatformUtf8(std::str::Utf8Error),
 
@@ -86,9 +86,8 @@ pub enum StateError {
     PreviousFailureContext(#[source] Box<StateError>),
 }
 
-// Manual From impls — using #[source] (not #[from]) so we keep
+// Manual `From` impls — using `#[source]` (not `#[from]`) so we keep
 // the contextual message on each variant.
-
 macro_rules! impl_from_for_state_error {
     ($($variant:ident($ty:ty)),* $(,)?) => {
         $(
@@ -105,18 +104,32 @@ impl_from_for_state_error! {
     Db(db::Error),
     Daemon(harmonia_store_remote::DaemonError),
     Io(std::io::Error),
-    Util(crate::utils::UtilError),
     Jobset(jobset::JobsetError),
     BuildOutput(build::BuildOutputError),
-    Machine(machine::MachineError),
+    ChannelClosed(machine::ChannelClosedError),
     Metrics(prometheus::Error),
     Config(crate::config::ConfigError),
     LoadConfig(crate::config::LoadConfigError),
     Cache(binary_cache::CacheError),
     IntConversion(std::num::TryFromIntError),
     Jiff(jiff::Error),
+    Join(tokio::task::JoinError),
     Logic(StateLogicError),
     ReadDerivation(ReadDerivationError),
+}
+
+/// Decompose `UtilError` into the appropriate `StateError` variant
+/// so that `StateError::Db` is the single canonical DB error variant.
+impl From<crate::utils::UtilError> for StateError {
+    fn from(e: crate::utils::UtilError) -> Self {
+        match e {
+            crate::utils::UtilError::Db(e) => Self::Db(e),
+            crate::utils::UtilError::IntConversion(e) => Self::IntConversion(e),
+            crate::utils::UtilError::NonUtf8LogPath => Self::Io(
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "non UTF-8 log file path"),
+            ),
+        }
+    }
 }
 
 impl From<ResolutionError> for StateError {
@@ -309,10 +322,9 @@ impl State {
         )
         .await?;
 
-        match fs_err::tokio::create_dir_all(&log_dir).await {
-            Ok(()) => tracing::info!("successfully created hydra log_dir={log_dir:?}"),
-            Err(e) => tracing::error!("Failed to create hydra log_dir={log_dir:?} e={e}"),
-        }
+        fs_err::tokio::create_dir_all(&log_dir)
+            .await
+            .map_err(StateError::from)?;
 
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
@@ -357,11 +369,25 @@ impl State {
         }))
     }
 
+}
+
+/// Errors from hot-reloading configuration. These are config
+/// validation errors (bad URL, bad S3 config), not infrastructure
+/// failures — the old config remains in effect.
+#[derive(Debug, thiserror::Error)]
+pub enum ReloadConfigError {
+    #[error(transparent)]
+    BadDbUrl(#[from] db::DbConfigurationError),
+    #[error(transparent)]
+    Cache(#[from] binary_cache::CacheError),
+}
+
+impl State {
     #[tracing::instrument(skip(self, new_config), err)]
     pub async fn reload_config_callback(
         &self,
         new_config: &crate::config::PreparedApp,
-    ) -> Result<(), StateError> {
+    ) -> Result<(), ReloadConfigError> {
         // IF this gets more complex we need a way to trap the state and revert.
         // right now it doesnt matter because only reconfigure_pool can fail and this is the first
         // thing we do.
@@ -428,40 +454,33 @@ impl State {
         machine_id
     }
 
-    #[tracing::instrument(skip(self))]
-    pub async fn remove_machine(&self, machine_id: uuid::Uuid) {
+    #[tracing::instrument(skip(self), err)]
+    pub async fn remove_machine(&self, machine_id: uuid::Uuid) -> Result<(), StateError> {
         if let Some(m) = self.machines.remove_machine(machine_id) {
             let jobs = {
                 let jobs = m.jobs.read();
                 jobs.clone()
             };
             for job in &jobs {
-                if let Err(e) = self
-                    .fail_step(
-                        machine_id,
-                        &job.path,
-                        // we fail this with preparing because we kinda want to restart all jobs if
-                        // a machine is removed
-                        BuildResultState::Completed(
-                            hydra_proto::BuildResultState::PreparingFailure,
-                        ),
-                        BuildTimings::default(),
-                    )
-                    .await
-                {
-                    tracing::error!(
-                        "Failed to fail step machine_id={machine_id} drv={} e={e}",
-                        job.path
-                    );
-                }
+                self.fail_step(
+                    machine_id,
+                    &job.path,
+                    // we fail this with preparing because we kinda want to restart all jobs if
+                    // a machine is removed
+                    BuildResultState::Completed(hydra_proto::BuildResultState::PreparingFailure),
+                    BuildTimings::default(),
+                )
+                .await?;
             }
         }
+        Ok(())
     }
 
-    pub async fn remove_all_machines(&self) {
+    pub async fn remove_all_machines(&self) -> Result<(), StateError> {
         for m in self.machines.get_all_machines() {
-            self.remove_machine(m.id).await;
+            self.remove_machine(m.id).await?;
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -728,7 +747,7 @@ impl State {
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                     )
-                    .await
+                    .await?
                 {
                     CreateStepResult::None => {
                         return Err(StateError::from(
@@ -842,6 +861,8 @@ impl State {
         let (dir, file) = base.split_at(2);
         log_file.push(format!("{dir}/"));
         if let Err(e) = fs_err::tokio::create_dir_all(&log_file).await {
+            // Non-fatal: `io::Error` — no DB. Log dir creation is
+            // best-effort; the log file open will fail more visibly.
             tracing::warn!("failed to create log directory {log_file:?}: {e}");
         }
         log_file.push(file);
@@ -1002,7 +1023,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn process_queue_change(&self) -> Result<(), db::Error> {
+    async fn process_queue_change(&self) -> Result<(), StateError> {
         let mut db = self.db.get().await?;
         let curr_ids: HashMap<_, _> = db
             .get_not_finished_builds_fast()
@@ -1014,29 +1035,26 @@ impl State {
 
         let cancelled_steps = self.queues.kill_active_steps().await;
         for (drv_path, machine_id) in cancelled_steps {
-            if let Err(e) = self
-                .fail_step(
-                    machine_id,
-                    &drv_path,
-                    BuildResultState::Cancelled,
-                    BuildTimings::default(),
-                )
-                .await
-            {
-                tracing::error!(
-                    "Failed to abort step machine_id={machine_id} drv={drv_path} e={e}",
-                );
-            }
+            self.fail_step(
+                machine_id,
+                &drv_path,
+                BuildResultState::Cancelled,
+                BuildTimings::default(),
+            )
+            .await?;
         }
         Ok(())
     }
 }
 
 /// Errors from looking up derivations.
-#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum DrvLookupError {
     #[error("drv not found")]
     DrvNotFound,
+
+    #[error("drv {drv} for build {build_id} is not valid — possible GC root bug")]
+    DrvInvalid { drv: String, build_id: BuildID },
 
     #[error("derivation not found")]
     DerivationNotFound,
@@ -1055,7 +1073,7 @@ impl State {
             self.pool.store_dir(),
             jobset_id,
             drv_path,
-            std::str::from_utf8(&drv.platform).map_err(StateError::InvalidPlatformUtf8)?,
+            std::str::from_utf8(&drv.platform).map_err(|e| StateError::InvalidPlatformUtf8(e))?,
         )
         .await?;
 
@@ -1146,15 +1164,10 @@ impl State {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn start_queue_monitor_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
-        let task = tokio::task::spawn({
-            async move {
-                if let Err(e) = Box::pin(self.queue_monitor_loop()).await {
-                    tracing::error!("Failed to spawn queue monitor loop. e={e}");
-                }
-            }
-        });
-        task.abort_handle()
+    pub fn start_queue_monitor_loop(
+        self: Arc<Self>,
+    ) -> tokio::task::JoinHandle<Result<(), StateError>> {
+        tokio::task::spawn(async move { Box::pin(self.queue_monitor_loop()).await })
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -1174,13 +1187,7 @@ impl State {
         loop {
             let before_work = Instant::now();
             // no cache in daemon protocol
-            let early_exit = match self.get_queued_builds().await {
-                Ok(early_exit) => early_exit,
-                Err(e) => {
-                    tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
-                    continue;
-                }
-            };
+            let early_exit = self.get_queued_builds().await?;
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
@@ -1210,8 +1217,7 @@ impl State {
                         Ok(Some(v)) => v.channel().to_owned(),
                         Ok(None) => continue,
                         Err(e) => {
-                            tracing::warn!("PgListener failed with e={e}");
-                            continue;
+                            return Err(StateError::from(db::Error::from(e)));
                         }
                     },
                 }
@@ -1219,10 +1225,7 @@ impl State {
                 match listener.try_next().await {
                     Ok(Some(v)) => v.channel().to_owned(),
                     Ok(None) => continue,
-                    Err(e) => {
-                        tracing::warn!("PgListener failed with e={e}");
-                        continue;
-                    }
+                    Err(e) => return Err(StateError::from(db::Error::from(e))),
                 }
             };
             self.metrics.nr_queue_wakeups.inc();
@@ -1235,24 +1238,12 @@ impl State {
                 "builds_restarted" => tracing::debug!("got notification: builds restarted"),
                 "builds_cancelled" | "builds_deleted" | "builds_bumped" => {
                     tracing::info!("got notification: builds cancelled or bumped");
-                    if let Err(e) = self.process_queue_change().await {
-                        tracing::error!("Failed to process queue change. e={e}");
-                    }
+                    self.process_queue_change().await?;
                 }
                 "jobset_shares_changed" => {
                     tracing::info!("got notification: jobset shares changed");
-                    match self.db.get().await {
-                        Ok(mut conn) => {
-                            if let Err(e) = self.jobsets.handle_change(&mut conn).await {
-                                tracing::error!("Failed to handle jobset change. e={e}");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to get db connection for event 'jobset_shares_changed'. e={e}"
-                            );
-                        }
-                    }
+                    let mut conn = self.db.get().await?;
+                    self.jobsets.handle_change(&mut conn).await?;
                 }
                 _ => (),
             }
@@ -1265,46 +1256,43 @@ impl State {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn start_dispatch_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
-        let task = tokio::task::spawn({
-            async move {
-                loop {
-                    let before_sleep = Instant::now();
-                    let dispatch_trigger_timer = self.config.get_dispatch_trigger_timer();
-                    if let Some(timer) = dispatch_trigger_timer {
-                        tokio::select! {
-                            () = self.notify_dispatch.notified() => {},
-                            () = tokio::time::sleep(timer) => {},
-                        };
-                    } else {
-                        self.notify_dispatch.notified().await;
-                    }
-                    tracing::info!("starting dispatch");
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatcher_time_spent_waiting
-                        .inc_by(before_sleep.elapsed().as_micros() as u64);
-
-                    self.metrics.nr_dispatcher_wakeups.inc();
-                    let before_work = Instant::now();
-                    self.clone().do_dispatch_once().await;
-
-                    let elapsed = before_work.elapsed();
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatcher_time_spent_running
-                        .inc_by(elapsed.as_micros() as u64);
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatch_time_ms
-                        .inc_by(elapsed.as_millis() as u64);
+    pub fn start_dispatch_loop(self: Arc<Self>) -> tokio::task::JoinHandle<Result<(), StateError>> {
+        tokio::task::spawn(async move {
+            loop {
+                let before_sleep = Instant::now();
+                let dispatch_trigger_timer = self.config.get_dispatch_trigger_timer();
+                if let Some(timer) = dispatch_trigger_timer {
+                    tokio::select! {
+                        () = self.notify_dispatch.notified() => {},
+                        () = tokio::time::sleep(timer) => {},
+                    };
+                } else {
+                    self.notify_dispatch.notified().await;
                 }
+                tracing::info!("starting dispatch");
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatcher_time_spent_waiting
+                    .inc_by(before_sleep.elapsed().as_micros() as u64);
+
+                self.metrics.nr_dispatcher_wakeups.inc();
+                let before_work = Instant::now();
+                self.clone().do_dispatch_once().await?;
+
+                let elapsed = before_work.elapsed();
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatcher_time_spent_running
+                    .inc_by(elapsed.as_micros() as u64);
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatch_time_ms
+                    .inc_by(elapsed.as_millis() as u64);
             }
-        });
-        task.abort_handle()
+        })
     }
 
     #[tracing::instrument(skip(self))]
@@ -1342,7 +1330,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn do_dispatch_once(self: Arc<Self>) {
+    async fn do_dispatch_once(self: Arc<Self>) -> Result<(), StateError> {
         // Prune old historical build step info from the jobsets.
         self.jobsets.prune();
         let new_runnable = self.steps.clone_runnable();
@@ -1388,12 +1376,12 @@ impl State {
                 },
                 &self.metrics,
             )
-            .await;
+            .await?;
         self.metrics
             .nr_steps_waiting
             .set(nr_steps_waiting_all_queues);
 
-        self.abort_unsupported().await;
+        self.abort_unsupported().await
     }
 
     #[tracing::instrument(skip(self, step_status), fields(%build_id, %machine_id), err)]
@@ -1550,6 +1538,7 @@ impl State {
                             tracing::info!("Copied {} paths to {dest_uri}", paths.len());
                         }
                         Ok(out) => {
+                            // Non-fatal: remote store copy is best-effort.
                             tracing::error!(
                                 "nix copy to {dest_uri} failed: {}",
                                 str::from_utf8(&out.stderr).unwrap_or("Invalid UTF-8")
@@ -1624,6 +1613,8 @@ impl State {
                     };
                     for s3 in &s3_stores {
                         if let Err(e) = s3.write_realisation(realisation.clone()).await {
+                            // Non-fatal: `CacheError` — no DB. S3
+                            // realisation write is best-effort.
                             tracing::warn!(
                                 "Failed to write realisation for {drv_path}^{output_name}: {e}"
                             );
@@ -1724,15 +1715,12 @@ impl State {
                         Arc::default(),
                         new_runnable.clone(),
                     )
-                    .await
+                    .await?
                 {
                     CreateStepResult::None => continue,
                     CreateStepResult::Valid(step) => step,
                     CreateStepResult::PreviousFailure(step) => {
-                        if let Err(e) = self.handle_previous_failure(build.clone(), step).await {
-                            tracing::error!("Failed to handle previous failure: {e}");
-                        }
-                        // TODO: figure out what to do here
+                        self.handle_previous_failure(build.clone(), step).await?;
                         continue;
                     }
                 };
@@ -1762,11 +1750,12 @@ impl State {
         timings: BuildTimings,
     ) -> Result<(), StateError> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
-        let item = self
-            .queues
-            .remove_job_from_scheduled(drv_path)
-            .await
-            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+        let Some(item) = self.queues.remove_job_from_scheduled(drv_path).await else {
+            // Job may have already been cleaned up (e.g. machine
+            // disconnected concurrently). Not a real error.
+            tracing::warn!("step already gone from queues.scheduled: drv_path={drv_path}");
+            return Ok(());
+        };
 
         item.step_info.step.set_finished(false);
 
@@ -1774,9 +1763,14 @@ impl State {
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
         );
-        let mut job = item.machine.remove_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
+        let Some(mut job) = item.machine.remove_job(drv_path) else {
+            // Same race — job already removed from machine.
+            tracing::warn!(
+                "job already gone from machine.jobs: drv_path={drv_path} m={}",
+                item.machine
+            );
+            return Ok(());
+        };
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
@@ -2172,29 +2166,10 @@ impl State {
         }
 
         if !daemon_client_utils::is_valid_path(&self.pool, &build.drv_path).await? {
-            tracing::error!(
-                "aborting GC'ed build id={} path={}",
-                build.id,
-                self.pool.store_dir().display(&build.drv_path)
-            );
-            if !build.get_finished_in_db() {
-                match self.db.get().await {
-                    Ok(mut conn) => {
-                        if let Err(e) = conn.abort_build(build.id).await {
-                            tracing::error!("Failed to abort the build={} e={}", build.id, e);
-                        }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
-                }
-            }
-
-            build.set_finished_in_db(true);
-            self.metrics.nr_builds_done.inc();
-            return Ok(());
+            return Err(StateError::from(DrvLookupError::DrvInvalid {
+                drv: self.pool.store_dir().display(&build.drv_path).to_string(),
+                build_id: build.id,
+            }));
         }
 
         // Create steps for this derivation and its dependencies.
@@ -2210,14 +2185,12 @@ impl State {
                 new_steps.clone(),
                 new_runnable.clone(),
             )
-            .await
+            .await?
         {
             CreateStepResult::None => None,
             CreateStepResult::Valid(dep) => Some(dep),
             CreateStepResult::PreviousFailure(step) => {
-                if let Err(e) = self.handle_previous_failure(build, step).await {
-                    tracing::error!("Failed to handle previous failure: {e}");
-                }
+                self.handle_previous_failure(build, step).await?;
                 return Ok(());
             }
         };
@@ -2240,12 +2213,8 @@ impl State {
                 let finished_drvs = finished_drvs.clone();
                 let new_runnable = new_runnable.clone();
                 async move {
-                    let j = {
-                        if let Some(j) = new_builds_by_id.read().get(&b) {
-                            j.clone()
-                        } else {
-                            return Ok(());
-                        }
+                    let Some(j) = new_builds_by_id.read().get(&b).cloned() else {
+                        return Ok(());
                     };
 
                     Box::pin(self.create_build(
@@ -2282,9 +2251,7 @@ impl State {
         } else {
             // If we didn't get a step, it means the step's outputs are
             // all valid. So we mark this as a finished, cached build.
-            if let Err(e) = self.handle_cached_build(build).await {
-                tracing::error!("failed to handle cached build: {e}");
-            }
+            self.handle_cached_build(build).await?;
         }
         Ok(())
     }
@@ -2308,13 +2275,13 @@ impl State {
         finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
-    ) -> CreateStepResult {
+    ) -> Result<CreateStepResult, StateError> {
         use futures::stream::StreamExt as _;
 
         {
             let finished_drvs = finished_drvs.read();
             if finished_drvs.contains(&drv_path) {
-                return CreateStepResult::None;
+                return Ok(CreateStepResult::None);
             }
         }
 
@@ -2345,7 +2312,7 @@ impl State {
             // TODO once we properly feed IFD builds in to Hydra to be
             // distributed, remove this hack.
             if step.get_finished() {
-                return CreateStepResult::None;
+                return Ok(CreateStepResult::None);
             }
             if let Some(output_paths) = step.get_output_paths(self.pool.store_dir()) {
                 // All output paths must be known (Some) and valid in
@@ -2370,17 +2337,17 @@ impl State {
                 if all_valid {
                     finished_drvs.write().insert(drv_path.clone());
                     step.set_finished(true);
-                    return CreateStepResult::None;
+                    return Ok(CreateStepResult::None);
                 }
             }
-            return CreateStepResult::Valid(step);
+            return Ok(CreateStepResult::Valid(step));
         }
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
         let Some(drv) = self.read_derivation(&drv_path).await.ok() else {
             tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
-            return CreateStepResult::None;
+            return Ok(CreateStepResult::None);
         };
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.add_ca_drv_parsed(&drv_path, &drv);
@@ -2459,8 +2426,8 @@ impl State {
             })
             .map(|(name, path)| (name.clone(), path.clone()))
             .collect::<BTreeMap<_, _>>();
-        if !unregistered_local_outputs.is_empty()
-            && let Err(e) = crate::utils::make_local_step(
+        if !unregistered_local_outputs.is_empty() {
+            match crate::utils::make_local_step(
                 &self.db,
                 self.pool.store_dir(),
                 build.id,
@@ -2468,8 +2435,16 @@ impl State {
                 &unregistered_local_outputs,
             )
             .await
-        {
-            tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
+            {
+                Ok(()) => {}
+                Err(crate::utils::UtilError::Db(e)) => return Err(StateError::from(e)),
+                Err(e @ (crate::utils::UtilError::IntConversion(_)
+                       | crate::utils::UtilError::NonUtf8LogPath)) => {
+                    // Non-fatal: no DB involvement. The local step
+                    // just won't be recorded.
+                    tracing::warn!("Failed to record local step: {e}");
+                }
+            }
         }
 
         // Handle paths that aren't in the remote store (for pushing)
@@ -2502,7 +2477,7 @@ impl State {
 
         if self.check_cached_failure(step.clone()).await {
             step.set_previous_failure(true);
-            return CreateStepResult::PreviousFailure(step);
+            return Ok(CreateStepResult::PreviousFailure(step));
         }
 
         tracing::debug!("missing outputs: {missing_outputs:?}");
@@ -2532,9 +2507,15 @@ impl State {
                     Ok(_) => {
                         self.metrics.nr_substitutes_failed.inc();
                     }
-                    Err(e) => {
+                    Err(crate::utils::UtilError::Db(e)) => {
                         self.metrics.nr_substitutes_failed.inc();
-                        tracing::warn!("Failed to substitute path: {e}");
+                        return Err(StateError::from(e));
+                    }
+                    Err(e @ (crate::utils::UtilError::IntConversion(_)
+                           | crate::utils::UtilError::NonUtf8LogPath)) => {
+                        // Non-fatal: no DB involvement.
+                        self.metrics.nr_substitutes_failed.inc();
+                        tracing::warn!("Failed to record substitution step: {e}");
                     }
                 }
             }
@@ -2552,7 +2533,7 @@ impl State {
 
             finished_drvs.write().insert(drv_path.clone());
             step.set_finished(true);
-            return CreateStepResult::None;
+            return Ok(CreateStepResult::None);
         }
 
         tracing::debug!("creating build step '{drv_path}");
@@ -2581,7 +2562,7 @@ impl State {
             })
             .buffered(25);
         while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
-            match result {
+            match result? {
                 CreateStepResult::None => (),
                 CreateStepResult::Valid(dep) => {
                     if !dep.get_finished() && !dep.get_previous_failure() {
@@ -2591,7 +2572,7 @@ impl State {
                     }
                 }
                 CreateStepResult::PreviousFailure(step) => {
-                    return CreateStepResult::PreviousFailure(step);
+                    return Ok(CreateStepResult::PreviousFailure(step));
                 }
             }
         }
@@ -2608,7 +2589,7 @@ impl State {
             let mut new_steps = new_steps.write();
             new_steps.insert(step.clone());
         }
-        CreateStepResult::Valid(step)
+        Ok(CreateStepResult::Valid(step))
     }
 
     #[tracing::instrument(skip(self))]
@@ -2743,7 +2724,7 @@ impl State {
         fs_err::os::unix::fs::symlink(&store_path_full, &link_path)
     }
 
-    async fn abort_unsupported(&self) {
+    async fn abort_unsupported(&self) -> Result<(), StateError> {
         let runnable = self.steps.clone_runnable();
         let now = jiff::Timestamp::now();
 
@@ -2769,7 +2750,7 @@ impl State {
 
             let drv = step.get_drv_path();
             let system = step.get_system();
-            tracing::error!("aborting unsupported build step '{drv}' (type '{system:?}')",);
+            tracing::warn!("aborting unsupported build step '{drv}' (type '{system:?}')",);
 
             aborted.insert(step.clone());
 
@@ -2798,9 +2779,7 @@ impl State {
                 "unsupported system type '{}'",
                 system.unwrap_or(String::new())
             ));
-            if let Err(e) = self.inner_fail_job(drv, None, job, step.clone()).await {
-                tracing::error!("Failed to fail step drv={drv} e={e}");
-            }
+            self.inner_fail_job(drv, None, job, step.clone()).await?;
         }
 
         {
@@ -2813,5 +2792,6 @@ impl State {
         self.metrics
             .nr_unsupported_steps_aborted
             .inc_by(aborted.len() as u64);
+        Ok(())
     }
 }

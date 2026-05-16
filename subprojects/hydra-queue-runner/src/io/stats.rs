@@ -214,6 +214,8 @@ impl Process {
             cgroup: match CgroupStats::new(&me) {
                 Ok(v) => Some(v),
                 Err(e) => {
+                    // Non-fatal: `CgroupError` is procfs/IO/parse — no DB.
+                    // Cgroup info is optional for metrics.
                     tracing::error!("failed to cgroups stats: {e}");
                     None
                 }

@@ -595,6 +595,8 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
     let new_config = match load_config(filepath) {
         Ok(c) => c,
         Err(e) => {
+            // Non-fatal: `LoadConfigError` is toml parse / config
+            // validation — no DB. Old config remains in effect.
             tracing::warn!("Failed to load new config: {e}");
             let _notify = sd_notify::notify(&[
                 sd_notify::NotifyState::Status("Reload failed"),
@@ -606,6 +608,9 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
     };
 
     if let Err(e) = state.reload_config_callback(&new_config).await {
+        // Non-fatal: `ReloadConfigError` contains `BadDbUrl` (invalid
+        // pool URL) and `CacheError` (bad S3 config). Neither
+        // indicates "DB is down" — the old config remains in effect.
         tracing::error!("Config reload failed with {e}");
         let _notify = sd_notify::notify(&[
             sd_notify::NotifyState::Status("Configuration reloaded failed - Running"),
