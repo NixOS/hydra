@@ -6,19 +6,20 @@ use std::time::Instant;
 use anyhow::Context as _;
 use backon::RetryableWithContext as _;
 use futures::TryFutureExt as _;
+use harmonia_protocol::daemon_wire::types2::BuildResultSuccess;
+use harmonia_store_remote::DaemonStore as _;
 use hashbrown::HashMap;
 
 use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
 use harmonia_store_derivation::derived_path::OutputName;
-use harmonia_store_path::{ParseStorePathError, StorePath};
+use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
     PingMessage, StepStatus, StepUpdate,
 };
-use tonic::Request;
 const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
 const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
 
@@ -41,13 +42,6 @@ pub enum JobFailure {
     Upload(#[source] anyhow::Error),
     #[error("Post processing failure")]
     PostProcessing(#[source] anyhow::Error),
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct NixBuildOutputs {
-    drv_path: String,
-    outputs: BTreeMap<OutputName, String>,
 }
 
 impl From<&JobFailure> for BuildResultState {
@@ -408,6 +402,126 @@ impl State {
         active.clear();
     }
 
+    #[tracing::instrument(skip(self, pool))]
+    async fn request_build(
+        &self,
+        pool: &harmonia_store_remote::ConnectionPool,
+        drv: &StorePath,
+        max_log_size: u64,
+        max_silent_time: i32,
+        build_timeout: i32,
+    ) -> anyhow::Result<BuildResultSuccess> {
+        // Build via daemon protocol using build_paths_with_results.
+        // Log messages from the ResultLog stream are sent to the
+        // queue-runner concurrently via the gRPC build_log stream.
+        let build_path = harmonia_store_derivation::derived_path::DerivedPath::Built {
+            drv_path: Arc::new(
+                harmonia_store_derivation::derived_path::SingleDerivedPath::Opaque(drv.clone()),
+            ),
+            outputs: harmonia_store_derivation::derived_path::OutputSpec::All,
+        };
+        let mut guard = pool.acquire().await.context("daemon connection failed")?;
+
+        let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel::<bytes::Bytes>();
+        let log_stream = crate::utils::compressed_log_stream(drv, log_rx);
+        let log_handle = tokio::spawn({
+            let mut client = self.client.clone();
+            async move { client.build_log(log_stream).await }
+        });
+
+        let build_results = {
+            use futures::stream::StreamExt as _;
+
+            {
+                let mut options = harmonia_protocol::types::ClientOptions::default();
+                options.max_silent_time = i64::from(max_silent_time);
+                options
+                    .other_settings
+                    .insert("max-log-size".to_string(), max_log_size.to_string().into());
+                options
+                    .other_settings
+                    .insert("timeout".to_string(), build_timeout.to_string().into());
+                // Unfortunately BuildPathsWithResults does not take options,
+                // they must be set per-client with a separate call.
+                guard.client().set_options(&options).await?;
+            }
+
+            let build_paths = [build_path];
+            let mut result_log = std::pin::pin!(
+                harmonia_protocol::types::DaemonStore::build_paths_with_results(
+                    guard.client(),
+                    &build_paths,
+                    harmonia_protocol::daemon_wire::types2::BuildMode::Normal,
+                )
+            );
+            while let Some(msg) = result_log.as_mut().next().await {
+                match msg {
+                    harmonia_protocol::log::LogMessage::Message(m) => {
+                        let mut line = Vec::from(m.text);
+                        line.push(b'\n');
+                        let _ = log_tx.send(line.into());
+                    }
+                    harmonia_protocol::log::LogMessage::Result(r)
+                        if matches!(
+                            r.result_type,
+                            harmonia_protocol::log::ResultType::BuildLogLine
+                                | harmonia_protocol::log::ResultType::PostBuildLogLine
+                        ) =>
+                    {
+                        for field in &r.fields {
+                            if let harmonia_protocol::log::Field::String(bytes) = field {
+                                let mut line = Vec::from(bytes.as_ref());
+                                line.push(b'\n');
+                                let _ = log_tx.send(line.into());
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            drop(log_tx);
+            result_log
+                .await
+                .context("build_paths_with_results failed")?
+        };
+        drop(guard);
+
+        // Wait for the log stream to finish.  The build_log RPC
+        // streams to the queue-runner and only resolves once the
+        // channel is closed (i.e. the build finished).  A transport
+        // error here (e.g. nginx sending an HTTP/2 GOAWAY after
+        // hitting keepalive_requests) says nothing about whether the
+        // derivation built, so it is non-fatal.
+        if let Err(e) = log_handle.await {
+            tracing::warn!("build log shipping failed for {drv}: {e}");
+        }
+
+        // Extract outputs from the build result.
+        if build_results.len() != 1 {
+            return Err(anyhow::anyhow!(
+                "build_paths_with_results returned {} results, expected 1",
+                build_results.len()
+            ));
+        }
+        let build_result = build_results
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("empty build results"))?;
+
+        // Check for build failure.
+        use harmonia_protocol::daemon_wire::types2::BuildResultInner;
+        Ok(match build_result.result.inner {
+            BuildResultInner::Success(s) => s,
+            BuildResultInner::Failure(f) => {
+                return Err(anyhow::anyhow!(
+                    "build failed: {:?}: {}",
+                    f.status,
+                    str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8")
+                ));
+            }
+        })
+    }
+
     #[tracing::instrument(skip(self, m), fields(drv=?m.drv), err)]
     #[allow(clippy::too_many_lines)]
     async fn process_build(
@@ -464,83 +578,24 @@ impl State {
             })
             .await;
         let before_build = Instant::now();
-        let (mut child, stdout, stderr) = crate::realise::realise_drv(
-            self.pool.store_dir(),
-            &drv,
-            m.max_log_size,
-            m.max_silent_time,
-            m.build_timeout,
-        )
-        .await
-        .map_err(|e| JobFailure::Build(e.into()))?;
 
-        // The build_log RPC streams stderr to the queue-runner and only
-        // resolves once the child closes stderr (i.e. the build finished).
-        // A transport error here (e.g. nginx sending an HTTP/2 GOAWAY after
-        // hitting keepalive_requests) says nothing about whether the
-        // derivation builds, so it must not be reported as a BuildFailure
-        // (which is non-retryable and cascades to every dependent build).
-        // Map it to Upload so the queue-runner retries the step instead.
-        client
-            .build_log(Request::new(crate::utils::compressed_log_stream(
-                &drv, stderr,
-            )))
+        let success = self
+            .request_build(
+                &self.pool,
+                &drv,
+                m.max_log_size,
+                m.max_silent_time,
+                m.build_timeout,
+            )
             .await
-            .map_err(|e| {
-                JobFailure::Upload(
-                    anyhow::Error::from(e).context("failed to stream build log to queue-runner"),
-                )
-            })?;
+            .map_err(JobFailure::Build)?;
 
-        let status = child
-            .wait()
-            .await
-            .map_err(|e| JobFailure::Build(e.into()))?;
-        if !status.success() {
-            return Err(JobFailure::Build(anyhow::anyhow!(
-                "nix build exited with {status}"
-            )));
-        }
-
-        // Parse JSON output from stdout (one line).
-        use tokio_stream::StreamExt as _;
-        let outputs_line = std::pin::pin!(stdout.timeout(tokio::time::Duration::from_millis(100)))
-            .next()
-            .await
-            .ok_or_else(|| {
-                JobFailure::PostProcessing(anyhow::anyhow!("Child did not print outputs"))
-            })?
-            .map_err(|e| JobFailure::PostProcessing(e.into()))?
-            .map_err(|e| JobFailure::PostProcessing(e.into()))?;
-
-        let mut output_raw: Vec<NixBuildOutputs> = serde_json::from_str(&outputs_line)
-            .map_err(|e| JobFailure::PostProcessing(e.into()))?;
-
-        if output_raw.len() != 1 {
-            return Err(JobFailure::PostProcessing(anyhow::anyhow!(
-                "nix built {} derivations, expecting 1",
-                output_raw.len()
-            )));
-        }
-
-        let actual_out_drv: StorePath = self
-            .pool
-            .store_dir()
-            .parse(&output_raw[0].drv_path) // safe to do because we checked len above
-            .map_err(|e: ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
-        if actual_out_drv != drv {
-            return Err(JobFailure::PostProcessing(anyhow::anyhow!(
-                "Nix returned outputs for {actual_out_drv} when we expected {drv}"
-            )));
-        }
-
-        let outputs = output_raw
-            .remove(0) // safe to do because we checked len above
-            .outputs
+        // Extract output paths from the build result.
+        let outputs: BTreeMap<OutputName, StorePath> = success
+            .built_outputs
             .into_iter()
-            .map(|(name, path)| Ok((name, self.pool.store_dir().parse::<StorePath>(&path)?)))
-            .collect::<anyhow::Result<BTreeMap<OutputName, StorePath>>>()
-            .map_err(JobFailure::PostProcessing)?;
+            .map(|(name, realisation)| (name, realisation.out_path))
+            .collect();
 
         for o in outputs.values() {
             add_gc_root(&gcroot.root, self.pool.store_dir(), o);
@@ -556,9 +611,8 @@ impl State {
         for (name, path) in &outputs {
             let info = daemon_client_utils::query_path_info(&self.pool, path)
                 .await
-                .map_err(|e| {
-                    JobFailure::PostProcessing(anyhow::anyhow!("query_path_info failed: {e}"))
-                })?
+                .context("query_path_info failed")
+                .map_err(JobFailure::PostProcessing)?
                 .ok_or_else(|| {
                     JobFailure::PostProcessing(anyhow::anyhow!(
                         "missing path info for output `{name}`"

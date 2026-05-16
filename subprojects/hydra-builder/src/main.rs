@@ -16,7 +16,6 @@ mod config;
 mod grpc;
 mod metrics;
 mod nix_config;
-mod realise;
 mod state;
 mod system;
 mod types;
