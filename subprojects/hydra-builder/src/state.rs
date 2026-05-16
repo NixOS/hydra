@@ -31,6 +31,29 @@ fn retry_strategy() -> backon::ExponentialBuilder {
         .with_max_delay(RETRY_MAX_DELAY)
 }
 
+/// Submit a build result to the queue-runner with retries.
+async fn submit_build_result(
+    client: &BuilderClient,
+    result: BuildResultInfo,
+    context: &'static str,
+) -> anyhow::Result<()> {
+    let (_, res) = (|tuple: (BuilderClient, BuildResultInfo)| async {
+        let (mut client, body) = tuple;
+        let res = client.complete_build(body.clone()).await;
+        ((client, body), res)
+    })
+    .retry(retry_strategy())
+    .sleep(tokio::time::sleep)
+    .context((client.clone(), result))
+    .notify(|err: &tonic::Status, dur: core::time::Duration| {
+        tracing::error!("{context}: err={err}, retrying in={dur:?}");
+    })
+    .await;
+    res.map(|_| ())
+        .map_err(anyhow::Error::from)
+        .context(context)
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure: `{0}`")]
@@ -67,7 +90,7 @@ impl From<JobFailure> for BuildResultState {
 #[derive(Debug)]
 pub struct BuildInfo {
     drv_path: StorePath,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
     was_cancelled: Arc<AtomicBool>,
 }
 
@@ -287,10 +310,7 @@ impl State {
                     }
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
-                            tracing::error!(
-                                "Build of {drv} was cancelled {e}, not reporting Error"
-                            );
-                            return;
+                            anyhow::bail!("Build of {drv} was cancelled {e}, not reporting Error");
                         }
 
                         tracing::error!("Build of {drv} failed with {e}");
@@ -308,23 +328,15 @@ impl State {
                             output_infos: std::collections::HashMap::new(),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
-                        .await
-                        {
-                            tracing::error!("Failed to submit build failure info: {e}");
-                        }
+                        submit_build_result(
+                            &self_.client,
+                            failed_build,
+                            "Failed to submit build failure info",
+                        )
+                        .await?;
                     }
                 }
+                Ok(())
             }
         });
 
@@ -589,23 +601,13 @@ impl State {
 
         // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
         // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
+        submit_build_result(
+            &client,
+            build_results,
+            "Failed to submit build success info",
+        )
         .await
-        .1
-        .map_err(|e| {
-            tracing::error!("Failed to submit build success info. Will fail build: err={e}");
-            JobFailure::PostProcessing(e.into())
-        })?;
+        .map_err(|e| JobFailure::PostProcessing(e))?;
         Ok(())
     }
 
@@ -922,8 +924,7 @@ async fn upload_nars_presigned(
 
     let paths_to_upload = store
         .query_requisites(&output_paths.iter().collect::<Vec<_>>())
-        .await
-        .unwrap_or_default();
+        .await?;
     let paths_to_upload_ref = paths_to_upload.iter().collect::<Vec<_>>();
     let path_infos = Arc::new(store.query_path_infos(&paths_to_upload_ref).await?);
 

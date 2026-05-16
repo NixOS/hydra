@@ -271,19 +271,19 @@ impl InnerQueues {
     }
 
     fn remove_job_by_path(&mut self, drv: &StorePath) {
-        if self.jobs.remove(drv).is_none() {
-            tracing::error!("Failed to remove stepinfo drv={drv} from jobs!");
-        }
+        assert!(
+            self.jobs.remove(drv).is_some(),
+            "tried to remove non-existent job drv={drv}"
+        );
     }
 
     #[tracing::instrument(skip(self, stepinfo, queue))]
     fn remove_job(&mut self, stepinfo: &Arc<StepInfo>, queue: &Arc<BuildQueue>) {
-        if self.jobs.remove(stepinfo.step.get_drv_path()).is_none() {
-            tracing::error!(
-                "Failed to remove stepinfo drv={} from jobs!",
-                stepinfo.step.get_drv_path(),
-            );
-        }
+        assert!(
+            self.jobs.remove(stepinfo.step.get_drv_path()).is_some(),
+            "tried to remove non-existent job drv={}",
+            stepinfo.step.get_drv_path(),
+        );
         // active should be removed
         queue.scrube_jobs();
     }
@@ -319,6 +319,10 @@ impl InnerQueues {
                     item.machine.get_internal_build_id_for_drv(drv_path)
                 {
                     if let Err(e) = item.machine.abort_build(internal_build_id).await {
+                        // Non-fatal: builder may already be disconnected.
+                        // The build will hopefully time out on the builder side.
+                        // Ultimately, communicating anything the builder anything is best effort
+                        // and should not be fatal for the queue runner.
                         tracing::error!(
                             "Failed to abort build drv_path={drv_path} build_id={internal_build_id} e={e}",
                         );

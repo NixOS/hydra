@@ -31,23 +31,35 @@ use state::State;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-fn start_task_loops(state: &std::sync::Arc<State>) -> Vec<tokio::task::AbortHandle> {
+struct TaskLoops {
+    /// Background tasks that only need to be aborted on shutdown.
+    abort_only: Vec<tokio::task::AbortHandle>,
+    /// Critical tasks whose errors should halt the queue-runner.
+    critical: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
+}
+
+fn start_task_loops(state: &std::sync::Arc<State>) -> TaskLoops {
     tracing::info!("QueueRunner starting task loops");
 
-    let mut service_list = vec![
+    let mut abort_only = vec![
         spawn_config_reloader(state.clone(), state.config.clone(), &state.cli.config_path),
-        state.clone().start_dispatch_loop(),
         state.clone().start_uploader_queue(),
     ];
+
+    let mut critical = vec![state.clone().start_dispatch_loop()];
+
     if !state.cli.disable_queue_monitor_loop {
-        service_list.push(state.clone().start_queue_monitor_loop());
+        critical.push(state.clone().start_queue_monitor_loop());
     }
 
     if let Some(fod_checker) = &state.fod_checker {
-        service_list.push(fod_checker.clone().start_traverse_loop());
+        abort_only.push(fod_checker.clone().start_traverse_loop());
     }
 
-    service_list
+    TaskLoops {
+        abort_only,
+        critical,
+    }
 }
 
 fn spawn_config_reloader(
@@ -98,14 +110,13 @@ async fn main() -> anyhow::Result<()> {
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
-    if !state.cli.mtls_configured_correctly() {
-        tracing::error!(
-            "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
-        );
-        return Err(anyhow::anyhow!("Configuration issue"));
-    }
+    anyhow::ensure!(
+        state.cli.mtls_configured_correctly(),
+        "mTLS configured improperly, please pass all options: \
+        server_cert_path, server_key_path and client_ca_cert_path!"
+    );
 
-    let task_abort_handles = start_task_loops(&state);
+    let tasks = start_task_loops(&state);
 
     // Resolve listeners for both servers. When using socket activation
     // (ListenFd), we use LISTEN_FDNAMES to map names to fd indices.
@@ -196,35 +207,34 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
-    let abort_handle = task.abort_handle();
+    let server_handle = task.abort_handle();
+    let mut critical_tasks =
+        futures_util::future::try_join_all(tasks.critical.into_iter().map(|h| async { h.await? }));
+
     tokio::select! {
         _ = sigint.recv() => {
             tracing::info!("Received sigint - shutting down gracefully");
-            let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
-            abort_handle.abort();
-            for h in task_abort_handles {
-                h.abort();
-            }
-            // removing all machines will also mark all currently running jobs as cancelled
-            state.remove_all_machines().await;
-            let _ = state.clear_busy().await;
-            Ok(())
         }
         _ = sigterm.recv() => {
             tracing::info!("Received sigterm - shutting down gracefully");
-            let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
-            abort_handle.abort();
-            for h in task_abort_handles {
-                h.abort();
-            }
-            // removing all machines will also mark all currently running jobs as cancelled
-            state.remove_all_machines().await;
-            let _ = state.clear_busy().await;
-            Ok(())
         }
         r = task => {
-            r??;
-            Ok(())
+            return r?;
+        }
+        r = &mut critical_tasks => {
+            r?;
+            return Ok(());
         }
     }
+
+    // Shutdown path (signal received)
+    let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
+    server_handle.abort();
+    for h in tasks.abort_only {
+        h.abort();
+    }
+    // removing all machines will also mark all currently running jobs as cancelled
+    state.remove_all_machines().await?;
+    let _ = state.clear_busy().await;
+    Ok(())
 }

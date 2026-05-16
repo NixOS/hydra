@@ -17,6 +17,42 @@ use hydra_proto::{
 use nix_utils::BaseStore as _;
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
+
+fn parse_uuid(field: &str, value: &str) -> Result<uuid::Uuid, tonic::Status> {
+    uuid::Uuid::parse_str(value)
+        .map_err(|e| tonic::Status::invalid_argument(format!("{field} is not a valid uuid: {e}")))
+}
+
+/// Spawn a task that panics on error. Use for fire-and-forget
+/// operations where failure indicates an infrastructure problem
+/// (e.g. DB down) that should bring down the queue-runner.
+impl State {
+    /// Handle a builder sending invalid data: log the error and
+    /// disconnect the machine. Returns `Ok(None)` if the builder was
+    /// rejected, propagates DB errors from `remove_machine`.
+    async fn reject_builder_on_error<T>(
+        &self,
+        machine_id: uuid::Uuid,
+        result: anyhow::Result<T>,
+    ) -> anyhow::Result<Option<T>> {
+        match result {
+            Ok(v) => Ok(Some(v)),
+            Err(e) => {
+                tracing::error!("rejecting builder {machine_id}, disconnecting: {e}");
+                self.remove_machine(machine_id).await?;
+                Ok(None)
+            }
+        }
+    }
+}
+
+fn spawn_fatal(fut: impl Future<Output = anyhow::Result<()>> + Send + 'static) {
+    tokio::spawn(async move {
+        if let Err(e) = fut.await {
+            panic!("fatal error in spawned task: {e:#}");
+        }
+    });
+}
 type OpenTunnelResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<RunnerRequest, tonic::Status>> + Send>>;
 type FetchPathsResponseStream = std::pin::Pin<
@@ -241,20 +277,18 @@ impl RunnerService for Server {
         let forced_substituters = self.state.config.get_forced_substituters();
         let machine = match stream.next().await {
             Some(Ok(m)) => match m.message {
-                Some(builder_request::Message::Join(v)) => {
-                    match Machine::new(v, input_tx, use_presigned_uploads, &forced_substituters) {
-                        Ok(m) => Some(m),
-                        Err(e) => {
-                            tracing::error!("Rejecting new machine creation: {e}");
-                            return Err(tonic::Status::invalid_argument("Machine is not valid"));
-                        }
-                    }
-                }
+                Some(builder_request::Message::Join(v)) => Some(
+                    Machine::new(v, input_tx, use_presigned_uploads, &forced_substituters)
+                        .map_err(|e| {
+                            tonic::Status::invalid_argument(format!("invalid machine: {e}"))
+                        })?,
+                ),
                 _ => None,
             },
             Some(Err(e)) => {
-                tracing::error!("Bad message in stream: {e}");
-                None
+                return Err(tonic::Status::invalid_argument(format!(
+                    "bad first message: {e}"
+                )));
             }
             _ => None,
         };
@@ -267,7 +301,7 @@ impl RunnerService for Server {
         tracing::info!("Registered new machine: machine_id={machine_id} machine={machine}",);
 
         let (output_tx, output_rx) = mpsc::channel(128);
-        if let Err(e) = output_tx
+        output_tx
             .send(Ok(RunnerRequest {
                 message: Some(hydra_proto::runner_request::Message::Join(JoinResponse {
                     machine_id: machine_id.to_string(),
@@ -275,14 +309,11 @@ impl RunnerService for Server {
                 })),
             }))
             .await
-        {
-            tracing::error!("Failed to send join response machine_id={machine_id} e={e}");
-            return Err(tonic::Status::internal("Failed to send join Response."));
-        }
+            .map_err(|e| tonic::Status::internal(format!("failed to send join response: {e}")))?;
 
         let mut ping_interval =
             tokio::time::interval(std::time::Duration::from_secs(BACKWARDS_PING_INTERVAL));
-        tokio::spawn(async move {
+        spawn_fatal(async move {
             loop {
                 tokio::select! {
                     _ = ping_interval.tick() => {
@@ -292,49 +323,41 @@ impl RunnerService for Server {
                             }))
                         };
                         if let Err(e) = output_tx.send(Ok(msg)).await {
-                            tracing::error!("Failed to send message to machine={machine_id} e={e}");
-                            state.remove_machine(machine_id).await;
+                            tracing::warn!("failed to send ping to machine={machine_id}: {e}");
                             break
                         }
                     },
                     msg = input_rx.recv() => {
                         if let Some(msg) = msg {
                             if let Err(e) = output_tx.send(Ok(msg.into_request())).await {
-                                tracing::error!("Failed to send message to machine={machine_id} e={e}");
-                                state.remove_machine(machine_id).await;
+                                tracing::warn!("failed to send message to machine={machine_id}: {e}");
                                 break
                             }
                         } else {
-                            state.remove_machine(machine_id).await;
                             break
                         }
                     },
                     msg = stream.next() => match msg.map(|v| v.map(|v| v.message)) {
                         Some(Ok(Some(msg))) => handle_message(&state, msg),
-                        Some(Ok(None)) => (), // empty meesage can be ignored
+                        Some(Ok(None)) => (), // empty message can be ignored
                         Some(Err(err)) => {
                             if let Some(io_err) = match_for_io_error(&err)
                                 && io_err.kind() == std::io::ErrorKind::BrokenPipe {
-                                    tracing::error!("client disconnected: broken pipe: machine={machine_id} hostname={}", machine.hostname);
-                                    state.remove_machine(machine_id).await;
+                                    tracing::warn!("client disconnected: broken pipe: machine={machine_id} hostname={}", machine.hostname);
                                     break;
                                 }
 
                             match output_tx.send(Err(err)).await {
                                 Ok(()) => (),
-                                Err(_err) => {
-                                    state.remove_machine(machine_id).await;
-                                    break
-                                }
+                                Err(_err) => break,
                             }
                         },
-                        None => {
-                            state.remove_machine(machine_id).await;
-                            break
-                        }
+                        None => break,
                     }
                 }
             }
+            // Machine disconnected or channel broke — clean up.
+            state.remove_machine(machine_id).await
         });
 
         Ok(tonic::Response::new(
@@ -410,32 +433,19 @@ impl RunnerService for Server {
         let state = self.state.clone();
 
         let req = req.into_inner();
-        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
-            tracing::error!("Failed to parse build_id into uuid: {e}");
-            tonic::Status::invalid_argument("build_id is not a valid uuid.")
-        })?;
-        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
-            tracing::error!("Failed to parse machine_id into uuid: {e}");
-            tonic::Status::invalid_argument("machine_id is not a valid uuid.")
-        })?;
+        let build_id = parse_uuid("build_id", &req.build_id)?;
+        let machine_id = parse_uuid("machine_id", &req.machine_id)?;
         let step_status = db::models::StepStatus::from(req.step_status());
 
-        tokio::spawn({
+        spawn_fatal(
             async move {
-                if let Err(e) = state
-                    .update_build_step(
-                        build_id,
-                        machine_id,
-                        step_status,
-                    )
+                state
+                    .update_build_step(build_id, machine_id, step_status)
                     .await
-                {
-                    tracing::error!(
-                        "Failed to update build step with build_id={build_id:?} step_status={step_status:?}: {e}"
-                    );
-                }
-            }.in_current_span()
-        });
+                    .context("update_build_step failed")
+            }
+            .in_current_span(),
+        );
 
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
@@ -448,51 +458,45 @@ impl RunnerService for Server {
         let state = self.state.clone();
 
         let req = req.into_inner();
-        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
-            tracing::error!("Failed to parse build_id into uuid: {e}");
-            tonic::Status::invalid_argument("build_id is not a valid uuid.")
-        })?;
-        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
-            tracing::error!("Failed to parse machine_id into uuid: {e}");
-            tonic::Status::invalid_argument("machine_id is not a valid uuid.")
-        })?;
+        let build_id = parse_uuid("build_id", &req.build_id)?;
+        let machine_id = parse_uuid("machine_id", &req.machine_id)?;
 
-        tokio::spawn({
+        // Spawned so the gRPC response goes back immediately.
+        spawn_fatal(
             async move {
                 if req.result_state() == hydra_proto::BuildResultState::Success {
-                    let build_output = match crate::state::BuildOutput::from_grpc(req) {
-                        Ok(output) => output,
-                        Err(e) => {
-                            tracing::error!("Failed to parse build output: {e}");
-                            return;
-                        }
+                    let Some(build_output) = state
+                        .reject_builder_on_error(
+                            machine_id,
+                            crate::state::BuildOutput::from_grpc(req),
+                        )
+                        .await?
+                    else {
+                        return Ok(());
                     };
-                    if let Err(e) = state
+                    state
                         .succeed_step_by_uuid(build_id, machine_id, build_output)
                         .await
-                    {
-                        tracing::error!(
-                            "Failed to mark step with build_id={build_id} as done: {e}"
-                        );
-                    }
-                } else if let Err(e) = state
-                    .fail_step_by_uuid(
-                        build_id,
-                        machine_id,
-                        req.result_state().into(),
-                        crate::state::BuildTimings::new(
-                            req.import_time_ms,
-                            req.build_time_ms,
-                            req.upload_time_ms,
-                        ),
-                    )
-                    .await
-                {
-                    tracing::error!("Failed to fail step with build_id={build_id}: {e}");
+                        .context("succeed_step failed")?;
+                } else {
+                    state
+                        .fail_step_by_uuid(
+                            build_id,
+                            machine_id,
+                            req.result_state().into(),
+                            crate::state::BuildTimings::new(
+                                req.import_time_ms,
+                                req.build_time_ms,
+                                req.upload_time_ms,
+                            ),
+                        )
+                        .await
+                        .context("fail_step failed")?;
                 }
+                Ok(())
             }
-            .in_current_span()
-        });
+            .in_current_span(),
+        );
 
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
@@ -509,10 +513,7 @@ impl RunnerService for Server {
             .store
             .query_requisites(&[&path])
             .await
-            .map_err(|e| {
-                tracing::error!("failed to toposort drv e={e}");
-                tonic::Status::internal("failed to toposort drv.")
-            })?
+            .map_err(|e| tonic::Status::internal(format!("failed to query requisites: {e}")))?
             .into_iter()
             .map(ProtoStorePath::from)
             .collect();
@@ -582,14 +583,8 @@ impl RunnerService for Server {
         let _state = self.state.clone();
         let req = req.into_inner();
 
-        let _build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
-            tracing::error!("Failed to parse build_id into uuid: {e}");
-            tonic::Status::invalid_argument("build_id is not a valid uuid.")
-        })?;
-        let _machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
-            tracing::error!("Failed to parse machine_id into uuid: {e}");
-            tonic::Status::invalid_argument("machine_id is not a valid uuid.")
-        })?;
+        let _build_id = parse_uuid("build_id", &req.build_id)?;
+        let _machine_id = parse_uuid("machine_id", &req.machine_id)?;
 
         let remote_store = {
             let remote_stores = _state.remote_stores.read();
@@ -626,8 +621,9 @@ impl RunnerService for Server {
                 )
                 .await
                 .map_err(|e| {
-                    tracing::error!("Failed to generate presigned URL for {}: {e}", store_path);
-                    tonic::Status::internal("Failed to generate presigned URL")
+                    tonic::Status::internal(format!(
+                        "failed to generate presigned URL for {store_path}: {e}"
+                    ))
                 })?;
 
             responses.push(hydra_proto::PresignedNarResponse {
@@ -685,14 +681,8 @@ impl RunnerService for Server {
         let state = self.state.clone();
         let req = req.into_inner();
 
-        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
-            tracing::error!("Failed to parse build_id into uuid: {e}");
-            tonic::Status::invalid_argument("build_id is not a valid uuid.")
-        })?;
-        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
-            tracing::error!("Failed to parse machine_id into uuid: {e}");
-            tonic::Status::invalid_argument("machine_id is not a valid uuid.")
-        })?;
+        let build_id = parse_uuid("build_id", &req.build_id)?;
+        let machine_id = parse_uuid("machine_id", &req.machine_id)?;
 
         let machine = state
             .machines
@@ -741,8 +731,7 @@ impl RunnerService for Server {
             .upload_narinfo_after_presigned_upload(&self.state.store, narinfo)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to upload narinfo for {}: {e}", store_path);
-                tonic::Status::internal("Failed to upload narinfo")
+                tonic::Status::internal(format!("failed to upload narinfo for {store_path}: {e}"))
             })?;
 
         tracing::debug!(
