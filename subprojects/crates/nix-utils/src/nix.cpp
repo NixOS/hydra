@@ -113,7 +113,11 @@ bool is_valid_path(const StoreWrapper &wrapper, rust::Str path) {
 
 InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
   auto store = wrapper._store;
-  auto info = store->queryPathInfo(store->parseStorePath(AS_VIEW(path)));
+  auto storePath = store->parseStorePath(AS_VIEW(path));
+  if (!store->isValidPath(storePath)) {
+    return InternalPathInfo{false, "", "", {}, 0, 0, {}, {}, ""};
+  }
+  auto info = store->queryPathInfo(storePath);
 
   // Return raw SHA256 bytes (32 bytes) — Rust side converts to NarHash directly.
   rust::Vec<uint8_t> narhash_bytes;
@@ -133,6 +137,7 @@ InternalPathInfo query_path_info(const StoreWrapper &wrapper, rust::Str path) {
 
   // TODO(conni2461): Replace "" with option
   return InternalPathInfo{
+      true,
       rust::String(store->storeDir.data(), store->storeDir.size()),
       extract_opt_path(info->deriver),
       narhash_bytes,

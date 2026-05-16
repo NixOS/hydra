@@ -118,10 +118,9 @@ impl State {
         )
         .await?;
 
-        match fs_err::tokio::create_dir_all(&log_dir).await {
-            Ok(()) => tracing::info!("successfully created hydra log_dir={log_dir:?}"),
-            Err(e) => tracing::error!("Failed to create hydra log_dir={log_dir:?} e={e}"),
-        }
+        fs_err::tokio::create_dir_all(&log_dir)
+            .await
+            .context(format!("failed to create hydra log_dir={log_dir:?}"))?;
 
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
@@ -619,13 +618,13 @@ impl State {
             .await?)
     }
 
-    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path))]
+    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path), err)]
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
-    ) {
+    ) -> anyhow::Result<()> {
         let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
 
         let starttime = jiff::Timestamp::now();
@@ -646,7 +645,7 @@ impl State {
                 finished_drvs.clone(),
                 new_runnable.clone(),
             ))
-            .await;
+            .await?;
 
             // we should never run into this issue
             #[allow(clippy::cast_possible_truncation)]
@@ -689,6 +688,7 @@ impl State {
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.trigger_traverse();
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -781,7 +781,7 @@ impl State {
         }
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
@@ -814,7 +814,7 @@ impl State {
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
@@ -847,10 +847,7 @@ impl State {
         loop {
             let before_work = Instant::now();
             self.store.clear_path_info_cache();
-            if let Err(e) = self.get_queued_builds().await {
-                tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
-                continue;
-            }
+            self.get_queued_builds().await?;
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
@@ -891,24 +888,12 @@ impl State {
                 "builds_restarted" => tracing::debug!("got notification: builds restarted"),
                 "builds_cancelled" | "builds_deleted" | "builds_bumped" => {
                     tracing::info!("got notification: builds cancelled or bumped");
-                    if let Err(e) = self.process_queue_change().await {
-                        tracing::error!("Failed to process queue change. e={e}");
-                    }
+                    self.process_queue_change().await?;
                 }
                 "jobset_shares_changed" => {
                     tracing::info!("got notification: jobset shares changed");
-                    match self.db.get().await {
-                        Ok(mut conn) => {
-                            if let Err(e) = self.jobsets.handle_change(&mut conn).await {
-                                tracing::error!("Failed to handle jobset change. e={e}");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to get db connection for event 'jobset_shares_changed'. e={e}"
-                            );
-                        }
-                    }
+                    let mut conn = self.db.get().await?;
+                    self.jobsets.handle_change(&mut conn).await?;
                 }
                 _ => (),
             }
@@ -1779,7 +1764,7 @@ impl State {
         new_builds_by_path: &HashMap<StorePath, HashSet<BuildID>>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
-    ) {
+    ) -> anyhow::Result<()> {
         self.metrics.queue_build_loads.inc();
         tracing::info!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
@@ -1788,31 +1773,12 @@ impl State {
             new_builds_by_id.remove(&build.id);
         }
 
-        if !self.store.is_valid_path(&build.drv_path).await {
-            tracing::error!(
-                "aborting GC'ed build id={} path={}",
-                build.id,
-                self.store.print_store_path(&build.drv_path)
-            );
-            if !build.get_finished_in_db() {
-                match self.db.get().await {
-                    Ok(mut conn) => {
-                        if let Err(e) = conn.abort_build(build.id).await {
-                            tracing::error!("Failed to abort the build={} e={}", build.id, e);
-                        }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
-                }
-            }
-
-            build.set_finished_in_db(true);
-            self.metrics.nr_builds_done.inc();
-            return;
-        }
+        anyhow::ensure!(
+            self.store.is_valid_path(&build.drv_path).await?,
+            "drv {} for build {} is not valid — possible GC root bug",
+            self.store.print_store_path(&build.drv_path),
+            build.id,
+        );
 
         // Create steps for this derivation and its dependencies.
         let new_steps = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
@@ -1832,10 +1798,8 @@ impl State {
             CreateStepResult::None => None,
             CreateStepResult::Valid(dep) => Some(dep),
             CreateStepResult::PreviousFailure(step) => {
-                if let Err(e) = self.handle_previous_failure(build, step).await {
-                    tracing::error!("Failed to handle previous failure: {e}");
-                }
-                return;
+                self.handle_previous_failure(build, step).await?;
+                return Ok(());
             }
         };
 
@@ -1856,12 +1820,8 @@ impl State {
                 let finished_drvs = finished_drvs.clone();
                 let new_runnable = new_runnable.clone();
                 async move {
-                    let j = {
-                        if let Some(j) = new_builds_by_id.read().get(&b) {
-                            j.clone()
-                        } else {
-                            return;
-                        }
+                    let Some(j) = new_builds_by_id.read().get(&b).cloned() else {
+                        return Ok(());
                     };
 
                     Box::pin(self.create_build(
@@ -1872,11 +1832,13 @@ impl State {
                         finished_drvs,
                         new_runnable,
                     ))
-                    .await;
+                    .await
                 }
             })
             .buffered(10);
-            while tokio_stream::StreamExt::next(&mut stream).await.is_some() {}
+            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+                result?;
+            }
         }
 
         if let Some(step) = step {
@@ -1896,10 +1858,9 @@ impl State {
         } else {
             // If we didn't get a step, it means the step's outputs are
             // all valid. So we mark this as a finished, cached build.
-            if let Err(e) = self.handle_cached_build(build).await {
-                tracing::error!("failed to handle cached build: {e}");
-            }
+            self.handle_cached_build(build).await?;
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]

@@ -79,15 +79,24 @@ pub async fn substitute_output(
         tracing::debug!("Path not found, can't import={e}");
         return Ok(false);
     }
+    // Best-effort replication to S3. Non-fatal: the substitution
+    // succeeded locally, so the build can proceed regardless.
     if let Some(remote_store) = remote_store {
-        let paths_to_copy = store.query_requisites(&[&path]).await.unwrap_or_default();
-        let paths_to_copy = remote_store.query_missing_paths(paths_to_copy).await;
-        if let Err(e) = remote_store.copy_paths(&store, paths_to_copy, false).await {
+        let _: Result<(), anyhow::Error> = async {
+            let paths_to_copy = store.query_requisites(&[&path]).await?;
+            let paths_to_copy = remote_store.query_missing_paths(paths_to_copy).await;
+            remote_store
+                .copy_paths(&store, paths_to_copy, false)
+                .await?;
+            Ok(())
+        }
+        .await
+        .inspect_err(|e| {
             tracing::error!(
-                "Failed to copy paths to remote store({}): {e}",
+                "Failed to replicate to remote store({}): {e}",
                 remote_store.cfg.client_config.bucket
             );
-        }
+        });
     }
     let stoptime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
 

@@ -459,6 +459,11 @@ impl RunnerService for Server {
 
         tokio::spawn({
             async move {
+                // These are fire-and-forget DB operations in a spawned
+                // task (the gRPC response was already sent). If the DB
+                // is down these will fail, but the queue monitor loop
+                // will also fail and halt the queue-runner — so we just
+                // log here.
                 if req.result_state() == hydra_proto::BuildResultState::Success {
                     let build_output = match crate::state::BuildOutput::from_grpc(req) {
                         Ok(output) => output,
@@ -529,7 +534,11 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path = state.store.is_valid_path(&path).await;
+        let has_path = state
+            .store
+            .is_valid_path(&path)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
         Ok(tonic::Response::new(hydra_proto::HasPathResponse {
             has_path,
@@ -547,7 +556,8 @@ impl RunnerService for Server {
             .state
             .store
             .query_path_infos(&paths.iter().collect::<Vec<_>>())
-            .await;
+            .await
+            .map_err(|e| tonic::Status::internal(format!("query_path_infos failed: {e}")))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
 

@@ -98,12 +98,11 @@ async fn main() -> anyhow::Result<()> {
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
-    if !state.cli.mtls_configured_correctly() {
-        tracing::error!(
-            "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
-        );
-        return Err(anyhow::anyhow!("Configuration issue"));
-    }
+    anyhow::ensure!(
+        state.cli.mtls_configured_correctly(),
+        "mTLS configured improperly, please pass all options: \
+        server_cert_path, server_key_path and client_ca_cert_path!"
+    );
 
     let task_abort_handles = start_task_loops(&state);
 

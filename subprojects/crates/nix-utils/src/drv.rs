@@ -34,7 +34,7 @@ pub async fn query_drv(
         return Ok(None);
     }
 
-    if !store.is_valid_path(drv).await {
+    if !store.is_valid_path(drv).await? {
         return Ok(None);
     }
 

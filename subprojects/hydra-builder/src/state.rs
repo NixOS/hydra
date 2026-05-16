@@ -31,6 +31,29 @@ fn retry_strategy() -> backon::ExponentialBuilder {
         .with_max_delay(RETRY_MAX_DELAY)
 }
 
+/// Submit a build result to the queue-runner with retries.
+async fn submit_build_result(
+    client: &BuilderClient,
+    result: BuildResultInfo,
+    context: &'static str,
+) -> anyhow::Result<()> {
+    let (_, res) = (|tuple: (BuilderClient, BuildResultInfo)| async {
+        let (mut client, body) = tuple;
+        let res = client.complete_build(body.clone()).await;
+        ((client, body), res)
+    })
+    .retry(retry_strategy())
+    .sleep(tokio::time::sleep)
+    .context((client.clone(), result))
+    .notify(|err: &tonic::Status, dur: core::time::Duration| {
+        tracing::error!("{context}: err={err}, retrying in={dur:?}");
+    })
+    .await;
+    res.map(|_| ())
+        .map_err(anyhow::Error::from)
+        .context(context)
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure: `{0}`")]
@@ -67,7 +90,7 @@ impl From<JobFailure> for BuildResultState {
 #[derive(Debug)]
 pub struct BuildInfo {
     drv_path: StorePath,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
     was_cancelled: Arc<AtomicBool>,
 }
 
@@ -287,10 +310,7 @@ impl State {
                     }
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
-                            tracing::error!(
-                                "Build of {drv} was cancelled {e}, not reporting Error"
-                            );
-                            return;
+                            anyhow::bail!("Build of {drv} was cancelled {e}, not reporting Error");
                         }
 
                         tracing::error!("Build of {drv} failed with {e}");
@@ -308,23 +328,15 @@ impl State {
                             output_infos: std::collections::HashMap::new(),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
-                        .await
-                        {
-                            tracing::error!("Failed to submit build failure info: {e}");
-                        }
+                        submit_build_result(
+                            &self_.client,
+                            failed_build,
+                            "Failed to submit build failure info",
+                        )
+                        .await?;
                     }
                 }
+                Ok(())
             }
         });
 
@@ -531,9 +543,15 @@ impl State {
         // successful build.
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
-            let info = store.query_path_info(path).await.ok_or_else(|| {
-                JobFailure::PostProcessing(anyhow::anyhow!("missing path info for output `{name}`"))
-            })?;
+            let info = store
+                .query_path_info(path)
+                .await
+                .map_err(|e| JobFailure::PostProcessing(e.into()))?
+                .ok_or_else(|| {
+                    JobFailure::PostProcessing(anyhow::anyhow!(
+                        "missing path info for output `{name}`"
+                    ))
+                })?;
             output_infos.insert(
                 name.clone(),
                 harmonia_store_path_info::ValidPathInfo {
@@ -583,23 +601,13 @@ impl State {
 
         // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
         // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
+        submit_build_result(
+            &client,
+            build_results,
+            "Failed to submit build success info",
+        )
         .await
-        .1
-        .map_err(|e| {
-            tracing::error!("Failed to submit build success info. Will fail build: err={e}");
-            JobFailure::PostProcessing(e.into())
-        })?;
+        .map_err(|e| JobFailure::PostProcessing(e))?;
         Ok(())
     }
 
@@ -670,12 +678,12 @@ async fn filter_missing(
     store: &nix_utils::LocalStore,
     gcroot: &Gcroot,
     path: StorePath,
-) -> Option<StorePath> {
-    if store.is_valid_path(&path).await {
+) -> anyhow::Result<Option<StorePath>> {
+    if store.is_valid_path(&path).await? {
         nix_utils::add_root(store, &gcroot.root, &path);
-        None
+        Ok(None)
     } else {
-        Some(path)
+        Ok(Some(path))
     }
 }
 
@@ -706,9 +714,13 @@ async fn import_paths(
             filter_missing(&store, gcroot, p)
         })
         .buffered(10)
-        .filter_map(|o| async { o })
         .collect::<Vec<_>>()
         .await
+        .into_iter()
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect()
     } else {
         paths
     };
@@ -716,13 +728,17 @@ async fn import_paths(
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&store, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = futures::StreamExt::map(tokio_stream::iter(paths), |p| {
+        let paths: Vec<_> = futures::StreamExt::map(tokio_stream::iter(paths), |p| {
             filter_missing(&store, gcroot, p)
         })
         .buffered(10)
-        .filter_map(|o| async { o })
         .collect::<Vec<_>>()
-        .await;
+        .await
+        .into_iter()
+        .collect::<anyhow::Result<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .collect();
         if paths.is_empty() {
             return Ok(());
         }
@@ -772,13 +788,17 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
 ) -> anyhow::Result<()> {
     use futures::stream::StreamExt as _;
 
-    let requisites = futures::StreamExt::map(tokio_stream::iter(requisites), |p| {
+    let requisites: Vec<StorePath> = futures::StreamExt::map(tokio_stream::iter(requisites), |p| {
         filter_missing(&store, gcroot, p)
     })
     .buffered(50)
-    .filter_map(|o| async { o })
     .collect::<Vec<_>>()
-    .await;
+    .await
+    .into_iter()
+    .collect::<anyhow::Result<Vec<_>>>()?
+    .into_iter()
+    .flatten()
+    .collect();
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -862,7 +882,7 @@ async fn upload_nars_regular(
     let store_clone = store.clone();
     let sender = tokio::task::spawn_blocking(move || {
         let rt = tokio::runtime::Runtime::new()?;
-        let infos = rt.block_on(store_clone.query_path_infos(&nars.iter().collect::<Vec<_>>()));
+        let infos = rt.block_on(store_clone.query_path_infos(&nars.iter().collect::<Vec<_>>()))?;
         store_transfer::export::export(&store_clone, &nars, &infos, &tx);
         Ok::<(), anyhow::Error>(())
     });
@@ -904,10 +924,9 @@ async fn upload_nars_presigned(
 
     let paths_to_upload = store
         .query_requisites(&output_paths.iter().collect::<Vec<_>>())
-        .await
-        .unwrap_or_default();
+        .await?;
     let paths_to_upload_ref = paths_to_upload.iter().collect::<Vec<_>>();
-    let path_infos = Arc::new(store.query_path_infos(&paths_to_upload_ref).await);
+    let path_infos = Arc::new(store.query_path_infos(&paths_to_upload_ref).await?);
 
     let mut nars = Vec::with_capacity(paths_to_upload.len());
     let mut stream = tokio_stream::iter(paths_to_upload.clone())
@@ -1080,7 +1099,7 @@ async fn new_success_build_result_info(
             name.to_string(),
             OutputInfo {
                 path: Some(ProtoStorePath::from(vpi.path.clone())),
-                closure_size: store.compute_closure_size(&vpi.path).await,
+                closure_size: store.compute_closure_size(&vpi.path).await?,
                 nar_size: vpi.info.nar_size,
                 nar_hash: {
                     let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
