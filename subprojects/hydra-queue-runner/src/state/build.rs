@@ -7,8 +7,8 @@ use hashbrown::{HashMap, HashSet};
 
 use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 pub(super) type AtomicBuildID = AtomicI32;

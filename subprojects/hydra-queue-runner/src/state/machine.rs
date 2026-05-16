@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use tokio::sync::mpsc;
 
 use db::models::BuildID;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};

@@ -1,4 +1,4 @@
-use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
+use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
 
 /// A store path with an optional relative sub-path.
 ///

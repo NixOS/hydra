@@ -2,9 +2,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use harmonia_store_core::derivation::{BasicDerivation, Derivation, DerivationOutput};
-use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derivation::{BasicDerivation, Derivation, DerivationOutput};
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path::{StoreDir, StorePath};
 
 use super::Step;
 use super::drv::flatten_chain;

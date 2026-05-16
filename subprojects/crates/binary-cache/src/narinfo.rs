@@ -1,11 +1,12 @@
 use std::collections::BTreeSet;
 
-use harmonia_store_core::signature::{SecretKey, Signature, fingerprint_path};
-use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
 use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
+use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
+use harmonia_store_path_info::fingerprint_path;
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
 use harmonia_utils_hash::fmt::CommonHash as _;
+use harmonia_utils_signature::{SecretKey, Signature};
 use secrecy::ExposeSecret as _;
 
 use crate::Compression;
@@ -95,9 +96,14 @@ pub fn clear_sigs_and_sign(
     signing_keys: &[secrecy::SecretString],
 ) -> NarInfo {
     narinfo.info.info.signatures.clear();
-    if !signing_keys.is_empty()
-        && let Some(fp) = narinfo_fingerprint(&narinfo, store_dir)
-    {
+    if !signing_keys.is_empty() {
+        let fp = fingerprint_path(
+            store_dir,
+            &narinfo.path,
+            &narinfo.info.info.nar_hash,
+            narinfo.info.info.nar_size,
+            &narinfo.info.info.references,
+        );
         for s in signing_keys {
             if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
                 narinfo.info.info.signatures.insert(sk.sign(&fp));
@@ -105,21 +111,6 @@ pub fn clear_sigs_and_sign(
         }
     }
     narinfo
-}
-
-fn narinfo_fingerprint(narinfo: &NarInfo, store_dir: &StoreDir) -> Option<Vec<u8>> {
-    let nar_hash_str = {
-        let h: Hash = narinfo.info.info.nar_hash.into();
-        format!("{}", h.as_base32())
-    };
-    fingerprint_path(
-        store_dir,
-        &narinfo.path,
-        nar_hash_str.as_bytes(),
-        narinfo.info.info.nar_size,
-        &narinfo.info.info.references,
-    )
-    .ok()
 }
 
 /// Return the `.ls` listing key for this narinfo.

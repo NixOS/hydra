@@ -1,4 +1,4 @@
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use tokio::io::BufReader;
 use tokio_stream::wrappers::LinesStream;
 use tokio_util::io::ReaderStream;

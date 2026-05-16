@@ -7,9 +7,9 @@ use hashbrown::{HashMap, HashSet};
 
 use super::{Build, Jobset};
 use db::models::BuildID;
-use harmonia_store_core::derivation::Derivation;
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derivation::Derivation;
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{StoreDir, StorePath};
 
 use super::drv::OutputNameChain;
 

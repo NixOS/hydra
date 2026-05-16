@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
-use harmonia_store_core::derivation::Derivation;
-use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derivation::Derivation;
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path::StorePath;
 
 /// Output names of intermediate derivations for a dynamic derivation
 /// dependency, stored in reverse order so that the next level to resolve

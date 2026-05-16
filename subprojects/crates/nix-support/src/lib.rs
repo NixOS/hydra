@@ -29,8 +29,8 @@ use std::{collections::BTreeMap, os::unix::fs::MetadataExt as _, sync::LazyLock}
 use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::StorePath;
 use store_path_utils::RelativeStorePath;
 
 #[allow(clippy::expect_used)]
@@ -181,7 +181,7 @@ fn real_path(store_dir: &std::path::Path, path: &StorePath) -> std::path::PathBu
 }
 
 async fn parse_build_product<F: FsOperations>(
-    store_dir: &harmonia_store_core::store_path::StoreDir,
+    store_dir: &harmonia_store_path::StoreDir,
     fs: &F,
     line: &str,
 ) -> Option<BuildProduct> {
@@ -272,7 +272,7 @@ impl NixSupport {
 /// `fs` provides filesystem access for build product metadata and hashing
 /// (see [`FilesystemOperations`] for the real implementation).
 pub async fn parse_nix_support_for_output<F: FsOperations>(
-    store_dir: &harmonia_store_core::store_path::StoreDir,
+    store_dir: &harmonia_store_path::StoreDir,
     real_store_dir: &std::path::Path,
     fs: &F,
     output_name: &OutputName,
@@ -350,7 +350,7 @@ pub async fn parse_nix_support_for_output<F: FsOperations>(
 
 /// Parse `nix-support/` files from all outputs, returning per-output data.
 pub async fn parse_nix_support_from_outputs<F: FsOperations>(
-    store_dir: &harmonia_store_core::store_path::StoreDir,
+    store_dir: &harmonia_store_path::StoreDir,
     real_store_dir: &std::path::Path,
     fs: &F,
     derivation_outputs: &BTreeMap<OutputName, StorePath>,
@@ -491,7 +491,7 @@ mod tests {
         store_dir
     }
 
-    use harmonia_store_core::store_path::StoreDir;
+    use harmonia_store_path::StoreDir;
 
     #[tokio::test]
     async fn test_build_product_regular_file() {

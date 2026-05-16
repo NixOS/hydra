@@ -24,9 +24,9 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::realisation::{DrvOutput, Realisation};
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_derivation::realisation::{DrvOutput, Realisation};
+use harmonia_store_path::{StoreDir, StorePath};
 use nix_utils::BaseStore as _;
 // Realisation writing is now done by the caller, not via FFI query.
 
@@ -682,7 +682,7 @@ impl S3BinaryCacheClient {
             .signing_keys
             .iter()
             .filter_map(|s| s.expose_secret().parse().ok())
-            .collect::<SmallVec<[harmonia_store_core::signature::SecretKey; 4]>>();
+            .collect::<SmallVec<[harmonia_utils_signature::SecretKey; 4]>>();
         realisation.value.sign_mut(&realisation.key, &keys);
 
         let json = serde_json::to_string(&realisation)?;

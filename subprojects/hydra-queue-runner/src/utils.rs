@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use db::models::BuildID;
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 use crate::state::RemoteBuild;

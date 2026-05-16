@@ -29,7 +29,7 @@ pub enum Error {
     Sqlx(#[from] db::Error),
 
     #[error("store path parse error: `{0}`")]
-    StorePath(#[from] harmonia_store_core::store_path::ParseStorePathError),
+    StorePath(#[from] harmonia_store_path::ParseStorePathError),
 
     #[error("Not found")]
     NotFound,
@@ -357,7 +357,7 @@ mod handler {
             let whole_body = req.collect().await?.aggregate();
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
-            let drv_path: harmonia_store_core::store_path::StorePath = data.drv.parse()?;
+            let drv_path: harmonia_store_path::StorePath = data.drv.parse()?;
             state.queue_one_build(data.jobset_id, &drv_path).await?;
             construct_json_ok_response(&io::Empty {})
         }

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{ParseStorePathError, StoreDir, StorePath};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
 use hashbrown::HashMap;
 
 pub type BuildID = i32;
@@ -79,7 +79,7 @@ pub struct BuildSmall {
 }
 
 #[derive(Debug)]
-pub struct Build<StorePath = harmonia_store_core::store_path::StorePath> {
+pub struct Build<StorePath = harmonia_store_path::StorePath> {
     pub id: BuildID,
     pub jobset_id: i32,
     pub project: String,
@@ -153,7 +153,7 @@ pub struct InsertBuildStep<'a> {
 }
 
 #[derive(Debug)]
-pub struct InsertBuildStepOutput<StorePath = harmonia_store_core::store_path::StorePath> {
+pub struct InsertBuildStepOutput<StorePath = harmonia_store_path::StorePath> {
     pub build_id: BuildID,
     pub step_nr: i32,
     pub name: OutputName,
@@ -302,7 +302,7 @@ impl From<OwnedBuildMetric> for (nix_support::BuildMetricName, nix_support::Buil
 }
 
 #[derive(Debug)]
-pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_core::store_path::StorePath> {
+pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_path::StorePath> {
     pub id: BuildID,
     pub name: &'a str,
     pub project_name: &'a str,

@@ -601,7 +601,7 @@ impl RunnerService for Server {
         for presigned_request in req.request {
             let store_path = presigned_request
                 .store_path
-                .parse::<harmonia_store_core::store_path::StorePath>()
+                .parse::<harmonia_store_path::StorePath>()
                 .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
 
             let proto_hash = presigned_request

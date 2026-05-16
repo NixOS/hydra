@@ -1,4 +1,4 @@
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Clone, serde::Serialize)]

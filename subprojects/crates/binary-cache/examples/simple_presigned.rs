@@ -20,8 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upload_client = PresignedUploadClient::new();
 
     let paths_to_copy = store
-        .query_requisites(&[&harmonia_store_core::store_path::StoreDir::default()
-            .parse::<harmonia_store_core::store_path::StorePath>(
+        .query_requisites(&[&harmonia_store_path::StoreDir::default()
+            .parse::<harmonia_store_path::StorePath>(
                 "/nix/store/m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1",
             )
             .unwrap()])
