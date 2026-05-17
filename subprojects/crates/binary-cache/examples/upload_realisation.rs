@@ -1,5 +1,5 @@
 use binary_cache::S3BinaryCacheClient;
-use harmonia_store_core::realisation::DrvOutput;
+use harmonia_store_derivation::realisation::DrvOutput;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -14,7 +14,7 @@ mod uploader;
 use anyhow::Context as _;
 pub use atomic::AtomicDateTime;
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
 pub use queue::{BuildQueueStats, Queues};
@@ -31,9 +31,9 @@ use hashbrown::{HashMap, HashSet};
 use secrecy::ExposeSecret as _;
 
 use db::models::{BuildID, BuildStatus};
-use harmonia_store_core::derivation::DerivationOutput;
-use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
-use harmonia_store_core::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
+use harmonia_store_derivation::derivation::DerivationOutput;
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
 use nix_utils::BaseStore as _;
 
@@ -1988,7 +1988,7 @@ impl State {
         let system_type = std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8");
         #[allow(clippy::cast_precision_loss)]
         self.metrics.observe_build_input_drvs(
-            harmonia_store_core::derivation::DerivationInputs::from(&drv.inputs)
+            harmonia_store_derivation::derivation::DerivationInputs::from(&drv.inputs)
                 .drvs
                 .len() as f64,
             system_type,

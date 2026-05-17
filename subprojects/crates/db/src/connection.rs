@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use anyhow::Context;
 use sqlx::Acquire;
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{StoreDir, StorePath};
 
 use super::models::{
     Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,

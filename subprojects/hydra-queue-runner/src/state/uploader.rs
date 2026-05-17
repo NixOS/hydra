@@ -1,6 +1,6 @@
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 #[allow(clippy::unnecessary_wraps)]

@@ -32,12 +32,15 @@ h2 = "0.4"
 harmonia-file-core = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-file-nar = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-content-address = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-derivation = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-nar-info = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-path-info = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-io = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-signature = { git = "https://github.com/nix-community/harmonia.git" }
 hashbrown = "0.16"
 http = "1.1"
 http-body-util = "0.1"
@@ -111,12 +114,15 @@ store-transfer   = { path = "subprojects/crates/store-transfer" }
 test-utils       = { path = "subprojects/crates/test-utils" }
 
 [patch.crates-io]
-harmonia-file-core           = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-file-nar            = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-nar-info      = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-path-info     = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-io            = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-file-core             = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-file-nar              = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-aterm           = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-content-address = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-derivation      = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-nar-info        = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path            = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path-info       = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-base-encoding   = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-hash            = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-io              = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-signature       = { git = "https://github.com/nix-community/harmonia.git" }

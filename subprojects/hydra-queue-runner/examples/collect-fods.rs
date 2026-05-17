@@ -1,5 +1,5 @@
-use harmonia_store_core::derivation::Derivation;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derivation::Derivation;
+use harmonia_store_path::StorePath;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{StoreDir, StorePathName};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{StoreDir, StorePathName};
 
-use harmonia_store_core::derivation::Derivation;
+use harmonia_store_derivation::derivation::Derivation;
 
 use crate::StorePath;
 
@@ -62,8 +62,8 @@ pub fn output_paths(
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use harmonia_store_core::derivation::DerivationOutput;
-    use harmonia_store_core::store_path::StoreDir;
+    use harmonia_store_derivation::derivation::DerivationOutput;
+    use harmonia_store_path::StoreDir;
 
     use crate::drv::parse_drv;
 

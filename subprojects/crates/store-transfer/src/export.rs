@@ -1,6 +1,6 @@
 //! Shared logic for exporting store paths as an `AddToStoreRequest` stream.
 
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use harmonia_store_path_info::UnkeyedValidPathInfo;
 use nix_utils::BaseStore;
 

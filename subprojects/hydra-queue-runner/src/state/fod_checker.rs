@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use harmonia_store_core::derivation::{Derivation, DerivationOutput};
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_derivation::derivation::{Derivation, DerivationOutput};
+use harmonia_store_path::StorePath;
 use hashbrown::{HashMap, HashSet};
 use nix_utils::LocalStore;
 
@@ -41,7 +41,7 @@ async fn collect_ca_derivations(
         _ => None,
     });
     let input_drvs: Vec<StorePath> =
-        harmonia_store_core::derivation::DerivationInputs::from(&parsed.inputs)
+        harmonia_store_derivation::derivation::DerivationInputs::from(&parsed.inputs)
             .drvs
             .into_keys()
             .collect();
@@ -178,7 +178,7 @@ mod tests {
     #[tokio::test]
     async fn test_traverse() {
         let store = nix_utils::LocalStore::init();
-        let hello_drv: harmonia_store_core::store_path::StorePath =
+        let hello_drv: harmonia_store_path::StorePath =
             "rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv"
                 .parse()
                 .unwrap();

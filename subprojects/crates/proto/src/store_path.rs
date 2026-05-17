@@ -1,7 +1,7 @@
 //! Newtype wrappers for using harmonia store types with prost/tonic.
 //!
 //! These exist to work around the orphan rule: we cannot implement
-//! `prost::Message` for `harmonia_store_core::store_path::StorePath`
+//! `prost::Message` for `harmonia_store_path::StorePath`
 //! directly because both the trait and the type are foreign.  Instead,
 //! we define thin newtypes here (inside the hydra workspace) and map
 //! them via `extern_path` in the prost-build configuration.
@@ -10,7 +10,7 @@ use prost::DecodeError;
 use prost::bytes::{Buf, BufMut};
 use prost::encoding::{self, DecodeContext, WireType};
 
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 
 /// A [`StorePath`] that implements [`prost::Message`].
 ///

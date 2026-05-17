@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use backon::Retryable;
 
 use bytes::Bytes;
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use nix_utils::{BaseStore as _, LocalStore};
 
 use tokio_util::io::StreamReader;

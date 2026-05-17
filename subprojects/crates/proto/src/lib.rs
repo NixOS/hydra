@@ -93,8 +93,8 @@ impl TryFrom<nix::store::v1::Hash> for harmonia_utils_hash::Hash {
 
 // -- Signature --
 
-impl From<&harmonia_store_core::signature::Signature> for nix::store::v1::Signature {
-    fn from(sig: &harmonia_store_core::signature::Signature) -> Self {
+impl From<&harmonia_utils_signature::Signature> for nix::store::v1::Signature {
+    fn from(sig: &harmonia_utils_signature::Signature) -> Self {
         Self {
             key_name: sig.key_name.clone(),
             sig: sig.sig.to_string(),
@@ -102,7 +102,7 @@ impl From<&harmonia_store_core::signature::Signature> for nix::store::v1::Signat
     }
 }
 
-impl TryFrom<nix::store::v1::Signature> for harmonia_store_core::signature::Signature {
+impl TryFrom<nix::store::v1::Signature> for harmonia_utils_signature::Signature {
     type Error = &'static str;
 
     fn try_from(sig: nix::store::v1::Signature) -> Result<Self, Self::Error> {
@@ -115,9 +115,9 @@ impl TryFrom<nix::store::v1::Signature> for harmonia_store_core::signature::Sign
 
 // -- ContentAddress --
 
-impl From<&harmonia_store_core::store_path::ContentAddress> for nix::store::v1::ContentAddress {
-    fn from(ca: &harmonia_store_core::store_path::ContentAddress) -> Self {
-        use harmonia_store_core::store_path::ContentAddress as CA;
+impl From<&harmonia_store_content_address::ContentAddress> for nix::store::v1::ContentAddress {
+    fn from(ca: &harmonia_store_content_address::ContentAddress) -> Self {
+        use harmonia_store_content_address::ContentAddress as CA;
         match ca {
             CA::Text(h) => Self {
                 method: nix::store::v1::content_address::Method::Text as i32,
@@ -137,11 +137,11 @@ impl From<&harmonia_store_core::store_path::ContentAddress> for nix::store::v1::
     }
 }
 
-impl TryFrom<nix::store::v1::ContentAddress> for harmonia_store_core::store_path::ContentAddress {
+impl TryFrom<nix::store::v1::ContentAddress> for harmonia_store_content_address::ContentAddress {
     type Error = &'static str;
 
     fn try_from(ca: nix::store::v1::ContentAddress) -> Result<Self, Self::Error> {
-        use harmonia_store_core::store_path::ContentAddress as CA;
+        use harmonia_store_content_address::ContentAddress as CA;
         let hash: harmonia_utils_hash::Hash = ca.hash.ok_or("missing CA hash")?.try_into()?;
         match nix::store::v1::content_address::Method::try_from(ca.method) {
             Ok(nix::store::v1::content_address::Method::Text) => {
@@ -201,15 +201,14 @@ impl TryFrom<UnkeyedValidPathInfo> for harmonia_store_path_info::UnkeyedValidPat
             signatures: v
                 .signatures
                 .into_iter()
-                .filter_map(|s| harmonia_store_core::signature::Signature::try_from(s).ok())
+                .filter_map(|s| harmonia_utils_signature::Signature::try_from(s).ok())
                 .collect(),
             ca: v
                 .ca
-                .map(harmonia_store_core::store_path::ContentAddress::try_from)
+                .map(harmonia_store_content_address::ContentAddress::try_from)
                 .transpose()
                 .map_err(|_| NarInfoConvertError("invalid ca"))?,
-            store_dir: harmonia_store_core::store_path::StoreDir::new(&v.store_dir)
-                .unwrap_or_default(),
+            store_dir: harmonia_store_path::StoreDir::new(&v.store_dir).unwrap_or_default(),
         })
     }
 }
@@ -218,13 +217,13 @@ impl TryFrom<UnkeyedValidPathInfo> for harmonia_store_path_info::UnkeyedValidPat
 
 impl
     From<(
-        &harmonia_store_core::store_path::StorePath,
+        &harmonia_store_path::StorePath,
         &harmonia_store_path_info::UnkeyedValidPathInfo,
     )> for ValidPathInfo
 {
     fn from(
         (path, info): (
-            &harmonia_store_core::store_path::StorePath,
+            &harmonia_store_path::StorePath,
             &harmonia_store_path_info::UnkeyedValidPathInfo,
         ),
     ) -> Self {

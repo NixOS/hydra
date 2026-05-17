@@ -4,7 +4,7 @@
 //! from NIX store paths that contain debug symbols in the standard
 //! `lib/debug/.build-id` directory structure.
 
-use harmonia_store_core::store_path::StorePath;
+use harmonia_store_path::StorePath;
 use nix_utils::BaseStore as _;
 
 use crate::CacheError;
@@ -132,7 +132,7 @@ pub(crate) trait DebugInfoClient {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use harmonia_store_core::store_path::StoreDir;
+    use harmonia_store_path::StoreDir;
 
     use super::*;
 

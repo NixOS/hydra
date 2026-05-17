@@ -11,7 +11,7 @@
 pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
     store: &Store,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
-) -> Result<Vec<harmonia_store_core::store_path::StorePath>, nix_utils::Error> {
+) -> Result<Vec<harmonia_store_path::StorePath>, nix_utils::Error> {
     use futures::StreamExt as _;
     use nix_utils::Error;
 

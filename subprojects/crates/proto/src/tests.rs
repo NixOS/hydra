@@ -1,10 +1,11 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-use harmonia_store_core::signature::Signature;
-use harmonia_store_core::store_path::{ContentAddress, StoreDir, StorePath};
+use harmonia_store_content_address::ContentAddress;
+use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::NarHash;
 use harmonia_utils_hash::{Algorithm, Hash, Sha256};
+use harmonia_utils_signature::Signature;
 
 fn test_store_dir() -> StoreDir {
     StoreDir::default()

@@ -1,5 +1,5 @@
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{ParseStorePathError, StorePath};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{ParseStorePathError, StorePath};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};

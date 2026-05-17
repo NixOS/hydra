@@ -1,4 +1,4 @@
-use harmonia_store_core::store_path::StoreDir;
+use harmonia_store_path::StoreDir;
 use hashbrown::HashMap;
 use procfs_core::FromRead as _;
 

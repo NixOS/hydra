@@ -17,9 +17,9 @@ mod realise;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use harmonia_store_core::derivation::{BasicDerivation, DerivationT};
-use harmonia_store_core::derived_path::{OutputName, SingleDerivedPath};
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derivation::{BasicDerivation, DerivationT};
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::UnkeyedValidPathInfo;
 use hashbrown::HashMap;
 
@@ -320,11 +320,11 @@ fn nar_hash_from_bytes(bytes: &[u8]) -> harmonia_store_path_info::NarHash {
     hash.try_into().expect("sha256 should convert to NarHash")
 }
 
-fn parse_signature(s: &str) -> harmonia_store_core::signature::Signature {
+fn parse_signature(s: &str) -> harmonia_utils_signature::Signature {
     s.parse().expect("invalid signature from nix FFI")
 }
 
-fn parse_ca(s: &str) -> Option<harmonia_store_core::store_path::ContentAddress> {
+fn parse_ca(s: &str) -> Option<harmonia_store_content_address::ContentAddress> {
     if s.is_empty() { None } else { s.parse().ok() }
 }
 
