@@ -293,9 +293,21 @@ create table BuildSteps (
     -- Whether this build step produced different results when repeated.
     isNonDeterministic boolean,
 
+    -- If this step was resolved to a different CA derivation, stores the
+    -- resolved drv path so outputs can be looked up by drv path.
+    --
+    -- Note: Unlike the other store path fields, this one does *not* include
+    -- the store dir. Eventually, it would be nice to migrate the other fields
+    -- to also not include the store dir, as it is repeated / denormalizes the
+    -- database. There is nothing special about this field that makes it not
+    -- include it, it is just newer.
+    resolvedDrvPath  text,
+
     primary key   (build, stepnr),
     foreign key   (build) references Builds(id) on delete cascade,
-    foreign key   (propagatedFrom) references Builds(id) on delete cascade
+    foreign key   (propagatedFrom) references Builds(id) on delete cascade,
+    -- status = 13 (Resolved) iff resolvedDrvPath is set
+    check ((status = 13) = (resolvedDrvPath is not null))
 );
 
 
