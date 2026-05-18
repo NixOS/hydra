@@ -79,6 +79,7 @@ mod ffi {
 
     #[derive(Debug, Clone)]
     struct InternalPathInfo {
+        found: bool,
         store_dir: String,
         deriver: String,
         nar_hash: Vec<u8>,
@@ -368,6 +369,7 @@ fn to_internal_path_info(
     let nar_hash_bytes: Vec<u8> = AsRef::<[u8]>::as_ref(&info.nar_hash).to_vec();
 
     ffi::InternalPathInfo {
+        found: true,
         store_dir: store_dir.to_str().to_owned(),
         deriver: info
             .deriver
@@ -386,19 +388,18 @@ fn to_internal_path_info(
 }
 
 pub trait BaseStore {
-    #[must_use]
     /// Check whether a path is valid.
-    fn is_valid_path(&self, path: &StorePath) -> impl Future<Output = bool>;
+    fn is_valid_path(&self, path: &StorePath) -> impl Future<Output = Result<bool, Error>>;
 
     fn query_path_info(
         &self,
         path: &StorePath,
-    ) -> impl Future<Output = Option<UnkeyedValidPathInfo>>;
+    ) -> impl Future<Output = Result<Option<UnkeyedValidPathInfo>, Error>>;
     fn query_path_infos(
         &self,
         paths: &[&StorePath],
-    ) -> impl Future<Output = HashMap<StorePath, UnkeyedValidPathInfo>>;
-    fn compute_closure_size(&self, path: &StorePath) -> impl Future<Output = u64>;
+    ) -> impl Future<Output = Result<HashMap<StorePath, UnkeyedValidPathInfo>, Error>>;
+    fn compute_closure_size(&self, path: &StorePath) -> impl Future<Output = Result<u64, Error>>;
 
     fn clear_path_info_cache(&self);
 
@@ -529,33 +530,35 @@ where
 
 impl BaseStore for BaseStoreImpl {
     #[inline]
-    async fn is_valid_path(&self, path: &StorePath) -> bool {
+    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, Error> {
         let store = self.wrapper.clone();
         let path = self.print_store_path(path);
-        asyncify(move || ffi::is_valid_path(store.as_raw(), &path))
-            .await
-            .unwrap_or(false)
+        asyncify(move || ffi::is_valid_path(store.as_raw(), &path)).await
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
+    async fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> Result<Option<UnkeyedValidPathInfo>, Error> {
         let store = self.wrapper.clone();
         let path = self.print_store_path(path);
         asyncify(move || {
-            Ok(ffi::query_path_info(store.as_raw(), &path)
-                .ok()
-                .map(Into::into))
+            let info = ffi::query_path_info(store.as_raw(), &path)?;
+            if info.found {
+                Ok(Some(info.into()))
+            } else {
+                Ok(None)
+            }
         })
         .await
-        .ok()
-        .flatten()
     }
 
     #[inline]
     async fn query_path_infos(
         &self,
         paths: &[&StorePath],
-    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
+    ) -> Result<HashMap<StorePath, UnkeyedValidPathInfo>, Error> {
         let paths = paths.iter().map(|v| (*v).to_owned()).collect::<Vec<_>>();
 
         asyncify({
@@ -564,27 +567,22 @@ impl BaseStore for BaseStoreImpl {
                 let mut res = HashMap::with_capacity(paths.len());
                 for p in paths {
                     let full_path = self_.print_store_path(&p);
-                    if let Some(info) = ffi::query_path_info(self_.wrapper.as_raw(), &full_path)
-                        .ok()
-                        .map(Into::into)
-                    {
-                        res.insert(p, info);
+                    let info = ffi::query_path_info(self_.wrapper.as_raw(), &full_path)?;
+                    if info.found {
+                        res.insert(p, info.into());
                     }
                 }
                 Ok(res)
             }
         })
         .await
-        .unwrap_or_default()
     }
 
     #[inline]
-    async fn compute_closure_size(&self, path: &StorePath) -> u64 {
+    async fn compute_closure_size(&self, path: &StorePath) -> Result<u64, Error> {
         let store = self.wrapper.clone();
         let path = self.print_store_path(path);
-        asyncify(move || ffi::compute_closure_size(store.as_raw(), &path))
-            .await
-            .unwrap_or_default()
+        asyncify(move || ffi::compute_closure_size(store.as_raw(), &path)).await
     }
 
     #[inline]
@@ -726,7 +724,7 @@ impl LocalStore {
         tokio_stream::iter(outputs)
             .map(|(name, path)| async move {
                 match path {
-                    Some(p) if self.is_valid_path(&p).await => None,
+                    Some(p) if self.is_valid_path(&p).await.unwrap_or(false) => None,
                     other => Some((name, other)),
                 }
             })
@@ -778,12 +776,15 @@ impl LocalStore {
 
 impl BaseStore for LocalStore {
     #[inline]
-    async fn is_valid_path(&self, path: &StorePath) -> bool {
+    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, Error> {
         self.base.is_valid_path(path).await
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
+    async fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> Result<Option<UnkeyedValidPathInfo>, Error> {
         self.base.query_path_info(path).await
     }
 
@@ -791,12 +792,12 @@ impl BaseStore for LocalStore {
     async fn query_path_infos(
         &self,
         paths: &[&StorePath],
-    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
+    ) -> Result<HashMap<StorePath, UnkeyedValidPathInfo>, Error> {
         self.base.query_path_infos(paths).await
     }
 
     #[inline]
-    async fn compute_closure_size(&self, path: &StorePath) -> u64 {
+    async fn compute_closure_size(&self, path: &StorePath) -> Result<u64, Error> {
         self.base.compute_closure_size(path).await
     }
 
@@ -907,7 +908,7 @@ impl RemoteStore {
 
         tokio_stream::iter(paths)
             .map(|p| async move {
-                if self.is_valid_path(&p).await {
+                if self.is_valid_path(&p).await.unwrap_or(false) {
                     None
                 } else {
                     Some(p)
@@ -929,7 +930,7 @@ impl RemoteStore {
         tokio_stream::iter(outputs)
             .map(|(name, path)| async move {
                 match path {
-                    Some(p) if self.is_valid_path(&p).await => None,
+                    Some(p) if self.is_valid_path(&p).await.unwrap_or(false) => None,
                     other => Some((name, other)),
                 }
             })
@@ -942,12 +943,15 @@ impl RemoteStore {
 
 impl BaseStore for RemoteStore {
     #[inline]
-    async fn is_valid_path(&self, path: &StorePath) -> bool {
+    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, Error> {
         self.base.is_valid_path(path).await
     }
 
     #[inline]
-    async fn query_path_info(&self, path: &StorePath) -> Option<UnkeyedValidPathInfo> {
+    async fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> Result<Option<UnkeyedValidPathInfo>, Error> {
         self.base.query_path_info(path).await
     }
 
@@ -955,12 +959,12 @@ impl BaseStore for RemoteStore {
     async fn query_path_infos(
         &self,
         paths: &[&StorePath],
-    ) -> HashMap<StorePath, UnkeyedValidPathInfo> {
+    ) -> Result<HashMap<StorePath, UnkeyedValidPathInfo>, Error> {
         self.base.query_path_infos(paths).await
     }
 
     #[inline]
-    async fn compute_closure_size(&self, path: &StorePath) -> u64 {
+    async fn compute_closure_size(&self, path: &StorePath) -> Result<u64, Error> {
         self.base.compute_closure_size(path).await
     }
 

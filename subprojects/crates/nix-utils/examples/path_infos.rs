@@ -1,7 +1,7 @@
 use nix_utils::BaseStore as _;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let local = nix_utils::LocalStore::init();
 
     let p1 = "ihl4ya67glh9815v1lanyqph0p7hdzfb-hdf5-cpp-1.14.6-bin"
@@ -19,16 +19,17 @@ async fn main() {
     println!("{infos:?}");
     println!(
         "closure_size {p1}: {}",
-        local.compute_closure_size(&p1).await
+        local.compute_closure_size(&p1).await?
     );
     println!(
         "closure_size {p2}: {}",
-        local.compute_closure_size(&p2).await
+        local.compute_closure_size(&p2).await?
     );
     println!(
         "closure_size {p3}: {}",
-        local.compute_closure_size(&p3).await
+        local.compute_closure_size(&p3).await?
     );
 
     println!("stats: {:?}", local.get_store_stats());
+    Ok(())
 }
