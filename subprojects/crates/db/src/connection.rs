@@ -99,14 +99,15 @@ impl Connection {
     pub async fn get_jobset_scheduling_shares(
         &mut self,
         jobset_id: i32,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> anyhow::Result<Option<u32>> {
         Ok(sqlx::query!(
             "SELECT schedulingshares FROM jobsets WHERE id = $1",
             jobset_id,
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .map(|v| v.schedulingshares))
+        .map(|v| u32::try_from(v.schedulingshares))
+        .transpose()?)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -132,6 +133,9 @@ impl Connection {
         .await
     }
 
+    // TODO Currently unused. In the old C++ queue-runner, this was called
+    // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
+    // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> sqlx::Result<()> {
         #[allow(clippy::cast_possible_truncation)]
