@@ -56,15 +56,16 @@ pub async fn path_to_narinfo(
     store: &nix_utils::LocalStore,
     path: &StorePath,
 ) -> Result<NarInfo, CacheError> {
-    let Some(path_info) = store.query_path_info(path).await else {
-        return Err(CacheError::PathNotFound {
+    let path_info = store
+        .query_path_info(path)
+        .await?
+        .ok_or_else(|| CacheError::PathNotFound {
             path: path.to_string(),
-        });
-    };
+        })?;
     let narinfo = narinfo_simple(path, path_info, Compression::None);
     let queried_references = store
         .query_path_infos(&narinfo.info.info.references.iter().collect::<Vec<_>>())
-        .await;
+        .await?;
     for r in &narinfo.info.info.references {
         if !queried_references.contains_key(r) {
             return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
@@ -549,11 +550,13 @@ impl S3BinaryCacheClient {
         store: &nix_utils::LocalStore,
         path: &StorePath,
     ) -> Result<NarInfo, CacheError> {
-        let Some(path_info) = store.query_path_info(path).await else {
-            return Err(CacheError::PathNotFound {
-                path: path.to_string(),
-            });
-        };
+        let path_info =
+            store
+                .query_path_info(path)
+                .await?
+                .ok_or_else(|| CacheError::PathNotFound {
+                    path: path.to_string(),
+                })?;
         let narinfo = narinfo_from_path_info(
             path,
             path_info,
@@ -563,7 +566,7 @@ impl S3BinaryCacheClient {
         );
         let queried_references = store
             .query_path_infos(&narinfo.info.info.references.iter().collect::<Vec<_>>())
-            .await;
+            .await?;
         for r in &narinfo.info.info.references {
             if !queried_references.contains_key(r) {
                 return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
