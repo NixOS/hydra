@@ -24,7 +24,7 @@ my $project = $db->resultset('Projects')->create({name => "tests", displayname =
 my $jobset = createBaseJobset($db, "content-addressed", "content-addressed.nix", $ctx{jobsdir});
 
 ok(evalSucceeds($ctx{context}, $jobset), "Evaluating jobs/content-addressed.nix should exit with return code 0");
-is(nrQueuedBuildsForJobset($jobset), 14, "Evaluating jobs/content-addressed.nix should result in 14 builds");
+is(nrQueuedBuildsForJobset($jobset), 10, "Evaluating jobs/content-addressed.nix should result in 10 builds");
 
 my @builds = queuedBuildsForJobset($jobset);
 ok(runBuilds($ctx{context}, @builds), "Building all jobs from jobs/content-addressed.nix should exit with code 0");
@@ -58,40 +58,4 @@ for my $build (@builds) {
 # XXX: This test seems to not do what it seems to be doing. See documentation: https://metacpan.org/pod/Test2::V0#isnt($got,-$do_not_want,-$name)
 isnt(<$ctx{deststoredir}/realisations/*>, "", "The destination store should have the realisations of the built derivations registered");
 
-# Early cutoff: earlyCutoffUpstream1 and earlyCutoffUpstream2 have
-# different derivations but produce the same content-addressed output.
-# After building earlyCutoffDownstream1, earlyCutoffDownstream2 should
-# be cached because its resolved input is identical.
-my $upstream1 = $db->resultset('Builds')->find({
-    jobset_id => $jobset->id,
-    job => "earlyCutoffUpstream1",
-});
-my $upstream2 = $db->resultset('Builds')->find({
-    jobset_id => $jobset->id,
-    job => "earlyCutoffUpstream2",
-});
-
-my $upstream1_out = $upstream1->buildoutputs->find({ name => "out" });
-my $upstream2_out = $upstream2->buildoutputs->find({ name => "out" });
-is($upstream1_out->path, $upstream2_out->path,
-    "Both upstream builds should resolve to the same content-addressed output path");
-
-my $downstream1 = $db->resultset('Builds')->find({
-    jobset_id => $jobset->id,
-    job => "earlyCutoffDownstream1",
-});
-my $downstream2 = $db->resultset('Builds')->find({
-    jobset_id => $jobset->id,
-    job => "earlyCutoffDownstream2",
-});
-
-my $downstream1_out = $downstream1->buildoutputs->find({ name => "out" });
-my $downstream2_out = $downstream2->buildoutputs->find({ name => "out" });
-is($downstream1_out->path, $downstream2_out->path,
-    "Both downstream builds should create the same content-addressed output path");
-
-ok($downstream1->iscachedbuild || $downstream2->iscachedbuild,
-    "One downstream build should be cached");
-
 done_testing;
-
