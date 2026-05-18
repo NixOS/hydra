@@ -133,6 +133,9 @@ impl Connection {
         .await
     }
 
+    // TODO Currently unused. In the old C++ queue-runner, this was called
+    // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
+    // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> sqlx::Result<()> {
         #[allow(clippy::cast_possible_truncation)]
