@@ -12,8 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let has_info = client
         .has_narinfo(
             &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
-                .parse()
-                .unwrap(),
+                .parse::<harmonia_store_path::StorePath>()?,
         )
         .await?;
     tracing::info!("has narinfo? {has_info}");
@@ -21,8 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let narinfo = client
         .download_narinfo(
             &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
-                .parse()
-                .unwrap(),
+                .parse::<harmonia_store_path::StorePath>()?,
         )
         .await?;
     tracing::info!("narinfo:\n{narinfo:?}");

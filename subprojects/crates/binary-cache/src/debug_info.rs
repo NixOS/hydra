@@ -4,9 +4,6 @@
 //! from NIX store paths that contain debug symbols in the standard
 //! `lib/debug/.build-id` directory structure.
 
-use harmonia_store_path::StorePath;
-use nix_utils::BaseStore as _;
-
 use crate::CacheError;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -19,8 +16,8 @@ pub(crate) struct DebugInfoLink {
 /// This is useful for testing with custom store prefixes.
 pub(crate) async fn process_debug_info<C>(
     nar_url: &str,
-    store: &nix_utils::LocalStore,
-    store_path: &StorePath,
+    real_store_dir: &std::path::Path,
+    store_path: &harmonia_store_path::StorePath,
     client: C,
 ) -> Result<(), CacheError>
 where
@@ -28,8 +25,8 @@ where
 {
     use futures::stream::StreamExt as _;
 
-    let full_path = store.print_store_path(store_path);
-    let build_id_path = std::path::Path::new(&full_path).join("lib/debug/.build-id");
+    let full_path = real_store_dir.join(store_path.to_string());
+    let build_id_path = full_path.join("lib/debug/.build-id");
 
     if !build_id_path.exists() {
         tracing::debug!("No lib/debug/.build-id directory found in {}", store_path);
@@ -54,11 +51,11 @@ where
 }
 
 pub async fn get_debug_info_build_ids(
-    store: &nix_utils::LocalStore,
-    store_path: &StorePath,
+    real_store_dir: &std::path::Path,
+    store_path: &harmonia_store_path::StorePath,
 ) -> Result<Vec<String>, CacheError> {
-    let full_path = store.print_store_path(store_path);
-    let build_id_path = std::path::Path::new(&full_path).join("lib/debug/.build-id");
+    let full_path = real_store_dir.join(store_path.to_string());
+    let build_id_path = full_path.join("lib/debug/.build-id");
 
     if !build_id_path.exists() {
         tracing::debug!("No lib/debug/.build-id directory found in {}", store_path);
@@ -131,8 +128,6 @@ pub(crate) trait DebugInfoClient {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
-
-    use harmonia_store_path::StoreDir;
 
     use super::*;
 
@@ -224,7 +219,8 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-debug-output";
-        let store_path = store_path_str.parse::<StorePath>().unwrap();
+        let store_dir = harmonia_store_path::StoreDir::new(store_prefix.as_path()).unwrap();
+        let store_path = harmonia_store_path::StorePath::from_base_path(store_path_str).unwrap();
         let full_path = store_prefix.join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -238,12 +234,14 @@ mod tests {
             .await
             .unwrap();
 
-        let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
-
-        process_debug_info("test.nar", &local, &store_path, mock_client.clone())
-            .await
-            .unwrap();
+        process_debug_info(
+            "test.nar",
+            store_dir.as_ref(),
+            &store_path,
+            mock_client.clone(),
+        )
+        .await
+        .unwrap();
 
         let created_links = mock_client.get_created_links();
         assert_eq!(created_links.len(), 1);
@@ -375,17 +373,20 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-no-debug";
-        let store_path = store_path_str.parse::<StorePath>().unwrap();
+        let store_dir = harmonia_store_path::StoreDir::new(store_prefix.as_path()).unwrap();
+        let store_path = harmonia_store_path::StorePath::from_base_path(store_path_str).unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
 
-        let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
-
-        process_debug_info("test.nar", &local, &store_path, mock_client.clone())
-            .await
-            .unwrap();
+        process_debug_info(
+            "test.nar",
+            store_dir.as_ref(),
+            &store_path,
+            mock_client.clone(),
+        )
+        .await
+        .unwrap();
 
         let created_links = mock_client.get_created_links();
         assert_eq!(created_links.len(), 0);
@@ -400,19 +401,22 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-empty-debug";
-        let store_path = store_path_str.parse::<StorePath>().unwrap();
+        let store_dir = harmonia_store_path::StoreDir::new(store_prefix.as_path()).unwrap();
+        let store_path = harmonia_store_path::StorePath::from_base_path(store_path_str).unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
         let build_id_dir = full_path.join("lib/debug/.build-id");
         fs_err::tokio::create_dir_all(&build_id_dir).await.unwrap();
 
-        let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
-
-        process_debug_info("test.nar", &local, &store_path, mock_client.clone())
-            .await
-            .unwrap();
+        process_debug_info(
+            "test.nar",
+            store_dir.as_ref(),
+            &store_path,
+            mock_client.clone(),
+        )
+        .await
+        .unwrap();
 
         let created_links = mock_client.get_created_links();
         assert_eq!(created_links.len(), 0);
@@ -427,7 +431,8 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap().keep();
         let store_prefix = temp_dir.join("nix/store");
         let store_path_str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-multi-debug";
-        let store_path = store_path_str.parse::<StorePath>().unwrap();
+        let store_dir = harmonia_store_path::StoreDir::new(store_prefix.as_path()).unwrap();
+        let store_path = harmonia_store_path::StorePath::from_base_path(store_path_str).unwrap();
         let full_path = temp_dir.join("nix/store").join(store_path_str);
 
         fs_err::tokio::create_dir_all(&full_path).await.unwrap();
@@ -448,12 +453,14 @@ mod tests {
                 .unwrap();
         }
 
-        let mut local = nix_utils::LocalStore::init();
-        local.unsafe_set_store_dir(StoreDir::new(store_prefix.as_path()).unwrap());
-
-        process_debug_info("multi.nar", &local, &store_path, mock_client.clone())
-            .await
-            .unwrap();
+        process_debug_info(
+            "multi.nar",
+            store_dir.as_ref(),
+            &store_path,
+            mock_client.clone(),
+        )
+        .await
+        .unwrap();
 
         let created_links = mock_client.get_created_links();
         assert_eq!(created_links.len(), 3);

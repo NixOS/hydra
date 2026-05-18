@@ -6,19 +6,16 @@ license                = "LGPL-2.1-only"
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace       = true
-async-compression      = { workspace = true, features = [ "tokio", "zstd" ] }
-bytes.workspace        = true
-futures.workspace      = true
-hashbrown.workspace    = true
-tokio                  = { workspace = true, features = [ "io-util", "rt" ] }
-tokio-stream.workspace = true
-tokio-util             = { workspace = true, features = [ "io" ] }
-tonic.workspace        = true
-tracing.workspace      = true
-zstd.workspace         = true
+anyhow.workspace    = true
+async-compression   = { workspace = true, features = [ "tokio", "zstd" ] }
+futures.workspace   = true
+hashbrown.workspace = true
+tokio               = { workspace = true, features = [ "io-util", "rt" ] }
+tonic.workspace     = true
+tracing.workspace   = true
 
+harmonia-protocol.workspace        = true
 harmonia-store-path.workspace      = true
 harmonia-store-path-info.workspace = true
+harmonia-store-remote.workspace    = true
 hydra-proto.workspace              = true
-nix-utils.workspace                = true

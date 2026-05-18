@@ -1,5 +1,3 @@
-use harmonia_store_derivation::derived_path::OutputName;
-use harmonia_store_path::{ParseStorePathError, StorePath};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -9,18 +7,18 @@ use anyhow::Context as _;
 use backon::RetryableWithContext as _;
 use futures::TryFutureExt as _;
 use hashbrown::HashMap;
-use tonic::Request;
 
 use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{ParseStorePathError, StorePath};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
-    PingMessage, StepStatus, StepUpdate,
+    PingMessage, PressureState, StepStatus, StepUpdate,
 };
-use nix_utils::BaseStore as _;
-
+use tonic::Request;
 const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
 const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
 
@@ -29,6 +27,29 @@ fn retry_strategy() -> backon::ExponentialBuilder {
         .with_jitter()
         .with_min_delay(RETRY_MIN_DELAY)
         .with_max_delay(RETRY_MAX_DELAY)
+}
+
+/// Submit a build result to the queue-runner with retries.
+async fn submit_build_result(
+    client: &BuilderClient,
+    result: BuildResultInfo,
+    context: &'static str,
+) -> anyhow::Result<()> {
+    let (_, res) = (|tuple: (BuilderClient, BuildResultInfo)| async {
+        let (mut client, body) = tuple;
+        let res = client.complete_build(body.clone()).await;
+        ((client, body), res)
+    })
+    .retry(retry_strategy())
+    .sleep(tokio::time::sleep)
+    .context((client.clone(), result))
+    .notify(|err: &tonic::Status, dur: core::time::Duration| {
+        tracing::error!("{context}: err={err}, retrying in={dur:?}");
+    })
+    .await;
+    res.map(|_| ())
+        .map_err(anyhow::Error::from)
+        .context(context)
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -67,7 +88,7 @@ impl From<JobFailure> for BuildResultState {
 #[derive(Debug)]
 pub struct BuildInfo {
     drv_path: StorePath,
-    handle: tokio::task::JoinHandle<()>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
     was_cancelled: Arc<AtomicBool>,
 }
 
@@ -95,6 +116,13 @@ pub struct Config {
     pub mandatory_features: Vec<String>,
     pub cgroups: bool,
     pub use_substitutes: bool,
+    pub substituters: Vec<String>,
+    pub nix_version: String,
+    pub build_dir: String,
+    pub store_dir: harmonia_store_path::StoreDir,
+    /// Physical store directory on disk (for chroot stores).
+    /// `None` means the logical store dir is the filesystem path.
+    pub real_store_dir: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug)]
@@ -140,12 +168,12 @@ impl Drop for Gcroot {
 impl State {
     #[tracing::instrument(err)]
     pub async fn new(cli: &super::config::Cli) -> anyhow::Result<Arc<Self>> {
-        nix_utils::set_verbosity(1);
+        let nix_config = crate::nix_config::NixConfig::load()?;
+        let nix_remote = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
 
         let logname = std::env::var("LOGNAME").context("LOGNAME not set")?;
-        let nix_state_dir =
-            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix/".to_owned());
-        let gcroots = std::path::PathBuf::from(nix_state_dir)
+        let gcroots = nix_remote
+            .state_dir
             .join("gcroots/per-user")
             .join(logname)
             .join("hydra-roots/builder");
@@ -174,8 +202,8 @@ impl State {
                 systems: cli.systems.as_ref().map_or_else(
                     || {
                         let mut out = Vec::with_capacity(8);
-                        out.push(nix_utils::get_this_system());
-                        out.extend(nix_utils::get_extra_platforms());
+                        out.push(nix_config.system());
+                        out.extend(nix_config.extra_platforms());
                         out
                     },
                     Clone::clone,
@@ -183,10 +211,15 @@ impl State {
                 supported_features: cli
                     .supported_features
                     .as_ref()
-                    .map_or_else(nix_utils::get_system_features, Clone::clone),
+                    .map_or_else(|| nix_config.system_features(), Clone::clone),
                 mandatory_features: cli.mandatory_features.clone().unwrap_or_default(),
-                cgroups: nix_utils::get_use_cgroups(),
+                cgroups: nix_config.use_cgroups(),
                 use_substitutes: cli.use_substitutes,
+                substituters: nix_config.substituters(),
+                nix_version: nix_config.nix_version(),
+                build_dir: nix_config.build_dir(),
+                store_dir: nix_remote.store_dir.clone(),
+                real_store_dir: nix_remote.real_store_dir(),
             },
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
@@ -230,15 +263,23 @@ impl State {
             supported_features: self.config.supported_features.clone(),
             mandatory_features: self.config.mandatory_features.clone(),
             cgroups: self.config.cgroups,
-            substituters: nix_utils::get_substituters(),
+            substituters: self.config.substituters.clone(),
             use_substitutes: self.config.use_substitutes,
-            nix_version: nix_utils::get_nix_version(),
+            nix_version: self.config.nix_version.clone(),
         })
     }
 
     #[tracing::instrument(skip(self), err)]
     pub fn get_ping_message(&self) -> anyhow::Result<PingMessage> {
-        let sysinfo = crate::system::SystemLoad::new(&nix_utils::get_build_dir())?;
+        let default_store = self.config.store_dir.to_string();
+        let store_path = self
+            .config
+            .real_store_dir
+            .as_ref()
+            .map_or(default_store.as_str(), |p| {
+                p.to_str().unwrap_or(default_store.as_str())
+            });
+        let sysinfo = crate::system::SystemLoad::new(&self.config.build_dir, store_path)?;
 
         Ok(PingMessage {
             machine_id: self.id.to_string(),
@@ -246,7 +287,14 @@ impl State {
             load5: sysinfo.load_avg_5,
             load15: sysinfo.load_avg_15,
             mem_usage: sysinfo.mem_usage,
-            pressure: sysinfo.pressure,
+            pressure: sysinfo.pressure.map(|p| PressureState {
+                cpu_some: p.cpu_some,
+                mem_some: p.mem_some,
+                mem_full: p.mem_full,
+                io_some: p.io_some,
+                io_full: p.io_full,
+                irq_full: p.irq_full,
+            }),
             build_dir_free_percent: sysinfo.build_dir_free_percent,
             store_free_percent: sysinfo.store_free_percent,
             current_substituting_path_count: self.metrics.get_substituting_path_count(),
@@ -287,10 +335,7 @@ impl State {
                     }
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
-                            tracing::error!(
-                                "Build of {drv} was cancelled {e}, not reporting Error"
-                            );
-                            return;
+                            anyhow::bail!("Build of {drv} was cancelled {e}, not reporting Error");
                         }
 
                         tracing::error!("Build of {drv} failed with {e}");
@@ -308,23 +353,15 @@ impl State {
                             output_infos: std::collections::HashMap::new(),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
-                        .await
-                        {
-                            tracing::error!("Failed to submit build failure info: {e}");
-                        }
+                        submit_build_result(
+                            &self_.client,
+                            failed_build,
+                            "Failed to submit build failure info",
+                        )
+                        .await?;
                     }
                 }
+                Ok(())
             }
         });
 
@@ -386,9 +423,15 @@ impl State {
         m: BuildMessage,
         timings: &mut BuildTimings,
     ) -> Result<(), JobFailure> {
-        use tokio_stream::StreamExt;
-
-        let store = nix_utils::LocalStore::init();
+        let nix_config = daemon_client_utils::parse_nix_remote()
+            .map_err(|e| JobFailure::Preparing(anyhow::anyhow!(e)))?;
+        let daemon_socket = nix_config.socket;
+        let store_dir = nix_config.store_dir;
+        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
+            &daemon_socket,
+            store_dir.clone(),
+            harmonia_store_remote::PoolConfig::default(),
+        );
 
         let machine_id = self.id;
         let drv = m
@@ -419,9 +462,10 @@ impl State {
 
         import_requisites(
             &mut client,
-            store.clone(),
+            pool.clone(),
             self.metrics.clone(),
             &gcroot,
+            &drv,
             requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
             self.config.use_substitutes,
@@ -438,14 +482,16 @@ impl State {
             })
             .await;
         let before_build = Instant::now();
-        let (mut child, stdout, stderr) = nix_utils::realise_drv(
-            &store,
+        let (mut child, stdout, stderr) = crate::realise::realise_drv(
+            pool.store_dir(),
             &drv,
-            &nix_utils::BuildOptions::complete(m.max_log_size, m.max_silent_time, m.build_timeout),
-            true,
+            m.max_log_size,
+            m.max_silent_time,
+            m.build_timeout,
         )
         .await
         .map_err(|e| JobFailure::Build(e.into()))?;
+
         // The build_log RPC streams stderr to the queue-runner and only
         // resolves once the child closes stderr (i.e. the build finished).
         // A transport error here (e.g. nginx sending an HTTP/2 GOAWAY after
@@ -453,12 +499,6 @@ impl State {
         // derivation builds, so it must not be reported as a BuildFailure
         // (which is non-retryable and cascades to every dependent build).
         // Map it to Upload so the queue-runner retries the step instead.
-        //
-        // TODO: don't restart the build on a log-stream transport error.
-        // The child is `kill_on_drop`, so returning here aborts and re-runs
-        // the whole build. Instead, buffer stderr locally, reconnect the
-        // build_log stream (the queue-runner appends to the same log file
-        // keyed by drv path), and keep the child running.
         client
             .build_log(Request::new(crate::utils::compressed_log_stream(
                 &drv, stderr,
@@ -470,17 +510,18 @@ impl State {
                 )
             })?;
 
-        nix_utils::validate_statuscode(
-            child
-                .wait()
-                .await
-                .map_err(|e| JobFailure::Build(e.into()))?,
-        )
-        .map_err(|e| JobFailure::Build(e.into()))?;
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| JobFailure::Build(e.into()))?;
+        if !status.success() {
+            return Err(JobFailure::Build(anyhow::anyhow!(
+                "nix build exited with {status}"
+            )));
+        }
 
-        // The process has already finished by this point, so if it takes more than 100ms
-        // then there probably was no line.
-        // No need for a loop, since `nix build` only ever prints one line.
+        // Parse JSON output from stdout (one line).
+        use tokio_stream::StreamExt as _;
         let outputs_line = std::pin::pin!(stdout.timeout(tokio::time::Duration::from_millis(100)))
             .next()
             .await
@@ -500,7 +541,7 @@ impl State {
             )));
         }
 
-        let actual_out_drv: StorePath = store
+        let actual_out_drv: StorePath = pool
             .store_dir()
             .parse(&output_raw[0].drv_path)
             .map_err(|e: ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
@@ -512,15 +553,15 @@ impl State {
 
         let outputs = output_raw
             .pop()
-            .unwrap()
+            .expect("checked len == 1")
             .outputs
             .into_iter()
-            .map(|(name, path)| Ok((name, store.store_dir().parse::<StorePath>(&path)?)))
+            .map(|(name, path)| Ok((name, pool.store_dir().parse::<StorePath>(&path)?)))
             .collect::<anyhow::Result<BTreeMap<OutputName, StorePath>>>()
             .map_err(JobFailure::PostProcessing)?;
 
         for o in outputs.values() {
-            nix_utils::add_root(&store, &gcroot.root, o);
+            add_gc_root(&gcroot.root, pool.store_dir(), o);
         }
 
         timings.build_elapsed = before_build.elapsed();
@@ -531,9 +572,16 @@ impl State {
         // successful build.
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
-            let info = store.query_path_info(path).await.ok_or_else(|| {
-                JobFailure::PostProcessing(anyhow::anyhow!("missing path info for output `{name}`"))
-            })?;
+            let info = daemon_client_utils::query_path_info(&pool, path)
+                .await
+                .map_err(|e| {
+                    JobFailure::PostProcessing(anyhow::anyhow!("query_path_info failed: {e}"))
+                })?
+                .ok_or_else(|| {
+                    JobFailure::PostProcessing(anyhow::anyhow!(
+                        "missing path info for output `{name}`"
+                    ))
+                })?;
             output_infos.insert(
                 name.clone(),
                 harmonia_store_path_info::ValidPathInfo {
@@ -553,7 +601,7 @@ impl State {
 
         let before_upload = Instant::now();
         self.upload_nars(
-            store.clone(),
+            pool.clone(),
             outputs.values().cloned().collect::<Vec<_>>(),
             &m.build_id,
             &machine_id.to_string(),
@@ -571,7 +619,7 @@ impl State {
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
-            store.clone(),
+            pool.clone(),
             machine_id,
             &drv,
             &output_infos,
@@ -583,23 +631,13 @@ impl State {
 
         // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
         // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
+        submit_build_result(
+            &client,
+            build_results,
+            "Failed to submit build success info",
+        )
         .await
-        .1
-        .map_err(|e| {
-            tracing::error!("Failed to submit build success info. Will fail build: err={e}");
-            JobFailure::PostProcessing(e.into())
-        })?;
+        .map_err(JobFailure::PostProcessing)?;
         Ok(())
     }
 
@@ -639,10 +677,10 @@ impl State {
         self.halt.store(true, Ordering::SeqCst);
     }
 
-    #[tracing::instrument(skip(self, store, nars), err)]
+    #[tracing::instrument(skip(self, pool, nars), err)]
     async fn upload_nars(
         &self,
-        store: nix_utils::LocalStore,
+        pool: harmonia_store_remote::ConnectionPool,
         nars: Vec<StorePath>,
         build_id: &str,
         machine_id: &str,
@@ -652,7 +690,7 @@ impl State {
             upload_nars_presigned(
                 self.client.clone(),
                 self.upload_client.clone(),
-                store,
+                pool,
                 &nars,
                 opts,
                 build_id,
@@ -660,69 +698,88 @@ impl State {
             )
             .await
         } else {
-            upload_nars_regular(self.client.clone(), store, self.metrics.clone(), nars).await
+            upload_nars_regular(self.client.clone(), pool, self.metrics.clone(), nars).await
         }
     }
 }
 
-#[tracing::instrument(skip(store), fields(%gcroot, %path))]
-async fn filter_missing(
-    store: &nix_utils::LocalStore,
+#[tracing::instrument(skip(pool), fields(%gcroot, %path))]
+async fn is_path_missing(
+    pool: &harmonia_store_remote::ConnectionPool,
     gcroot: &Gcroot,
     path: StorePath,
-) -> Option<StorePath> {
-    if store.is_valid_path(&path).await {
-        nix_utils::add_root(store, &gcroot.root, &path);
-        None
+) -> anyhow::Result<Option<StorePath>> {
+    if daemon_client_utils::is_valid_path(pool, &path).await? {
+        add_gc_root(&gcroot.root, pool.store_dir(), &path);
+        Ok(None)
     } else {
-        Some(path)
+        Ok(Some(path))
     }
 }
 
+/// Keep only paths not yet present in the local store.
+async fn filter_missing(
+    pool: &harmonia_store_remote::ConnectionPool,
+    gcroot: &Gcroot,
+    paths: Vec<StorePath>,
+    concurrency: usize,
+) -> anyhow::Result<Vec<StorePath>> {
+    use futures::StreamExt as _;
+    futures::StreamExt::map(tokio_stream::iter(paths), |p| {
+        is_path_missing(pool, gcroot, p)
+    })
+    .buffered(concurrency)
+    .collect::<Vec<_>>()
+    .await
+    .into_iter()
+    .collect::<anyhow::Result<Vec<_>>>()
+    .map(|v| v.into_iter().flatten().collect())
+}
+
+/// Create a GC root symlink for a store path.
+///
+/// The symlink target uses the logical store dir, which may dangle
+/// outside a chroot but is correct inside it.
+fn add_gc_root(
+    gcroot_dir: &std::path::Path,
+    store_dir: &harmonia_store_path::StoreDir,
+    path: &StorePath,
+) {
+    let link = gcroot_dir.join(path.to_string());
+    let target = store_dir.display(path).to_string();
+    let _ = fs_err::os::unix::fs::symlink(target, &link);
+}
+
 async fn substitute_paths(
-    store: &nix_utils::LocalStore,
+    pool: &harmonia_store_remote::ConnectionPool,
     paths: &[StorePath],
 ) -> anyhow::Result<()> {
     for p in paths {
-        store.ensure_path(p).await?;
+        daemon_client_utils::ensure_path(pool, p).await?;
     }
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, metrics), fields(%gcroot), err)]
+#[tracing::instrument(skip(client, pool, metrics), fields(%gcroot), err)]
 async fn import_paths(
     mut client: BuilderClient,
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
     paths: Vec<StorePath>,
     filter: bool,
     use_substitutes: bool,
 ) -> anyhow::Result<()> {
-    use futures::StreamExt as _;
-
     let paths = if filter {
-        futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-            filter_missing(&store, gcroot, p)
-        })
-        .buffered(10)
-        .filter_map(|o| async { o })
-        .collect::<Vec<_>>()
-        .await
+        filter_missing(&pool, gcroot, paths, 10).await?
     } else {
         paths
     };
     let paths = if use_substitutes {
         metrics.add_substituting_path(paths.len() as u64);
-        let _ = substitute_paths(&store, &paths).await;
+        let _ = substitute_paths(&pool, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-            filter_missing(&store, gcroot, p)
-        })
-        .buffered(10)
-        .filter_map(|o| async { o })
-        .collect::<Vec<_>>()
-        .await;
+        let paths = filter_missing(&pool, gcroot, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -749,36 +806,35 @@ async fn import_paths(
         .await?
         .into_inner();
 
-    let imported = store_transfer::import::import(&store, stream).await?;
+    let mut guard = pool.acquire().await?;
+    let imported = store_transfer::import::import(&mut guard, stream).await?;
 
+    // Create GC roots while still holding the connection — the
+    // imported paths are temp-rooted on this connection and can't
+    // be GC'd until we release it.
     for p in &imported {
-        nix_utils::add_root(&store, &gcroot.root, p);
+        add_gc_root(&gcroot.root, pool.store_dir(), p);
     }
+    drop(guard);
 
     metrics.sub_downloading_path(num_paths);
-    tracing::debug!("Finished importing paths");
+    tracing::debug!("Finished importing {} paths", imported.len());
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, metrics, requisites), fields(%gcroot), err)]
+#[tracing::instrument(skip(client, pool, metrics, requisites), fields(%gcroot, %drv), err)]
+#[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
+    drv: &StorePath,
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> anyhow::Result<()> {
-    use futures::stream::StreamExt as _;
-
-    let requisites = futures::StreamExt::map(tokio_stream::iter(requisites), |p| {
-        filter_missing(&store, gcroot, p)
-    })
-    .buffered(50)
-    .filter_map(|o| async { o })
-    .collect::<Vec<_>>()
-    .await;
+    let requisites = filter_missing(&pool, gcroot, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -786,7 +842,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            store.clone(),
+            pool.clone(),
             metrics.clone(),
             gcroot,
             srcs.to_vec(),
@@ -799,7 +855,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            store.clone(),
+            pool.clone(),
             metrics.clone(),
             gcroot,
             drvs.to_vec(),
@@ -812,41 +868,44 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, metrics), err)]
+#[tracing::instrument(skip(client, pool, metrics), err)]
 async fn upload_nars_regular(
     mut client: BuilderClient,
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> anyhow::Result<()> {
-    let nars = store
-        .query_requisites(&nars.iter().collect::<Vec<_>>())
+    // Compute full closure by walking references via daemon protocol.
+    // query_closure returns ValidPathInfos in dependency order with
+    // path infos already populated, so we don't need to re-query.
+    let closure = binary_cache::query_closure(&pool, &nars)
         .await
-        .unwrap_or(nars);
+        .map_err(|e| anyhow::anyhow!("failed to compute closure: {e}"))?;
 
-    let nars = {
+    // Filter out paths the queue-runner already has.
+    let closure = {
         use futures::stream::StreamExt as _;
 
-        futures::StreamExt::map(tokio_stream::iter(nars), |p| {
+        futures::StreamExt::map(tokio_stream::iter(closure), |vpi| {
             let mut client = client.clone();
             async move {
                 if client
-                    .has_path(ProtoStorePath::from(p.clone()))
+                    .has_path(ProtoStorePath::from(vpi.path.clone()))
                     .await
                     .is_ok_and(|r| r.into_inner().has_path)
                 {
                     None
                 } else {
-                    Some(p)
+                    Some(vpi)
                 }
             }
         })
         .buffered(10)
         .filter_map(|o| async { o })
-        .collect::<Vec<_>>()
+        .collect::<Vec<harmonia_store_path_info::ValidPathInfo>>()
         .await
     };
-    if nars.is_empty() {
+    if closure.is_empty() {
         return Ok(());
     }
 
@@ -855,22 +914,26 @@ async fn upload_nars_regular(
         Result<hydra_proto::AddToStoreRequest, tonic::Status>,
     >();
     let before_upload = Instant::now();
-    let nars_len = nars.len() as u64;
+    let nars_len = closure.len() as u64;
 
     metrics.add_uploading_path(nars_len);
 
-    let store_clone = store.clone();
-    let sender = tokio::task::spawn_blocking(move || {
-        let rt = tokio::runtime::Runtime::new()?;
-        let infos = rt.block_on(store_clone.query_path_infos(&nars.iter().collect::<Vec<_>>()));
-        store_transfer::export::export(&store_clone, &nars, &infos, &tx);
-        Ok::<(), anyhow::Error>(())
+    let nars: Vec<_> = closure.iter().map(|vpi| vpi.path.clone()).collect();
+    let infos: HashMap<_, _> = closure
+        .into_iter()
+        .map(|vpi| (vpi.path, vpi.info))
+        .collect();
+
+    let export_pool = pool.clone();
+    let sender = tokio::spawn(async move {
+        let mut guard = export_pool.acquire().await?;
+        store_transfer::export::export(&mut guard, &nars, &infos, &tx).await
     });
 
     let upload = client
         .build_result(tokio_stream::StreamExt::filter_map(
             tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
-            |r| r.ok(),
+            Result::ok,
         ))
         .map_err(Into::<anyhow::Error>::into);
 
@@ -887,11 +950,11 @@ async fn upload_nars_regular(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store), err)]
+#[tracing::instrument(skip(client, pool), err)]
 async fn upload_nars_presigned(
     mut client: BuilderClient,
     upload_client: PresignedUploadClient,
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     output_paths: &[StorePath],
     opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
@@ -902,25 +965,34 @@ async fn upload_nars_presigned(
     tracing::info!("Start uploading paths using presigned urls");
     let before_upload = Instant::now();
 
-    let paths_to_upload = store
-        .query_requisites(&output_paths.iter().collect::<Vec<_>>())
-        .await
-        .unwrap_or_default();
-    let paths_to_upload_ref = paths_to_upload.iter().collect::<Vec<_>>();
-    let path_infos = Arc::new(store.query_path_infos(&paths_to_upload_ref).await);
+    // Compute full closure by walking references. Returns path infos
+    // in dependency order, so no need to re-query.
+    let closure = daemon_client_utils::query_closure(&pool, output_paths).await?;
+
+    let path_info_map: HashMap<_, _> = closure
+        .iter()
+        .map(|vpi| (vpi.path.clone(), vpi.info.clone()))
+        .collect();
+    let paths_to_upload: Vec<_> = closure.iter().map(|vpi| vpi.path.clone()).collect();
+    let path_infos = Arc::new(path_info_map);
+
+    let nix_config = daemon_client_utils::parse_nix_remote().ok();
+    let debug_store_dir: std::path::PathBuf = nix_config
+        .as_ref()
+        .and_then(daemon_client_utils::NixDaemonStoreConfig::real_store_dir)
+        .unwrap_or_else(|| pool.store_dir().to_string().into());
 
     let mut nars = Vec::with_capacity(paths_to_upload.len());
     let mut stream = tokio_stream::iter(paths_to_upload.clone())
         .map(|path| {
-            let store = store.clone();
             let path_infos = path_infos.clone();
+            let debug_store_dir = debug_store_dir.clone();
             async move {
-                let debug_info_ids = if opts.upload_debug_info {
-                    binary_cache::get_debug_info_build_ids(&store, &path).await?
-                } else {
-                    Vec::new()
-                };
-                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash.clone()) else {
+                let debug_info_ids =
+                    binary_cache::get_debug_info_build_ids(&debug_store_dir, &path)
+                        .await
+                        .unwrap_or_default();
+                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash) else {
                     return Ok(None);
                 };
                 Ok::<_, anyhow::Error>(Some((path, narhash, debug_info_ids)))
@@ -956,8 +1028,9 @@ async fn upload_nars_presigned(
 
     for presigned_response in presigned_responses {
         upload_single_nar_presigned(
-            &store,
-            &presigned_response.store_path.parse::<StorePath>()?,
+            &pool,
+            &StorePath::from_base_path(&presigned_response.store_path)
+                .map_err(|e| anyhow::anyhow!("invalid store path in presigned response: {e}"))?,
             build_id,
             machine_id,
             &presigned_response,
@@ -974,9 +1047,9 @@ async fn upload_nars_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(store, nar_path, presigned_response), err)]
+#[tracing::instrument(skip(pool, nar_path, presigned_response), err)]
 async fn upload_single_nar_presigned(
-    store: &nix_utils::LocalStore,
+    pool: &harmonia_store_remote::ConnectionPool,
     nar_path: &StorePath,
     build_id: &str,
     machine_id: &str,
@@ -984,7 +1057,13 @@ async fn upload_single_nar_presigned(
     client: &mut BuilderClient,
     upload_client: &PresignedUploadClient,
 ) -> anyhow::Result<()> {
-    let narinfo = binary_cache::path_to_narinfo(store, nar_path).await?;
+    // Presigned upload requires constructing NarInfo from daemon path info.
+    let narinfo: binary_cache::NarInfo = {
+        let info = daemon_client_utils::query_path_info(pool, nar_path)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("path not found: {nar_path}"))?;
+        binary_cache::narinfo_simple(nar_path, info, Compression::None)
+    };
     let nar_upload = presigned_response
         .nar_upload
         .as_ref()
@@ -1021,7 +1100,7 @@ async fn upload_single_nar_presigned(
     };
 
     let updated_narinfo = upload_client
-        .process_presigned_request(store, narinfo, presigned_request)
+        .process_presigned_request(pool, narinfo, presigned_request)
         .await?;
 
     tracing::debug!(
@@ -1046,9 +1125,9 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(store, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(pool, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
 async fn new_success_build_result_info(
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     machine_id: uuid::Uuid,
     drv: &StorePath,
     output_infos: &BTreeMap<OutputName, harmonia_store_path_info::ValidPathInfo>,
@@ -1059,12 +1138,17 @@ async fn new_success_build_result_info(
         .iter()
         .map(|(name, vpi)| (name.clone(), vpi.path.clone()))
         .collect();
+    let real_store_dir = daemon_client_utils::parse_nix_remote()
+        .ok()
+        .and_then(|c| c.real_store_dir())
+        .unwrap_or_else(|| pool.store_dir().to_string().into());
+    let real_store_path = &real_store_dir;
     let fs = nix_support::FilesystemOperations {
-        real_store_dir: store.get_store_dir().to_path().to_owned(),
+        real_store_dir: real_store_path.to_owned(),
     };
     let per_output_nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
-        store.get_store_dir(),
-        store.get_store_dir().to_path(),
+        pool.store_dir(),
+        real_store_path,
         &fs,
         &outputs,
     ))
@@ -1080,7 +1164,7 @@ async fn new_success_build_result_info(
             name.to_string(),
             OutputInfo {
                 path: Some(ProtoStorePath::from(vpi.path.clone())),
-                closure_size: store.compute_closure_size(&vpi.path).await,
+                closure_size: compute_closure_size(&pool, &vpi.path).await,
                 nar_size: vpi.info.nar_size,
                 nar_hash: {
                     let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
@@ -1100,4 +1184,12 @@ async fn new_success_build_result_info(
         result_state: BuildResultState::Success as i32,
         output_infos: result_infos,
     })
+}
+
+/// Compute the total NAR size of a path's closure by walking references.
+async fn compute_closure_size(
+    pool: &harmonia_store_remote::ConnectionPool,
+    path: &StorePath,
+) -> u64 {
+    daemon_client_utils::compute_closure_size(pool, path).await
 }

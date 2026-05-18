@@ -2,15 +2,14 @@ use std::collections::BTreeMap;
 
 use db::models::BuildID;
 use harmonia_store_derivation::derived_path::OutputName;
-use harmonia_store_path::StorePath;
-use nix_utils::BaseStore as _;
+use harmonia_store_path::{StoreDir, StorePath};
 
 use crate::state::RemoteBuild;
 
-#[tracing::instrument(skip(db, store, res), err)]
+#[tracing::instrument(skip(db, store_dir, res), err)]
 pub async fn finish_build_step(
     db: &db::Database,
-    store: &nix_utils::LocalStore,
+    store_dir: &StoreDir,
     build_id: BuildID,
     step_nr: i32,
     res: &RemoteBuild,
@@ -51,7 +50,7 @@ pub async fn finish_build_step(
         && let Some(output_paths) = output_paths
     {
         for (name, path) in output_paths {
-            tx.update_build_step_output(store.store_dir(), build_id, step_nr, name.as_ref(), path)
+            tx.update_build_step_output(store_dir, build_id, step_nr, name.as_ref(), path)
                 .await?;
         }
     }
@@ -60,10 +59,10 @@ pub async fn finish_build_step(
     Ok(())
 }
 
-#[tracing::instrument(skip(db, store, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[tracing::instrument(skip(db, pool, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
 pub async fn substitute_output(
     db: db::Database,
-    store: nix_utils::LocalStore,
+    pool: harmonia_store_remote::ConnectionPool,
     o: (OutputName, Option<StorePath>),
     build_id: BuildID,
     drv_path: &StorePath,
@@ -74,27 +73,43 @@ pub async fn substitute_output(
         return Ok(false);
     };
 
+    let store_dir = pool.store_dir();
     let starttime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
-    if let Err(e) = store.ensure_path(&path).await {
+    if let Err(e) = daemon_client_utils::ensure_path(&pool, &path).await {
         tracing::debug!("Path not found, can't import={e}");
         return Ok(false);
     }
+    // Best-effort replication to S3. Non-fatal: the substitution
+    // succeeded locally, so the build can proceed regardless.
     if let Some(remote_store) = remote_store {
-        let paths_to_copy = store.query_requisites(&[&path]).await.unwrap_or_default();
-        let paths_to_copy = remote_store.query_missing_paths(paths_to_copy).await;
-        if let Err(e) = remote_store.copy_paths(&store, paths_to_copy, false).await {
+        let _: Result<(), anyhow::Error> = async {
+            let closure = daemon_client_utils::query_closure(&pool, &[path.clone()]).await?;
+            let missing: hashbrown::HashSet<StorePath> = remote_store
+                .query_missing_paths(closure.iter().map(|vpi| vpi.path.clone()).collect())
+                .await
+                .into_iter()
+                .collect();
+            let paths_to_copy: Vec<_> = closure
+                .into_iter()
+                .filter(|vpi| missing.contains(&vpi.path))
+                .collect();
+            remote_store.copy_paths(&pool, paths_to_copy, false).await?;
+            Ok(())
+        }
+        .await
+        .inspect_err(|e| {
             tracing::error!(
-                "Failed to copy paths to remote store({}): {e}",
+                "Failed to replicate to remote store({}): {e}",
                 remote_store.cfg.client_config.bucket
             );
-        }
+        });
     }
     let stoptime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
 
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
     tx.create_substitution_step(
-        store.store_dir(),
+        &store_dir,
         starttime,
         stoptime,
         build_id,
@@ -107,10 +122,10 @@ pub async fn substitute_output(
     Ok(true)
 }
 
-#[tracing::instrument(skip(db, store, ), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[tracing::instrument(skip(db, store_dir), fields(%drv_path), err(level=tracing::Level::WARN))]
 pub async fn make_local_step(
     db: &db::Database,
-    store: &nix_utils::LocalStore,
+    store_dir: &StoreDir,
     build_id: BuildID,
     drv_path: &StorePath,
     missing: &BTreeMap<OutputName, Option<StorePath>>,
@@ -120,7 +135,7 @@ pub async fn make_local_step(
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
     tx.create_local_step(
-        store.store_dir(),
+        store_dir,
         time,
         time,
         build_id,

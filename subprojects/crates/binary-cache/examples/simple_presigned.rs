@@ -1,14 +1,18 @@
 use futures::stream::StreamExt as _;
 
 use binary_cache::{PresignedUploadClient, S3BinaryCacheClient, path_to_narinfo};
-use nix_utils::BaseStore as _;
+use harmonia_store_path::StorePath;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now = std::time::Instant::now();
 
     let _tracing_guard = hydra_tracing::init()?;
-    let store = nix_utils::LocalStore::init();
+    let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
+    let store = harmonia_store_remote::ConnectionPool::new(
+        &nix_config.socket,
+        harmonia_store_remote::PoolConfig::default(),
+    );
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&write-debug-info=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -19,20 +23,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
     let upload_client = PresignedUploadClient::new();
 
-    let paths_to_copy = store
-        .query_requisites(&[&harmonia_store_path::StoreDir::default()
-            .parse::<harmonia_store_path::StorePath>(
-                "/nix/store/m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1",
-            )
-            .unwrap()])
-        .await
-        .unwrap_or_default();
+    let root: StorePath = "m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1".parse()?;
+    let paths_to_copy = binary_cache::query_closure(&store, &[root]).await?;
 
     let mut stream = tokio_stream::iter(paths_to_copy)
-        .map(|p| {
+        .map(|vpi| {
             let client = client.clone();
             let upload_client = upload_client.clone();
             let store = store.clone();
+            let p = vpi.path;
             async move {
                 let narinfo = path_to_narinfo(&store, &p).await?;
 
@@ -40,7 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .generate_nar_upload_presigned_url(
                         &narinfo.path,
                         &narinfo.info.info.nar_hash,
-                        binary_cache::get_debug_info_build_ids(&store, &p).await?,
+                        binary_cache::get_debug_info_build_ids(store.store_dir().as_ref(), &p)
+                            .await?,
                     )
                     .await?;
 

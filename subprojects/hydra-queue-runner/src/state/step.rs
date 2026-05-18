@@ -226,8 +226,17 @@ impl Step {
         store_dir: &StoreDir,
     ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
         let drv = self.drv.load_full();
-        drv.as_ref()
-            .map(|drv| nix_utils::output_paths(drv, store_dir))
+        drv.as_ref().map(|drv| {
+            drv.outputs
+                .iter()
+                .map(|(name, output)| {
+                    (
+                        name.clone(),
+                        output.path(store_dir, &drv.name, name).ok().flatten(),
+                    )
+                })
+                .collect()
+        })
     }
 
     // TODO: properly parse derivation options instead of reading env vars directly
@@ -597,9 +606,7 @@ mod tests {
     use super::*;
 
     fn drv(name: &str) -> StorePath {
-        format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")
-            .parse()
-            .unwrap()
+        StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
     }
 
     #[test]

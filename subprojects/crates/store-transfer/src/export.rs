@@ -2,7 +2,6 @@
 
 use harmonia_store_path::StorePath;
 use harmonia_store_path_info::UnkeyedValidPathInfo;
-use nix_utils::BaseStore;
 
 /// Export store paths as `AddToStoreRequest` messages over a gRPC channel.
 ///
@@ -12,15 +11,14 @@ use nix_utils::BaseStore;
 ///
 /// The `infos` map must contain an entry for every path. Paths
 /// missing from the map are skipped.
-///
-/// This function is synchronous (designed to run inside
-/// `spawn_blocking`).
-pub fn export(
-    store: &impl BaseStore,
+pub async fn export(
+    guard: &mut harmonia_store_remote::PooledConnectionGuard,
     paths: &[StorePath],
     infos: &hashbrown::HashMap<StorePath, UnkeyedValidPathInfo>,
     tx: &tokio::sync::mpsc::UnboundedSender<Result<hydra_proto::AddToStoreRequest, tonic::Status>>,
-) {
+) -> anyhow::Result<()> {
+    use tokio::io::AsyncBufReadExt as _;
+
     // Send header with all path infos (uncompressed).
     let proto_infos: Vec<hydra_proto::ValidPathInfo> = paths
         .iter()
@@ -42,12 +40,40 @@ pub fn export(
         }))
         .is_err()
     {
-        return;
+        return Ok(());
     }
 
     // Stream all NARs as one continuous zstd-compressed stream.
-    let mut encoder =
-        zstd::stream::Encoder::new(NarChunkWriter(tx), 3).expect("failed to create zstd encoder");
+    // We use a duplex pipe: write compressed data to one end,
+    // spawn a task to read from the other and send as gRPC chunks.
+    let (compressed_writer, compressed_reader) = tokio::io::duplex(256 * 1024);
+
+    let tx_clone = tx.clone();
+    let chunk_sender = tokio::spawn(async move {
+        use tokio::io::AsyncReadExt as _;
+        let mut reader = compressed_reader;
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            let n = reader.read(&mut buf).await?;
+            if n == 0 {
+                break;
+            }
+            if tx_clone
+                .send(Ok(hydra_proto::AddToStoreRequest {
+                    content: Some(hydra_proto::add_to_store_request::Content::NarChunk(
+                        buf[..n].to_vec(),
+                    )),
+                }))
+                .is_err()
+            {
+                break;
+            }
+        }
+        Ok::<(), anyhow::Error>(())
+    });
+
+    // Write NARs through zstd encoder to the duplex pipe.
+    let mut encoder = async_compression::tokio::write::ZstdEncoder::new(compressed_writer);
 
     for path in paths {
         let Some(info) = infos.get(path) else {
@@ -55,15 +81,18 @@ pub fn export(
         };
 
         let mut bytes_written: u64 = 0;
-        let enc = &mut encoder;
-        let written = &mut bytes_written;
-        let closure = |data: &[u8]| -> bool {
-            use std::io::Write;
-            *written += data.len() as u64;
-            enc.write_all(data).is_ok()
-        };
-        if store.nar_from_path(path, closure).is_err() {
-            break;
+        use harmonia_protocol::types::DaemonStore;
+        let mut nar_reader = guard.client().nar_from_path(path).await?;
+        loop {
+            let buf = nar_reader.fill_buf().await?;
+            if buf.is_empty() {
+                break;
+            }
+            use tokio::io::AsyncWriteExt as _;
+            bytes_written += buf.len() as u64;
+            encoder.write_all(buf).await?;
+            let len = buf.len();
+            nar_reader.consume(len);
         }
 
         assert_eq!(
@@ -73,35 +102,11 @@ pub fn export(
         );
     }
 
-    let _ = encoder.finish();
-}
+    use tokio::io::AsyncWriteExt as _;
+    encoder.shutdown().await?;
+    drop(encoder);
 
-/// Adapter: writes bytes as `nar_chunk` messages to a gRPC channel.
-struct NarChunkWriter<'a>(
-    &'a tokio::sync::mpsc::UnboundedSender<Result<hydra_proto::AddToStoreRequest, tonic::Status>>,
-);
+    chunk_sender.await??;
 
-impl std::io::Write for NarChunkWriter<'_> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if self
-            .0
-            .send(Ok(hydra_proto::AddToStoreRequest {
-                content: Some(hydra_proto::add_to_store_request::Content::NarChunk(
-                    buf.to_vec(),
-                )),
-            }))
-            .is_ok()
-        {
-            Ok(buf.len())
-        } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::BrokenPipe,
-                "gRPC channel closed",
-            ))
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
+    Ok(())
 }
