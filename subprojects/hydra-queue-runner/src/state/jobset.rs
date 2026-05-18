@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
+use anyhow::Context;
 use hashbrown::HashMap;
 
 pub type JobsetID = i32;
@@ -61,10 +62,8 @@ impl Jobset {
         ((seconds as f64) / f64::from(shares))
     }
 
-    pub fn set_shares(&self, shares: i32) -> anyhow::Result<()> {
-        debug_assert!(shares > 0);
-        self.shares.store(shares.try_into()?, Ordering::Relaxed);
-        Ok(())
+    pub fn set_shares(&self, shares: u32) {
+        self.shares.store(shares, Ordering::Relaxed);
     }
 
     pub fn get_shares(&self) -> u32 {
@@ -176,7 +175,7 @@ impl Jobsets {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Scheduling Shares not found for jobset not found."))?;
         let jobset = Jobset::new(jobset_id, project_name, jobset_name);
-        jobset.set_shares(shares)?;
+        jobset.set_shares(shares);
 
         for step in conn
             .get_jobset_build_steps(jobset_id, SCHEDULING_WINDOW)
@@ -206,15 +205,10 @@ impl Jobsets {
 
         let jobsets = self.inner.read();
         for row in curr_jobsets_in_db {
-            if let Some(i) = jobsets.get(&(row.project.clone(), row.name.clone()))
-                && let Err(e) = i.set_shares(row.schedulingshares)
-            {
-                tracing::error!(
-                    "Failed to update jobset scheduling shares. project_name={} jobset_name={} e={}",
-                    row.project,
-                    row.name,
-                    e,
-                );
+            if let Some(i) = jobsets.get(&(row.project.clone(), row.name.clone())) {
+                let shares = u32::try_from(row.schedulingshares)
+                    .context("scheduling shares out of range")?;
+                i.set_shares(shares);
             }
         }
         Ok(())
