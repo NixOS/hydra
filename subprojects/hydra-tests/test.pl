@@ -21,7 +21,20 @@ if (defined($ENV{"NIX_BUILD_CORES"})
     print STDERR "test.pl: Defaulting \$YATH_JOB_COUNT to \$NIX_BUILD_CORES (${\$ENV{'NIX_BUILD_CORES'}})\n";
 }
 
-system($^X, find_yath(), '-D', 'test', '--qvf', '--event-timeout', 240, '--default-search' => './', @ARGV);
+system(
+    $^X, find_yath(), '-D', 'test',
+    '--qvf',
+    '--event-timeout', 240,
+    # Tests can be flaky in CI due to timing, resource contention, etc.
+    # Individual tests can still override with `# HARNESS-RETRY N`.
+    #
+    # TODO Clean this up. E.g. make hydra more robust, make CI builders bigger
+    # if needed, separate resource issues from real bugs and only retry on the
+    # former.
+    '--retry', 2,
+    '--default-search' => './',
+    @ARGV,
+);
 my $exit = $?;
 
 # This makes sure it works with prove.
