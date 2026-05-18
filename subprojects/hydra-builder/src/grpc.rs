@@ -85,13 +85,11 @@ impl BuilderClient {
 
 #[tracing::instrument(err)]
 pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClient> {
-    if !cli.mtls_configured_correctly() {
-        tracing::error!(
-            "mtls configured inproperly, please pass all options: \
-            server_root_ca_cert_path, client_cert_path, client_key_path and domain_name!"
-        );
-        return Err(anyhow::anyhow!("Configuration issue"));
-    }
+    anyhow::ensure!(
+        cli.mtls_configured_correctly(),
+        "mTLS configured improperly, please pass all options: \
+        server_root_ca_cert_path, client_cert_path, client_key_path and domain_name!"
+    );
 
     tracing::info!("connecting to {}", cli.gateway_endpoint);
     let channel = if cli.mtls_enabled() {
@@ -229,6 +227,9 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
 
     let join_msg = state.get_join_message().await?;
     let state2 = state.clone();
+    let ping_error: Arc<std::sync::Mutex<Option<anyhow::Error>>> =
+        Arc::new(std::sync::Mutex::new(None));
+    let ping_error2 = ping_error.clone();
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
             message: Some(builder_request::Message::Join(join_msg))
@@ -239,16 +240,17 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
             interval.tick().await;
 
             let ping = match state.get_ping_message() {
-                Ok(v) => builder_request::Message::Ping(v),
+                Ok(v) => v,
                 Err(e) => {
-                    tracing::error!("Failed to construct ping message: {e}");
-                    continue
+                    *ping_error2.lock().expect("ping error mutex poisoned") =
+                        Some(e.context("failed to construct ping message"));
+                    break;
                 },
             };
             tracing::debug!("sending ping: {ping:?}");
 
             yield BuilderRequest {
-                message: Some(ping)
+                message: Some(builder_request::Message::Ping(ping))
             };
         }
     };
@@ -272,27 +274,30 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
 
     let mut consecutive_failure_count = 0;
     while let Some(item) = stream.next().await {
-        match item.map(|v| v.message) {
-            Ok(Some(v)) => {
+        let item = match item {
+            Ok(v) => {
                 consecutive_failure_count = 0;
-                if let Err(err) = handle_request(state2.clone(), v).await {
-                    tracing::error!("Failed to correctly handle request: {err}");
-                }
-            }
-            Ok(None) => {
-                consecutive_failure_count = 0;
+                v
             }
             Err(e) => {
                 consecutive_failure_count += 1;
                 tracing::error!("stream message delivery failed: {e}");
                 if consecutive_failure_count == 10 {
-                    return Err(anyhow::anyhow!(
-                        "Failed to communicate {consecutive_failure_count} times over the channel. \
-                        Terminating the application."
-                    ));
+                    anyhow::bail!(
+                        "failed to communicate {consecutive_failure_count} times over the channel"
+                    );
                 }
+                continue;
             }
+        };
+        if let Some(msg) = item.message {
+            handle_request(state2.clone(), msg)
+                .await
+                .context("failed to handle request")?;
         }
+    }
+    if let Some(e) = ping_error.lock().expect("ping error mutex poisoned").take() {
+        return Err(e);
     }
     Ok(())
 }

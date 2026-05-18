@@ -108,6 +108,8 @@ impl Server {
                         .instrument(server_span.clone())
                         .await
                     {
+                        // Don't want a bad/disconnecting client to bring down
+                        // the server.
                         tracing::error!("Error serving connection: {err:?}");
                     }
                 }

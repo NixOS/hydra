@@ -109,6 +109,9 @@ impl Uploader {
         {
             Ok(paths) => paths,
             Err(e) => {
+                // Non-fatal: outputs remain in the local store. The
+                // uploader is best-effort — a transient daemon issue
+                // shouldn't stop other uploads from proceeding.
                 tracing::error!("Failed to query requisites: {e}");
                 return;
             }
@@ -120,63 +123,78 @@ impl Uploader {
         );
 
         for remote_store in remote_stores {
-            let bucket = &remote_store.cfg.client_config.bucket;
-
-            // Upload log file with backon retry
-            let log_upload_result = (|| async {
-                let file = fs_err::tokio::File::open(msg.log_local_path.as_str()).await?;
-                let reader = Box::new(tokio::io::BufReader::new(file));
-
-                remote_store
-                    .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
-                    .await?;
-
-                Ok::<(), anyhow::Error>(())
-            })
-            .retry(
-                ExponentialBuilder::default()
-                    .with_max_delay(std::time::Duration::from_secs(30))
-                    .with_max_times(3),
-            )
-            .await;
-
-            if let Err(e) = log_upload_result {
-                tracing::error!("Failed to upload log file after retries: {e}");
-            }
-
-            let paths_to_copy = remote_store
-                .query_missing_paths(paths_to_copy.clone())
-                .await;
-            tracing::info!(
-                "{} paths missing in remote store that we be copied",
-                paths_to_copy.len()
-            );
-
-            let copy_result = (|| async {
-                remote_store
-                    .copy_paths(&local_store, paths_to_copy.clone(), false)
-                    .await?;
-
-                Ok::<(), anyhow::Error>(())
-            })
-            .retry(
-                ExponentialBuilder::default()
-                    .with_max_delay(std::time::Duration::from_secs(60))
-                    .with_max_times(5),
-            )
-            .await;
-
-            if let Err(e) = copy_result {
-                tracing::error!("Failed to copy paths after retries: {e}");
-            } else {
-                tracing::debug!(
-                    "Successfully uploaded {} paths to bucket {bucket}",
-                    msg.store_paths.len()
+            if let Err(e) =
+                Self::upload_to_store(&remote_store, &local_store, &msg, &paths_to_copy).await
+            {
+                // Non-fatal: per-store failure shouldn't block other
+                // stores. Outputs remain in the local store.
+                tracing::error!(
+                    "Failed to upload to {}: {e:#}",
+                    remote_store.cfg.client_config.bucket,
                 );
             }
         }
 
-        tracing::info!("Finished uploading {} paths", msg.store_paths.len());
+        tracing::info!(
+            "Finished attempting to upload {} paths to remotes stores",
+            msg.store_paths.len()
+        );
+    }
+
+    /// Upload log + NARs to a single remote store. Returns `Err` if
+    /// anything goes wrong (after retries).
+    async fn upload_to_store(
+        remote_store: &binary_cache::S3BinaryCacheClient,
+        local_store: &nix_utils::LocalStore,
+        msg: &Message,
+        paths_to_copy: &[StorePath],
+    ) -> anyhow::Result<()> {
+        // Upload log file
+        (|| async {
+            let file = fs_err::tokio::File::open(msg.log_local_path.as_str()).await?;
+            let reader = Box::new(tokio::io::BufReader::new(file));
+            remote_store
+                .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
+                .await?;
+            Ok::<(), anyhow::Error>(())
+        })
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_delay(std::time::Duration::from_secs(30))
+                .with_max_times(3),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to upload log file: {e}"))?;
+
+        // Copy NARs
+        let paths_to_copy = remote_store
+            .query_missing_paths(paths_to_copy.to_vec())
+            .await;
+        tracing::info!(
+            "{} paths missing in remote store that will be copied",
+            paths_to_copy.len()
+        );
+
+        (|| async {
+            remote_store
+                .copy_paths(local_store, paths_to_copy.clone(), false)
+                .await?;
+            Ok::<(), anyhow::Error>(())
+        })
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_delay(std::time::Duration::from_secs(60))
+                .with_max_times(5),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to copy paths: {e}"))?;
+
+        tracing::debug!(
+            "Successfully uploaded {} paths to bucket {}",
+            msg.store_paths.len(),
+            remote_store.cfg.client_config.bucket,
+        );
+        Ok(())
     }
 
     #[tracing::instrument(skip(self, local_store, remote_stores))]

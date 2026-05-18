@@ -31,8 +31,10 @@ pub(crate) fn compressed_log_stream(
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Failed to read log chunk: {e}");
-                    break;
+                    // Reading from ChildStderr should only yield EOF
+                    // (child exited), never an error. If it does,
+                    // something is fundamentally broken.
+                    panic!("Failed to read log chunk: {e}");
                 }
             }
         }
@@ -53,8 +55,10 @@ pub(crate) fn compressed_log_stream(
                     data: bytes.into(),
                 },
                 Err(e) => {
-                    tracing::error!("Failed to compress log chunk: {e}");
-                    break;
+                    // Zstd encoding of in-memory data should never
+                    // fail. The only input is the duplex pipe reader
+                    // which returns EOF when the writer is dropped.
+                    panic!("Failed to compress log chunk: {e}");
                 }
             }
         }

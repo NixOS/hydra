@@ -118,10 +118,9 @@ impl State {
         )
         .await?;
 
-        match fs_err::tokio::create_dir_all(&log_dir).await {
-            Ok(()) => tracing::info!("successfully created hydra log_dir={log_dir:?}"),
-            Err(e) => tracing::error!("Failed to create hydra log_dir={log_dir:?} e={e}"),
-        }
+        fs_err::tokio::create_dir_all(&log_dir)
+            .await
+            .context(format!("failed to create hydra log_dir={log_dir:?}"))?;
 
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
@@ -236,40 +235,33 @@ impl State {
         machine_id
     }
 
-    #[tracing::instrument(skip(self))]
-    pub async fn remove_machine(&self, machine_id: uuid::Uuid) {
+    #[tracing::instrument(skip(self), err)]
+    pub async fn remove_machine(&self, machine_id: uuid::Uuid) -> anyhow::Result<()> {
         if let Some(m) = self.machines.remove_machine(machine_id) {
             let jobs = {
                 let jobs = m.jobs.read();
                 jobs.clone()
             };
             for job in &jobs {
-                if let Err(e) = self
-                    .fail_step(
-                        machine_id,
-                        &job.path,
-                        // we fail this with preparing because we kinda want to restart all jobs if
-                        // a machine is removed
-                        BuildResultState::Completed(
-                            hydra_proto::BuildResultState::PreparingFailure,
-                        ),
-                        BuildTimings::default(),
-                    )
-                    .await
-                {
-                    tracing::error!(
-                        "Failed to fail step machine_id={machine_id} drv={} e={e}",
-                        job.path
-                    );
-                }
+                self.fail_step(
+                    machine_id,
+                    &job.path,
+                    // we fail this with preparing because we kinda want to restart all jobs if
+                    // a machine is removed
+                    BuildResultState::Completed(hydra_proto::BuildResultState::PreparingFailure),
+                    BuildTimings::default(),
+                )
+                .await?;
             }
         }
+        Ok(())
     }
 
-    pub async fn remove_all_machines(&self) {
+    pub async fn remove_all_machines(&self) -> anyhow::Result<()> {
         for m in self.machines.get_all_machines() {
-            self.remove_machine(m.id).await;
+            self.remove_machine(m.id).await?;
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -619,13 +611,13 @@ impl State {
             .await?)
     }
 
-    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path))]
+    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path), err)]
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
-    ) {
+    ) -> anyhow::Result<()> {
         let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
 
         let starttime = jiff::Timestamp::now();
@@ -646,7 +638,7 @@ impl State {
                 finished_drvs.clone(),
                 new_runnable.clone(),
             ))
-            .await;
+            .await?;
 
             // we should never run into this issue
             #[allow(clippy::cast_possible_truncation)]
@@ -689,6 +681,7 @@ impl State {
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.trigger_traverse();
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -704,19 +697,13 @@ impl State {
 
         let cancelled_steps = self.queues.kill_active_steps().await;
         for (drv_path, machine_id) in cancelled_steps {
-            if let Err(e) = self
-                .fail_step(
-                    machine_id,
-                    &drv_path,
-                    BuildResultState::Cancelled,
-                    BuildTimings::default(),
-                )
-                .await
-            {
-                tracing::error!(
-                    "Failed to abort step machine_id={machine_id} drv={drv_path} e={e}",
-                );
-            }
+            self.fail_step(
+                machine_id,
+                &drv_path,
+                BuildResultState::Cancelled,
+                BuildTimings::default(),
+            )
+            .await?;
         }
         Ok(())
     }
@@ -781,7 +768,7 @@ impl State {
         }
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
@@ -814,20 +801,15 @@ impl State {
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn start_queue_monitor_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
-        let task = tokio::task::spawn({
-            async move {
-                if let Err(e) = Box::pin(self.queue_monitor_loop()).await {
-                    tracing::error!("Failed to spawn queue monitor loop. e={e}");
-                }
-            }
-        });
-        task.abort_handle()
+    pub fn start_queue_monitor_loop(
+        self: Arc<Self>,
+    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
+        tokio::task::spawn(async move { Box::pin(self.queue_monitor_loop()).await })
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -847,10 +829,7 @@ impl State {
         loop {
             let before_work = Instant::now();
             self.store.clear_path_info_cache();
-            if let Err(e) = self.get_queued_builds().await {
-                tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
-                continue;
-            }
+            self.get_queued_builds().await?;
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
@@ -891,24 +870,12 @@ impl State {
                 "builds_restarted" => tracing::debug!("got notification: builds restarted"),
                 "builds_cancelled" | "builds_deleted" | "builds_bumped" => {
                     tracing::info!("got notification: builds cancelled or bumped");
-                    if let Err(e) = self.process_queue_change().await {
-                        tracing::error!("Failed to process queue change. e={e}");
-                    }
+                    self.process_queue_change().await?;
                 }
                 "jobset_shares_changed" => {
                     tracing::info!("got notification: jobset shares changed");
-                    match self.db.get().await {
-                        Ok(mut conn) => {
-                            if let Err(e) = self.jobsets.handle_change(&mut conn).await {
-                                tracing::error!("Failed to handle jobset change. e={e}");
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                "Failed to get db connection for event 'jobset_shares_changed'. e={e}"
-                            );
-                        }
-                    }
+                    let mut conn = self.db.get().await?;
+                    self.jobsets.handle_change(&mut conn).await?;
                 }
                 _ => (),
             }
@@ -921,46 +888,43 @@ impl State {
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn start_dispatch_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
-        let task = tokio::task::spawn({
-            async move {
-                loop {
-                    let before_sleep = Instant::now();
-                    let dispatch_trigger_timer = self.config.get_dispatch_trigger_timer();
-                    if let Some(timer) = dispatch_trigger_timer {
-                        tokio::select! {
-                            () = self.notify_dispatch.notified() => {},
-                            () = tokio::time::sleep(timer) => {},
-                        };
-                    } else {
-                        self.notify_dispatch.notified().await;
-                    }
-                    tracing::info!("starting dispatch");
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatcher_time_spent_waiting
-                        .inc_by(before_sleep.elapsed().as_micros() as u64);
-
-                    self.metrics.nr_dispatcher_wakeups.inc();
-                    let before_work = Instant::now();
-                    self.clone().do_dispatch_once().await;
-
-                    let elapsed = before_work.elapsed();
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatcher_time_spent_running
-                        .inc_by(elapsed.as_micros() as u64);
-
-                    #[allow(clippy::cast_possible_truncation)]
-                    self.metrics
-                        .dispatch_time_ms
-                        .inc_by(elapsed.as_millis() as u64);
+    pub fn start_dispatch_loop(self: Arc<Self>) -> tokio::task::JoinHandle<anyhow::Result<()>> {
+        tokio::task::spawn(async move {
+            loop {
+                let before_sleep = Instant::now();
+                let dispatch_trigger_timer = self.config.get_dispatch_trigger_timer();
+                if let Some(timer) = dispatch_trigger_timer {
+                    tokio::select! {
+                        () = self.notify_dispatch.notified() => {},
+                        () = tokio::time::sleep(timer) => {},
+                    };
+                } else {
+                    self.notify_dispatch.notified().await;
                 }
+                tracing::info!("starting dispatch");
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatcher_time_spent_waiting
+                    .inc_by(before_sleep.elapsed().as_micros() as u64);
+
+                self.metrics.nr_dispatcher_wakeups.inc();
+                let before_work = Instant::now();
+                self.clone().do_dispatch_once().await?;
+
+                let elapsed = before_work.elapsed();
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatcher_time_spent_running
+                    .inc_by(elapsed.as_micros() as u64);
+
+                #[allow(clippy::cast_possible_truncation)]
+                self.metrics
+                    .dispatch_time_ms
+                    .inc_by(elapsed.as_millis() as u64);
             }
-        });
-        task.abort_handle()
+        })
     }
 
     #[tracing::instrument(skip(self))]
@@ -998,7 +962,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self))]
-    async fn do_dispatch_once(self: Arc<Self>) {
+    async fn do_dispatch_once(self: Arc<Self>) -> anyhow::Result<()> {
         // Prune old historical build step info from the jobsets.
         self.jobsets.prune();
         let new_runnable = self.steps.clone_runnable();
@@ -1049,7 +1013,7 @@ impl State {
             .nr_steps_waiting
             .set(nr_steps_waiting_all_queues);
 
-        self.abort_unsupported().await;
+        self.abort_unsupported().await
     }
 
     #[tracing::instrument(skip(self, step_status), fields(%build_id, %machine_id), err)]
@@ -1389,11 +1353,12 @@ impl State {
         timings: BuildTimings,
     ) -> anyhow::Result<()> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
-        let item = self
-            .queues
-            .remove_job_from_scheduled(drv_path)
-            .await
-            .ok_or_else(|| anyhow::anyhow!("Step is missing in queues.scheduled"))?;
+        let Some(item) = self.queues.remove_job_from_scheduled(drv_path).await else {
+            // Job may have already been cleaned up (e.g. machine
+            // disconnected concurrently). Not a real error.
+            tracing::warn!("step already gone from queues.scheduled: drv_path={drv_path}");
+            return Ok(());
+        };
 
         item.step_info.step.set_finished(false);
 
@@ -1401,10 +1366,14 @@ impl State {
             "removing job from machine: drv_path={drv_path} m={}",
             item.machine.id
         );
-        let mut job = item
-            .machine
-            .remove_job(drv_path)
-            .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs m={}", item.machine))?;
+        let Some(mut job) = item.machine.remove_job(drv_path) else {
+            // Same race — job already removed from machine.
+            tracing::warn!(
+                "job already gone from machine.jobs: drv_path={drv_path} m={}",
+                item.machine
+            );
+            return Ok(());
+        };
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
@@ -1779,7 +1748,7 @@ impl State {
         new_builds_by_path: &HashMap<StorePath, HashSet<BuildID>>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
-    ) {
+    ) -> anyhow::Result<()> {
         self.metrics.queue_build_loads.inc();
         tracing::info!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
@@ -1788,31 +1757,12 @@ impl State {
             new_builds_by_id.remove(&build.id);
         }
 
-        if !self.store.is_valid_path(&build.drv_path).await {
-            tracing::error!(
-                "aborting GC'ed build id={} path={}",
-                build.id,
-                self.store.print_store_path(&build.drv_path)
-            );
-            if !build.get_finished_in_db() {
-                match self.db.get().await {
-                    Ok(mut conn) => {
-                        if let Err(e) = conn.abort_build(build.id).await {
-                            tracing::error!("Failed to abort the build={} e={}", build.id, e);
-                        }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
-                }
-            }
-
-            build.set_finished_in_db(true);
-            self.metrics.nr_builds_done.inc();
-            return;
-        }
+        anyhow::ensure!(
+            self.store.is_valid_path(&build.drv_path).await?,
+            "drv {} for build {} is not valid — possible GC root bug",
+            self.store.print_store_path(&build.drv_path),
+            build.id,
+        );
 
         // Create steps for this derivation and its dependencies.
         let new_steps = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
@@ -1832,10 +1782,8 @@ impl State {
             CreateStepResult::None => None,
             CreateStepResult::Valid(dep) => Some(dep),
             CreateStepResult::PreviousFailure(step) => {
-                if let Err(e) = self.handle_previous_failure(build, step).await {
-                    tracing::error!("Failed to handle previous failure: {e}");
-                }
-                return;
+                self.handle_previous_failure(build, step).await?;
+                return Ok(());
             }
         };
 
@@ -1856,12 +1804,8 @@ impl State {
                 let finished_drvs = finished_drvs.clone();
                 let new_runnable = new_runnable.clone();
                 async move {
-                    let j = {
-                        if let Some(j) = new_builds_by_id.read().get(&b) {
-                            j.clone()
-                        } else {
-                            return;
-                        }
+                    let Some(j) = new_builds_by_id.read().get(&b).cloned() else {
+                        return Ok(());
                     };
 
                     Box::pin(self.create_build(
@@ -1872,11 +1816,13 @@ impl State {
                         finished_drvs,
                         new_runnable,
                     ))
-                    .await;
+                    .await
                 }
             })
             .buffered(10);
-            while tokio_stream::StreamExt::next(&mut stream).await.is_some() {}
+            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+                result?;
+            }
         }
 
         if let Some(step) = step {
@@ -1896,10 +1842,9 @@ impl State {
         } else {
             // If we didn't get a step, it means the step's outputs are
             // all valid. So we mark this as a finished, cached build.
-            if let Err(e) = self.handle_cached_build(build).await {
-                tracing::error!("failed to handle cached build: {e}");
-            }
+            self.handle_cached_build(build).await?;
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
@@ -2290,7 +2235,7 @@ impl State {
         nix_utils::add_root(&self.store, &roots_dir, store_path);
     }
 
-    async fn abort_unsupported(&self) {
+    async fn abort_unsupported(&self) -> anyhow::Result<()> {
         let runnable = self.steps.clone_runnable();
         let now = jiff::Timestamp::now();
 
@@ -2316,7 +2261,7 @@ impl State {
 
             let drv = step.get_drv_path();
             let system = step.get_system();
-            tracing::error!("aborting unsupported build step '{drv}' (type '{system:?}')",);
+            tracing::warn!("aborting unsupported build step '{drv}' (type '{system:?}')",);
 
             aborted.insert(step.clone());
 
@@ -2345,9 +2290,7 @@ impl State {
                 "unsupported system type '{}'",
                 system.unwrap_or(String::new())
             ));
-            if let Err(e) = self.inner_fail_job(drv, None, job, step.clone()).await {
-                tracing::error!("Failed to fail step drv={drv} e={e}");
-            }
+            self.inner_fail_job(drv, None, job, step.clone()).await?;
         }
 
         {
@@ -2360,5 +2303,6 @@ impl State {
         self.metrics
             .nr_unsupported_steps_aborted
             .inc_by(aborted.len() as u64);
+        Ok(())
     }
 }
