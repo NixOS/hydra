@@ -79,11 +79,12 @@ mod tests {
     fn ca_fixed() {
         let store_dir = StoreDir::default();
         let drv_path = fake_drv_path("test-src");
+        let out_hash = "y79dx2m4cq8hdw98bi26jjs5vllpf2kd";
         let drv = parse_drv(
             &store_dir,
             &drv_path,
             format!(
-                r#"Derive([("out","/nix/store/{HASH}-test-src","sha256","deadbeef00000000000000000000000000000000000000000000000000000000")],[],[],"{0}","{0}",[],[("name","test-src")])"#,
+                r#"Derive([("out","/nix/store/{out_hash}-test-src","sha256","deadbeef00000000000000000000000000000000000000000000000000000000")],[],[],"{0}","{0}",[],[("name","test-src")])"#,
                 "/bin/sh",
             ).as_bytes(),
         )
