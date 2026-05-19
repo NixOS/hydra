@@ -1,7 +1,15 @@
 use sha2::Digest;
 use std::{env, path::PathBuf};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[derive(Debug, thiserror::Error)]
+enum BuildError {
+    #[error(transparent)]
+    Var(#[from] env::VarError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
+fn main() -> Result<(), BuildError> {
     let out_dir = PathBuf::from(env::var("OUT_DIR")?);
 
     let workspace_version = env::var("CARGO_PKG_VERSION")?;

@@ -277,7 +277,7 @@ pub async fn parse_nix_support_for_output<F: FsOperations>(
     fs: &F,
     output_name: &OutputName,
     output: &StorePath,
-) -> anyhow::Result<NixSupport> {
+) -> std::io::Result<NixSupport> {
     let output_full_path = real_path(real_store_dir, output);
 
     let mut metrics = BTreeMap::new();
@@ -354,7 +354,7 @@ pub async fn parse_nix_support_from_outputs<F: FsOperations>(
     real_store_dir: &std::path::Path,
     fs: &F,
     derivation_outputs: &BTreeMap<OutputName, StorePath>,
-) -> anyhow::Result<BTreeMap<OutputName, NixSupport>> {
+) -> std::io::Result<BTreeMap<OutputName, NixSupport>> {
     let mut result = BTreeMap::new();
     for (name, path) in derivation_outputs {
         let ns = parse_nix_support_for_output(store_dir, real_store_dir, fs, name, path).await?;

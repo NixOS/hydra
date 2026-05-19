@@ -14,13 +14,14 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod connection;
+mod error;
 pub mod models;
 
 use std::str::FromStr as _;
 
 pub use connection::{Connection, Transaction};
+pub use error::{DataError, Error, Result};
 pub use harmonia_store_path::StoreDir;
-pub use sqlx::Error;
 
 #[derive(Debug, Clone)]
 pub struct Database {
@@ -28,7 +29,7 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new(url: &str, max_connections: u32) -> Result<Self, Error> {
+    pub async fn new(url: &str, max_connections: u32) -> Result<Self> {
         Ok(Self {
             pool: sqlx::postgres::PgPoolOptions::new()
                 .max_connections(max_connections)
@@ -37,13 +38,13 @@ impl Database {
         })
     }
 
-    pub async fn get(&self) -> Result<Connection, Error> {
+    pub async fn get(&self) -> Result<Connection> {
         let conn = self.pool.acquire().await?;
         Ok(Connection::new(conn))
     }
 
     #[tracing::instrument(skip(self, url), err)]
-    pub fn reconfigure_pool(&self, url: &str) -> anyhow::Result<()> {
+    pub fn reconfigure_pool(&self, url: &str) -> Result<()> {
         // TODO: ability to change max_connections by dropping the pool and recreating it
         self.pool
             .set_connect_options(sqlx::postgres::PgConnectOptions::from_str(url)?);
@@ -54,8 +55,8 @@ impl Database {
         &self,
         channels: Vec<&str>,
     ) -> Result<
-        impl futures::Stream<Item = Result<sqlx::postgres::PgNotification, Error>> + Unpin,
-        Error,
+        impl futures::Stream<Item = std::result::Result<sqlx::postgres::PgNotification, sqlx::Error>>
+        + Unpin,
     > {
         let mut listener = sqlx::postgres::PgListener::connect_with(&self.pool).await?;
         listener.listen_all(channels).await?;

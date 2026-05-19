@@ -6,7 +6,6 @@ license                = "GPL-3.0"
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace                    = true
 futures.workspace                   = true
 harmonia-store-derivation.workspace = true
 harmonia-store-path.workspace       = true
@@ -14,6 +13,7 @@ harmonia-utils-hash.workspace       = true
 hashbrown.workspace                 = true
 nix-support.workspace               = true
 store-path-utils.workspace          = true
+thiserror.workspace                 = true
 tracing.workspace                   = true
 
 jiff.workspace       = true

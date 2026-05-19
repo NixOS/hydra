@@ -76,7 +76,7 @@ fn spawn_config_reloader(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _tracing_guard = hydra_tracing::init()?;
+    let _tracing_guard = hydra_tracing::init().map_err(|e| anyhow::anyhow!("{e}"))?;
 
     #[cfg(debug_assertions)]
     {

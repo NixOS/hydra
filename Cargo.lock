@@ -856,7 +856,6 @@ checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
 name = "db"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futures",
  "harmonia-store-derivation",
  "harmonia-store-path",
@@ -868,6 +867,7 @@ dependencies = [
  "sqlx",
  "store-path-utils",
  "test-utils",
+ "thiserror",
  "tokio",
  "tracing",
 ]
@@ -1707,6 +1707,7 @@ dependencies = [
  "prost",
  "sha2 0.10.9",
  "store-path-utils",
+ "thiserror",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -1775,13 +1776,13 @@ dependencies = [
 name = "hydra-tracing"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "http",
  "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
+ "thiserror",
  "tonic",
  "tracing",
  "tracing-log",
@@ -2342,7 +2343,6 @@ dependencies = [
 name = "nix-support"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "fs-err",
  "harmonia-store-derivation",
  "harmonia-store-path",
@@ -2358,7 +2358,6 @@ dependencies = [
 name = "nix-utils"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bytes",
  "cxx",
  "cxx-build",
@@ -3007,7 +3006,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3918,7 +3917,6 @@ dependencies = [
 name = "store-transfer"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "async-compression",
  "bytes",
  "futures",
@@ -3927,6 +3925,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "hydra-proto",
  "nix-utils",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-util",

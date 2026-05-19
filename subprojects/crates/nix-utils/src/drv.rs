@@ -15,12 +15,14 @@ pub(crate) fn parse_drv(
     let drv_name_str = drv_path.name().to_string();
     let name: StorePathName = drv_name_str
         .strip_suffix(".drv")
-        .ok_or_else(|| anyhow::anyhow!("derivation path must end in .drv: {drv_name_str}"))?
-        .parse()
-        .map_err(|e| anyhow::anyhow!("invalid derivation name: {e}"))?;
+        .ok_or_else(|| {
+            crate::Error::StorePathName(harmonia_store_path::StorePathNameError::NameLength)
+        })?
+        .parse()?;
 
-    harmonia_store_aterm::parse_derivation_aterm(store_dir, input, name)
-        .map_err(|e| anyhow::anyhow!("ATerm parse error: {e}").into())
+    Ok(harmonia_store_aterm::parse_derivation_aterm(
+        store_dir, input, name,
+    )?)
 }
 
 #[tracing::instrument(skip(store), fields(%drv), err)]

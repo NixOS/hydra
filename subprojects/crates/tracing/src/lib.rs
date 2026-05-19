@@ -22,6 +22,17 @@ use opentelemetry::trace::TracerProvider as _;
 #[cfg(feature = "tonic")]
 pub mod propagate;
 
+#[derive(Debug, thiserror::Error)]
+pub enum TracingInitError {
+    #[error(transparent)]
+    SetLogger(#[from] tracing_log::log::SetLoggerError),
+    #[error(transparent)]
+    SetGlobalDefault(#[from] tracing::subscriber::SetGlobalDefaultError),
+    #[cfg(feature = "otel")]
+    #[error(transparent)]
+    ExporterBuild(#[from] opentelemetry_otlp::ExporterBuildError),
+}
+
 #[cfg(feature = "otel")]
 fn resource() -> opentelemetry_sdk::Resource {
     opentelemetry_sdk::Resource::builder()
@@ -60,7 +71,8 @@ impl Drop for TracingGuard {
 }
 
 #[cfg(feature = "otel")]
-fn init_tracer_provider() -> anyhow::Result<opentelemetry_sdk::trace::SdkTracerProvider> {
+fn init_tracer_provider()
+-> Result<opentelemetry_sdk::trace::SdkTracerProvider, opentelemetry_otlp::ExporterBuildError> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
         .build()?;
@@ -71,7 +83,7 @@ fn init_tracer_provider() -> anyhow::Result<opentelemetry_sdk::trace::SdkTracerP
         .build())
 }
 
-pub fn init() -> anyhow::Result<TracingGuard> {
+pub fn init() -> Result<TracingGuard, TracingInitError> {
     tracing_log::LogTracer::init()?;
     let (log_env_filter, reload_handle) = tracing_subscriber::reload::Layer::new(
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),

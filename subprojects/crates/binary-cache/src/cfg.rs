@@ -173,12 +173,12 @@ pub enum UrlParseError {
     UriParseError(#[from] url::ParseError),
     #[error("Int parse error: {0}")]
     IntParseError(#[from] std::num::ParseIntError),
-    #[error("Invalid S3Scheme: {0}")]
-    S3SchemeParseError(String),
-    #[error("Invalid Compression: {0}")]
-    CompressionParseError(String),
-    #[error("Bad schema: {0}")]
-    BadSchema(String),
+    #[error(transparent)]
+    S3Scheme(#[from] InvalidS3Scheme),
+    #[error(transparent)]
+    Compression(#[from] crate::compression::InvalidCompression),
+    #[error("unsupported URI scheme: {0:?} (expected \"s3\")")]
+    UnsupportedScheme(String),
     #[error("Bucket not defined")]
     NoBucket,
     #[error("Invalid presigned URL expiry: {0}. Must be between {1} and {2} seconds")]
@@ -192,7 +192,7 @@ impl std::str::FromStr for S3CacheConfig {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = url::Url::parse(&s.trim().to_ascii_lowercase())?;
         if uri.scheme() != "s3" {
-            return Err(UrlParseError::BadSchema(uri.scheme().to_owned()));
+            return Err(UrlParseError::UnsupportedScheme(uri.scheme().to_owned()));
         }
         let bucket = uri.authority();
         if bucket.is_empty() {
@@ -205,8 +205,7 @@ impl std::str::FromStr for S3CacheConfig {
                 query
                     .get("scheme")
                     .map(|x| x.parse::<S3Scheme>())
-                    .transpose()
-                    .map_err(UrlParseError::S3SchemeParseError)?,
+                    .transpose()?,
             )
             .with_endpoint(query.get("endpoint").map(String::as_str))
             .with_profile(query.get("profile").map(String::as_str));
@@ -216,8 +215,7 @@ impl std::str::FromStr for S3CacheConfig {
                 query
                     .get("compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_write_nar_listing(query.get("write-nar-listing").map(String::as_str))
             .with_write_debug_info(query.get("write-debug-info").map(String::as_str))
@@ -249,22 +247,19 @@ impl std::str::FromStr for S3CacheConfig {
                 query
                     .get("narinfo-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_ls_compression(
                 query
                     .get("ls-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_log_compression(
                 query
                     .get("log-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_buffer_size(
                 query
@@ -288,14 +283,21 @@ pub enum S3Scheme {
     HTTPS,
 }
 
+/// Invalid S3 URI scheme (expected `http` or `https`).
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("invalid S3 scheme: {got:?} (expected \"http\" or \"https\")")]
+pub struct InvalidS3Scheme {
+    pub got: String,
+}
+
 impl std::str::FromStr for S3Scheme {
-    type Err = String;
+    type Err = InvalidS3Scheme;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
             "http" => Ok(Self::HTTP),
             "https" => Ok(Self::HTTPS),
-            v => Err(v.to_owned()),
+            v => Err(InvalidS3Scheme { got: v.to_owned() }),
         }
     }
 }
@@ -905,7 +907,10 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
     fn test_s3_cache_config_from_str_errors() {
         let result = S3CacheConfig::from_str("http://test-bucket");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), UrlParseError::BadSchema(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            UrlParseError::UnsupportedScheme(_)
+        ));
 
         let result = S3CacheConfig::from_str("s3://");
         assert!(result.is_err());
@@ -913,17 +918,11 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
 
         let result = S3CacheConfig::from_str("s3://test-bucket?compression=invalid");
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UrlParseError::CompressionParseError(_)
-        ));
+        assert!(matches!(result.unwrap_err(), UrlParseError::Compression(_)));
 
         let result = S3CacheConfig::from_str("s3://test-bucket?scheme=invalid");
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UrlParseError::S3SchemeParseError(_)
-        ));
+        assert!(matches!(result.unwrap_err(), UrlParseError::S3Scheme(_)));
 
         let result = S3CacheConfig::from_str("s3://test-bucket?compression-level=invalid");
         assert!(result.is_err());
