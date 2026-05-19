@@ -529,7 +529,11 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path = state.store.is_valid_path(&path).await;
+        let has_path = state
+            .store
+            .is_valid_path(&path)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
         Ok(tonic::Response::new(hydra_proto::HasPathResponse {
             has_path,
@@ -547,7 +551,8 @@ impl RunnerService for Server {
             .state
             .store
             .query_path_infos(&paths.iter().collect::<Vec<_>>())
-            .await;
+            .await
+            .map_err(|e| tonic::Status::internal(format!("query_path_infos failed: {e}")))?;
 
         let (tx, rx) = mpsc::unbounded_channel();
 

@@ -441,7 +441,7 @@ impl BuildOutput {
             .collect();
         let pathinfos = store
             .query_path_infos(&resolved.values().collect::<Vec<_>>())
-            .await;
+            .await?;
         let fs = nix_support::FilesystemOperations {
             real_store_dir: store.get_store_dir().to_path().to_owned(),
         };
@@ -464,7 +464,7 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += store.compute_closure_size(&path).await;
+                closure_size += store.compute_closure_size(&path).await?;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }

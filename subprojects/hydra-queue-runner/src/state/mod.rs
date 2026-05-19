@@ -619,13 +619,13 @@ impl State {
             .await?)
     }
 
-    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path))]
+    #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path), err)]
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
-    ) {
+    ) -> anyhow::Result<()> {
         let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
 
         let starttime = jiff::Timestamp::now();
@@ -646,7 +646,7 @@ impl State {
                 finished_drvs.clone(),
                 new_runnable.clone(),
             ))
-            .await;
+            .await?;
 
             // we should never run into this issue
             #[allow(clippy::cast_possible_truncation)]
@@ -689,6 +689,7 @@ impl State {
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.trigger_traverse();
         }
+        Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -781,7 +782,7 @@ impl State {
         }
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
@@ -814,7 +815,7 @@ impl State {
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await;
+        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
         Ok(())
     }
 
@@ -1779,7 +1780,7 @@ impl State {
         new_builds_by_path: &HashMap<StorePath, HashSet<BuildID>>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
-    ) {
+    ) -> anyhow::Result<()> {
         self.metrics.queue_build_loads.inc();
         tracing::info!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
@@ -1788,7 +1789,7 @@ impl State {
             new_builds_by_id.remove(&build.id);
         }
 
-        if !self.store.is_valid_path(&build.drv_path).await {
+        if !self.store.is_valid_path(&build.drv_path).await? {
             tracing::error!(
                 "aborting GC'ed build id={} path={}",
                 build.id,
@@ -1811,7 +1812,7 @@ impl State {
 
             build.set_finished_in_db(true);
             self.metrics.nr_builds_done.inc();
-            return;
+            return Ok(());
         }
 
         // Create steps for this derivation and its dependencies.
@@ -1835,7 +1836,7 @@ impl State {
                 if let Err(e) = self.handle_previous_failure(build, step).await {
                     tracing::error!("Failed to handle previous failure: {e}");
                 }
-                return;
+                return Ok(());
             }
         };
 
@@ -1860,7 +1861,7 @@ impl State {
                         if let Some(j) = new_builds_by_id.read().get(&b) {
                             j.clone()
                         } else {
-                            return;
+                            return Ok(());
                         }
                     };
 
@@ -1872,11 +1873,13 @@ impl State {
                         finished_drvs,
                         new_runnable,
                     ))
-                    .await;
+                    .await
                 }
             })
             .buffered(10);
-            while tokio_stream::StreamExt::next(&mut stream).await.is_some() {}
+            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+                result?;
+            }
         }
 
         if let Some(step) = step {
@@ -1900,6 +1903,7 @@ impl State {
                 tracing::error!("failed to handle cached build: {e}");
             }
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
