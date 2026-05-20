@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use harmonia_store_path::StorePath;
+
 /// Errors from gRPC server setup and serving.
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {

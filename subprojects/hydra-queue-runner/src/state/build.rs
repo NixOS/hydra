@@ -370,10 +370,8 @@ pub struct BuildOutput {
     pub metrics: BTreeMap<String, BuildMetric>,
 }
 
-/// Everything that can go wrong constructing a [`BuildOutput`], whether
-/// parsing an incoming `BuildResultInfo`/db row or reading from the store.
 #[derive(Debug, thiserror::Error)]
-pub enum BuildOutputError {
+pub enum BuildParseError {
     #[error("buildstatus missing")]
     BuildStatusMissing,
 
@@ -385,21 +383,25 @@ pub enum BuildOutputError {
 
     #[error(transparent)]
     OutputName(#[from] harmonia_store_path::StorePathNameError),
+}
 
+/// Errors from constructing a `BuildOutput` from store data.
+#[derive(Debug, thiserror::Error)]
+pub enum BuildOutputError {
     #[error(transparent)]
-    Daemon(#[from] harmonia_store_remote::DaemonError),
+    Store(#[from] harmonia_store_remote::DaemonError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
 impl TryFrom<db::models::BuildOutput> for BuildOutput {
-    type Error = BuildOutputError;
+    type Error = BuildParseError;
 
     fn try_from(v: db::models::BuildOutput) -> Result<Self, Self::Error> {
         let build_status =
-            BuildStatus::from_i32(v.buildstatus.ok_or(BuildOutputError::BuildStatusMissing)?)
-                .ok_or(BuildOutputError::BuildStatusUnknown)?;
+            BuildStatus::from_i32(v.buildstatus.ok_or(BuildParseError::BuildStatusMissing)?)
+                .ok_or(BuildParseError::BuildStatusUnknown)?;
         Ok(Self {
             failed: build_status != BuildStatus::Success,
             timings: BuildTimings::default(),
@@ -416,14 +418,14 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
 }
 
 impl BuildOutput {
-    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> Result<Self, BuildOutputError> {
+    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> Result<Self, BuildParseError> {
         let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
         let mut merged = nix_support::NixSupport::default();
 
         for (name, info) in v.output_infos {
-            let path = info.path.ok_or(BuildOutputError::OutputMissingPath)?.0;
+            let path = info.path.ok_or(BuildParseError::OutputMissingPath)?.0;
             closure_size += info.closure_size;
             nar_size += info.nar_size;
             outputs.insert(name.parse()?, path);

@@ -13,56 +13,6 @@ mod uploader;
 
 pub use atomic::AtomicDateTime;
 
-/// Errors from external subsystems (DB, store, etc.), plus the combined
-/// state-logic errors under `Logic`.
-#[derive(Debug, thiserror::Error)]
-pub enum StateErrorKind {
-    #[error("database error")]
-    Db(#[from] db::Error),
-
-    #[error("I/O error")]
-    Io(#[from] std::io::Error),
-
-    #[error("nix daemon error")]
-    Daemon(#[from] harmonia_store_remote::DaemonError),
-
-    #[error("jobset error")]
-    Jobset(#[from] jobset::JobsetError),
-
-    #[error("build output error")]
-    BuildOutput(#[from] build::BuildOutputError),
-
-    #[error("machine error")]
-    Machine(#[from] machine::MachineError),
-
-    #[error("metrics error")]
-    Metrics(#[from] prometheus::Error),
-
-    #[error("configuration error")]
-    Config(#[from] crate::config::ConfigError),
-
-    #[error("binary cache error")]
-    Cache(#[from] binary_cache::CacheError),
-
-    #[error("integer conversion error")]
-    IntConversion(#[from] std::num::TryFromIntError),
-
-    #[error("time computation error")]
-    Jiff(#[from] jiff::Error),
-
-    #[error("invalid platform UTF-8: {0}")]
-    InvalidPlatformUtf8(std::str::Utf8Error),
-
-    #[error("failed to construct log path string")]
-    LogPathNotUtf8,
-
-    #[error("reading derivation `{0}`")]
-    ReadDerivation(StorePath),
-
-    #[error("state logic error")]
-    Logic(#[from] StateLogicError),
-}
-
 /// All state logic errors combined. Sub-enums are defined alongside
 /// the `impl State` blocks that use them.
 #[derive(Debug, thiserror::Error)]
@@ -77,30 +27,130 @@ pub enum StateLogicError {
     DrvLookup(#[from] DrvLookupError),
 }
 
-/// The state error type. Context is carried by `#[tracing::instrument]`
-/// spans and rendered at the boundary via color-eyre, rather than by an
-/// inline context wrapper.
-pub type StateError = StateErrorKind;
+/// Top-level state error — each variant wraps the narrowest error type
+/// for that subsystem, using `#[source]` to preserve the error chain.
+#[derive(Debug, thiserror::Error)]
+pub enum StateError {
+    #[error("database operation")]
+    Db(#[source] db::Error),
 
-impl From<ResolutionError> for StateErrorKind {
+    #[error("nix daemon")]
+    Daemon(#[source] harmonia_store_remote::DaemonError),
+
+    #[error("I/O")]
+    Io(#[source] std::io::Error),
+
+    #[error("utility")]
+    Util(#[source] crate::utils::UtilError),
+
+    #[error("jobset")]
+    Jobset(#[source] jobset::JobsetError),
+
+    #[error("build output")]
+    BuildOutput(#[source] build::BuildOutputError),
+
+    #[error("machine")]
+    Machine(#[source] machine::MachineError),
+
+    #[error("metrics")]
+    Metrics(#[source] prometheus::Error),
+
+    #[error("configuration")]
+    Config(#[source] crate::config::ConfigError),
+
+    #[error("loading configuration")]
+    LoadConfig(#[source] crate::config::LoadConfigError),
+
+    #[error("binary cache")]
+    Cache(#[source] binary_cache::CacheError),
+
+    #[error("integer conversion")]
+    IntConversion(#[source] std::num::TryFromIntError),
+
+    #[error("time")]
+    Jiff(#[source] jiff::Error),
+
+    #[error("invalid platform UTF-8: {0}")]
+    InvalidPlatformUtf8(std::str::Utf8Error),
+
+    #[error("failed to construct log path string")]
+    LogPathNotUtf8,
+
+    #[error("reading derivation")]
+    ReadDerivation(#[source] ReadDerivationError),
+
+    #[error("logic error")]
+    Logic(#[source] StateLogicError),
+
+    #[error("handling previous failure for resolved drv")]
+    PreviousFailureContext(#[source] Box<StateError>),
+}
+
+// Manual From impls — using #[source] (not #[from]) so we keep
+// the contextual message on each variant.
+
+macro_rules! impl_from_for_state_error {
+    ($($variant:ident($ty:ty)),* $(,)?) => {
+        $(
+            impl From<$ty> for StateError {
+                fn from(e: $ty) -> Self {
+                    Self::$variant(e)
+                }
+            }
+        )*
+    }
+}
+
+impl_from_for_state_error! {
+    Db(db::Error),
+    Daemon(harmonia_store_remote::DaemonError),
+    Io(std::io::Error),
+    Util(crate::utils::UtilError),
+    Jobset(jobset::JobsetError),
+    BuildOutput(build::BuildOutputError),
+    Machine(machine::MachineError),
+    Metrics(prometheus::Error),
+    Config(crate::config::ConfigError),
+    LoadConfig(crate::config::LoadConfigError),
+    Cache(binary_cache::CacheError),
+    IntConversion(std::num::TryFromIntError),
+    Jiff(jiff::Error),
+    Logic(StateLogicError),
+    ReadDerivation(ReadDerivationError),
+}
+
+impl From<ResolutionError> for StateError {
     fn from(e: ResolutionError) -> Self {
         Self::Logic(StateLogicError::Resolution(e))
     }
 }
-impl From<StepLookupError> for StateErrorKind {
+impl From<StepLookupError> for StateError {
     fn from(e: StepLookupError) -> Self {
         Self::Logic(StateLogicError::StepLookup(e))
     }
 }
-impl From<MachineLookupError> for StateErrorKind {
+impl From<MachineLookupError> for StateError {
     fn from(e: MachineLookupError) -> Self {
         Self::Logic(StateLogicError::MachineLookup(e))
     }
 }
-impl From<DrvLookupError> for StateErrorKind {
+impl From<DrvLookupError> for StateError {
     fn from(e: DrvLookupError) -> Self {
         Self::Logic(StateLogicError::DrvLookup(e))
     }
+}
+
+/// Errors from reading and parsing a derivation file.
+#[derive(Debug, thiserror::Error)]
+pub enum ReadDerivationError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("drv path does not end in .drv")]
+    NotDrv,
+    #[error("failed to parse derivation name: {0}")]
+    Name(harmonia_store_path::StorePathNameError),
+    #[error("failed to parse derivation ATerm: {0}")]
+    Aterm(harmonia_store_aterm::ParseError),
 }
 
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
@@ -217,26 +267,29 @@ impl State {
     }
 
     /// Read and parse a `.drv` file from the store.
-    async fn read_derivation(&self, drv_path: &StorePath) -> Result<Derivation, StateError> {
+    async fn read_derivation(
+        &self,
+        drv_path: &StorePath,
+    ) -> Result<Derivation, ReadDerivationError> {
         let content = fs_err::tokio::read_to_string(self.real_path(drv_path)).await?;
         let drv_name_str = drv_path.name().to_string();
         let name = drv_name_str
             .strip_suffix(".drv")
-            .ok_or_else(|| StateErrorKind::ReadDerivation(drv_path.clone()))?
+            .ok_or(ReadDerivationError::NotDrv)?
             .parse()
-            .map_err(|_| StateErrorKind::ReadDerivation(drv_path.clone()))?;
+            .map_err(ReadDerivationError::Name)?;
         harmonia_store_aterm::parse_derivation_aterm(
             self.pool.store_dir(),
             content.as_bytes(),
             name,
         )
-        .map_err(|_| StateErrorKind::ReadDerivation(drv_path.clone()))
+        .map_err(ReadDerivationError::Aterm)
     }
 
     #[tracing::instrument(err)]
     pub async fn new() -> Result<Arc<Self>, StateError> {
         let nix_config = daemon_client_utils::parse_nix_remote()
-            .map_err(crate::config::ConfigError::ParseNixStore)?;
+            .map_err(|e| StateError::Io(std::io::Error::other(format!("failed to parse NIX_REMOTE: {e}"))))?;
         let store_dir = nix_config.store_dir.clone();
         let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
             &nix_config.socket,
@@ -685,7 +738,8 @@ impl State {
                     CreateStepResult::Valid(step) => step,
                     CreateStepResult::PreviousFailure(step) => {
                         self.handle_previous_failure(build.clone(), step.clone())
-                            .await?;
+                            .await
+                            .map_err(|e| StateError::PreviousFailureContext(Box::new(e)))?;
                         return Ok(RealiseStepResult::CachedFailure);
                     }
                 };
@@ -1001,7 +1055,7 @@ impl State {
             self.pool.store_dir(),
             jobset_id,
             drv_path,
-            std::str::from_utf8(&drv.platform).map_err(StateErrorKind::InvalidPlatformUtf8)?,
+            std::str::from_utf8(&drv.platform).map_err(StateError::InvalidPlatformUtf8)?,
         )
         .await?;
 
