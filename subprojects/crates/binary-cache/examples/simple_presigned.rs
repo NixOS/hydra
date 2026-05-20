@@ -4,7 +4,7 @@ use binary_cache::{PresignedUploadClient, S3BinaryCacheClient, path_to_narinfo};
 use harmonia_store_path::StorePath;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> eyre::Result<()> {
     let now = std::time::Instant::now();
 
     let _tracing_guard = hydra_tracing::init()?;
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 client
                     .upload_narinfo_after_presigned_upload(&store, narinfo)
                     .await?;
-                Ok::<(), Box<dyn std::error::Error>>(())
+                Ok::<(), eyre::Report>(())
             }
         })
         .buffered(10);

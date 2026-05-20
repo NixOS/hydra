@@ -123,6 +123,15 @@ pub fn get_ls_path(narinfo: &NarInfo) -> String {
     format!("{}.ls", narinfo.path.hash())
 }
 
+/// The concrete cause of an invalid narinfo field value.
+#[derive(Debug, thiserror::Error)]
+pub enum InvalidValueError {
+    #[error(transparent)]
+    StorePath(#[from] ParseStorePathError),
+    #[error(transparent)]
+    Int(#[from] std::num::ParseIntError),
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum NarInfoError {
     #[error("missing required field: {0}")]
@@ -132,7 +141,7 @@ pub enum NarInfoError {
         field: String,
         value: String,
         #[source]
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: InvalidValueError,
     },
     #[error("parse error on line {line}: {reason}")]
     Line { line: usize, reason: String },

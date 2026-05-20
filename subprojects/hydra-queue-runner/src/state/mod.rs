@@ -26,6 +26,9 @@ pub enum StateError {
     #[error("nix daemon error")]
     Daemon(#[from] harmonia_store_remote::DaemonError),
 
+    #[error("utility error")]
+    Util(#[from] crate::utils::UtilError),
+
     #[error("jobset error")]
     Jobset(#[from] jobset::JobsetError),
 
@@ -40,6 +43,9 @@ pub enum StateError {
 
     #[error("configuration error")]
     Config(#[from] crate::config::ConfigError),
+
+    #[error("loading configuration")]
+    LoadConfig(#[from] crate::config::LoadConfigError),
 
     #[error("binary cache error")]
     Cache(#[from] binary_cache::CacheError),
@@ -56,14 +62,18 @@ pub enum StateError {
     #[error("failed to construct log path string")]
     LogPathNotUtf8,
 
-    #[error("reading derivation `{drv}`: {reason}")]
+    #[error("reading derivation `{drv}`")]
     ReadDerivation {
         drv: StorePath,
-        reason: &'static str,
+        #[source]
+        source: ReadDerivationError,
     },
 
     #[error("state logic error")]
     Logic(#[from] StateLogicError),
+
+    #[error("handling previous failure for resolved drv")]
+    PreviousFailureContext(#[source] Box<StateError>),
 }
 
 /// All state logic errors combined. Sub-enums are defined alongside
@@ -99,6 +109,19 @@ impl From<DrvLookupError> for StateError {
     fn from(e: DrvLookupError) -> Self {
         Self::Logic(StateLogicError::DrvLookup(e))
     }
+}
+
+/// Errors from reading and parsing a derivation file.
+#[derive(Debug, thiserror::Error)]
+pub enum ReadDerivationError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error("drv path does not end in .drv")]
+    NotDrv,
+    #[error("failed to parse derivation name: {0}")]
+    Name(harmonia_store_path::StorePathNameError),
+    #[error("failed to parse derivation ATerm: {0}")]
+    Aterm(harmonia_store_aterm::ParseError),
 }
 
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
@@ -215,29 +238,23 @@ impl State {
     }
 
     /// Read and parse a `.drv` file from the store.
-    async fn read_derivation(&self, drv_path: &StorePath) -> Result<Derivation, StateError> {
+    async fn read_derivation(
+        &self,
+        drv_path: &StorePath,
+    ) -> Result<Derivation, ReadDerivationError> {
         let content = fs_err::tokio::read_to_string(self.real_path(drv_path)).await?;
         let drv_name_str = drv_path.name().to_string();
         let name = drv_name_str
             .strip_suffix(".drv")
-            .ok_or_else(|| StateError::ReadDerivation {
-                drv: drv_path.clone(),
-                reason: "name does not end in `.drv`",
-            })?
+            .ok_or(ReadDerivationError::NotDrv)?
             .parse()
-            .map_err(|_| StateError::ReadDerivation {
-                drv: drv_path.clone(),
-                reason: "parsing derivation name",
-            })?;
+            .map_err(ReadDerivationError::Name)?;
         harmonia_store_aterm::parse_derivation_aterm(
             self.pool.store_dir(),
             content.as_bytes(),
             name,
         )
-        .map_err(|_| StateError::ReadDerivation {
-            drv: drv_path.clone(),
-            reason: "parsing derivation ATerm",
-        })
+        .map_err(ReadDerivationError::Aterm)
     }
 
     #[tracing::instrument(err)]
@@ -692,7 +709,8 @@ impl State {
                     CreateStepResult::Valid(step) => step,
                     CreateStepResult::PreviousFailure(step) => {
                         self.handle_previous_failure(build.clone(), step.clone())
-                            .await?;
+                            .await
+                            .map_err(|e| StateError::PreviousFailureContext(Box::new(e)))?;
                         return Ok(RealiseStepResult::CachedFailure);
                     }
                 };
@@ -1003,7 +1021,13 @@ impl State {
         drv_path: &StorePath,
     ) -> Result<(), StateError> {
         let mut db = self.db.get().await?;
-        let drv = self.read_derivation(drv_path).await?;
+        let drv =
+            self.read_derivation(drv_path)
+                .await
+                .map_err(|source| StateError::ReadDerivation {
+                    drv: drv_path.clone(),
+                    source,
+                })?;
         db.insert_debug_build(
             self.pool.store_dir(),
             jobset_id,
@@ -2629,7 +2653,13 @@ impl State {
         &self,
         drv_path: &StorePath,
     ) -> Result<BuildOutput, StateError> {
-        let drv = self.read_derivation(drv_path).await?;
+        let drv =
+            self.read_derivation(drv_path)
+                .await
+                .map_err(|source| StateError::ReadDerivation {
+                    drv: drv_path.clone(),
+                    source,
+                })?;
 
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
             .outputs

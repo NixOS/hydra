@@ -23,9 +23,39 @@ pub mod utils;
 
 use std::future::Future;
 
-use color_eyre::eyre::{self, WrapErr as _};
-
 use state::State;
+
+#[derive(Debug, thiserror::Error)]
+enum MainError {
+    #[error(transparent)]
+    State(#[from] state::StateError),
+    #[error(transparent)]
+    Config(#[from] config::ConfigError),
+    #[error(transparent)]
+    LoadConfig(#[from] config::LoadConfigError),
+    #[error(transparent)]
+    Db(#[from] db::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Server(#[from] server::grpc::ServerError),
+    #[error(transparent)]
+    Join(#[from] tokio::task::JoinError),
+    #[error("another instance is already running (lock file: {path})")]
+    LockFile {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("tracing init failed: {0}")]
+    Tracing(String),
+    #[error("no listenfd TCP listener at index {0}")]
+    NoListenFd(usize),
+    #[error("HTTP server does not support Unix sockets")]
+    HttpUnixUnsupported,
+    #[error("server error: {0}")]
+    ServerTask(String),
+}
 
 type GrpcServer =
     std::pin::Pin<Box<dyn Future<Output = Result<(), server::grpc::ServerError>> + Send>>;
@@ -79,8 +109,9 @@ fn spawn_config_reloader(
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
-async fn main() -> color_eyre::Result<()> {
-    let _tracing_guard = hydra_tracing::init()?;
+async fn main() -> Result<(), MainError> {
+    color_eyre::install().map_err(|e| MainError::Tracing(e.to_string()))?;
+    let _tracing_guard = hydra_tracing::init().map_err(|e| MainError::Tracing(e.to_string()))?;
 
     #[cfg(debug_assertions)]
     {
@@ -96,16 +127,19 @@ async fn main() -> color_eyre::Result<()> {
     let state = State::new().await?;
 
     let lockfile_path = state.config.get_lockfile();
-    let _lock = lock_file::LockFile::acquire(&lockfile_path)
-        .wrap_err("Another instance is already running.")?;
+    let _lock =
+        lock_file::LockFile::acquire(&lockfile_path).map_err(|source| MainError::LockFile {
+            path: lockfile_path.display().to_string(),
+            source,
+        })?;
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
     if !state.cli.mtls_configured_correctly() {
-        tracing::error!(
-            "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
-        );
-        return Err(eyre::eyre!("Configuration issue"));
+        return Err(config::ConfigError::MissingOption(
+            "server_cert_path, server_key_path and client_ca_cert_path",
+        )
+        .into());
     }
 
     let task_abort_handles = start_task_loops(&state);
@@ -125,12 +159,12 @@ async fn main() -> color_eyre::Result<()> {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
             let std_listener = listenfd
                 .take_tcp_listener(idx)?
-                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for REST"))?;
+                .ok_or(MainError::NoListenFd(idx))?;
             std_listener.set_nonblocking(true)?;
             tokio::net::TcpListener::from_std(std_listener)?
         }
         config::BindSocket::Unix(_) => {
-            return Err(eyre::eyre!("HTTP server does not support Unix sockets"));
+            return Err(MainError::HttpUnixUnsupported);
         }
     };
     let http_addr = http_listener.local_addr()?;
@@ -149,7 +183,7 @@ async fn main() -> color_eyre::Result<()> {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
             let std_listener = listenfd
                 .take_tcp_listener(idx)?
-                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for gRPC"))?;
+                .ok_or(MainError::NoListenFd(idx))?;
             let addr = std_listener.local_addr()?;
             let info = addr.to_string();
             std_listener.set_nonblocking(true)?;
@@ -180,15 +214,9 @@ async fn main() -> color_eyre::Result<()> {
     let task = tokio::spawn(async move {
         match futures_util::future::join(srv1, srv2).await {
             (Ok(()), Ok(())) => Ok(()),
-            (Ok(()), Err(e)) => Err(color_eyre::eyre::eyre!(
-                "hyper error while awaiting handle: {e}"
-            )),
-            (Err(e), Ok(())) => Err(color_eyre::eyre::eyre!(
-                "tonic error while awaiting handle: {e}"
-            )),
-            (Err(e1), Err(e2)) => Err(color_eyre::eyre::eyre!(
-                "tonic and hyper error while awaiting handle: {e1} | {e2}"
-            )),
+            (Ok(()), Err(e)) => Err(format!("HTTP server error: {e}")),
+            (Err(e), Ok(())) => Err(format!("gRPC server error: {e}")),
+            (Err(e1), Err(e2)) => Err(format!("gRPC and HTTP server errors: {e1} | {e2}")),
         }
     });
 
@@ -227,7 +255,9 @@ async fn main() -> color_eyre::Result<()> {
             Ok(())
         }
         r = task => {
-            r??;
+            if let Err(e) = r? {
+                return Err(MainError::ServerTask(e));
+            }
             Ok(())
         }
     }

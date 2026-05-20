@@ -2,7 +2,7 @@ use binary_cache::S3BinaryCacheClient;
 use harmonia_store_path::StorePath;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> eyre::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
     let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
     let store = harmonia_store_remote::ConnectionPool::new(

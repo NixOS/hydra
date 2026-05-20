@@ -1,7 +1,7 @@
 use binary_cache::S3BinaryCacheClient;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> eyre::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
     let client = S3BinaryCacheClient::new(
         "s3://store?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&ls-compression=br&log-compression=br&profile=local_nix_store".parse()?,

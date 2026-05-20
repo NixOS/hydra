@@ -31,7 +31,7 @@ pub enum Error {
     #[error("db error: `{0}`")]
     Sqlx(#[from] db::Error),
 
-    #[error("invalid store path")]
+    #[error("invalid store path: {0}")]
     StorePath(#[from] harmonia_store_path::ParseStorePathError),
 
     #[error("Not found")]
@@ -53,8 +53,8 @@ impl Error {
             | Self::Prometheus(_)
             | Self::State(_)
             | Self::Sqlx(_)
-            | Self::StorePath(_)
             | Self::Fatal => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+            Self::StorePath(_) => hyper::StatusCode::BAD_REQUEST,
             Self::NotFound => hyper::StatusCode::NOT_FOUND,
         }
     }
