@@ -240,6 +240,8 @@ pub struct BuildOutput {
 /// [`nix_support::BuildProduct`].
 #[derive(Debug)]
 pub(crate) struct BuildProductRow {
+    pub build: i32,
+    pub productnr: i32,
     pub r#type: String,
     pub subtype: String,
     pub filesize: Option<i64>,
@@ -253,10 +255,11 @@ impl BuildProductRow {
     pub(crate) fn into_build_product(
         self,
         store_dir: &StoreDir,
-    ) -> anyhow::Result<nix_support::BuildProduct> {
-        let path_str = self
-            .path
-            .ok_or_else(|| anyhow::anyhow!("build product has no path"))?;
+    ) -> Result<nix_support::BuildProduct, crate::DataError> {
+        let path_str = self.path.ok_or(crate::DataError::BuildProductMissingPath {
+            build_id: self.build,
+            productnr: self.productnr,
+        })?;
         let path = store_path_utils::RelativeStorePath::from_path(store_dir, &path_str)?;
         let sha256hash = self.sha256hash.and_then(|s| {
             let mut bytes = [0u8; 32];
@@ -326,6 +329,8 @@ mod tests {
 
     fn make_row(path: Option<&str>) -> BuildProductRow {
         BuildProductRow {
+            build: 1,
+            productnr: 1,
             r#type: "doc".into(),
             subtype: "manual".into(),
             filesize: None,

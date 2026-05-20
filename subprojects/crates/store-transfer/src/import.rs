@@ -1,5 +1,7 @@
 //! Shared logic for importing store paths from an `AddToStoreRequest` stream.
 
+use crate::{Error, ProtocolError};
+
 /// Import store paths from a gRPC `stream AddToStoreRequest`.
 ///
 /// The first message must be an [`AddToStoreHeader`] containing all
@@ -11,39 +13,34 @@
 pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
     store: &Store,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
-) -> Result<Vec<harmonia_store_path::StorePath>, nix_utils::Error> {
+) -> Result<Vec<harmonia_store_path::StorePath>, Error> {
     use futures::StreamExt as _;
-    use nix_utils::Error;
 
     // First message must be the header.
     let first = stream
         .next()
         .await
-        .ok_or_else(|| anyhow::anyhow!("empty AddToStoreRequest stream"))?
-        .map_err(|e| Error::Anyhow(e.into()))?;
+        .ok_or(ProtocolError::EmptyStream)?
+        .map_err(Error::Grpc)?;
 
     let header = match first.content {
         Some(hydra_proto::add_to_store_request::Content::Header(h)) => h,
-        _ => return Err(anyhow::anyhow!("expected AddToStoreHeader as first message").into()),
+        _ => return Err(ProtocolError::MissingHeader.into()),
     };
 
     let path_infos: Vec<harmonia_store_path_info::ValidPathInfo> = header
         .path_infos
         .into_iter()
         .map(|pi| {
-            let path = pi
-                .path
-                .ok_or_else(|| anyhow::anyhow!("missing path in PathInfo"))?
-                .0;
+            let path = pi.path.ok_or(ProtocolError::MissingGrpcField("path"))?.0;
             let info = pi
                 .info
-                .ok_or_else(|| anyhow::anyhow!("missing info in PathInfo"))?
+                .ok_or(ProtocolError::MissingGrpcField("info"))?
                 .try_into()
-                .map_err(|e| anyhow::anyhow!("invalid path info: {e}"))?;
+                .map_err(ProtocolError::InvalidPathInfo)?;
             Ok(harmonia_store_path_info::ValidPathInfo { path, info })
         })
-        .collect::<anyhow::Result<_>>()
-        .map_err(Error::Anyhow)?;
+        .collect::<Result<_, Error>>()?;
 
     let paths: Vec<_> = path_infos.iter().map(|pi| pi.path.clone()).collect();
 
@@ -65,7 +62,7 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
             }
         }
         drop(compressed_writer);
-        Ok::<(), anyhow::Error>(())
+        Ok::<(), Error>(())
     });
 
     let mut decoder = async_compression::tokio::bufread::ZstdDecoder::new(
@@ -87,29 +84,27 @@ pub async fn import<Store: nix_utils::BaseStore + Clone + Send + 'static>(
                 let to_read = buf.len().min(remaining as usize);
                 let n = decoder.read(&mut buf[..to_read]).await?;
                 if n == 0 {
-                    return Err(anyhow::anyhow!(
-                        "unexpected end of NAR stream for {}, {remaining} bytes remaining",
-                        pi.path
-                    ));
+                    return Err(ProtocolError::TruncatedNar {
+                        path: pi.path.clone(),
+                        remaining,
+                    }
+                    .into());
                 }
                 nar_writer.write_all(&buf[..n]).await?;
                 remaining -= n as u64;
             }
             drop(nar_writer);
-            Ok::<(), anyhow::Error>(())
+            Ok::<(), Error>(())
         };
 
         let store_fut = store.add_to_store(pi, nar_stream, false);
 
         let (copy_result, store_result) = futures::future::join(copy_fut, store_fut).await;
-        copy_result.map_err(Error::Anyhow)?;
+        copy_result?;
         store_result?;
     }
 
-    writer_handle
-        .await
-        .map_err(|e| Error::Anyhow(e.into()))?
-        .map_err(Error::Anyhow)?;
+    writer_handle.await??;
 
     Ok(paths)
 }

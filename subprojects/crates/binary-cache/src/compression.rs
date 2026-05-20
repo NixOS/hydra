@@ -70,8 +70,15 @@ impl Compression {
     }
 }
 
+/// Invalid compression type string.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("invalid compression: {got:?} (expected \"none\", \"xz\", \"bzip2\", \"br\", or \"zstd\")")]
+pub struct InvalidCompression {
+    pub got: String,
+}
+
 impl std::str::FromStr for Compression {
-    type Err = String;
+    type Err = InvalidCompression;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
@@ -80,7 +87,7 @@ impl std::str::FromStr for Compression {
             "bzip2" => Ok(Self::Bzip2),
             "br" => Ok(Self::Brotli),
             "zstd" | "zst" => Ok(Self::Zstd),
-            o => Err(o.to_string()),
+            o => Err(InvalidCompression { got: o.to_string() }),
         }
     }
 }

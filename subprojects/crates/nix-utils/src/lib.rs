@@ -43,8 +43,11 @@ pub enum Error {
     #[error("Exception was thrown `{0}`")]
     Exception(#[from] cxx::Exception),
 
-    #[error("anyhow error: `{0}`")]
-    Anyhow(#[from] anyhow::Error),
+    #[error("derivation parse error: `{0}`")]
+    DerivationParse(#[from] harmonia_store_aterm::ParseError),
+
+    #[error("invalid store path name: `{0}`")]
+    StorePathName(#[from] harmonia_store_path::StorePathNameError),
 
     #[error("json error: `{0}`")]
     Json(#[from] serde_json::Error),
@@ -750,8 +753,7 @@ impl LocalStore {
         let full_drv: DerivationT<BTreeSet<SingleDerivedPath>> = drv
             .clone()
             .map_inputs(|inputs| inputs.into_iter().map(SingleDerivedPath::Opaque).collect());
-        let json = serde_json::to_string(&full_drv)
-            .map_err(|e| anyhow::anyhow!("failed to serialize derivation: {e}"))?;
+        let json = serde_json::to_string(&full_drv).map_err(Error::Json)?;
         let store = self.base.wrapper.clone();
         asyncify(move || {
             let path = ffi::write_derivation(store.as_raw(), &json)?;

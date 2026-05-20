@@ -56,6 +56,8 @@ impl std::fmt::Display for NarInfoConvertError {
     }
 }
 
+impl std::error::Error for NarInfoConvertError {}
+
 // -- Hash --
 
 impl From<&harmonia_utils_hash::Hash> for nix::store::v1::Hash {
