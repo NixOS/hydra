@@ -534,7 +534,7 @@ mod tests {
         let fs = FilesystemOperations {
             real_store_dir: store_dir.to_path().to_owned(),
         };
-        let bp = Box::pin(parse_build_product(&store_dir, &fs, line)).await;
+        let bp = parse_build_product(&store_dir, &fs, line).await;
         assert!(bp.is_none());
     }
 

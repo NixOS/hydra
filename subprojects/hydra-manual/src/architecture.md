@@ -67,10 +67,12 @@ graph BT
     hydra-proto --> nix-support
     store-transfer --> hydra-proto
     hydra-builder --> binary-cache
+    hydra-builder --> error-context
     hydra-builder --> hydra-tracing
     hydra-builder --> store-transfer
     hydra-queue-runner --> binary-cache
     hydra-queue-runner --> db
+    hydra-queue-runner --> error-context
     hydra-queue-runner --> hydra-tracing
     hydra-queue-runner --> store-transfer
     binary-cache -.-> hydra-tracing
