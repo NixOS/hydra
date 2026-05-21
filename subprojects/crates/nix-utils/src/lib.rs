@@ -78,7 +78,7 @@ pub fn add_root(store: &LocalStore, root_dir: &std::path::Path, store_path: &Sto
 
 #[cxx::bridge(namespace = "nix_utils")]
 mod ffi {
-    #![allow(unreachable_pub, unused_qualifications)]
+    #![allow(unreachable_pub, unused_qualifications, clippy::too_many_arguments)]
 
     #[derive(Debug, Clone)]
     struct InternalPathInfo {
@@ -318,13 +318,16 @@ pub async fn copy_paths(
 }
 
 fn nar_hash_from_bytes(bytes: &[u8]) -> harmonia_store_path_info::NarHash {
+    #[allow(clippy::expect_used)]
     let sha256 = harmonia_utils_hash::Sha256::from_slice(bytes)
         .expect("invalid nar hash length from nix FFI");
     let hash: harmonia_utils_hash::Hash = sha256.into();
+    #[allow(clippy::expect_used)]
     hash.try_into().expect("sha256 should convert to NarHash")
 }
 
 fn parse_signature(s: &str) -> harmonia_utils_signature::Signature {
+    #[allow(clippy::expect_used)]
     s.parse().expect("invalid signature from nix FFI")
 }
 
@@ -377,16 +380,16 @@ fn to_internal_path_info(
         deriver: info
             .deriver
             .as_ref()
-            .map_or_else(String::new, |d| d.to_string()),
+            .map_or_else(String::new, ToString::to_string),
         nar_hash: nar_hash_bytes,
-        registration_time: info.registration_time.map_or(0, |t| t.get()),
+        registration_time: info.registration_time.map_or(0, std::num::NonZero::get),
         nar_size: info.nar_size,
-        refs: info.references.iter().map(|r| r.to_string()).collect(),
-        sigs: info.signatures.iter().map(|s| s.to_string()).collect(),
+        refs: info.references.iter().map(ToString::to_string).collect(),
+        sigs: info.signatures.iter().map(ToString::to_string).collect(),
         ca: info
             .ca
             .as_ref()
-            .map_or_else(String::new, |ca| ca.to_string()),
+            .map_or_else(String::new, ToString::to_string),
     }
 }
 
@@ -748,7 +751,9 @@ impl LocalStore {
 
     /// Write a [`BasicDerivation`] to the store.
     ///
-    /// Returns the store path of the written `.drv` file.
+    /// # Panics
+    ///
+    /// Will panic if returned path of `ffi::write_derivation` is an invalid Store Path
     pub async fn write_derivation(&self, drv: &BasicDerivation) -> Result<StorePath, Error> {
         let full_drv: DerivationT<BTreeSet<SingleDerivedPath>> = drv
             .clone()

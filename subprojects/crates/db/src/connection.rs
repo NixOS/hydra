@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 use sqlx::Acquire;
 
@@ -833,7 +834,10 @@ impl Transaction<'_> {
             p.file_size,
             p.sha256hash.map(|h| {
                 let bytes: &[u8] = h.as_ref();
-                bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+                bytes.iter().fold(String::new(), |mut output, b| {
+                    let _ = write!(output, "{b:02x}");
+                    output
+                })
             }) as Option<String>,
             p.path,
             p.name,

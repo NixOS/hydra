@@ -24,11 +24,13 @@ pub fn parse_hash(raw: &str) -> Option<Hash> {
 }
 
 /// Parse a hash string into a `NarHash` (SHA256 only).
+#[must_use]
 pub fn parse_nar_hash(raw: &str) -> Option<NarHash> {
     parse_hash(raw).and_then(|h| NarHash::try_from(h).ok())
 }
 
 /// Build a `NarInfo` from a `PathInfo` (`UnkeyedValidPathInfo`), optionally signing it.
+#[must_use]
 pub fn narinfo_from_path_info(
     path: &StorePath,
     path_info: UnkeyedValidPathInfo,
@@ -67,6 +69,7 @@ pub fn narinfo_from_path_info(
 }
 
 /// Build a simple `NarInfo` without signing.
+#[must_use]
 pub fn narinfo_simple(
     path: &StorePath,
     path_info: UnkeyedValidPathInfo,
@@ -90,6 +93,7 @@ pub fn narinfo_simple(
 }
 
 /// Clear signatures and re-sign with the provided signing keys.
+#[must_use]
 pub fn clear_sigs_and_sign(
     mut narinfo: NarInfo,
     store_dir: &StoreDir,
@@ -114,11 +118,13 @@ pub fn clear_sigs_and_sign(
 }
 
 /// Return the `.ls` listing key for this narinfo.
+#[must_use]
 pub fn get_ls_path(narinfo: &NarInfo) -> String {
     format!("{}.ls", narinfo.path.hash())
 }
 
 /// Render the narinfo as a text string (for upload).
+#[must_use]
 pub fn render_narinfo(store_dir: &StoreDir, narinfo: &NarInfo) -> String {
     String::from_utf8_lossy(&harmonia_format_narinfo_txt(store_dir, narinfo)).into_owned()
 }
@@ -231,10 +237,10 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 };
             }
             "Sig" => {
-                if !val.is_empty() {
-                    if let Ok(sig) = val.parse() {
-                        sigs.insert(sig);
-                    }
+                if !val.is_empty()
+                    && let Ok(sig) = val.parse()
+                {
+                    sigs.insert(sig);
                 }
             }
             _ => {}

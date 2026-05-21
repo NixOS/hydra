@@ -1063,7 +1063,7 @@ impl PromMetrics {
         let backends = state.remote_stores.read();
         for remote_store in backends.iter().filter_map(|s| match s {
             super::RemoteStoreBackend::S3(s) => Some(s),
-            _ => None,
+            super::RemoteStoreBackend::Nix(_) => None,
         }) {
             let backend_name = &remote_store.cfg.client_config.bucket;
             let s3_stats = remote_store.s3_stats();

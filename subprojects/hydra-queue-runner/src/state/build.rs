@@ -229,7 +229,7 @@ impl RemoteBuild {
         }
     }
 
-    const fn update_with_completed(&mut self, state: &hydra_proto::BuildResultState) {
+    const fn update_with_completed(&mut self, state: hydra_proto::BuildResultState) {
         match state {
             hydra_proto::BuildResultState::BuildFailure => {
                 self.can_retry = false;
@@ -244,7 +244,7 @@ impl RemoteBuild {
         }
     }
 
-    pub const fn update_with_result_state(&mut self, state: &BuildResultState) {
+    pub const fn update_with_result_state(&mut self, state: BuildResultState) {
         match state {
             BuildResultState::Completed(s) => self.update_with_completed(s),
             BuildResultState::Aborted => {

@@ -212,7 +212,7 @@ mod handler {
                     .iter()
                     .filter_map(|s| match s {
                         crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        _ => None,
+                        crate::state::RemoteStoreBackend::Nix(_) => None,
                     })
                     .collect()
             };
