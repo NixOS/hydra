@@ -21,7 +21,7 @@ pub use queue::{BuildQueueStats, Queues};
 pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
@@ -378,11 +378,11 @@ impl State {
         // different drv, mark this step as Resolved in the DB and create a new
         // step for the resolved drv that will be built at a later time.
         {
-            let Some(guard) = step_info.step.get_drv() else {
+            let guard = step_info.step.get_drv();
+            let Some(drv_ref) = guard.as_ref() else {
                 // Should never happen
                 return Ok(RealiseStepResult::MaybeCancelled);
             };
-            let drv_ref = guard.as_ref().unwrap();
 
             // `Some(path)` if this CA derivation was resolved to a
             // different drv; `None` if resolution is not needed or is
@@ -581,7 +581,7 @@ impl State {
                         RemoteStoreBackend::S3(s) => Some(hydra_proto::PresignedUploadOpts {
                             upload_debug_info: s.cfg.write_debug_info,
                         }),
-                        _ => None,
+                        RemoteStoreBackend::Nix(_) => None,
                     })
                 } else {
                     None
@@ -736,7 +736,7 @@ impl State {
             self.store.store_dir(),
             jobset_id,
             drv_path,
-            std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
+            std::str::from_utf8(&drv.platform)?,
         )
         .await?;
 
@@ -975,7 +975,7 @@ impl State {
                         r.iter()
                             .filter_map(|s| match s {
                                 RemoteStoreBackend::S3(s) => Some(s.clone()),
-                                _ => None,
+                                RemoteStoreBackend::Nix(_) => None,
                             })
                             .collect()
                     };
@@ -1171,7 +1171,7 @@ impl State {
                         RemoteStoreBackend::Nix(s) => {
                             Some((s.uri.clone(), s.as_base_store().clone()))
                         }
-                        _ => None,
+                        RemoteStoreBackend::S3(_) => None,
                     })
                     .collect()
             };
@@ -1224,8 +1224,8 @@ impl State {
         // `Realisations` table (for non-S3 / FFI stores) once nix is
         // updated to 2.35, which uses path-based DrvOutput matching
         // the harmonia types.
-        if let Some(drv_guard) = item.step_info.step.get_drv() {
-            let drv_ref = drv_guard.as_ref().unwrap();
+        let drv_guard = item.step_info.step.get_drv();
+        if let Some(drv_ref) = drv_guard.as_ref() {
             let has_ca_floating = drv_ref
                 .outputs
                 .values()
@@ -1236,7 +1236,7 @@ impl State {
                     r.iter()
                         .filter_map(|s| match s {
                             RemoteStoreBackend::S3(s) => Some(s.clone()),
-                            _ => None,
+                            RemoteStoreBackend::Nix(_) => None,
                         })
                         .collect()
                 };
@@ -1248,7 +1248,7 @@ impl State {
                         },
                         value: UnkeyedRealisation {
                             out_path: out_path.clone(),
-                            signatures: Default::default(),
+                            signatures: BTreeSet::default(),
                         },
                     };
                     for s3 in &s3_stores {
@@ -1341,15 +1341,15 @@ impl State {
                 // finished_drvs is not necessary as it is only a memoization table to reduce
                 // checks if a dependency is finished from the database.
                 // new_steps is not necessary either as
-                let new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>> = Default::default();
+                let new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>> = Arc::default();
                 let new_step = match self
                     .create_step(
                         build.clone(),
                         resolved_drv.clone(),
                         None,
                         Some((dependent_step.clone(), relation)),
-                        Default::default(),
-                        Default::default(),
+                        Arc::default(),
+                        Arc::default(),
                         new_runnable.clone(),
                     )
                     .await
@@ -1409,7 +1409,7 @@ impl State {
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
-        job.result.update_with_result_state(&state);
+        job.result.update_with_result_state(state);
         job.result.set_stop_time_now();
         job.result.set_overhead(timings.get_overhead())?;
 
@@ -1989,14 +1989,15 @@ impl State {
             fod_checker.add_ca_drv_parsed(&drv_path, &drv);
         }
 
-        let system_type = std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8");
-        #[allow(clippy::cast_precision_loss)]
-        self.metrics.observe_build_input_drvs(
-            harmonia_store_derivation::derivation::DerivationInputs::from(&drv.inputs)
-                .drvs
-                .len() as f64,
-            system_type,
-        );
+        if let Ok(system_type) = std::str::from_utf8(&drv.platform) {
+            #[allow(clippy::cast_precision_loss)]
+            self.metrics.observe_build_input_drvs(
+                harmonia_store_derivation::derivation::DerivationInputs::from(&drv.inputs)
+                    .drvs
+                    .len() as f64,
+                system_type,
+            );
+        }
 
         let use_substitutes = self.config.get_use_substitutes();
         // TODO: check all remote stores
@@ -2004,7 +2005,7 @@ impl State {
             let r = self.remote_stores.read();
             r.iter().find_map(|s| match s {
                 RemoteStoreBackend::S3(s) => Some(s.clone()),
-                _ => None,
+                RemoteStoreBackend::Nix(_) => None,
             })
         };
         let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
@@ -2279,11 +2280,11 @@ impl State {
 
         let build_output = BuildOutput::new(&self.store, output_paths).await?;
 
-        #[allow(clippy::cast_precision_loss)]
-        self.metrics.observe_build_closure_size(
-            build_output.closure_size as f64,
-            std::str::from_utf8(&drv.platform).expect("platform must be valid UTF-8"),
-        );
+        if let Ok(platform) = std::str::from_utf8(&drv.platform) {
+            #[allow(clippy::cast_precision_loss)]
+            self.metrics
+                .observe_build_closure_size(build_output.closure_size as f64, platform);
+        }
 
         Ok(build_output)
     }

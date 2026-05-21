@@ -172,7 +172,7 @@ fn parse_metric(line: &str) -> Option<(BuildMetricName, BuildMetric)> {
         None
     };
 
-    Some((fields[0].to_owned(), BuildMetric { value, unit }))
+    Some((fields[0].to_owned(), BuildMetric { unit, value }))
 }
 
 /// Resolve a store path to a filesystem path.
@@ -320,23 +320,23 @@ pub async fn parse_nix_support_for_output<F: FsOperations>(
             base_path: output.clone(),
             relative_path: "".into(),
         };
-        if let Some(info) = fs.get_file_info(&output_rel).await {
-            if !info.is_regular {
-                products.push(BuildProduct {
-                    r#type: "nix-build".to_string(),
-                    subtype: if output_name.as_ref() == "out" {
-                        String::new()
-                    } else {
-                        output_name.to_string()
-                    },
-                    path: output_rel,
-                    name: output.name().to_string(),
-                    default_path: String::new(),
-                    is_regular: false,
-                    file_size: None,
-                    sha256hash: None,
-                });
-            }
+        if let Some(info) = fs.get_file_info(&output_rel).await
+            && !info.is_regular
+        {
+            products.push(BuildProduct {
+                r#type: "nix-build".to_string(),
+                subtype: if output_name.as_ref() == "out" {
+                    String::new()
+                } else {
+                    output_name.to_string()
+                },
+                path: output_rel,
+                name: output.name().to_string(),
+                default_path: String::new(),
+                is_regular: false,
+                file_size: None,
+                sha256hash: None,
+            });
         }
     }
 
@@ -484,10 +484,10 @@ mod tests {
             std::env::temp_dir().join(format!("nix-support-test-{}", std::process::id()));
         let full_dir = store_dir.join(store_path_base);
         let file_path = full_dir.join(sub_path);
-        tokio::fs::create_dir_all(file_path.parent().unwrap())
+        fs_err::tokio::create_dir_all(file_path.parent().unwrap())
             .await
             .unwrap();
-        tokio::fs::write(&file_path, contents).await.unwrap();
+        fs_err::tokio::write(&file_path, contents).await.unwrap();
         store_dir
     }
 
@@ -502,13 +502,13 @@ mod tests {
         let store_dir = StoreDir::new("/nix/store").unwrap();
         let line = format!("file iso /nix/store/{store_path_base}/iso/custom.iso");
 
-        let bp = parse_build_product(
+        let bp = Box::pin(parse_build_product(
             &store_dir,
             &FilesystemOperations {
                 real_store_dir: real_dir.clone(),
             },
             &line,
-        )
+        ))
         .await
         .unwrap();
 
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(bp.path.base_path, expected_output);
         assert_eq!(&*bp.path.relative_path, "iso/custom.iso");
 
-        tokio::fs::remove_dir_all(&real_dir).await.unwrap();
+        fs_err::tokio::remove_dir_all(&real_dir).await.unwrap();
     }
 
     #[tokio::test]
@@ -532,7 +532,7 @@ mod tests {
         let fs = FilesystemOperations {
             real_store_dir: store_dir.to_path().to_owned(),
         };
-        let bp = parse_build_product(&store_dir, &fs, &line).await;
+        let bp = Box::pin(parse_build_product(&store_dir, &fs, line)).await;
         assert!(bp.is_none());
     }
 
@@ -542,24 +542,24 @@ mod tests {
         let real_dir =
             std::env::temp_dir().join(format!("nix-support-test-bare-{}", std::process::id()));
         let output_file = real_dir.join(store_path_base);
-        tokio::fs::create_dir_all(&real_dir).await.unwrap();
-        tokio::fs::write(&output_file, b"data").await.unwrap();
+        fs_err::tokio::create_dir_all(&real_dir).await.unwrap();
+        fs_err::tokio::write(&output_file, b"data").await.unwrap();
 
         let store_dir = StoreDir::new("/nix/store").unwrap();
         let line = format!("file binary /nix/store/{store_path_base}");
-        let bp = parse_build_product(
+        let bp = Box::pin(parse_build_product(
             &store_dir,
             &FilesystemOperations {
                 real_store_dir: real_dir.clone(),
             },
             &line,
-        )
+        ))
         .await
         .unwrap();
 
         // When the product path equals the output path, name should be empty
         assert_eq!(bp.name, "");
 
-        tokio::fs::remove_dir_all(&real_dir).await.unwrap();
+        fs_err::tokio::remove_dir_all(&real_dir).await.unwrap();
     }
 }

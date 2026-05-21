@@ -102,20 +102,17 @@ impl StepInfo {
                                 .cloned()
                                 .unwrap_or_else(|| current.clone());
                             let key = (translated, output_name.clone());
-                            let result = match memo.get(&key) {
-                                Some(cached) => cached.clone(),
-                                None => {
-                                    let r = rt
-                                        .block_on(
-                                            conn.resolve_drv_output(store_dir, &key.0, &key.1),
-                                        )
-                                        .unwrap_or_else(|e| {
-                                            tracing::warn!("resolve_drv_output failed: {e}");
-                                            None
-                                        });
-                                    memo.insert(key, r.clone());
-                                    r
-                                }
+                            let result = if let Some(cached) = memo.get(&key) {
+                                cached.clone()
+                            } else {
+                                let r = rt
+                                    .block_on(conn.resolve_drv_output(store_dir, &key.0, &key.1))
+                                    .unwrap_or_else(|e| {
+                                        tracing::warn!("resolve_drv_output failed: {e}");
+                                        None
+                                    });
+                                memo.insert(key, r.clone());
+                                r
                             };
                             current = result?;
                         }
@@ -236,6 +233,8 @@ impl StepInfo {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use db::models::BuildID;
 

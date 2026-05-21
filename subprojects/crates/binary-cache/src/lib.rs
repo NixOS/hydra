@@ -165,7 +165,7 @@ pub enum CacheError {
 #[derive(Debug, Clone)]
 pub struct S3BinaryCacheClient {
     s3: object_store::aws::AmazonS3,
-    pub cfg: S3CacheConfig,
+    pub cfg: Arc<S3CacheConfig>,
     s3_stats: Arc<AtomicS3Stats>,
     signing_keys: SmallVec<[secrecy::SecretString; 4]>,
     narinfo_cache: Cache<StorePath, NarInfo, foldhash::fast::RandomState>,
@@ -287,7 +287,7 @@ impl S3BinaryCacheClient {
 
         Ok(Self {
             s3: Self::construct_client(&cfg.client_config)?,
-            cfg,
+            cfg: cfg.into(),
             s3_stats: Arc::new(AtomicS3Stats::default()),
             signing_keys,
             narinfo_cache: Cache::builder()

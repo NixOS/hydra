@@ -405,11 +405,11 @@ mod tests {
         let owned = OwnedBuildMetric {
             name: "closureSize".into(),
             unit: Some("bytes".into()),
-            value: 145623040.0,
+            value: 145_623_040.0,
         };
         let (name, metric): (nix_support::BuildMetricName, nix_support::BuildMetric) = owned.into();
         assert_eq!(name, "closureSize");
         assert_eq!(metric.unit, Some("bytes".into()));
-        assert!((metric.value - 145623040.0).abs() < f64::EPSILON);
+        assert!((metric.value - 145_623_040.0).abs() < f64::EPSILON);
     }
 }

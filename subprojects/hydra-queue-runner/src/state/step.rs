@@ -181,18 +181,21 @@ impl Step {
         self.runnable.load(Ordering::SeqCst)
     }
 
-    pub fn get_drv(&self) -> Option<arc_swap::Guard<Option<Arc<Derivation>>>> {
-        let drv = self.drv.load();
-        if drv.is_some() { Some(drv) } else { None }
+    pub fn get_drv(&self) -> arc_swap::Guard<Option<Arc<Derivation>>> {
+        self.drv.load()
     }
 
     pub fn set_drv(&self, drv: Derivation) {
         self.drv.store(Some(Arc::new(drv)));
     }
 
+    /// # Panics
+    ///
+    /// Will panic if drv.platform is not a UTF-8 string
     pub fn get_system(&self) -> Option<String> {
         let drv = self.drv.load_full();
         drv.as_ref().map(|drv| {
+            #[allow(clippy::expect_used)]
             std::str::from_utf8(&drv.platform)
                 .expect("platform must be valid UTF-8")
                 .to_owned()
@@ -594,6 +597,8 @@ impl Steps {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
 
     fn drv(name: &str) -> StorePath {

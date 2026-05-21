@@ -502,7 +502,7 @@ impl State {
 
         let actual_out_drv: StorePath = store
             .store_dir()
-            .parse(&output_raw[0].drv_path)
+            .parse(&output_raw[0].drv_path) // safe to do because we checked len above
             .map_err(|e: ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
         if actual_out_drv != drv {
             return Err(JobFailure::PostProcessing(anyhow::anyhow!(
@@ -511,8 +511,7 @@ impl State {
         }
 
         let outputs = output_raw
-            .pop()
-            .unwrap()
+            .remove(0) // safe to do because we checked len above
             .outputs
             .into_iter()
             .map(|(name, path)| Ok((name, store.store_dir().parse::<StorePath>(&path)?)))
@@ -888,7 +887,7 @@ async fn upload_nars_regular(
     let upload = client
         .build_result(tokio_stream::StreamExt::filter_map(
             tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
-            |r| r.ok(),
+            Result::ok,
         ))
         .map_err(Into::<anyhow::Error>::into);
 
@@ -938,7 +937,7 @@ async fn upload_nars_presigned(
                 } else {
                     Vec::new()
                 };
-                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash.clone()) else {
+                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash) else {
                     return Ok(None);
                 };
                 Ok::<_, anyhow::Error>(Some((path, narhash, debug_info_ids)))
