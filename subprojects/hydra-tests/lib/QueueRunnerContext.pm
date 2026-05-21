@@ -6,7 +6,7 @@ use File::Path qw(make_path);
 use IO::Socket::IP;
 use IPC::Run;
 use LWP::UserAgent;
-use POSIX qw(dup2);
+use POSIX qw(dup2 SIGCHLD SIG_DFL);
 use Hydra::Config;
 use ProcessGroup;
 our @ISA = qw(Exporter);
@@ -46,6 +46,11 @@ sub start_nix_daemon {
         $harness = IPC::Run::start(
             ["nix-daemon"],
             \$in, \$out, \$err,
+            init => sub {
+                # yath inherits SIGCHLD=IGN to children, which breaks nix-daemon's bind() fork+waitpid.
+                $SIG{CHLD} = 'DEFAULT';
+                POSIX::sigaction(SIGCHLD, POSIX::SigAction->new(SIG_DFL));
+            },
         );
     }
     my $socket = $store->{nix_daemon_socket_path};
