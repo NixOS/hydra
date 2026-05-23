@@ -195,7 +195,7 @@
 
   [% INCLUDE renderJobsetInputs %]
 
-  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="fas fa-check"></i> [%IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
+  <button id="submit-jobset" type="submit" class="btn btn-primary"><i class="fas fa-check"></i> [% IF !edit %]Create jobset[% ELSE %]Apply changes[% END %]</button>
 
   <table style="display: none">
     [% INCLUDE renderJobsetInput input="" extraClass="template" id="input-template" baseName="input-template" %]

@@ -86,7 +86,7 @@
 
   <button id="submit-project" type="submit" class="btn btn-primary">
     <i class="fas fa-check"></i>
-    [%IF create %]Create project[% ELSE %]Apply changes[% END %]
+    [% IF create %]Create project[% ELSE %]Apply changes[% END %]
   </button>
 
 </form>

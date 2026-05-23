@@ -16,7 +16,7 @@
 
   [% FOREACH metric IN metrics %]
 
-    <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]><tt>[%HTML.escape(metric.name)%]</tt></a></h3>
+    <h3>Metric: <a [% HTML.attributes(href => c.uri_for('/job' project.name jobset.name job 'metric' metric.name)) %]><tt>[% HTML.escape(metric.name) %]</tt></a></h3>
 
     [% id = metricDivId(metric.name);
        INCLUDE createChart dataUrl=c.uri_for('/job' project.name jobset.name job 'metric' metric.name); %]

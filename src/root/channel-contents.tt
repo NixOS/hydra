@@ -49,7 +49,7 @@ installed, you can subscribe to this channel by once executing</p>
       [% b = pkg.build %]
 
       <tr>
-        <td><a href="[% c.uri_for('/build' b.id) %]">[% b.id %]</a></td>
+        <td><a [% HTML.attributes(href => c.uri_for('/build' b.id)) %]>[% b.id %]</a></td>
         <td><tt>[% b.get_column('releasename') || b.nixname %]</tt></td>
         <td><tt>[% b.system %]</tt></td>
         <td>

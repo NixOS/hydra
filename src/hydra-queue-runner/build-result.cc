@@ -51,8 +51,8 @@ BuildOutput getBuildOutput(
         "[[:space:]]+"
         "([a-zA-Z0-9_-]+)" // subtype (e.g. "readme")
         "[[:space:]]+"
-        "(\"[^\"]+\"|[^[:space:]\"]+)" // path (may be quoted)
-        "([[:space:]]+([^[:space:]]+))?" // entry point
+        "(\"[^\"]+\"|[^[:space:]<>\"]+)" // path (may be quoted)
+        "([[:space:]]+([^[:space:]<>]+))?" // entry point
         , std::regex::extended);
 
     for (auto & output : outputs) {
@@ -78,7 +78,7 @@ BuildOutput getBuildOutput(
             product.type = match[1];
             product.subtype = match[2];
             std::string s(match[3]);
-            product.path = s[0] == '"' ? std::string(s, 1, s.size() - 2) : s;
+            product.path = s[0] == '"' && s.back() == '"' ? std::string(s, 1, s.size() - 2) : s;
             product.defaultPath = match[5];
 
             /* Ensure that the path exists and points into the Nix
@@ -93,6 +93,8 @@ BuildOutput getBuildOutput(
             if (file == narMembers.end()) continue;
 
             product.name = product.path == store->printStorePath(output) ? "" : baseNameOf(product.path);
+            if (!std::regex_match(product.name, std::regex("[a-zA-Z0-9.@:_ -]*")))
+                product.name = "";
 
             if (file->second.type == SourceAccessor::Type::tRegular) {
                 product.isRegular = true;
@@ -127,8 +129,9 @@ BuildOutput getBuildOutput(
         if (file == narMembers.end() ||
             file->second.type != SourceAccessor::Type::tRegular)
             continue;
-        res.releaseName = trim(file->second.contents.value());
-        // FIXME: validate release name
+        auto contents = trim(file->second.contents.value());
+        if (std::regex_match(contents, std::regex("[a-zA-Z0-9.@:_-]+")))
+            res.releaseName = contents;
     }
 
     /* Get metrics. */
@@ -140,10 +143,18 @@ BuildOutput getBuildOutput(
         for (auto & line : tokenizeString<Strings>(file->second.contents.value(), "\n")) {
             auto fields = tokenizeString<std::vector<std::string>>(line);
             if (fields.size() < 2) continue;
+            if (!std::regex_match(fields[0], std::regex("[a-zA-Z0-9._-]+")))
+                continue;
             BuildMetric metric;
-            metric.name = fields[0]; // FIXME: validate
-            metric.value = atof(fields[1].c_str()); // FIXME
+            metric.name = fields[0];
+            try {
+                metric.value = std::stod(fields[1]);
+            } catch (...) {
+                continue; // skip this metric
+            }
             metric.unit = fields.size() >= 3 ? fields[2] : "";
+            if (!std::regex_match(metric.unit, std::regex("[a-zA-Z0-9._%-]+")))
+                metric.unit = "";
             res.metrics[metric.name] = metric;
         }
     }
