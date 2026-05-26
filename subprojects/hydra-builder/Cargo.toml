@@ -22,6 +22,7 @@ async-stream.workspace = true
 backon.workspace       = true
 bytes.workspace        = true
 futures.workspace      = true
+http.workspace         = true
 hyper-util.workspace   = true
 prost.workspace        = true
 tokio                  = { workspace = true, features = [ "full" ] }

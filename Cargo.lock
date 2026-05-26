@@ -1713,6 +1713,7 @@ dependencies = [
  "harmonia-store-remote",
  "harmonia-utils-hash",
  "hashbrown 0.16.1",
+ "http",
  "hydra-proto",
  "hydra-tracing",
  "hyper-util",

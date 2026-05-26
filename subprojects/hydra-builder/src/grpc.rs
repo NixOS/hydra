@@ -1,7 +1,7 @@
+use crate::error::BuilderError;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use anyhow::Context as _;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
 
 use harmonia_store_path::StorePath;
@@ -55,7 +55,7 @@ impl BuilderClient {
         build_id: &str,
         machine_id: &str,
         store_paths: Vec<(StorePath, harmonia_store_path_info::NarHash, Vec<String>)>,
-    ) -> anyhow::Result<Vec<hydra_proto::PresignedNarResponse>> {
+    ) -> Result<Vec<hydra_proto::PresignedNarResponse>, BuilderError> {
         use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 
         let request = store_paths
@@ -77,43 +77,47 @@ impl BuilderClient {
                 request,
             })
             .await
-            .context("Failed to request presigned URLs")?;
+            .map_err(BuilderError::PresignedUrls)?;
 
         Ok(response.into_inner().inner)
     }
 }
 
 #[tracing::instrument(err)]
-pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClient> {
+pub async fn init_client(cli: &crate::config::Cli) -> Result<BuilderClient, BuilderError> {
     if !cli.mtls_configured_correctly() {
         tracing::error!(
             "mtls configured inproperly, please pass all options: \
             server_root_ca_cert_path, client_cert_path, client_key_path and domain_name!"
         );
-        return Err(anyhow::anyhow!("Configuration issue"));
+        return Err(BuilderError::Configuration(
+            crate::config::ConfigError::MtlsIncomplete,
+        ));
     }
 
     tracing::info!("connecting to {}", cli.gateway_endpoint);
     let channel = if cli.mtls_enabled() {
         tracing::info!("mtls is enabled");
-        let (server_root_ca_cert, client_identity, domain_name) = cli
-            .get_mtls()
-            .await
-            .context("Failed to get_mtls Certificate and Identity")?;
+        let (server_root_ca_cert, client_identity, domain_name) =
+            cli.get_mtls().await.map_err(BuilderError::Configuration)?;
         let tls = tonic::transport::ClientTlsConfig::new()
             .domain_name(domain_name)
             .ca_certificate(server_root_ca_cert)
             .identity(client_identity);
 
-        Channel::builder(cli.gateway_endpoint.parse()?)
-            .tls_config(tls)
-            .context("Failed to attach tls config")?
-            .connect()
-            .await
-            .context("Failed to establish connection with Channel")?
+        Channel::builder(
+            cli.gateway_endpoint
+                .parse()
+                .map_err(BuilderError::GatewayEndpoint)?,
+        )
+        .tls_config(tls)
+        .map_err(BuilderError::TlsConfig)?
+        .connect()
+        .await
+        .map_err(BuilderError::Connection)?
     } else if let Some(path) = cli.gateway_endpoint.strip_prefix("unix://") {
         let path = path.to_owned();
-        tonic::transport::Endpoint::try_from("http://[::]:50051")?
+        tonic::transport::Endpoint::from_static("http://[::]:50051")
             .connect_with_connector(tower::service_fn(move |_: tonic::transport::Uri| {
                 let path = path.clone();
                 async move {
@@ -123,35 +127,42 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
                 }
             }))
             .await
-            .context("Failed to establish unix socket connection with Channel")?
+            .map_err(BuilderError::Connection)?
     } else if cli.gateway_endpoint.starts_with("https://") {
-        let uri: url::Url = cli
+        let uri: http::uri::Uri = cli
             .gateway_endpoint
             .parse()
-            .context("Failed to parse gateway_endpoint")?;
+            .map_err(BuilderError::GatewayEndpoint)?;
 
         let tls = tonic::transport::ClientTlsConfig::new()
-            .domain_name(
-                uri.domain()
-                    .ok_or(anyhow::anyhow!("No domain_name found for gateway_endpoint"))?,
-            )
+            .domain_name(uri.host().ok_or(BuilderError::GatewayMissingHost)?)
             .with_enabled_roots();
-        Channel::builder(cli.gateway_endpoint.parse()?)
-            .tls_config(tls)
-            .context("Failed to attach tls config")?
-            .connect()
-            .await
-            .context("Failed to establish connection with Channel")?
+        Channel::builder(
+            cli.gateway_endpoint
+                .parse()
+                .map_err(BuilderError::GatewayEndpoint)?,
+        )
+        .tls_config(tls)
+        .map_err(BuilderError::TlsConfig)?
+        .connect()
+        .await
+        .map_err(BuilderError::Connection)?
     } else {
-        Channel::builder(cli.gateway_endpoint.parse()?)
-            .connect()
-            .await
-            .context("Failed to establish connection with Channel")?
+        Channel::builder(
+            cli.gateway_endpoint
+                .parse()
+                .map_err(BuilderError::GatewayEndpoint)?,
+        )
+        .connect()
+        .await
+        .map_err(BuilderError::Connection)?
     };
 
     let interceptor = if let Some(t) = cli.get_authorization_token().await? {
         BuilderInterceptor::Token {
-            token: format!("Bearer {t}").parse()?,
+            token: format!("Bearer {t}")
+                .parse()
+                .map_err(BuilderError::AuthToken)?,
         }
     } else {
         BuilderInterceptor::Noop
@@ -168,7 +179,7 @@ pub async fn init_client(cli: &crate::config::Cli) -> anyhow::Result<BuilderClie
 async fn handle_request(
     state: Arc<crate::state::State>,
     request: runner_request::Message,
-) -> anyhow::Result<()> {
+) -> Result<(), BuilderError> {
     match request {
         runner_request::Message::Join(m) => {
             state
@@ -182,17 +193,21 @@ async fn handle_request(
         }
         runner_request::Message::Ping(_) => (),
         runner_request::Message::Build(m) => {
-            state.schedule_build(m)?;
+            state
+                .schedule_build(m)
+                .map_err(BuilderError::HandlingRequest)?;
         }
         runner_request::Message::Abort(m) => {
-            state.abort_build(&m)?;
+            state
+                .abort_build(&m)
+                .map_err(BuilderError::HandlingRequest)?;
         }
     }
     Ok(())
 }
 
 #[tracing::instrument(skip(state), err)]
-async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow::Result<()> {
+async fn check_version_compatibility(state: Arc<crate::state::State>) -> Result<(), BuilderError> {
     let mut client = state.client.clone();
 
     let response = client
@@ -202,15 +217,12 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
             hostname: state.hostname.clone(),
             store_dir: state.config.store_dir.to_string(),
         }))
-        .await?;
+        .await
+        .map_err(BuilderError::CallingService)?;
     let response = response.into_inner();
 
     if !response.compatible {
-        return Err(anyhow::anyhow!(
-            "API version mismatch: client has {}, server has {}",
-            hydra_proto::PROTO_API_VERSION,
-            response.server_version,
-        ));
+        return Err(BuilderError::VersionIncompatible(response.server_version));
     }
 
     tracing::info!(
@@ -222,12 +234,17 @@ async fn check_version_compatibility(state: Arc<crate::state::State>) -> anyhow:
 }
 
 #[tracing::instrument(skip(state), err)]
-pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyhow::Result<()> {
+pub async fn start_bidirectional_stream(
+    state: Arc<crate::state::State>,
+) -> Result<(), BuilderError> {
     use tokio_stream::StreamExt as _;
 
     check_version_compatibility(state.clone()).await?;
 
-    let join_msg = state.get_join_message().await?;
+    let join_msg = state
+        .get_join_message()
+        .await
+        .map_err(BuilderError::ReadingSystemInfo)?;
     let state2 = state.clone();
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
@@ -262,11 +279,7 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
     let mut stream = match response {
         Ok(response) => response.into_inner(),
         Err(e) => {
-            let error_str = e.to_string();
-            if error_str.contains("API version mismatch") {
-                return Err(anyhow::anyhow!("API version mismatch: {error_str}"));
-            }
-            return Err(e.into());
+            return Err(BuilderError::CallingService(e));
         }
     };
 
@@ -286,10 +299,7 @@ pub async fn start_bidirectional_stream(state: Arc<crate::state::State>) -> anyh
                 consecutive_failure_count += 1;
                 tracing::error!("stream message delivery failed: {e}");
                 if consecutive_failure_count == 10 {
-                    return Err(anyhow::anyhow!(
-                        "Failed to communicate {consecutive_failure_count} times over the channel. \
-                        Terminating the application."
-                    ));
+                    return Err(BuilderError::RepeatedFailure(consecutive_failure_count));
                 }
             }
         }
