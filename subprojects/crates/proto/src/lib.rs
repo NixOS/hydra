@@ -60,20 +60,39 @@ impl std::fmt::Display for NarInfoConvertError {
 
 impl std::error::Error for NarInfoConvertError {}
 
+// -- Hash Algorithm --
+
+impl From<harmonia_utils_hash::Algorithm> for nix::store::v1::hash::Algorithm {
+    fn from(algo: harmonia_utils_hash::Algorithm) -> Self {
+        use harmonia_utils_hash::Algorithm;
+        match algo {
+            Algorithm::SHA256 => Self::Sha256,
+            Algorithm::SHA512 => Self::Sha512,
+            Algorithm::SHA1 => Self::Sha1,
+            Algorithm::MD5 => Self::Md5,
+            Algorithm::BLAKE3 => Self::Blake3,
+        }
+    }
+}
+
+impl From<nix::store::v1::hash::Algorithm> for harmonia_utils_hash::Algorithm {
+    fn from(algo: nix::store::v1::hash::Algorithm) -> Self {
+        match algo {
+            nix::store::v1::hash::Algorithm::Sha256 => Self::SHA256,
+            nix::store::v1::hash::Algorithm::Sha512 => Self::SHA512,
+            nix::store::v1::hash::Algorithm::Sha1 => Self::SHA1,
+            nix::store::v1::hash::Algorithm::Md5 => Self::MD5,
+            nix::store::v1::hash::Algorithm::Blake3 => Self::BLAKE3,
+        }
+    }
+}
+
 // -- Hash --
 
 impl From<&harmonia_utils_hash::Hash> for nix::store::v1::Hash {
     fn from(h: &harmonia_utils_hash::Hash) -> Self {
-        use harmonia_utils_hash::Algorithm;
-        let algorithm = match h.algorithm() {
-            Algorithm::SHA256 => nix::store::v1::hash::Algorithm::Sha256,
-            Algorithm::SHA512 => nix::store::v1::hash::Algorithm::Sha512,
-            Algorithm::SHA1 => nix::store::v1::hash::Algorithm::Sha1,
-            Algorithm::MD5 => nix::store::v1::hash::Algorithm::Md5,
-            Algorithm::BLAKE3 => nix::store::v1::hash::Algorithm::Blake3,
-        };
         Self {
-            algorithm: algorithm as i32,
+            algorithm: nix::store::v1::hash::Algorithm::from(h.algorithm()) as i32,
             digest: h.as_ref().to_vec(),
         }
     }
@@ -83,15 +102,10 @@ impl TryFrom<nix::store::v1::Hash> for harmonia_utils_hash::Hash {
     type Error = &'static str;
 
     fn try_from(h: nix::store::v1::Hash) -> Result<Self, Self::Error> {
-        use harmonia_utils_hash::Algorithm;
-        let algo = match nix::store::v1::hash::Algorithm::try_from(h.algorithm) {
-            Ok(nix::store::v1::hash::Algorithm::Sha256) => Algorithm::SHA256,
-            Ok(nix::store::v1::hash::Algorithm::Sha512) => Algorithm::SHA512,
-            Ok(nix::store::v1::hash::Algorithm::Sha1) => Algorithm::SHA1,
-            Ok(nix::store::v1::hash::Algorithm::Md5) => Algorithm::MD5,
-            Ok(nix::store::v1::hash::Algorithm::Blake3) => Algorithm::BLAKE3,
-            Err(_) => return Err("unknown hash algorithm"),
-        };
+        let algo: harmonia_utils_hash::Algorithm =
+            nix::store::v1::hash::Algorithm::try_from(h.algorithm)
+                .map_err(|_| "unknown hash algorithm")?
+                .into();
         harmonia_utils_hash::Hash::from_slice(algo, &h.digest)
             .map_err(|_| "invalid hash digest length")
     }
