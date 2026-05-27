@@ -83,12 +83,13 @@ async fn find_debug_files(
         .map_err(CacheError::Io)?;
 
     while let Some(entry) = entries.next_entry().await.map_err(CacheError::Io)? {
-        let s1 = entry.file_name();
-        let s1_str = s1.to_string_lossy();
+        let Ok(s1) = entry.file_name().into_string() else {
+            continue;
+        };
 
         // Check if it's a 2-character hex directory
-        if s1_str.len() != 2
-            || !s1_str.chars().all(|c| c.is_ascii_hexdigit())
+        if s1.len() != 2
+            || !s1.chars().all(|c| c.is_ascii_hexdigit())
             || !entry.file_type().await.map_err(CacheError::Io)?.is_dir()
         {
             continue;
@@ -100,17 +101,18 @@ async fn find_debug_files(
             .map_err(CacheError::Io)?;
 
         while let Some(sub_entry) = subdir_entries.next_entry().await.map_err(CacheError::Io)? {
-            let s2 = sub_entry.file_name();
-            let s2_str = s2.to_string_lossy();
+            let Ok(s2) = sub_entry.file_name().into_string() else {
+                continue;
+            };
 
             // Check if it's a 38-character hex file ending with .debug
-            if s2_str.len() == 44 // 38 chars + .debug (6 chars) = 44
-                    && s2_str.ends_with(".debug")
-                    && s2_str[..38].chars().all(|c| c.is_ascii_hexdigit())
+            if s2.len() == 44 // 38 chars + .debug (6 chars) = 44
+                    && s2.ends_with(".debug")
+                    && s2[..38].chars().all(|c| c.is_ascii_hexdigit())
                     && sub_entry.file_type().await.map_err(CacheError::Io)?.is_file()
             {
-                let build_id = format!("{s1_str}{}", &s2_str[..38]);
-                let debug_path = format!("lib/debug/.build-id/{s1_str}/{s2_str}");
+                let build_id = format!("{s1}{}", &s2[..38]);
+                let debug_path = format!("lib/debug/.build-id/{s1}/{s2}");
                 debug_files.push((build_id, debug_path));
             }
         }
