@@ -68,7 +68,7 @@ impl Build {
     }
 
     #[tracing::instrument(skip(v, jobset), err)]
-    pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> anyhow::Result<Arc<Self>> {
+    pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> Result<Arc<Self>, jiff::Error> {
         Ok(Arc::new(Self {
             id: v.id,
             drv_path: v.drvpath,
@@ -370,15 +370,36 @@ pub struct BuildOutput {
     pub metrics: BTreeMap<String, BuildMetric>,
 }
 
-impl TryFrom<db::models::BuildOutput> for BuildOutput {
-    type Error = anyhow::Error;
+/// Everything that can go wrong constructing a [`BuildOutput`], whether
+/// parsing an incoming `BuildResultInfo`/db row or reading from the store.
+#[derive(Debug, thiserror::Error)]
+pub enum BuildOutputError {
+    #[error("buildstatus missing")]
+    BuildStatusMissing,
 
-    fn try_from(v: db::models::BuildOutput) -> anyhow::Result<Self> {
-        let build_status = BuildStatus::from_i32(
-            v.buildstatus
-                .ok_or_else(|| anyhow::anyhow!("buildstatus missing"))?,
-        )
-        .ok_or_else(|| anyhow::anyhow!("buildstatus did not map"))?;
+    #[error("buildstatus value did not map to a known status")]
+    BuildStatusUnknown,
+
+    #[error("output missing path")]
+    OutputMissingPath,
+
+    #[error("invalid output name")]
+    OutputName(#[from] harmonia_store_path::StorePathNameError),
+
+    #[error("nix daemon error")]
+    Daemon(#[from] harmonia_store_remote::DaemonError),
+
+    #[error("reading build output")]
+    Io(#[from] std::io::Error),
+}
+
+impl TryFrom<db::models::BuildOutput> for BuildOutput {
+    type Error = BuildOutputError;
+
+    fn try_from(v: db::models::BuildOutput) -> Result<Self, Self::Error> {
+        let build_status =
+            BuildStatus::from_i32(v.buildstatus.ok_or(BuildOutputError::BuildStatusMissing)?)
+                .ok_or(BuildOutputError::BuildStatusUnknown)?;
         Ok(Self {
             failed: build_status != BuildStatus::Success,
             timings: BuildTimings::default(),
@@ -395,17 +416,14 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
 }
 
 impl BuildOutput {
-    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> anyhow::Result<Self> {
+    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> Result<Self, BuildOutputError> {
         let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
         let mut merged = nix_support::NixSupport::default();
 
         for (name, info) in v.output_infos {
-            let path = info
-                .path
-                .ok_or_else(|| anyhow::anyhow!("output missing path"))?
-                .0;
+            let path = info.path.ok_or(BuildOutputError::OutputMissingPath)?.0;
             closure_size += info.closure_size;
             nar_size += info.nar_size;
             outputs.insert(name.parse()?, path);
@@ -434,7 +452,7 @@ impl BuildOutput {
         store: &harmonia_store_remote::ConnectionPool,
         real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, BuildOutputError> {
         let resolved: BTreeMap<_, _> = outputs
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))

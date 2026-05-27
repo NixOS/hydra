@@ -27,6 +27,9 @@ use anyhow::Context as _;
 
 use state::State;
 
+type GrpcServer =
+    std::pin::Pin<Box<dyn Future<Output = Result<(), server::grpc::ServerError>> + Send>>;
+
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -132,10 +135,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let http_addr = http_listener.local_addr()?;
 
-    let (srv1, grpc_info): (
-        std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>,
-        String,
-    ) = match &state.cli.grpc_bind {
+    let (srv1, grpc_info): (GrpcServer, String) = match &state.cli.grpc_bind {
         config::BindSocket::Tcp(s) => {
             let listener = tokio::net::TcpListener::bind(s).await?;
             let addr = listener.local_addr()?;
