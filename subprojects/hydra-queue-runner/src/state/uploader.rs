@@ -17,7 +17,7 @@ struct Message {
     id: uuid::Uuid,
     store_paths: std::sync::Arc<Vec<StorePath>>,
     log_remote_path: std::sync::Arc<String>,
-    log_local_path: std::sync::Arc<String>,
+    log_local_path: std::sync::Arc<std::path::PathBuf>,
 }
 
 #[derive(Debug)]
@@ -80,7 +80,7 @@ impl Uploader {
         &self,
         store_paths: Vec<StorePath>,
         log_remote_path: String,
-        log_local_path: String,
+        log_local_path: std::path::PathBuf,
     ) {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
         self.queue.send(Message {
@@ -124,7 +124,7 @@ impl Uploader {
 
             // Upload log file with backon retry
             let log_upload_result = (|| async {
-                let file = fs_err::tokio::File::open(msg.log_local_path.as_str()).await?;
+                let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
                 let reader = Box::new(tokio::io::BufReader::new(file));
 
                 remote_store

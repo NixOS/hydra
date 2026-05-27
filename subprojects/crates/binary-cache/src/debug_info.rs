@@ -73,6 +73,7 @@ pub async fn get_debug_info_build_ids(
 }
 
 /// Finds debug files by scanning the build-id directory structure.
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 async fn find_debug_files(
     build_id_path: &std::path::Path,
 ) -> Result<Vec<(String, String)>, CacheError> {

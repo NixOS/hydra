@@ -1,5 +1,6 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, os::unix::ffi::OsStrExt as _};
 
+use anyhow::Context as _;
 use db::models::BuildID;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
@@ -41,11 +42,15 @@ pub async fn finish_build_step(
         is_non_deterministic: res.get_is_non_deterministic(),
     })
     .await?;
-    debug_assert!(!res.log_file.is_empty());
-    debug_assert!(!res.log_file.contains('\t'));
+    debug_assert!(!res.log_file.as_os_str().is_empty());
+    debug_assert!(!res.log_file.as_os_str().as_bytes().contains(&b'\t'));
 
-    tx.notify_step_finished(build_id, step_nr, &res.log_file)
-        .await?;
+    tx.notify_step_finished(
+        build_id,
+        step_nr,
+        res.log_file.to_str().context("Non UTF-8 log file path")?,
+    )
+    .await?;
 
     if res.step_status == db::models::BuildStatus::Success
         && let Some(output_paths) = output_paths
