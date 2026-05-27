@@ -44,8 +44,9 @@ async fn stop_application(
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let _tracing_guard = hydra_tracing::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+async fn main() -> color_eyre::Result<()> {
+    let _tracing_guard = hydra_tracing::init()?;
+
     let cli = config::Cli::new();
 
     let state = state::State::new(&cli).await?;

@@ -1769,6 +1769,7 @@ dependencies = [
  "binary-cache",
  "bytes",
  "clap",
+ "color-eyre",
  "daemon-client-utils",
  "fs-err",
  "futures",

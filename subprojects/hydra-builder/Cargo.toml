@@ -11,6 +11,7 @@ tracing.workspace   = true
 
 anyhow.workspace      = true
 clap                  = { workspace = true, features = [ "derive" ] }
+color-eyre.workspace  = true
 fs-err                = { workspace = true, features = [ "tokio" ] }
 hashbrown.workspace   = true
 parking_lot.workspace = true
