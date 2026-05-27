@@ -790,7 +790,7 @@ impl S3BinaryCacheClient {
         nar_hash: &harmonia_store_path_info::NarHash,
         debug_info_build_ids: Vec<String>,
     ) -> Result<PresignedUploadResponse, CacheError> {
-        use harmonia_utils_hash::fmt::CommonHash as _;
+        use harmonia_utils_hash::HashFormat as _;
         let h: Hash = (*nar_hash).into();
         let nar_hash_url = format!("{:#}", h.as_base32());
 

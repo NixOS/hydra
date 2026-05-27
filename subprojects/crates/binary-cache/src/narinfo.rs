@@ -5,7 +5,7 @@ use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
 use harmonia_store_path_info::fingerprint_path;
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
 use harmonia_utils_hash::Hash;
-use harmonia_utils_hash::fmt::CommonHash as _;
+use harmonia_utils_hash::HashFormat as _;
 use harmonia_utils_signature::{SecretKey, Signature};
 use secrecy::ExposeSecret as _;
 
