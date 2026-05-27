@@ -22,6 +22,8 @@ disallowed-methods = [
     { path = "std::fs::File::create_new", replacement = "fs_err::File::create_new" },
     { path = "std::fs::OpenOptions::new", replacement = "fs_err::OpenOptions::new" },
 
+    { path = "std::ffi::OsStr::to_string_lossy", reason = "Handle UTF-8 errors" },
+
     { path = "std::os::unix::fs::symlink", replacement = "fs_err::os::unix::symlink" },
 
     { path = "std::path::Path::try_exists", reason = "Use fs_err::path::PathExt methods" },
@@ -30,6 +32,7 @@ disallowed-methods = [
     { path = "std::path::Path::canonicalize", reason = "Use fs_err::path::PathExt methods" },
     { path = "std::path::Path::read_link", reason = "Use fs_err::path::PathExt methods" },
     { path = "std::path::Path::read_dir", reason = "Use fs_err::path::PathExt methods" },
+    { path = "std::path::Path::to_string_lossy", reason = "Handle UTF-8 errors" },
 
     { path = "tokio::fs::canonicalize", replacement = "fs_err::tokio::canonicalize" },
     { path = "tokio::fs::copy", replacement = "fs_err::tokio::copy" },

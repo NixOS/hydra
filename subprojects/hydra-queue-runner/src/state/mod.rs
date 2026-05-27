@@ -342,8 +342,6 @@ impl State {
 
         self.construct_log_file_path(drv)
             .await?
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("failed to construct log path string."))?
             .clone_into(&mut job.result.log_file);
         let mut db = self.db.get().await?;
         let step_nr = {
@@ -2053,11 +2051,7 @@ impl State {
                     let missing_paths: Vec<StorePath> =
                         missing.values().filter_map(Clone::clone).collect();
                     self.uploader
-                        .schedule_upload(
-                            missing_paths,
-                            format!("log/{drv_path}"),
-                            log_file.to_string_lossy().to_string(),
-                        )
+                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file)
                         .await;
                     missing.clear();
                 }

@@ -189,7 +189,7 @@ pub struct RemoteBuild {
     stop_time: Option<jiff::Timestamp>,
 
     overhead: i32,
-    pub log_file: String,
+    pub log_file: std::path::PathBuf,
 }
 
 impl Default for RemoteBuild {
@@ -212,7 +212,7 @@ impl RemoteBuild {
             start_time: None,
             stop_time: None,
             overhead: 0,
-            log_file: String::new(),
+            log_file: std::path::PathBuf::new(),
         }
     }
 
