@@ -6,10 +6,12 @@ license                = "GPL-3.0"
 rust-version.workspace = true
 
 [dependencies]
-thiserror.workspace   = true
-tracing.workspace     = true
-tracing-log.workspace = true
-tracing-subscriber    = { workspace = true, features = [ "registry", "env-filter" ] }
+color-eyre.workspace    = true
+thiserror.workspace     = true
+tracing.workspace       = true
+tracing-error.workspace = true
+tracing-log.workspace   = true
+tracing-subscriber      = { workspace = true, features = [ "registry", "env-filter" ] }
 
 http  = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }

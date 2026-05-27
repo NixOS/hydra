@@ -28,6 +28,10 @@ pub enum TracingInitError {
     SetLogger(#[from] tracing_log::log::SetLoggerError),
     #[error(transparent)]
     SetGlobalDefault(#[from] tracing::subscriber::SetGlobalDefaultError),
+    // Don't directly include the eyre::Report, if the handler fails to install
+    // then the traceback would never be printed.
+    #[error("failed to install color-eyre handler: {0}")]
+    ColorEyre(String),
     #[cfg(feature = "otel")]
     #[error(transparent)]
     ExporterBuild(#[from] opentelemetry_otlp::ExporterBuildError),
@@ -84,6 +88,7 @@ fn init_tracer_provider()
 }
 
 pub fn init() -> Result<TracingGuard, TracingInitError> {
+    color_eyre::install().map_err(|e| TracingInitError::ColorEyre(e.to_string()))?;
     tracing_log::LogTracer::init()?;
     let (log_env_filter, reload_handle) = tracing_subscriber::reload::Layer::new(
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
@@ -93,7 +98,8 @@ pub fn init() -> Result<TracingGuard, TracingInitError> {
         .compact();
     let subscriber = tracing_subscriber::Registry::default()
         .with(log_env_filter)
-        .with(fmt_layer);
+        .with(fmt_layer)
+        .with(tracing_error::ErrorLayer::default());
 
     #[cfg(feature = "otel")]
     {
