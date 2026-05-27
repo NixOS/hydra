@@ -21,6 +21,7 @@ message Hash {
     SHA512 = 1;
     SHA1 = 2;
     MD5 = 3;
+    BLAKE3 = 4;
   }
   Algorithm algorithm = 1;
   bytes digest = 2;

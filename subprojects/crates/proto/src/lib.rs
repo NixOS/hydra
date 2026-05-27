@@ -1,6 +1,8 @@
 // We need to allow pedantic here because of generated code
 #![allow(clippy::pedantic, unused_qualifications)]
 
+use harmonia_utils_hash::HashView;
+
 pub mod store_path;
 
 pub use store_path::ProtoStorePath;
@@ -68,6 +70,7 @@ impl From<&harmonia_utils_hash::Hash> for nix::store::v1::Hash {
             Algorithm::SHA512 => nix::store::v1::hash::Algorithm::Sha512,
             Algorithm::SHA1 => nix::store::v1::hash::Algorithm::Sha1,
             Algorithm::MD5 => nix::store::v1::hash::Algorithm::Md5,
+            Algorithm::BLAKE3 => nix::store::v1::hash::Algorithm::Blake3,
         };
         Self {
             algorithm: algorithm as i32,
@@ -86,6 +89,7 @@ impl TryFrom<nix::store::v1::Hash> for harmonia_utils_hash::Hash {
             Ok(nix::store::v1::hash::Algorithm::Sha512) => Algorithm::SHA512,
             Ok(nix::store::v1::hash::Algorithm::Sha1) => Algorithm::SHA1,
             Ok(nix::store::v1::hash::Algorithm::Md5) => Algorithm::MD5,
+            Ok(nix::store::v1::hash::Algorithm::Blake3) => Algorithm::BLAKE3,
             Err(_) => return Err("unknown hash algorithm"),
         };
         harmonia_utils_hash::Hash::from_slice(algo, &h.digest)
