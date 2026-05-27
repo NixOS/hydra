@@ -1,5 +1,14 @@
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {
+    #[error("environment variable {0} not set")]
+    MissingEnvVar(&'static str),
+
+    #[error("creating gcroots directory")]
+    CreateGcroots(#[source] std::io::Error),
+
+    #[error("hostname is not valid UTF-8: {0:?}")]
+    Hostname(std::ffi::OsString),
+
     #[error("Requesting presigned URLs")]
     PresignedUrls(#[source] tonic::Status),
 
@@ -8,6 +17,12 @@ pub enum BuilderError {
 
     #[error("Parsing gateway endpoint")]
     GatewayEndpoint(#[source] http::uri::InvalidUri),
+
+    #[error("Parsing Nix store URL: {0}")]
+    ParseNixStore(String),
+
+    #[error("Loading Nix configuration")]
+    LoadNixConfig(#[source] anyhow::Error),
 
     #[error("Gateway API missing host")]
     GatewayMissingHost,
