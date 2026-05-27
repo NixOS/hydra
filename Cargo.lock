@@ -1838,7 +1838,6 @@ dependencies = [
 name = "hydra-queue-runner"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "arc-swap",
  "async-compression",
  "atomic_float",
@@ -1847,6 +1846,7 @@ dependencies = [
  "byte-unit",
  "bytes",
  "clap",
+ "color-eyre",
  "daemon-client-utils",
  "db",
  "fs-err",
