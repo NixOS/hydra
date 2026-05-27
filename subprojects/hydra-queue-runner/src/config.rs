@@ -1,7 +1,24 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Context as _;
 use clap::Parser;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("missing option: {0}")]
+    MissingOption(&'static str),
+
+    #[error("environment variable `{0}` is missing")]
+    MissingEnvVar(&'static str),
+
+    #[error("parsing Nix remote: {0}")]
+    ParseNixStore(String),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+}
 
 #[derive(Debug, Clone)]
 pub enum BindSocket {
@@ -86,20 +103,20 @@ impl Cli {
     #[tracing::instrument(skip(self), err)]
     pub async fn get_mtls(
         &self,
-    ) -> anyhow::Result<(tonic::transport::Certificate, tonic::transport::Identity)> {
+    ) -> Result<(tonic::transport::Certificate, tonic::transport::Identity), ConfigError> {
         let server_cert_path = self
             .server_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_cert_path"))?;
         let server_key_path = self
             .server_key_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_key_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_key_path"))?;
 
         let client_ca_cert_path = self
             .client_ca_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("client_ca_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("client_ca_cert_path"))?;
         let client_ca_cert = fs_err::tokio::read_to_string(client_ca_cert_path).await?;
         let client_ca_cert = tonic::transport::Certificate::from_pem(client_ca_cert);
 
@@ -288,7 +305,7 @@ pub struct PreparedApp {
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
-    type Error = anyhow::Error;
+    type Error = ConfigError;
 
     fn try_from(val: AppConfig) -> Result<Self, Self::Error> {
         let remote_store_addr = val
@@ -302,8 +319,10 @@ impl TryFrom<AppConfig> for PreparedApp {
             })
             .collect();
 
-        let logname = std::env::var("LOGNAME").context("LOGNAME env var missing")?;
-        let nix_remote = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
+        let logname =
+            std::env::var("LOGNAME").map_err(|_| ConfigError::MissingEnvVar("LOGNAME"))?;
+        let nix_remote =
+            daemon_client_utils::parse_nix_remote().map_err(ConfigError::ParseNixStore)?;
         let roots_dir = val.roots_dir.map_or_else(
             || {
                 nix_remote
@@ -388,18 +407,17 @@ impl TryFrom<AppConfig> for PreparedApp {
 
 /// Loads the config from specified path
 #[tracing::instrument(err)]
-fn load_config(filepath: &str) -> anyhow::Result<PreparedApp> {
+fn load_config(filepath: &str) -> Result<PreparedApp, ConfigError> {
     tracing::info!("Trying to loading file: {filepath}");
     let toml: AppConfig = if let Ok(content) = fs_err::read_to_string(filepath) {
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to toml load from '{filepath}'"))?
+        toml::from_str(&content)?
     } else {
         tracing::warn!("no config file found! Using default config");
-        toml::from_str("").context("Failed to parse empty string as config")?
+        toml::from_str("")?
     };
     tracing::info!("Loaded config: {toml:?}");
 
-    toml.try_into().context("Failed to prepare configuration")
+    toml.try_into()
 }
 
 #[derive(Debug, Clone)]
@@ -409,7 +427,7 @@ pub struct App {
 
 impl App {
     #[tracing::instrument(err)]
-    pub fn init(filepath: &str) -> anyhow::Result<Self> {
+    pub fn init(filepath: &str) -> Result<Self, ConfigError> {
         Ok(Self {
             inner: Arc::new(arc_swap::ArcSwap::from(Arc::new(load_config(filepath)?))),
         })

@@ -1,7 +1,16 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use harmonia_store_path::StorePath;
+/// Errors from gRPC server setup and serving.
+#[derive(Debug, thiserror::Error)]
+pub enum ServerError {
+    #[error("gRPC transport error")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("server configuration error")]
+    Config(#[from] crate::config::ConfigError),
+    #[error("reflection service: {0}")]
+    Reflection(#[from] tonic_reflection::server::Error),
+}
 use tokio::sync::mpsc;
 use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
@@ -101,7 +110,10 @@ pub struct Server {
 impl Server {
     /// Serve on a pre-bound TCP listener.
     #[tracing::instrument(skip(listener, state), err)]
-    pub async fn run(listener: tokio::net::TcpListener, state: Arc<State>) -> anyhow::Result<()> {
+    pub async fn run(
+        listener: tokio::net::TcpListener,
+        state: Arc<State>,
+    ) -> Result<(), ServerError> {
         let stream = tokio_stream::wrappers::TcpListenerStream::new(listener);
         Self::serve_incoming(stream, state).await
     }
@@ -111,12 +123,12 @@ impl Server {
     pub async fn run_unix(
         listener: tokio::net::UnixListener,
         state: Arc<State>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ServerError> {
         let stream = tokio_stream::wrappers::UnixListenerStream::new(listener);
         Self::serve_incoming(stream, state).await
     }
 
-    async fn serve_incoming<S, IO, IE>(incoming: S, state: Arc<State>) -> anyhow::Result<()>
+    async fn serve_incoming<S, IO, IE>(incoming: S, state: Arc<State>) -> Result<(), ServerError>
     where
         S: futures_util::Stream<Item = Result<IO, IE>>,
         IO: tokio::io::AsyncRead
@@ -125,6 +137,8 @@ impl Server {
             + Unpin
             + Send
             + 'static,
+        // Required by tonic's `serve_with_incoming` API. We cannot replace this bound with
+        // something else.
         IE: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
         let service = RunnerServiceServer::new(Self {
@@ -153,11 +167,7 @@ impl Server {
 
         if state.cli.mtls_enabled() {
             tracing::info!("Using mtls");
-            let (client_ca_cert, server_identity) = state
-                .cli
-                .get_mtls()
-                .await
-                .context("Failed to get_mtls Certificate and Identity")?;
+            let (client_ca_cert, server_identity) = state.cli.get_mtls().await?;
 
             let tls = tonic::transport::ServerTlsConfig::new()
                 .identity(server_identity)

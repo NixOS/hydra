@@ -3,8 +3,19 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
-use anyhow::Context;
 use hashbrown::HashMap;
+
+#[derive(Debug, thiserror::Error)]
+pub enum JobsetError {
+    #[error(transparent)]
+    Db(#[from] db::Error),
+
+    #[error("scheduling shares not found for jobset {jobset_id}")]
+    MissingShares { jobset_id: i32 },
+
+    #[error("scheduling shares out of range: {0}")]
+    SharesOutOfRange(#[from] std::num::TryFromIntError),
+}
 
 pub type JobsetID = i32;
 pub(super) const SCHEDULING_WINDOW: i64 = 24 * 60 * 60;
@@ -161,7 +172,7 @@ impl Jobsets {
         jobset_id: i32,
         project_name: &str,
         jobset_name: &str,
-    ) -> anyhow::Result<Arc<Jobset>> {
+    ) -> Result<Arc<Jobset>, JobsetError> {
         let key = (project_name.to_owned(), jobset_name.to_owned());
         {
             let jobsets = self.inner.read();
@@ -173,7 +184,7 @@ impl Jobsets {
         let shares = conn
             .get_jobset_scheduling_shares(jobset_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Scheduling Shares not found for jobset not found."))?;
+            .ok_or(JobsetError::MissingShares { jobset_id })?;
         let jobset = Jobset::new(jobset_id, project_name, jobset_name);
         jobset.set_shares(shares);
 
@@ -200,14 +211,13 @@ impl Jobsets {
     }
 
     #[tracing::instrument(skip(self, conn), err)]
-    pub async fn handle_change(&self, conn: &mut db::Connection) -> anyhow::Result<()> {
+    pub async fn handle_change(&self, conn: &mut db::Connection) -> Result<(), JobsetError> {
         let curr_jobsets_in_db = conn.get_jobsets().await?;
 
         let jobsets = self.inner.read();
         for row in curr_jobsets_in_db {
             if let Some(i) = jobsets.get(&(row.project.clone(), row.name.clone())) {
-                let shares = u32::try_from(row.schedulingshares)
-                    .context("scheduling shares out of range")?;
+                let shares = u32::try_from(row.schedulingshares)?;
                 i.set_shares(shares);
             }
         }

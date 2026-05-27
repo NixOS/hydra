@@ -11,6 +11,18 @@ use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
 use hydra_proto::{AbortMessage, BuildMessage, JoinMessage, PresignedUploadOpts, runner_request};
 
+#[derive(Debug, thiserror::Error)]
+pub enum MachineError {
+    #[error("{0}")]
+    ConfigIncompat(String),
+
+    #[error("failed to send message to machine: channel closed")]
+    Channel(#[from] mpsc::error::SendError<Message>),
+
+    #[error(transparent)]
+    Uuid(#[from] uuid::Error),
+}
+
 pub use hydra_proto::Pressure;
 pub(crate) use hydra_proto::PressureState;
 
@@ -583,21 +595,20 @@ impl Machine {
         tx: mpsc::Sender<Message>,
         use_presigned_uploads: bool,
         forced_substituters: &[String],
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, MachineError> {
         if use_presigned_uploads && !forced_substituters.is_empty() {
             if !msg.use_substitutes {
-                return Err(anyhow::anyhow!(
-                    "Forced_substituters is configured but builder doesnt use substituters. This is an issue because presigned uploads are enabled",
+                return Err(MachineError::ConfigIncompat(
+                    "Forced_substituters is configured but builder doesnt use substituters. This is an issue because presigned uploads are enabled".into(),
                 ));
             }
 
             for forced_sub in forced_substituters {
                 if !msg.substituters.contains(forced_sub) {
-                    return Err(anyhow::anyhow!(
+                    return Err(MachineError::ConfigIncompat(format!(
                         "Builder missing required substituter '{}'. Available: {:?}",
-                        forced_sub,
-                        msg.substituters
-                    ));
+                        forced_sub, msg.substituters
+                    )));
                 }
             }
         }
@@ -649,7 +660,7 @@ impl Machine {
         build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
         resolved_drv: hydra_proto::nix::store::derivation::v1::Basic,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), MachineError> {
         let drv = effective_drv;
         self.msg_queue
             .send(Message::BuildMessage {
@@ -678,7 +689,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(build_id=%build_id), err)]
-    pub async fn abort_build(&self, build_id: uuid::Uuid) -> anyhow::Result<()> {
+    pub async fn abort_build(&self, build_id: uuid::Uuid) -> Result<(), MachineError> {
         self.msg_queue
             .send(Message::AbortMessage { build_id })
             .await?;
@@ -688,7 +699,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn publish_config_update(&self, change: ConfigUpdate) -> anyhow::Result<()> {
+    pub async fn publish_config_update(&self, change: ConfigUpdate) -> Result<(), MachineError> {
         self.msg_queue.send(Message::ConfigUpdate(change)).await?;
         Ok(())
     }
