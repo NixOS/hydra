@@ -23,7 +23,7 @@ pub mod utils;
 
 use std::future::Future;
 
-use color_eyre::eyre::WrapErr as _;
+use color_eyre::eyre::{self, WrapErr as _};
 
 use state::State;
 
@@ -105,7 +105,7 @@ async fn main() -> color_eyre::Result<()> {
         tracing::error!(
             "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
         );
-        return Err(color_eyre::eyre::eyre!("Configuration issue"));
+        return Err(eyre::eyre!("Configuration issue"));
     }
 
     let task_abort_handles = start_task_loops(&state);
@@ -123,16 +123,14 @@ async fn main() -> color_eyre::Result<()> {
         config::BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                color_eyre::eyre::eyre!("No listenfd TCP listener at index {idx} for REST")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for REST"))?;
             std_listener.set_nonblocking(true)?;
             tokio::net::TcpListener::from_std(std_listener)?
         }
         config::BindSocket::Unix(_) => {
-            return Err(color_eyre::eyre::eyre!(
-                "HTTP server does not support Unix sockets"
-            ));
+            return Err(eyre::eyre!("HTTP server does not support Unix sockets"));
         }
     };
     let http_addr = http_listener.local_addr()?;
@@ -149,9 +147,9 @@ async fn main() -> color_eyre::Result<()> {
         }
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                color_eyre::eyre::eyre!("No listenfd TCP listener at index {idx} for gRPC")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for gRPC"))?;
             let addr = std_listener.local_addr()?;
             let info = addr.to_string();
             std_listener.set_nonblocking(true)?;

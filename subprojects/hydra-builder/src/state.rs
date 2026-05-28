@@ -3,8 +3,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
 
-use anyhow::Context as _;
 use backon::RetryableWithContext as _;
+use color_eyre::eyre::{self, WrapErr as _};
 use futures::TryFutureExt as _;
 use harmonia_protocol::daemon_wire::types2::BuildResultSuccess;
 use harmonia_store_remote::DaemonStore as _;
@@ -34,15 +34,15 @@ fn retry_strategy() -> backon::ExponentialBuilder {
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure")]
-    Build(#[source] anyhow::Error),
+    Build(#[source] eyre::Report),
     #[error("Preparing failure")]
-    Preparing(#[source] anyhow::Error),
+    Preparing(#[source] eyre::Report),
     #[error("Import failure")]
-    Import(#[source] anyhow::Error),
+    Import(#[source] eyre::Report),
     #[error("Upload failure")]
-    Upload(#[source] anyhow::Error),
+    Upload(#[source] eyre::Report),
     #[error("Post processing failure")]
-    PostProcessing(#[source] anyhow::Error),
+    PostProcessing(#[source] eyre::Report),
 }
 
 impl From<&JobFailure> for BuildResultState {
@@ -224,7 +224,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_join_message(&self) -> anyhow::Result<JoinMessage> {
+    pub async fn get_join_message(&self) -> eyre::Result<JoinMessage> {
         let sys = crate::system::BaseSystemInfo::new()?;
 
         Ok(JoinMessage {
@@ -252,7 +252,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub fn get_ping_message(&self) -> anyhow::Result<PingMessage> {
+    pub fn get_ping_message(&self) -> eyre::Result<PingMessage> {
         let default_store = self.config.store_dir.to_string();
         let store_path = self
             .config
@@ -279,17 +279,13 @@ impl State {
     }
 
     #[tracing::instrument(skip(self, m), fields(drv=?m.drv))]
-    pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> anyhow::Result<()> {
+    pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> eyre::Result<()> {
         if self.halt.load(Ordering::SeqCst) {
             tracing::warn!("State is set to halt, will no longer accept new builds!");
-            return Err(anyhow::anyhow!("State set to halt."));
+            return Err(eyre::eyre!("State set to halt."));
         }
 
-        let drv = m
-            .drv
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("missing drv"))?
-            .0;
+        let drv = m.drv.clone().ok_or_else(|| eyre::eyre!("missing drv"))?.0;
         if self.contains_build(&drv) {
             return Ok(());
         }
@@ -312,14 +308,14 @@ impl State {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
                                 "Build of {drv} was cancelled, not reporting Error: {:?}",
-                                anyhow::Error::new(e)
+                                eyre::Report::new(e)
                             );
                             return;
                         }
 
                         let result_state = BuildResultState::from(&e) as i32;
 
-                        tracing::error!("Build of {drv} failed with: {:?}", anyhow::Error::new(e));
+                        tracing::error!("Build of {drv} failed with: {:?}", eyre::Report::new(e));
                         self_.remove_build(build_id);
                         let failed_build = BuildResultInfo {
                             build_id: build_id.to_string(),
@@ -388,7 +384,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self, m), fields(build_id=%m.build_id))]
-    pub fn abort_build(&self, m: &AbortMessage) -> anyhow::Result<()> {
+    pub fn abort_build(&self, m: &AbortMessage) -> eyre::Result<()> {
         tracing::info!("Try cancelling build");
         let build_id = uuid::Uuid::parse_str(&m.build_id)?;
         if let Some(b) = self.remove_build(build_id) {
@@ -414,9 +410,9 @@ impl State {
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
-    ) -> anyhow::Result<BuildResultSuccess> {
+    ) -> eyre::Result<BuildResultSuccess> {
         // Build the pre-resolved BasicDerivation; logs stream to the queue-runner.
-        let mut guard = pool.acquire().await.context("daemon connection failed")?;
+        let mut guard = pool.acquire().await.wrap_err("daemon connection failed")?;
 
         let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel::<bytes::Bytes>();
         let log_stream = crate::utils::compressed_log_stream(drv, log_rx);
@@ -475,7 +471,7 @@ impl State {
                 }
             }
             drop(log_tx);
-            result_log.await.context("build_derivation failed")?
+            result_log.await.wrap_err("build_derivation failed")?
         };
         drop(guard);
 
@@ -494,7 +490,7 @@ impl State {
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
-                return Err(anyhow::anyhow!(
+                return Err(eyre::eyre!(
                     "build failed: {:?}: {}",
                     f.status,
                     str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8")
@@ -513,7 +509,7 @@ impl State {
         let machine_id = self.id;
         let drv = m
             .drv
-            .ok_or(JobFailure::Preparing(anyhow::anyhow!("missing drv")))?
+            .ok_or(JobFailure::Preparing(eyre::eyre!("missing drv")))?
             .0;
 
         let before_import = Instant::now();
@@ -534,12 +530,12 @@ impl State {
         // Decode the force-resolved BasicDerivation sent by the queue runner.
         let basic_drv: harmonia_store_derivation::derivation::BasicDerivation = m
             .resolved_drv
-            .ok_or(JobFailure::Preparing(anyhow::anyhow!(
+            .ok_or(JobFailure::Preparing(eyre::eyre!(
                 "missing resolved_drv in BuildMessage",
             )))?
             .try_into()
             .map_err(|e: String| {
-                JobFailure::Import(anyhow::anyhow!("failed to decode resolved derivation: {e}"))
+                JobFailure::Import(eyre::eyre!("failed to decode resolved derivation: {e}"))
             })?;
 
         // Fetch the transitive closure of the resolved inputs.
@@ -608,12 +604,10 @@ impl State {
         for (name, path) in &outputs {
             let info = daemon_client_utils::query_path_info(&self.pool, path)
                 .await
-                .context("query_path_info failed")
+                .wrap_err("query_path_info failed")
                 .map_err(JobFailure::PostProcessing)?
                 .ok_or_else(|| {
-                    JobFailure::PostProcessing(anyhow::anyhow!(
-                        "missing path info for output `{name}`"
-                    ))
+                    JobFailure::PostProcessing(eyre::eyre!("missing path info for output `{name}`"))
                 })?;
             output_infos.insert(
                 name.clone(),
@@ -728,7 +722,7 @@ impl State {
         build_id: &str,
         machine_id: &str,
         presigned_url_opts: Option<hydra_proto::PresignedUploadOpts>,
-    ) -> anyhow::Result<()> {
+    ) -> eyre::Result<()> {
         if let Some(opts) = presigned_url_opts {
             upload_nars_presigned(
                 self.client.clone(),
@@ -751,7 +745,7 @@ async fn is_path_missing(
     pool: &harmonia_store_remote::ConnectionPool,
     gcroot: &Gcroot,
     path: StorePath,
-) -> anyhow::Result<Option<StorePath>> {
+) -> eyre::Result<Option<StorePath>> {
     if daemon_client_utils::is_valid_path(pool, &path).await? {
         add_gc_root(&gcroot.root, pool.store_dir(), &path);
         Ok(None)
@@ -766,7 +760,7 @@ async fn filter_missing(
     gcroot: &Gcroot,
     paths: Vec<StorePath>,
     concurrency: usize,
-) -> anyhow::Result<Vec<StorePath>> {
+) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
         is_path_missing(pool, gcroot, p)
@@ -775,7 +769,7 @@ async fn filter_missing(
     .collect::<Vec<_>>()
     .await
     .into_iter()
-    .collect::<anyhow::Result<Vec<_>>>()
+    .collect::<eyre::Result<Vec<_>>>()
     .map(|v| v.into_iter().flatten().collect())
 }
 
@@ -796,7 +790,7 @@ fn add_gc_root(
 async fn substitute_paths(
     pool: &harmonia_store_remote::ConnectionPool,
     paths: &[StorePath],
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     for p in paths {
         daemon_client_utils::ensure_path(pool, p).await?;
     }
@@ -812,7 +806,7 @@ async fn import_paths(
     paths: Vec<StorePath>,
     filter: bool,
     use_substitutes: bool,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     let paths = if filter {
         filter_missing(&pool, gcroot, paths, 10).await?
     } else {
@@ -876,7 +870,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     let requisites = filter_missing(&pool, gcroot, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
@@ -917,13 +911,13 @@ async fn upload_nars_regular(
     pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     // Compute full closure by walking references via daemon protocol.
     // query_closure returns ValidPathInfos in dependency order with
     // path infos already populated, so we don't need to re-query.
     let closure = daemon_client_utils::query_closure(&pool, &nars)
         .await
-        .map_err(|e| anyhow::anyhow!("failed to compute closure: {e}"))?;
+        .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
 
     // Filter out paths the queue-runner already has.
     let closure = {
@@ -978,7 +972,7 @@ async fn upload_nars_regular(
             tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
             Result::ok,
         ))
-        .map_err(Into::<anyhow::Error>::into);
+        .map_err(Into::<eyre::Report>::into);
 
     let (upload_result, sender_result) = futures::future::join(upload, sender).await;
     upload_result?;
@@ -1002,7 +996,7 @@ async fn upload_nars_presigned(
     opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
     machine_id: &str,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     use futures::stream::StreamExt as _;
 
     tracing::info!("Start uploading paths using presigned urls");
@@ -1039,7 +1033,7 @@ async fn upload_nars_presigned(
                 let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash) else {
                     return Ok(None);
                 };
-                Ok::<_, anyhow::Error>(Some((path, narhash, debug_info_ids)))
+                Ok::<_, eyre::Report>(Some((path, narhash, debug_info_ids)))
             }
         })
         .buffered(10);
@@ -1051,7 +1045,7 @@ async fn upload_nars_presigned(
     }
 
     if nars.len() != paths_to_upload.len() {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Mismatch between paths_to_upload ({}) and paths_with_narhash ({})",
             paths_to_upload.len(),
             nars.len(),
@@ -1063,7 +1057,7 @@ async fn upload_nars_presigned(
         .await?;
 
     if presigned_responses.len() != paths_to_upload.len() {
-        return Err(anyhow::anyhow!(
+        return Err(eyre::eyre!(
             "Mismatch between requested NARs ({}) and presigned URLs ({})",
             paths_to_upload.len(),
             presigned_responses.len()
@@ -1074,7 +1068,7 @@ async fn upload_nars_presigned(
         upload_single_nar_presigned(
             &pool,
             &StorePath::from_base_path(&presigned_response.store_path)
-                .map_err(|e| anyhow::anyhow!("invalid store path in presigned response: {e}"))?,
+                .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?,
             build_id,
             machine_id,
             &presigned_response,
@@ -1100,18 +1094,18 @@ async fn upload_single_nar_presigned(
     presigned_response: &hydra_proto::PresignedNarResponse,
     client: &mut BuilderClient,
     upload_client: &PresignedUploadClient,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     // Presigned upload requires constructing NarInfo from daemon path info.
     let narinfo: binary_cache::NarInfo = {
         let info = daemon_client_utils::query_path_info(pool, nar_path)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("path not found: {nar_path}"))?;
+            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?;
         binary_cache::narinfo_simple(nar_path, info, Compression::None)
     };
     let nar_upload = presigned_response
         .nar_upload
         .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("nar_upload information is missing"))?;
+        .ok_or_else(|| eyre::eyre!("nar_upload information is missing"))?;
 
     let presigned_request = binary_cache::PresignedUploadResponse {
         nar_url: presigned_response.nar_url.clone(),
@@ -1177,7 +1171,7 @@ async fn new_success_build_result_info(
     output_infos: &BTreeMap<OutputName, harmonia_store_path_info::ValidPathInfo>,
     timings: BuildTimings,
     build_id: String,
-) -> anyhow::Result<BuildResultInfo> {
+) -> eyre::Result<BuildResultInfo> {
     let outputs: BTreeMap<_, _> = output_infos
         .iter()
         .map(|(name, vpi)| (name.clone(), vpi.path.clone()))
