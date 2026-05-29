@@ -1,7 +1,9 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11-small";
+  # Temporarily using release-25.11 as it fixes the current CI failures where we're being blocked by
+  # crates.io from fetching dependencies. Once Hydra's caught up we can revert this.
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
 
   inputs.nix = {
     url = "github:NixOS/nix/2.34-maintenance";
