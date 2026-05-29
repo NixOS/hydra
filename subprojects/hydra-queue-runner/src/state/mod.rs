@@ -44,6 +44,7 @@ use crate::state::machine::Machines;
 use crate::utils::finish_build_step;
 
 pub type System = String;
+const MAX_CONCURRENT_BUILD_INJECTION: usize = 10;
 
 enum CreateStepResult {
     None,
@@ -58,6 +59,13 @@ enum RealiseStepResult {
     Valid(Arc<Machine>),
     MaybeCancelled,
     CachedFailure,
+}
+
+struct ProcessedBuild {
+    _id: BuildID,
+    nr_added: Arc<AtomicI64>,
+    new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+    elapsed: u64,
 }
 
 #[allow(missing_debug_implementations)]
@@ -617,40 +625,87 @@ impl State {
             .await?)
     }
 
+    #[allow(clippy::cast_possible_truncation)]
+    #[tracing::instrument(skip(self, new_builds_by_id, new_builds_by_path, finished_drvs), err)]
+    async fn process_single_build(
+        &self,
+        id: BuildID,
+        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
+        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
+        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
+    ) -> anyhow::Result<Option<ProcessedBuild>> {
+        let Some(build) = new_builds_by_id.read().get(&id).cloned() else {
+            return Ok(None);
+        };
+
+        let new_runnable = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
+        let nr_added: Arc<AtomicI64> = Arc::new(0.into());
+        let now = Instant::now();
+
+        self.create_build(
+            build,
+            nr_added.clone(),
+            new_builds_by_id,
+            new_builds_by_path,
+            finished_drvs,
+            new_runnable.clone(),
+        )
+        .await?;
+
+        // we should never run into this issue
+        #[allow(clippy::cast_possible_truncation)]
+        let elapsed = now.elapsed().as_millis() as u64;
+
+        Ok(Some(ProcessedBuild {
+            _id: id,
+            nr_added,
+            new_runnable,
+            elapsed,
+        }))
+    }
+
     #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path), err)]
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
-    ) -> anyhow::Result<()> {
-        let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
+    ) -> anyhow::Result<bool> {
+        use futures::stream::StreamExt as _;
 
+        let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
+        let new_builds_by_path = Arc::new(new_builds_by_path);
         let starttime = jiff::Timestamp::now();
-        for id in new_ids {
-            let Some(build) = new_builds_by_id.read().get(&id).cloned() else {
+
+        let mut futures = futures::stream::FuturesUnordered::new();
+        let mut ids_iter = new_ids.into_iter();
+
+        for _ in 0..MAX_CONCURRENT_BUILD_INJECTION {
+            if let Some(id) = ids_iter.next() {
+                futures.push(Box::pin(Self::process_single_build(
+                    self,
+                    id,
+                    new_builds_by_id.clone(),
+                    new_builds_by_path.clone(),
+                    finished_drvs.clone(),
+                )));
+            }
+        }
+
+        let mut early_exit = false;
+
+        while let Some(result) = futures.next().await {
+            let Some(ProcessedBuild {
+                nr_added,
+                new_runnable,
+                elapsed,
+                ..
+            }) = result?
+            else {
                 continue;
             };
 
-            let new_runnable = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
-            let nr_added: Arc<AtomicI64> = Arc::new(0.into());
-            let now = Instant::now();
-
-            Box::pin(self.create_build(
-                build,
-                nr_added.clone(),
-                new_builds_by_id.clone(),
-                &new_builds_by_path,
-                finished_drvs.clone(),
-                new_runnable.clone(),
-            ))
-            .await?;
-
-            // we should never run into this issue
-            #[allow(clippy::cast_possible_truncation)]
-            self.metrics
-                .build_read_time_ms
-                .inc_by(now.elapsed().as_millis() as u64);
+            self.metrics.build_read_time_ms.inc_by(elapsed);
 
             {
                 let new_runnable = new_runnable.read();
@@ -666,13 +721,28 @@ impl State {
             if let Ok(added_u64) = u64::try_from(nr_added.load(Ordering::Relaxed)) {
                 self.metrics.nr_builds_read.inc_by(added_u64);
             }
-            let stop_queue_run_after = self.config.get_stop_queue_run_after();
 
-            if let Some(stop_queue_run_after) = stop_queue_run_after
-                && jiff::Timestamp::now() > (starttime + stop_queue_run_after)
-            {
-                self.metrics.queue_checks_early_exits.inc();
-                break;
+            // Check early exit only once, after each completed build.
+            // If already exiting, we let in-flight tasks drain naturally.
+            if !early_exit {
+                let stop_queue_run_after = self.config.get_stop_queue_run_after();
+                if let Some(stop_queue_run_after) = stop_queue_run_after
+                    && jiff::Timestamp::now() > (starttime + stop_queue_run_after)
+                {
+                    early_exit = true;
+                    self.metrics.queue_checks_early_exits.inc();
+                }
+            }
+
+            // Queue the next build if not exiting early.
+            if !early_exit && let Some(id) = ids_iter.next() {
+                futures.push(Box::pin(Self::process_single_build(
+                    self,
+                    id,
+                    new_builds_by_id.clone(),
+                    new_builds_by_path.clone(),
+                    finished_drvs.clone(),
+                )));
             }
         }
 
@@ -687,7 +757,7 @@ impl State {
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.trigger_traverse();
         }
-        Ok(())
+        Ok(early_exit)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -780,12 +850,14 @@ impl State {
         }
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
+        let _early_exit =
+            Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
+                .await?;
         Ok(())
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_queued_builds(&self) -> anyhow::Result<()> {
+    pub async fn get_queued_builds(&self) -> anyhow::Result<bool> {
         self.metrics.queue_checks_started.inc();
 
         let mut new_ids = Vec::<BuildID>::with_capacity(1000);
@@ -813,8 +885,10 @@ impl State {
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
         let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
-        Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path)).await?;
-        Ok(())
+        let early_exit =
+            Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
+                .await?;
+        Ok(early_exit)
     }
 
     #[tracing::instrument(skip(self))]
@@ -846,10 +920,13 @@ impl State {
         loop {
             let before_work = Instant::now();
             self.store.clear_path_info_cache();
-            if let Err(e) = self.get_queued_builds().await {
-                tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
-                continue;
-            }
+            let early_exit = match self.get_queued_builds().await {
+                Ok(early_exit) => early_exit,
+                Err(e) => {
+                    tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
+                    continue;
+                }
+            };
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
@@ -858,7 +935,21 @@ impl State {
 
             let before_sleep = Instant::now();
             let queue_trigger_timer = self.config.get_queue_trigger_timer();
-            let notification = if let Some(timer) = queue_trigger_timer {
+            let notification = if early_exit {
+                // Short poll: process maybe pending notifications, then re-run immediately.
+                let short_poll = std::time::Duration::from_millis(100);
+                tokio::select! {
+                    () = tokio::time::sleep(short_poll) => {"timer_reached".into()},
+                    v = listener.try_next() => match v {
+                        Ok(Some(v)) => v.channel().to_owned(),
+                        Ok(None) => continue,
+                        Err(e) => {
+                            tracing::warn!("PgListener failed with e={e}");
+                            continue;
+                        }
+                    },
+                }
+            } else if let Some(timer) = queue_trigger_timer {
                 tokio::select! {
                     () = tokio::time::sleep(timer) => {"timer_reached".into()},
                     v = listener.try_next() => match v {
@@ -1775,7 +1866,7 @@ impl State {
         build: Arc<Build>,
         nr_added: Arc<AtomicI64>,
         new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: &HashMap<StorePath, HashSet<BuildID>>,
+        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
         finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
     ) -> anyhow::Result<()> {
@@ -1852,6 +1943,7 @@ impl State {
             let mut stream = futures::StreamExt::map(tokio_stream::iter(builds), |b| {
                 let nr_added = nr_added.clone();
                 let new_builds_by_id = new_builds_by_id.clone();
+                let new_builds_by_path = new_builds_by_path.clone();
                 let finished_drvs = finished_drvs.clone();
                 let new_runnable = new_runnable.clone();
                 async move {
