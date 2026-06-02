@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
+use harmonia_store_nar_info::UnkeyedNarInfo;
 use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
 use harmonia_store_path_info::fingerprint_path;
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
@@ -123,12 +123,6 @@ pub fn get_ls_path(narinfo: &NarInfo) -> String {
     format!("{}.ls", narinfo.path.hash())
 }
 
-/// Render the narinfo as a text string (for upload).
-#[must_use]
-pub fn render_narinfo(store_dir: &StoreDir, narinfo: &NarInfo) -> String {
-    String::from_utf8_lossy(&harmonia_format_narinfo_txt(store_dir, narinfo)).into_owned()
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum NarInfoError {
     #[error("missing required field: {0}")]
@@ -144,6 +138,8 @@ pub enum NarInfoError {
     },
     #[error("store path parse error: {0}")]
     StorePath(#[from] ParseStorePathError),
+    #[error("narinfo was not valid utf-8")]
+    FromUtf8(#[from] std::str::Utf8Error),
 }
 
 /// Parse a narinfo text into a [`NarInfo`].
@@ -151,9 +147,11 @@ pub enum NarInfoError {
 /// `FromStr` cannot be implemented directly on the re-exported type due to
 /// Rust's orphan rules, so this free function is provided instead.
 // TODO: harmonia should grow its own narinfo parser so we can use that instead
-#[tracing::instrument(skip(input), err)]
+#[tracing::instrument(skip(raw), err)]
 #[allow(clippy::too_many_lines)]
-pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
+pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
+    let input = str::from_utf8(raw)?;
+
     let mut store_path_opt: Option<StorePath> = None;
     let mut url_opt: Option<String> = None;
     let mut compression_opt: Option<String> = None;

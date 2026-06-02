@@ -43,7 +43,7 @@ pub use crate::debug_info::get_debug_info_build_ids;
 use crate::narinfo::NarInfoError;
 pub use crate::narinfo::{
     NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
-    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo, render_narinfo,
+    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo,
 };
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
@@ -345,13 +345,13 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self, content, content_type), err)]
-    pub async fn upsert_file(
+    pub async fn upsert_file<T: Into<Bytes>>(
         &self,
         name: &str,
-        content: String,
+        content: T,
         content_type: &str,
     ) -> Result<(), CacheError> {
-        let stream = Box::new(std::io::Cursor::new(Bytes::from(content)));
+        let stream = Box::new(std::io::Cursor::new(content.into()));
         self.upsert_file_stream(name, stream, content_type).await
     }
 
@@ -537,7 +537,7 @@ impl S3BinaryCacheClient {
         let info_key = format!("{base}.narinfo");
         self.upsert_file(
             &info_key,
-            render_narinfo(store_dir, &narinfo),
+            format_narinfo_txt(store_dir, &narinfo),
             "text/x-nix-narinfo",
         )
         .await?;
@@ -709,7 +709,7 @@ impl S3BinaryCacheClient {
             .await?
         {
             Some(v) => {
-                let narinfo = parse_narinfo(&String::from_utf8_lossy(&v))?;
+                let narinfo = parse_narinfo(&v)?;
                 self.narinfo_cache
                     .insert(store_path.to_owned(), narinfo.clone())
                     .await;
@@ -733,11 +733,8 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn download_realisation(&self, id: &DrvOutput) -> Result<Option<String>, CacheError> {
-        (self.get_object(&format!("realisations/{id}.doi")).await?).map_or_else(
-            || Ok(None),
-            |v| Ok(Some(String::from_utf8_lossy(&v).to_string())),
-        )
+    pub async fn download_realisation(&self, id: &DrvOutput) -> Result<Option<Bytes>, CacheError> {
+        self.get_object(&format!("realisations/{id}.doi")).await
     }
 
     #[tracing::instrument(skip(self), err)]
