@@ -33,16 +33,16 @@ fn retry_strategy() -> backon::ExponentialBuilder {
 
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
-    #[error("Build failure: `{0}`")]
-    Build(anyhow::Error),
-    #[error("Preparing failure: `{0}`")]
-    Preparing(anyhow::Error),
-    #[error("Import failure: `{0}`")]
-    Import(anyhow::Error),
-    #[error("Upload failure: `{0}`")]
-    Upload(anyhow::Error),
-    #[error("Post processing failure: `{0}`")]
-    PostProcessing(anyhow::Error),
+    #[error("Build failure")]
+    Build(#[source] anyhow::Error),
+    #[error("Preparing failure")]
+    Preparing(#[source] anyhow::Error),
+    #[error("Import failure")]
+    Import(#[source] anyhow::Error),
+    #[error("Upload failure")]
+    Upload(#[source] anyhow::Error),
+    #[error("Post processing failure")]
+    PostProcessing(#[source] anyhow::Error),
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -52,8 +52,8 @@ struct NixBuildOutputs {
     outputs: BTreeMap<OutputName, String>,
 }
 
-impl From<JobFailure> for BuildResultState {
-    fn from(item: JobFailure) -> Self {
+impl From<&JobFailure> for BuildResultState {
+    fn from(item: &JobFailure) -> Self {
         match item {
             JobFailure::Build(_) => Self::BuildFailure,
             JobFailure::Preparing(_) => Self::PreparingFailure,
@@ -288,12 +288,15 @@ impl State {
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
-                                "Build of {drv} was cancelled {e}, not reporting Error"
+                                "Build of {drv} was cancelled, not reporting Error: {:?}",
+                                anyhow::Error::new(e)
                             );
                             return;
                         }
 
-                        tracing::error!("Build of {drv} failed with {e}");
+                        let result_state = BuildResultState::from(&e) as i32;
+
+                        tracing::error!("Build of {drv} failed with: {:?}", anyhow::Error::new(e));
                         self_.remove_build(build_id);
                         let failed_build = BuildResultInfo {
                             build_id: build_id.to_string(),
@@ -304,7 +307,7 @@ impl State {
                                 .unwrap_or_default(),
                             upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())
                                 .unwrap_or_default(),
-                            result_state: BuildResultState::from(e) as i32,
+                            result_state,
                             output_infos: std::collections::HashMap::new(),
                         };
 
