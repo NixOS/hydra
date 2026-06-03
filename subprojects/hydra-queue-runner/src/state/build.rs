@@ -63,7 +63,7 @@ impl Build {
             local_priority: 1000,
             global_priority: 1000.into(),
             toplevel: arc_swap::ArcSwapOption::from(None),
-            jobset: Arc::new(Jobset::new(JobsetID::MAX, "debug", "debug")),
+            jobset: Arc::new(Jobset::new(JobsetID::MAX, "debug", "debug", false)),
             finished_in_db: false.into(),
         })
     }

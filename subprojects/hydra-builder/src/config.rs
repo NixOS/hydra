@@ -151,15 +151,20 @@ impl Cli {
 
     #[tracing::instrument(skip(self), err)]
     pub async fn get_authorization_token(&self) -> anyhow::Result<Option<String>> {
-        if let Some(path) = &self.authorization_file {
-            Ok(Some(
-                fs_err::tokio::read_to_string(path)
-                    .await?
-                    .trim()
-                    .to_string(),
-            ))
-        } else {
-            Ok(None)
+        let Some(path) = &self.authorization_file else {
+            return Ok(None);
+        };
+
+        let content = fs_err::tokio::read_to_string(path).await?;
+
+        // Try parsing as TOML and extracting the "token" field.
+        if let Ok(value) = content.parse::<toml::Value>()
+            && let Some(token) = value.get("token").and_then(toml::Value::as_str)
+        {
+            return Ok(Some(token.to_string()));
         }
+
+        // Fallback: treat entire file content as a plain-text token
+        Ok(Some(content.trim().to_string()))
     }
 }

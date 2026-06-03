@@ -17,7 +17,7 @@ pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, Remo
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
-pub use queue::{BuildQueueStats, Queues};
+pub use queue::{BuildQueueStats, QueueType, Queues};
 pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
@@ -256,6 +256,7 @@ impl State {
                     .fail_step(
                         machine_id,
                         &job.path,
+                        job.queue_type,
                         // we fail this with preparing because we kinda want to restart all jobs if
                         // a machine is removed
                         BuildResultState::Completed(
@@ -291,11 +292,12 @@ impl State {
     #[allow(clippy::too_many_lines)]
     async fn realise_drv_on_valid_machine(
         self: Arc<Self>,
-        constraint: queue::JobConstraint,
+        constraint: queue::JobConstraint<'_>,
     ) -> anyhow::Result<RealiseStepResult> {
         let free_fn = self.config.get_machine_free_fn();
 
-        let Some((machine, step_info)) = constraint.resolve(&self.machines, free_fn) else {
+        let Some((machine, step_info, queue_type)) = constraint.resolve(&self.machines, free_fn)
+        else {
             return Ok(RealiseStepResult::None);
         };
         let drv = step_info.step.get_drv_path();
@@ -339,7 +341,7 @@ impl State {
 
         let build_id = build.id;
 
-        let mut job = machine::Job::new(build_id, drv.to_owned());
+        let mut job = machine::Job::new(build_id, drv.to_owned(), queue_type);
         job.result.set_start_time_now();
         if self.check_cached_failure(step_info.step.clone()).await {
             job.result.step_status = BuildStatus::CachedFailure;
@@ -772,11 +774,12 @@ impl State {
         self.builds.update_priorities(&curr_ids);
 
         let cancelled_steps = self.queues.kill_active_steps().await;
-        for (drv_path, machine_id) in cancelled_steps {
+        for (drv_path, machine_id, queue_type) in cancelled_steps {
             if let Err(e) = self
                 .fail_step(
                     machine_id,
                     &drv_path,
+                    queue_type,
                     BuildResultState::Cancelled,
                     BuildTimings::default(),
                 )
@@ -800,11 +803,12 @@ impl State {
         let drv = nix_utils::query_drv(&self.store, drv_path)
             .await?
             .ok_or_else(|| anyhow::anyhow!("drv not found"))?;
-        db.insert_debug_build(
+        db.insert_build(
             self.store.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform)?,
+            "debug",
         )
         .await?;
 
@@ -812,6 +816,48 @@ impl State {
         tx.notify_builds_added().await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn queue_builds(
+        &self,
+        jobset_id: i32,
+        drv_paths: &[StorePath],
+    ) -> anyhow::Result<HashMap<String, BuildID>> {
+        let mut build_ids = HashMap::with_capacity(drv_paths.len());
+        let mut drv_entries = Vec::with_capacity(drv_paths.len());
+
+        for drv_path in drv_paths {
+            let drv = nix_utils::query_drv(&self.store, drv_path)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("drv not found: {drv_path}"))?;
+            if let Some(job) = drv
+                .env
+                .get(b"name".as_slice())
+                .and_then(|v| std::str::from_utf8(v).ok())
+                .map(ToString::to_string)
+            {
+                drv_entries.push((
+                    drv_path,
+                    std::str::from_utf8(&drv.platform)?.to_owned(),
+                    job,
+                ));
+            }
+        }
+
+        let mut db = self.db.get().await?;
+        for (drv_path, system, job) in &drv_entries {
+            let build_id = db
+                .insert_build(self.store.store_dir(), jobset_id, drv_path, system, job)
+                .await?;
+            build_ids.insert(self.store.print_store_path(drv_path), build_id);
+        }
+
+        let mut tx = db.begin_transaction().await?;
+        tx.notify_builds_added().await?;
+        tx.commit().await?;
+
+        Ok(build_ids)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -830,7 +876,13 @@ impl State {
             {
                 let jobset = self
                     .jobsets
-                    .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
+                    .create(
+                        &mut conn,
+                        b.jobset_id,
+                        &b.project,
+                        &b.jobset,
+                        self.config.get_ofborg_config(),
+                    )
                     .await?;
                 let build = Build::new(b, jobset)?;
                 new_ids.push(build.id);
@@ -869,7 +921,13 @@ impl State {
             for b in conn.get_not_finished_builds(self.store.store_dir()).await? {
                 let jobset = self
                     .jobsets
-                    .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
+                    .create(
+                        &mut conn,
+                        b.jobset_id,
+                        &b.project,
+                        &b.jobset,
+                        self.config.get_ofborg_config(),
+                    )
                     .await?;
                 let build = Build::new(b, jobset)?;
                 new_ids.push(build.id);
@@ -1121,7 +1179,7 @@ impl State {
                 )
                 .await;
         }
-        self.queues.remove_all_weak_pointer().await;
+        self.queues.remove_all_weak_pointer(None).await;
 
         let nr_steps_waiting_all_queues = self
             .queues
@@ -1181,12 +1239,13 @@ impl State {
         &self,
         machine_id: uuid::Uuid,
         drv_path: &StorePath,
+        queue_type: QueueType,
         output: BuildOutput,
     ) -> anyhow::Result<()> {
         tracing::info!("marking job as done: drv_path={drv_path}");
         let item = self
             .queues
-            .remove_job_from_scheduled(drv_path)
+            .remove_job_from_scheduled(drv_path, queue_type)
             .await
             .ok_or_else(|| anyhow::anyhow!("Step is missing in queues.scheduled"))?;
 
@@ -1224,7 +1283,7 @@ impl State {
             .remove_job(drv_path)
             .ok_or_else(|| anyhow::anyhow!("Job is missing in machine.jobs m={}", item.machine,))?;
         self.queues
-            .remove_job(&item.step_info, &item.build_queue)
+            .remove_job(&item.step_info, queue_type, &item.build_queue)
             .await;
 
         job.result.step_status = BuildStatus::Success;
@@ -1475,13 +1534,14 @@ impl State {
         &self,
         machine_id: uuid::Uuid,
         drv_path: &StorePath,
+        queue_type: QueueType,
         state: BuildResultState,
         timings: BuildTimings,
     ) -> anyhow::Result<()> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
         let item = self
             .queues
-            .remove_job_from_scheduled(drv_path)
+            .remove_job_from_scheduled(drv_path, queue_type)
             .await
             .ok_or_else(|| anyhow::anyhow!("Step is missing in queues.scheduled"))?;
 
@@ -1553,7 +1613,7 @@ impl State {
 
         // remove job from queues, aka actually fail the job
         self.queues
-            .remove_job(&item.step_info, &item.build_queue)
+            .remove_job(&item.step_info, queue_type, &item.build_queue)
             .await;
 
         self.inner_fail_job(
@@ -1576,11 +1636,12 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| anyhow::anyhow!("Machine with machine_id not found"))?;
-        let drv_path = machine
+        let (drv_path, queue_type) = machine
             .get_job_drv_for_build_id(build_id)
             .ok_or_else(|| anyhow::anyhow!("Job with build_id not found"))?;
 
-        self.succeed_step(machine_id, &drv_path, output).await
+        self.succeed_step(machine_id, &drv_path, queue_type, output)
+            .await
     }
 
     #[tracing::instrument(skip(self), fields(%machine_id, build_id=%build_id), err)]
@@ -1595,11 +1656,12 @@ impl State {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| anyhow::anyhow!("Machine with machine_id not found"))?;
-        let drv_path = machine
+        let (drv_path, queue_type) = machine
             .get_job_drv_for_build_id(build_id)
             .ok_or_else(|| anyhow::anyhow!("Job with build_id not found"))?;
 
-        self.fail_step(machine_id, &drv_path, state, timings).await
+        self.fail_step(machine_id, &drv_path, queue_type, state, timings)
+            .await
     }
 
     #[allow(clippy::too_many_lines)]
@@ -2031,6 +2093,7 @@ impl State {
             referring_step
                 .as_ref()
                 .map(|(step, relation)| (step, relation.clone())),
+            build.jobset.is_ofborg,
         );
         if !is_new {
             // Re-check whether the step's outputs have appeared in the store
@@ -2429,7 +2492,12 @@ impl State {
                 continue;
             };
 
-            let mut job = machine::Job::new(build.id, drv.to_owned());
+            let queue_type = if step.is_ofborg {
+                QueueType::OfBorg
+            } else {
+                QueueType::Main
+            };
+            let mut job = machine::Job::new(build.id, drv.to_owned(), queue_type);
             job.result.set_start_and_stop(now);
             job.result.step_status = BuildStatus::Unsupported;
             job.result.error_msg = Some(format!(
@@ -2443,9 +2511,16 @@ impl State {
 
         {
             for step in &aborted {
-                self.queues.remove_job_by_path(step.get_drv_path()).await;
+                let queue_type = if step.is_ofborg {
+                    QueueType::OfBorg
+                } else {
+                    QueueType::Main
+                };
+                self.queues
+                    .remove_job_by_path(step.get_drv_path(), queue_type)
+                    .await;
             }
-            self.queues.remove_all_weak_pointer().await;
+            self.queues.remove_all_weak_pointer(None).await;
         }
         self.metrics.nr_unsupported_steps.set(count);
         self.metrics

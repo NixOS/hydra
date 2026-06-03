@@ -255,6 +255,29 @@ struct AppConfig {
 
     #[serde(default)]
     forced_substituters: Vec<String>,
+
+    #[serde(default)]
+    ofborg: Option<OfborgConfig>,
+}
+
+#[derive(Debug, serde::Deserialize, Clone, Copy)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct OfborgConfig {
+    pub jobset_id: i32,
+}
+
+/// A token entry with optional feature restrictions.
+/// If `allowed_supported_features` or `allowed_mandatory_features` is `None`,
+/// the token is unrestricted for that category (full access).
+/// If `Some(vec![])`, no features of that category are allowed.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TokenEntry {
+    pub token: String,
+    #[serde(default)]
+    pub allowed_supported_features: Option<Vec<String>>,
+    #[serde(default)]
+    pub allowed_mandatory_features: Option<Vec<String>>,
 }
 
 /// Prepared configuration of the application
@@ -281,10 +304,47 @@ pub struct PreparedApp {
     stop_queue_run_after: Option<jiff::SignedDuration>,
     pub max_concurrent_downloads: u32,
     concurrent_upload_limit: usize,
-    token_list: Option<Vec<String>>,
+    token_list: Option<Vec<TokenEntry>>,
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
     pub forced_substituters: Vec<String>,
+    ofborg: Option<OfborgConfig>,
+}
+
+fn load_tokens(paths: Option<Vec<std::path::PathBuf>>) -> Option<Vec<TokenEntry>> {
+    paths.and_then(|l| {
+        let entries: Vec<TokenEntry> = l
+            .iter()
+            .filter_map(|p| {
+                let content = fs_err::read_to_string(p)
+                    .inspect_err(|e| {
+                        tracing::warn!("Failed to load token file, skipping file. Err={e}");
+                    })
+                    .ok()?;
+
+                if let Ok(entry) = toml::from_str::<TokenEntry>(&content) {
+                    return Some(entry);
+                }
+
+                // Fallback: treat entire file content as a plain-text token
+                let token = content.trim().to_string();
+                if token.is_empty() {
+                    tracing::warn!("Empty token in file, skipping");
+                    return None;
+                }
+                Some(TokenEntry {
+                    token,
+                    allowed_supported_features: None,
+                    allowed_mandatory_features: None,
+                })
+            })
+            .collect();
+        if entries.is_empty() {
+            None
+        } else {
+            Some(entries)
+        }
+    })
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
@@ -318,19 +378,7 @@ impl TryFrom<AppConfig> for PreparedApp {
 
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");
         let lockfile = val.hydra_data_dir.join("queue-runner/lock");
-
-        let token_list = val.token_paths.and_then(|l| {
-            l.iter()
-                .map(|p| {
-                    fs_err::read_to_string(p)
-                        .map(|s| s.trim().to_string())
-                        .inspect_err(|e| {
-                            tracing::warn!("Failed to load token file, skipping file. Err={e}");
-                        })
-                        .ok()
-                })
-                .collect()
-        });
+        let token_list = load_tokens(val.token_paths);
 
         Ok(Self {
             hydra_data_dir: val.hydra_data_dir,
@@ -382,6 +430,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
             forced_substituters: val.forced_substituters,
+            ofborg: val.ofborg,
         })
     }
 }
@@ -540,12 +589,17 @@ impl App {
     }
 
     #[must_use]
-    pub fn check_if_contains_token(&self, token: &str) -> bool {
+    pub fn find_token_entry(&self, token: &str) -> Option<TokenEntry> {
         let inner = self.inner.load();
         inner
             .token_list
             .as_ref()
-            .is_some_and(|l| l.iter().any(|t| t == token))
+            .and_then(|l| l.iter().find(|t| t.token == token).cloned())
+    }
+
+    #[must_use]
+    pub fn check_if_contains_token(&self, token: &str) -> bool {
+        self.find_token_entry(token).is_some()
     }
 
     #[must_use]
@@ -558,6 +612,12 @@ impl App {
     pub fn get_forced_substituters(&self) -> Vec<String> {
         let inner = self.inner.load();
         inner.forced_substituters.clone()
+    }
+
+    #[must_use]
+    pub fn get_ofborg_config(&self) -> Option<OfborgConfig> {
+        let inner = self.inner.load();
+        inner.ofborg
     }
 }
 

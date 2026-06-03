@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use hashbrown::HashMap;
 
+use crate::state::QueueType;
+
 use super::{BuildQueueStats, Process};
 
 #[derive(Debug, serde::Serialize)]
@@ -17,7 +19,9 @@ pub struct QueueRunnerStats {
     jobset_count: usize,
     step_count: usize,
     runnable_count: usize,
-    queue_stats: HashMap<crate::state::System, BuildQueueStats>,
+    main_queue_stats: HashMap<crate::state::System, BuildQueueStats>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ofborg_queue_stats: Option<HashMap<crate::state::System, BuildQueueStats>>,
 
     queue_checks_started: u64,
     queue_build_loads: u64,
@@ -72,14 +76,29 @@ impl QueueRunnerStats {
         let jobset_count = state.jobsets.len();
         let step_count = state.steps.len();
         let runnable_count = state.steps.len_runnable();
-        let queue_stats = {
+        let main_queue_stats = {
             state
                 .queues
-                .get_stats_per_queue()
+                .get_stats_per_queue(QueueType::Main)
                 .await
+                .1
                 .into_iter()
                 .map(|(system, stats)| (system, stats.into()))
                 .collect()
+        };
+        let ofborg_queue_stats = if state.config.get_ofborg_config().is_some() {
+            Some(
+                state
+                    .queues
+                    .get_stats_per_queue(QueueType::OfBorg)
+                    .await
+                    .1
+                    .into_iter()
+                    .map(|(system, stats)| (system, stats.into()))
+                    .collect(),
+            )
+        } else {
+            None
         };
 
         state.metrics.refresh_dynamic_metrics(&state).await;
@@ -97,7 +116,8 @@ impl QueueRunnerStats {
             jobset_count,
             step_count,
             runnable_count,
-            queue_stats,
+            main_queue_stats,
+            ofborg_queue_stats,
             queue_checks_started: state.metrics.queue_checks_started.get(),
             queue_build_loads: state.metrics.queue_build_loads.get(),
             queue_steps_created: state.metrics.queue_steps_created.get(),

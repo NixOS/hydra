@@ -4,6 +4,8 @@ use prometheus::Encoder as _;
 
 use nix_utils::BaseStore as _;
 
+use crate::state::QueueType;
+
 #[derive(Debug)]
 pub struct PromMetrics {
     pub queue_runner_current_time_seconds: prometheus::IntGauge, // hydraqueuerunner_current_time_seconds
@@ -312,42 +314,42 @@ impl PromMetrics {
                 "hydraqueuerunner_machine_type_runnable",
                 "Number of runnable build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
         let running_per_machine_type = prometheus::IntGaugeVec::new(
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_running",
                 "Number of running build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
         let waiting_per_machine_type = prometheus::IntGaugeVec::new(
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_waiting",
                 "Number of waiting build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
         let disabled_per_machine_type = prometheus::IntGaugeVec::new(
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_disabled",
                 "Number of disabled build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
         let avg_runnable_time_per_machine_type = prometheus::IntGaugeVec::new(
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_avg_runnable_time",
                 "Average runnable time for build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
         let wait_time_per_machine_type = prometheus::IntGaugeVec::new(
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_wait_time",
                 "Wait time for build steps per machine type",
             ),
-            &["machine_type"],
+            &["queue_name", "machine_type"],
         )?;
 
         // Per-machine metrics
@@ -904,36 +906,44 @@ impl PromMetrics {
         self.disabled_per_machine_type.reset();
         self.avg_runnable_time_per_machine_type.reset();
         self.wait_time_per_machine_type.reset();
-        for (t, s) in state.queues.get_stats_per_queue().await {
-            if let Ok(v) = i64::try_from(s.total_runnable) {
-                self.runnable_per_machine_type
-                    .with_label_values(std::slice::from_ref(&t))
-                    .set(v);
-            }
-            if let Ok(v) = i64::try_from(s.active_runnable) {
-                self.running_per_machine_type
-                    .with_label_values(&[&t])
-                    .set(v);
-            }
-            if let Ok(v) = i64::try_from(s.nr_runnable_waiting) {
-                self.waiting_per_machine_type
-                    .with_label_values(&[&t])
-                    .set(v);
-            }
-            if let Ok(v) = i64::try_from(s.nr_runnable_disabled) {
-                self.disabled_per_machine_type
-                    .with_label_values(&[&t])
-                    .set(v);
-            }
-            if let Ok(v) = i64::try_from(s.avg_runnable_time) {
-                self.avg_runnable_time_per_machine_type
-                    .with_label_values(&[&t])
-                    .set(v);
-            }
-            if let Ok(v) = i64::try_from(s.wait_time) {
-                self.wait_time_per_machine_type
-                    .with_label_values(&[&t])
-                    .set(v);
+
+        let mut relevant_queues = vec![state.queues.get_stats_per_queue(QueueType::Main).await];
+        if state.config.get_ofborg_config().is_some() {
+            relevant_queues.push(state.queues.get_stats_per_queue(QueueType::OfBorg).await);
+        }
+
+        for (name, stats) in relevant_queues {
+            for (t, s) in stats {
+                if let Ok(v) = i64::try_from(s.total_runnable) {
+                    self.runnable_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
+                if let Ok(v) = i64::try_from(s.active_runnable) {
+                    self.running_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
+                if let Ok(v) = i64::try_from(s.nr_runnable_waiting) {
+                    self.waiting_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
+                if let Ok(v) = i64::try_from(s.nr_runnable_disabled) {
+                    self.disabled_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
+                if let Ok(v) = i64::try_from(s.avg_runnable_time) {
+                    self.avg_runnable_time_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
+                if let Ok(v) = i64::try_from(s.wait_time) {
+                    self.wait_time_per_machine_type
+                        .with_label_values(&[name, &t])
+                        .set(v);
+                }
             }
         }
     }

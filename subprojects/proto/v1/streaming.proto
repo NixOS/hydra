@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package runner.v1;
 
-import "v1/store.proto";
 import "v1/nix-support.proto";
+import "v1/store.proto";
 
 option java_multiple_files = true;
 option java_outer_classname = "RunnerProto";
@@ -21,6 +21,7 @@ service RunnerService {
   rpc FetchPaths(nix.store.v1.StorePaths) returns (stream AddToStoreRequest) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
+  rpc CreateBuild(CreateBuildRequest) returns (CreateBuildResponse) {}
 }
 
 message Empty {}
@@ -250,4 +251,13 @@ message PresignedUploadComplete {
   string build_id = 1; // UUIDv4
   string machine_id = 2; // UUIDv4
   nix.store.v1.NarInfo nar_info = 13;
+}
+
+message CreateBuildRequest {
+  int32 jobset_id = 1;
+  repeated nix.store.v1.StorePath drv_paths = 2;
+}
+
+message CreateBuildResponse {
+  map<string, int32> build_ids = 1;
 }

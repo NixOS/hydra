@@ -7,7 +7,7 @@ use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
 use super::models::{
-    Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
+    Build, BuildID, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
     InsertBuildStep, InsertBuildStepOutput, Jobset, UpdateBuild, UpdateBuildStep,
     UpdateBuildStepInFinish,
 };
@@ -194,52 +194,55 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn insert_debug_build(
+    pub async fn insert_build(
         &mut self,
         store_dir: &StoreDir,
         jobset_id: i32,
         drv_path: &StorePath,
         system: &str,
-    ) -> crate::Result<()> {
+        job: &str,
+    ) -> sqlx::Result<BuildID> {
         let drv_path = store_dir.display(drv_path).to_string();
-        sqlx::query!(
+        Ok(sqlx::query!(
             r#"INSERT INTO builds (
-              finished,
-              timestamp,
-              jobset_id,
-              job,
-              nixname,
-              drvpath,
-              system,
-              maxsilent,
-              timeout,
-              ischannel,
-              iscurrent,
-              priority,
-              globalpriority,
-              keep
-            ) VALUES (
-              0,
-              EXTRACT(EPOCH FROM NOW())::INT4,
-              $1,
-              'debug',
-              'debug',
-              $2,
-              $3,
-              7200,
-              36000,
-              0,
-              0,
-              100,
-              0,
-            0);"#,
+                  finished,
+                  timestamp,
+                  jobset_id,
+                  job,
+                  nixname,
+                  drvpath,
+                  system,
+                  maxsilent,
+                  timeout,
+                  ischannel,
+                  iscurrent,
+                  priority,
+                  globalpriority,
+                  keep
+                ) VALUES (
+                  0,
+                  EXTRACT(EPOCH FROM NOW())::INT4,
+                  $1,
+                  $2,
+                  $2,
+                  $3,
+                  $4,
+                  7200,
+                  36000,
+                  0,
+                  0,
+                  100,
+                  0,
+                 0)
+                RETURNING id;"#,
             jobset_id,
+            job,
             drv_path,
             system,
         )
-        .execute(&mut *self.conn)
-        .await?;
-        Ok(())
+        .fetch_one(&mut *self.conn)
+        .await?
+        .id)
     }
 
     pub async fn get_build_output_for_path(
@@ -938,13 +941,13 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         start_time: Option<i32>,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
         machine: String,
         status: BuildStatus,
         error_msg: Option<String>,
-        propagated_from: Option<crate::models::BuildID>,
+        propagated_from: Option<BuildID>,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> crate::Result<i32> {
         let step_nr = loop {
@@ -1006,7 +1009,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         start_time: i32,
         stop_time: i32,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<i32> {
@@ -1060,7 +1063,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         start_time: i32,
         stop_time: i32,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
     ) -> crate::Result<i32> {
