@@ -2,12 +2,12 @@ use warnings;
 use strict;
 
 package QueueRunnerContext;
-use File::Path qw(make_path);
 use IO::Socket::IP;
 use IPC::Run;
 use LWP::UserAgent;
 use POSIX qw(dup2);
 use Hydra::Config;
+use NixDaemon qw(start_nix_daemon);
 use ProcessGroup;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -28,47 +28,21 @@ sub wait_for_url {
     return 0;
 }
 
-# Start a nix daemon for the given store config.
-# Returns the daemon harness.  Caller must kill_kill it when done.
-sub start_nix_daemon {
-    my ($store) = @_;
-    make_path($store->{nix_state_dir});
-
-    my ($in, $out, $err) = ("", "", "");
-    my $harness;
-    {
-        local $ENV{NIX_REMOTE} = $store->{nix_store_uri};
-        local $ENV{NIX_STORE_DIR} = $store->{nix_store_dir};
-        local $ENV{NIX_STATE_DIR} = $store->{nix_state_dir};
-        local $ENV{NIX_CONF_DIR} = $store->{nix_conf_dir};
-        local $ENV{NIX_DAEMON_SOCKET_PATH} = $store->{nix_daemon_socket_path};
-        local $ENV{NIX_CONFIG} = "trusted-users = *";
-        $harness = IPC::Run::start(
-            ["nix-daemon"],
-            \$in, \$out, \$err,
-        );
-    }
-    my $socket = $store->{nix_daemon_socket_path};
-    for (1..50) {
-        last if -S $socket;
-        select(undef, undef, undef, 0.1);
-    }
-    -S $socket or die "nix-daemon did not start: $socket\n";
-    return $harness;
-}
 
 # Start a queue runner process using systemd socket activation.
 # We bind TCP sockets ourselves (port 0 for OS-assigned ports), then
 # pass them to the queue runner via LISTEN_FDS/LISTEN_FDNAMES.
-# Returns ($process_group, $rest_url, $grpc_addr, $daemon_harness).
-# The ProcessGroup has the queue-runner registered as "queue-runner".
-# Caller is responsible for calling $pg->stop and $daemon_harness->kill_kill when done.
+# Returns ($process_group, $rest_url, $grpc_addr).
+# The ProcessGroup has the nix daemon and queue-runner registered.
+# Caller is responsible for calling $pg->stop when done.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
 
+    my $pg = ProcessGroup->new;
+
     # Start a nix daemon for the queue runner to use.
-    my $daemon_harness = start_nix_daemon($ctx->{central});
+    start_nix_daemon($ctx->{central}, $pg, "queue-runner daemon");
 
     my $config_dir = $ENV{T2_HARNESS_TEMP_DIR}
         // $ctx->{central}{hydra_data};
@@ -159,13 +133,12 @@ sub start_queue_runner {
     my $rest_url = "http://[::1]:$rest_port";
     my $grpc_addr = "[::1]:$grpc_port";
 
-    my $pg = ProcessGroup->new;
     $pg->{procs}{"queue-runner"} = {
         label => "queue-runner", harness => $qr_harness, out => \$qr_out, err => \$qr_err,
     };
     push @{$pg->{order}}, "queue-runner";
 
-    return ($pg, $rest_url, $grpc_addr, $daemon_harness);
+    return ($pg, $rest_url, $grpc_addr);
 }
 
 # Poll the queue runner REST API until all given build IDs are no longer

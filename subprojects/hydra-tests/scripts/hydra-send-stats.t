@@ -22,7 +22,7 @@ subtest "without queue_runner_endpoint" => sub {
 };
 
 subtest "with queue_runner_endpoint" => sub {
-    my ($pg, $base_url, undef, $daemon_harness) = start_queue_runner($ctx{context});
+    my ($pg, $base_url) = start_queue_runner($ctx{context});
 
     my $ok = eval {
         local $SIG{ALRM} = sub { die "timeout\n" };
@@ -55,7 +55,6 @@ subtest "with queue_runner_endpoint" => sub {
     alarm 0;
 
     $pg->stop;
-    $daemon_harness->kill_kill;
 
     die "with queue_runner_endpoint failed: $err" if !$ok && $err;
 };

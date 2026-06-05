@@ -5,6 +5,7 @@ package QueueRunnerBuildOne;
 use JSON::PP;
 use LWP::UserAgent;
 use HTTP::Request;
+use NixDaemon qw(start_nix_daemon);
 use ProcessGroup;
 use QueueRunnerContext;
 our @ISA = qw(Exporter);
@@ -18,9 +19,9 @@ sub runBuilds {
     ref $ctx eq 'HydraTestContext' or die "runBuilds requires a HydraTestContext as first argument\n";
     my @build_ids = map { $_->id } @builds;
 
-    my ($pg, $base_url, $grpc_addr, $qr_daemon) = start_queue_runner($ctx);
+    my ($pg, $base_url, $grpc_addr) = start_queue_runner($ctx);
 
-    my $bl_daemon = QueueRunnerContext::start_nix_daemon($ctx->{builder});
+    start_nix_daemon($ctx->{builder}, $pg, "builder daemon");
 
     $pg->spawn("builder",
         ["hydra-builder", "--gateway-endpoint", "http://$grpc_addr"],
@@ -66,8 +67,6 @@ sub runBuilds {
     alarm 0;
 
     $pg->stop;
-    $bl_daemon->kill_kill(grace => 2);
-    $qr_daemon->kill_kill(grace => 2);
 
     if (!$ok) {
         print STDERR "runBuilds failed: $err" if $err;
