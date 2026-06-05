@@ -1,5 +1,4 @@
 use harmonia_store_path::StorePath;
-
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadsResponse {

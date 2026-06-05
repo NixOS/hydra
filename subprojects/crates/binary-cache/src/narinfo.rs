@@ -128,16 +128,14 @@ pub enum NarInfoError {
     #[error("missing required field: {0}")]
     MissingField(&'static str),
     #[error("invalid value for {field}: {value}")]
-    InvalidField { field: String, value: String },
+    InvalidValue {
+        field: String,
+        value: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     #[error("parse error on line {line}: {reason}")]
     Line { line: usize, reason: String },
-    #[error("integer parse error for {field}: {err}")]
-    Int {
-        field: &'static str,
-        err: std::num::ParseIntError,
-    },
-    #[error("store path parse error: {0}")]
-    StorePath(#[from] ParseStorePathError),
     #[error("narinfo was not valid utf-8")]
     FromUtf8(#[from] std::str::Utf8Error),
 }
@@ -186,7 +184,13 @@ pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
 
         match key {
             "StorePath" => {
-                store_path_opt = Some(StoreDir::default().parse::<StorePath>(val)?);
+                store_path_opt = Some(val.parse().map_err(|e: ParseStorePathError| {
+                    NarInfoError::InvalidValue {
+                        field: key.to_owned(),
+                        value: val.to_owned(),
+                        source: e.into(),
+                    }
+                })?);
             }
             "URL" => {
                 url_opt = Some(val.to_string());
@@ -198,18 +202,20 @@ pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
                 file_hash = parse_hash(val);
             }
             "FileSize" => {
-                file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                    field: "FileSize",
-                    err: e,
+                file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::InvalidValue {
+                    field: key.to_owned(),
+                    value: val.to_owned(),
+                    source: e.into(),
                 })?);
             }
             "NarHash" => {
                 nar_hash_opt = parse_nar_hash(val);
             }
             "NarSize" => {
-                nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                    field: "NarSize",
-                    err: e,
+                nar_size = val.parse::<u64>().map_err(|e| NarInfoError::InvalidValue {
+                    field: key.to_owned(),
+                    value: val.to_owned(),
+                    source: e.into(),
                 })?;
                 have_nar_size = true;
             }
@@ -217,14 +223,27 @@ pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
                 references = val
                     .split_whitespace()
                     .filter(|s| !s.is_empty())
-                    .map(StorePath::from_base_path)
+                    .map(|s| {
+                        s.parse()
+                            .map_err(|e: ParseStorePathError| NarInfoError::InvalidValue {
+                                field: key.to_owned(),
+                                value: s.to_owned(),
+                                source: e.into(),
+                            })
+                    })
                     .collect::<Result<_, _>>()?;
             }
             "Deriver" => {
                 deriver = if val.is_empty() {
                     None
                 } else {
-                    Some(StorePath::from_base_path(val)?)
+                    Some(val.parse().map_err(|e: ParseStorePathError| {
+                        NarInfoError::InvalidValue {
+                            field: key.to_owned(),
+                            value: val.to_owned(),
+                            source: e.into(),
+                        }
+                    })?)
                 };
             }
             "CA" => {

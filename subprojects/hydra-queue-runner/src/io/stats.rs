@@ -232,7 +232,7 @@ pub struct StoreStats {
 
 impl StoreStats {
     #[must_use]
-    pub fn new(v: &nix_utils::StoreStats) -> Self {
+    pub fn new(v: &StoreStats) -> Self {
         Self {
             nar_info_read: v.nar_info_read,
             nar_info_read_averted: v.nar_info_read_averted,
@@ -247,8 +247,8 @@ impl StoreStats {
             nar_write_bytes: v.nar_write_bytes,
             nar_write_compressed_bytes: v.nar_write_compressed_bytes,
             nar_write_compression_time_ms: v.nar_write_compression_time_ms,
-            nar_compression_savings: v.nar_compression_savings(),
-            nar_compression_speed: v.nar_compression_speed(),
+            nar_compression_savings: 0.0, // not available via daemon protocol
+            nar_compression_speed: 0.0,   // not available via daemon protocol
         }
     }
 }

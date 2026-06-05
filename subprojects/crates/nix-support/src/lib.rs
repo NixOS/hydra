@@ -412,7 +412,9 @@ mod tests {
                 .unwrap(),
             ),
         };
-        let bp = parse_build_product(&store_dir, &fs, &line).await.unwrap();
+        let bp = Box::pin(parse_build_product(&store_dir, &fs, &line))
+            .await
+            .unwrap();
         assert!(bp.is_regular);
         assert_eq!(bp.name, "custom.iso");
         assert_eq!(bp.r#type, "file");
@@ -435,7 +437,7 @@ mod tests {
             },
             file_hash: None,
         };
-        let bp = parse_build_product(&store_dir, &fs, line).await;
+        let bp = Box::pin(parse_build_product(&store_dir, &fs, line)).await;
         assert!(bp.is_none());
     }
 

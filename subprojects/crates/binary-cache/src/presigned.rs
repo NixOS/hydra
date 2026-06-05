@@ -1,14 +1,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use backon::Retryable;
-
 use bytes::Bytes;
 use harmonia_store_path::StorePath;
-use nix_utils::{BaseStore as _, LocalStore};
 
-use tokio_util::io::StreamReader;
-
-use crate::{CacheError, Compression, streaming_hash::HashingReader};
+use crate::{CacheError, Compression, read_nar_stream, streaming_hash::HashingReader};
 
 const RETRY_MIN_DELAY_SECS: u64 = 1;
 const RETRY_MAX_DELAY_SECS: u64 = 30;
@@ -109,7 +105,7 @@ impl PresignedUploadClient {
     #[tracing::instrument(skip(self, store, narinfo, req), err)]
     pub async fn process_presigned_request(
         &self,
-        store: &LocalStore,
+        store: &harmonia_store_remote::ConnectionPool,
         mut narinfo: crate::NarInfo,
         req: PresignedUploadResponse,
     ) -> Result<crate::NarInfo, CacheError> {
@@ -127,7 +123,7 @@ impl PresignedUploadClient {
             };
             crate::debug_info::process_debug_info(
                 &req.nar_url,
-                store,
+                store.store_dir().as_ref(),
                 &narinfo.path,
                 debug_info_client.clone(),
             )
@@ -146,67 +142,32 @@ impl PresignedUploadClient {
     #[tracing::instrument(skip(self, store, store_path), err)]
     async fn upload_nar(
         &self,
-        store: &LocalStore,
+        store: &harmonia_store_remote::ConnectionPool,
         store_path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, std::io::Error>>();
-        let (result_tx, result_rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
-
-        let closure = {
-            let tx = tx.clone();
-            move |data: &[u8]| {
-                let data = Bytes::copy_from_slice(data);
-                tx.send(Ok(data)).is_ok()
-            }
-        };
-
-        tokio::task::spawn({
-            let path = store_path.clone();
-            let store = store.clone();
-            async move {
-                let result = store
-                    .nar_from_path(&path, closure)
-                    .map_err(|e| format!("NAR reading failed: {e}"));
-                let _ = result_tx.send(result);
-            }
-        });
-
-        drop(tx);
-        let stream = StreamReader::new(tokio_stream::wrappers::UnboundedReceiverStream::new(rx));
+        let stream = read_nar_stream(store, store_path);
         let compressor = upload
             .compression
             .get_compression_fn(upload.compression_level, false);
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
-        let upload_result = self.upload_any(upload, hashing_reader, start, None).await;
-
-        match result_rx.await {
-            Ok(Ok(())) => upload_result,
-            Ok(Err(e)) => Err(CacheError::UploadError {
-                path: upload.path.clone(),
-                reason: e,
-            }),
-            Err(_) => Err(CacheError::UploadError {
-                path: upload.path.clone(),
-                reason: "NAR reading task was cancelled or panicked".to_string(),
-            }),
-        }
+        self.upload_any(upload, hashing_reader, start, None).await
     }
 
-    #[tracing::instrument(skip(self, store, store_path), err)]
+    #[tracing::instrument(skip(self, store), err)]
     async fn upload_ls(
         &self,
-        store: &LocalStore,
-        store_path: &StorePath,
+        store: &harmonia_store_remote::ConnectionPool,
+        path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let listing = super::nar_listing(store, store_path).await?;
+        let listing = super::nar_listing(store, path).await?;
         let ls_json = serde_json::json!({
             "version": 1,
             "root": listing,
@@ -249,64 +210,74 @@ impl PresignedUploadClient {
         start: std::time::Instant,
         content_type: Option<&str>,
     ) -> Result<PresignedUploadResult, CacheError> {
-        use tokio::io::AsyncReadExt as _;
+        // Clippy has a false positive and suggests using blocks,
+        // but that would not allow processing errors from the ? operator to add context
+        #[allow(clippy::redundant_closure_call)]
+        async move || -> Result<PresignedUploadResult, CacheError> {
+            use tokio::io::AsyncReadExt as _;
 
-        let mut request = self.client.put(&upload.url);
-        if let Some(content_type) = content_type {
-            request = request.header("Content-Type", content_type);
-        } else {
-            request = request.header("Content-Type", upload.compression.content_type());
-        }
-        if !upload.compression.content_encoding().is_empty() {
-            request = request.header("Content-Encoding", upload.compression.content_encoding());
-        }
+            let mut request = self.client.put(&upload.url);
+            if let Some(content_type) = content_type {
+                request = request.header("Content-Type", content_type);
+            } else {
+                request = request.header("Content-Type", upload.compression.content_type());
+            }
+            if !upload.compression.content_encoding().is_empty() {
+                request = request.header("Content-Encoding", upload.compression.content_encoding());
+            }
 
-        // TODO: We need multipart signed urls to fix this!
-        //       object_store currently doesnt have support for this.
-        let mut buffer = Vec::new();
-        reader.read_to_end(&mut buffer).await?;
+            // TODO: We need multipart signed urls to fix this!
+            //       object_store currently doesnt have support for this.
+            let mut buffer = Vec::new();
+            reader.read_to_end(&mut buffer).await?;
 
-        let _response = (|| async {
-            Ok::<_, CacheError>(
-                request
-                    .try_clone()
-                    .ok_or_else(|| CacheError::RequestCloneError)?
-                    .body(buffer.clone())
-                    .send()
-                    .await?
-                    .error_for_status()?,
+            let _response = (|| async {
+                Ok::<_, CacheError>(
+                    request
+                        .try_clone()
+                        .ok_or_else(|| CacheError::RequestCloneError)?
+                        .body(buffer.clone())
+                        .send()
+                        .await?
+                        .error_for_status()?,
+                )
+            })
+            .retry(
+                &backon::ExponentialBuilder::default()
+                    .with_min_delay(std::time::Duration::from_secs(RETRY_MIN_DELAY_SECS))
+                    .with_max_delay(std::time::Duration::from_secs(RETRY_MAX_DELAY_SECS))
+                    .with_max_times(RETRY_MAX_ATTEMPTS),
             )
-        })
-        .retry(
-            &backon::ExponentialBuilder::default()
-                .with_min_delay(std::time::Duration::from_secs(RETRY_MIN_DELAY_SECS))
-                .with_max_delay(std::time::Duration::from_secs(RETRY_MAX_DELAY_SECS))
-                .with_max_times(RETRY_MAX_ATTEMPTS),
-        )
-        .await?;
+            .await?;
 
-        let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
+            let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
 
-        let (file_hash, file_size) = reader.finalize()?;
+            let (file_hash, file_size) = reader.finalize()?;
 
-        let file_hash = harmonia_utils_hash::Hash::from_slice(
-            harmonia_utils_hash::Algorithm::SHA256,
-            file_hash.as_slice(),
-        )
-        .map_err(|e| CacheError::Signing(format!("invalid file hash: {e}")))?;
+            let file_hash = harmonia_utils_hash::Hash::from_slice(
+                harmonia_utils_hash::Algorithm::SHA256,
+                file_hash.as_slice(),
+            )
+            .map_err(|e| CacheError::Signing(format!("invalid file hash: {e}")))?;
 
-        // Update metrics
-        self.metrics
-            .put_bytes
-            .fetch_add(file_size as u64, Ordering::Relaxed);
-        self.metrics
-            .put_time_ms
-            .fetch_add(elapsed, Ordering::Relaxed);
-        self.metrics.put.fetch_add(1, Ordering::Relaxed);
+            // Update metrics
+            self.metrics
+                .put_bytes
+                .fetch_add(file_size as u64, Ordering::Relaxed);
+            self.metrics
+                .put_time_ms
+                .fetch_add(elapsed, Ordering::Relaxed);
+            self.metrics.put.fetch_add(1, Ordering::Relaxed);
 
-        Ok(PresignedUploadResult {
-            file_hash,
-            file_size: file_size as u64,
+            Ok(PresignedUploadResult {
+                file_hash,
+                file_size: file_size as u64,
+            })
+        }()
+        .await
+        .map_err(|source| CacheError::Upload {
+            path: upload.url.clone(),
+            source: source.into(),
         })
     }
 }
@@ -354,9 +325,9 @@ impl crate::debug_info::DebugInfoClient for PresignedDebugInfoUpload {
             .debug_info_urls
             .iter()
             .find(|presigned| presigned.path == key)
-            .ok_or(CacheError::UploadError {
+            .ok_or(CacheError::PresignedUrlError {
                 path: key.clone(),
-                reason: format!("Presigned URL not found for build ID: {build_id}"),
+                reason: "Presigned URL not found".to_string(),
             })?;
 
         let json_content = crate::debug_info::DebugInfoLink {
