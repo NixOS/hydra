@@ -1,9 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  # Temporarily using release-25.11 as it fixes the current CI failures where we're being blocked by
-  # crates.io from fetching dependencies. Once Hydra's caught up we can revert this.
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
+  inputs.nixpkgs.url = "https://channels.nixos.org/nixos-26.05/nixexprs.tar.xz";
 
   inputs.nix = {
     url = "github:NixOS/nix/2.34-maintenance";
