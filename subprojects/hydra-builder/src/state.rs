@@ -102,12 +102,13 @@ pub struct Config {
     pub real_store_dir: Option<std::path::PathBuf>,
 }
 
-#[derive(Debug)]
+#[allow(missing_debug_implementations)]
 pub struct State {
     pub id: uuid::Uuid,
     pub hostname: String,
     pub config: Config,
     pub max_concurrent_downloads: AtomicU32,
+    pub pool: harmonia_store_remote::ConnectionPool,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
     pub client: BuilderClient,
@@ -156,6 +157,12 @@ impl State {
             .join("hydra-roots/builder");
         fs_err::tokio::create_dir_all(&gcroots).await?;
 
+        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
+            &nix_remote.socket,
+            nix_remote.store_dir.clone(),
+            harmonia_store_remote::PoolConfig::default(),
+        );
+
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
             hostname: gethostname::gethostname().into_string().map_err(|v| {
@@ -198,6 +205,7 @@ impl State {
                 store_dir: nix_remote.store_dir.clone(),
                 real_store_dir: nix_remote.real_store_dir(),
             },
+            pool,
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
@@ -407,16 +415,6 @@ impl State {
         m: BuildMessage,
         timings: &mut BuildTimings,
     ) -> Result<(), JobFailure> {
-        let nix_config = daemon_client_utils::parse_nix_remote()
-            .map_err(|e| JobFailure::Preparing(anyhow::anyhow!(e)))?;
-        let daemon_socket = nix_config.socket;
-        let store_dir = nix_config.store_dir;
-        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
-            &daemon_socket,
-            store_dir.clone(),
-            harmonia_store_remote::PoolConfig::default(),
-        );
-
         let machine_id = self.id;
         let drv = m
             .drv
@@ -446,7 +444,7 @@ impl State {
 
         import_requisites(
             &mut client,
-            pool.clone(),
+            self.pool.clone(),
             self.metrics.clone(),
             &gcroot,
             &drv,
@@ -467,7 +465,7 @@ impl State {
             .await;
         let before_build = Instant::now();
         let (mut child, stdout, stderr) = crate::realise::realise_drv(
-            pool.store_dir(),
+            self.pool.store_dir(),
             &drv,
             m.max_log_size,
             m.max_silent_time,
@@ -525,7 +523,8 @@ impl State {
             )));
         }
 
-        let actual_out_drv: StorePath = pool
+        let actual_out_drv: StorePath = self
+            .pool
             .store_dir()
             .parse(&output_raw[0].drv_path) // safe to do because we checked len above
             .map_err(|e: ParseStorePathError| JobFailure::PostProcessing(e.into()))?;
@@ -539,12 +538,12 @@ impl State {
             .remove(0) // safe to do because we checked len above
             .outputs
             .into_iter()
-            .map(|(name, path)| Ok((name, pool.store_dir().parse::<StorePath>(&path)?)))
+            .map(|(name, path)| Ok((name, self.pool.store_dir().parse::<StorePath>(&path)?)))
             .collect::<anyhow::Result<BTreeMap<OutputName, StorePath>>>()
             .map_err(JobFailure::PostProcessing)?;
 
         for o in outputs.values() {
-            add_gc_root(&gcroot.root, pool.store_dir(), o);
+            add_gc_root(&gcroot.root, self.pool.store_dir(), o);
         }
 
         timings.build_elapsed = before_build.elapsed();
@@ -555,7 +554,7 @@ impl State {
         // successful build.
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
-            let info = daemon_client_utils::query_path_info(&pool, path)
+            let info = daemon_client_utils::query_path_info(&self.pool, path)
                 .await
                 .map_err(|e| {
                     JobFailure::PostProcessing(anyhow::anyhow!("query_path_info failed: {e}"))
@@ -584,7 +583,7 @@ impl State {
 
         let before_upload = Instant::now();
         self.upload_nars(
-            pool.clone(),
+            self.pool.clone(),
             outputs.values().cloned().collect::<Vec<_>>(),
             &m.build_id,
             &machine_id.to_string(),
@@ -602,7 +601,7 @@ impl State {
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
-            pool.clone(),
+            self.pool.clone(),
             machine_id,
             &drv,
             &output_infos,
