@@ -1,5 +1,5 @@
 # Shared outputHashes for cargoLock across all Rust crates.
 # Update this file when the harmonia dependency changes.
 {
-  "harmonia-store-derivation-0.0.0-alpha.0" = "sha256-VZs2rVEPzWW/nzcR4Fkqiuc5BWCn63MTKExaOT8Vwrk=";
+  "harmonia-store-derivation-0.0.0-alpha.0" = "sha256-6LJOkuyWuMjENbzZCKDOjEz4qjYipTwH0qRMcwpdLSk=";
 }

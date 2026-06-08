@@ -28,9 +28,6 @@ pub enum Error {
     #[error("db error: `{0}`")]
     Sqlx(#[from] db::Error),
 
-    #[error("store path parse error: `{0}`")]
-    StorePath(#[from] harmonia_store_path::ParseStorePathError),
-
     #[error("Not found")]
     NotFound,
 
@@ -50,7 +47,6 @@ impl Error {
             | Self::Anyhow(_)
             | Self::Sqlx(_)
             | Self::Fatal => hyper::StatusCode::INTERNAL_SERVER_ERROR,
-            Self::StorePath(_) => hyper::StatusCode::BAD_REQUEST,
             Self::NotFound => hyper::StatusCode::NOT_FOUND,
         }
     }
@@ -212,7 +208,7 @@ mod handler {
                     .iter()
                     .filter_map(|s| match s {
                         crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        crate::state::RemoteStoreBackend::Nix(_) => None,
+                        crate::state::RemoteStoreBackend::NixCopy(_) => None,
                     })
                     .collect()
             };
@@ -220,7 +216,6 @@ mod handler {
                 queue_stats,
                 machines,
                 jobsets,
-                &state.store,
                 &s3_stores,
             ))
         }
@@ -348,6 +343,7 @@ mod handler {
 
         use super::super::{Error, Response, construct_json_ok_response};
         use crate::{io, state::State};
+        use harmonia_store_path::StorePath;
 
         #[tracing::instrument(skip(req, state), err)]
         pub(crate) async fn put(
@@ -357,8 +353,12 @@ mod handler {
             let whole_body = req.collect().await?.aggregate();
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
-            let drv_path: harmonia_store_path::StorePath = data.drv.parse()?;
-            state.queue_one_build(data.jobset_id, &drv_path).await?;
+            state
+                .queue_one_build(
+                    data.jobset_id,
+                    &StorePath::from_base_path(&data.drv).map_err(|e| anyhow::anyhow!("{e}"))?,
+                )
+                .await?;
             construct_json_ok_response(&io::Empty {})
         }
     }

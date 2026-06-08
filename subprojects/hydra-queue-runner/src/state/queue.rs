@@ -1,10 +1,9 @@
+use harmonia_store_path::StorePath;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
 use hashbrown::{HashMap, HashSet};
 use smallvec::SmallVec;
-
-use harmonia_store_path::StorePath;
 
 use super::{StepInfo, System};
 use crate::config::StepSortFn;

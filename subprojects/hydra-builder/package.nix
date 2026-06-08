@@ -4,7 +4,6 @@
 
   rustPlatform,
 
-  nixComponents,
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
@@ -51,7 +50,6 @@ rustPlatform.buildRustPackage {
   ];
 
   buildInputs = [
-    nixComponents.nix-main
     protobuf
     rust-jemalloc-sys
   ];

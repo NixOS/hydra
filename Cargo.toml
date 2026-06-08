@@ -31,12 +31,14 @@ gethostname = "1"
 h2 = "0.4"
 harmonia-file-core = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-file-nar = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-protocol = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-content-address = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-derivation = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-nar-info = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-path = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-path-info = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-remote = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-io = { git = "https://github.com/nix-community/harmonia.git" }
@@ -59,6 +61,7 @@ opentelemetry-otlp = "0.31.0"
 opentelemetry-semantic-conventions = "0.31.0"
 opentelemetry_sdk = "0.31.0"
 parking_lot = "0.12.4"
+petgraph = { version = "0.8", default-features = false, features = [ "graphmap", "std" ] }
 pkg-config = "0.3"
 procfs = "0.18"
 procfs-core = "0.18"
@@ -103,15 +106,15 @@ zerocopy = { version = "0.8", features = [ "derive" ] }
 zstd = "0.13"
 
 # Local workspace crates
-binary-cache     = { path = "subprojects/crates/binary-cache" }
-db               = { path = "subprojects/crates/db" }
-hydra-proto      = { path = "subprojects/crates/proto" }
-hydra-tracing    = { path = "subprojects/crates/tracing" }
-nix-support      = { path = "subprojects/crates/nix-support" }
-nix-utils        = { path = "subprojects/crates/nix-utils" }
-store-path-utils = { path = "subprojects/crates/store-path-utils" }
-store-transfer   = { path = "subprojects/crates/store-transfer" }
-test-utils       = { path = "subprojects/crates/test-utils" }
+binary-cache        = { path = "subprojects/crates/binary-cache" }
+daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
+db                  = { path = "subprojects/crates/db" }
+hydra-proto         = { path = "subprojects/crates/proto" }
+hydra-tracing       = { path = "subprojects/crates/tracing" }
+nix-support         = { path = "subprojects/crates/nix-support" }
+store-path-utils    = { path = "subprojects/crates/store-path-utils" }
+store-transfer      = { path = "subprojects/crates/store-transfer" }
+test-utils          = { path = "subprojects/crates/test-utils" }
 
 [patch.crates-io]
 harmonia-file-core             = { git = "https://github.com/nix-community/harmonia.git" }

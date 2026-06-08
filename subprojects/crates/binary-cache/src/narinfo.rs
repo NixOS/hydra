@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use harmonia_store_nar_info::{UnkeyedNarInfo, format_narinfo_txt as harmonia_format_narinfo_txt};
+use harmonia_store_nar_info::UnkeyedNarInfo;
 use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
 use harmonia_store_path_info::fingerprint_path;
 use harmonia_store_path_info::{NarHash, UnkeyedValidPathInfo};
@@ -123,27 +123,21 @@ pub fn get_ls_path(narinfo: &NarInfo) -> String {
     format!("{}.ls", narinfo.path.hash())
 }
 
-/// Render the narinfo as a text string (for upload).
-#[must_use]
-pub fn render_narinfo(store_dir: &StoreDir, narinfo: &NarInfo) -> String {
-    String::from_utf8_lossy(&harmonia_format_narinfo_txt(store_dir, narinfo)).into_owned()
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum NarInfoError {
     #[error("missing required field: {0}")]
     MissingField(&'static str),
     #[error("invalid value for {field}: {value}")]
-    InvalidField { field: String, value: String },
+    InvalidValue {
+        field: String,
+        value: String,
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     #[error("parse error on line {line}: {reason}")]
     Line { line: usize, reason: String },
-    #[error("integer parse error for {field}: {err}")]
-    Int {
-        field: &'static str,
-        err: std::num::ParseIntError,
-    },
-    #[error("store path parse error: {0}")]
-    StorePath(#[from] ParseStorePathError),
+    #[error("narinfo was not valid utf-8")]
+    FromUtf8(#[from] std::str::Utf8Error),
 }
 
 /// Parse a narinfo text into a [`NarInfo`].
@@ -151,9 +145,11 @@ pub enum NarInfoError {
 /// `FromStr` cannot be implemented directly on the re-exported type due to
 /// Rust's orphan rules, so this free function is provided instead.
 // TODO: harmonia should grow its own narinfo parser so we can use that instead
-#[tracing::instrument(skip(input), err)]
+#[tracing::instrument(skip(raw), err)]
 #[allow(clippy::too_many_lines)]
-pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
+pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
+    let input = str::from_utf8(raw)?;
+
     let mut store_path_opt: Option<StorePath> = None;
     let mut url_opt: Option<String> = None;
     let mut compression_opt: Option<String> = None;
@@ -188,7 +184,13 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
 
         match key {
             "StorePath" => {
-                store_path_opt = Some(StoreDir::default().parse::<StorePath>(val)?);
+                store_path_opt = Some(val.parse().map_err(|e: ParseStorePathError| {
+                    NarInfoError::InvalidValue {
+                        field: key.to_owned(),
+                        value: val.to_owned(),
+                        source: e.into(),
+                    }
+                })?);
             }
             "URL" => {
                 url_opt = Some(val.to_string());
@@ -200,18 +202,20 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 file_hash = parse_hash(val);
             }
             "FileSize" => {
-                file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                    field: "FileSize",
-                    err: e,
+                file_size = Some(val.parse::<u64>().map_err(|e| NarInfoError::InvalidValue {
+                    field: key.to_owned(),
+                    value: val.to_owned(),
+                    source: e.into(),
                 })?);
             }
             "NarHash" => {
                 nar_hash_opt = parse_nar_hash(val);
             }
             "NarSize" => {
-                nar_size = val.parse::<u64>().map_err(|e| NarInfoError::Int {
-                    field: "NarSize",
-                    err: e,
+                nar_size = val.parse::<u64>().map_err(|e| NarInfoError::InvalidValue {
+                    field: key.to_owned(),
+                    value: val.to_owned(),
+                    source: e.into(),
                 })?;
                 have_nar_size = true;
             }
@@ -219,14 +223,27 @@ pub fn parse_narinfo(input: &str) -> Result<NarInfo, NarInfoError> {
                 references = val
                     .split_whitespace()
                     .filter(|s| !s.is_empty())
-                    .map(StorePath::from_base_path)
+                    .map(|s| {
+                        s.parse()
+                            .map_err(|e: ParseStorePathError| NarInfoError::InvalidValue {
+                                field: key.to_owned(),
+                                value: s.to_owned(),
+                                source: e.into(),
+                            })
+                    })
                     .collect::<Result<_, _>>()?;
             }
             "Deriver" => {
                 deriver = if val.is_empty() {
                     None
                 } else {
-                    Some(StorePath::from_base_path(val)?)
+                    Some(val.parse().map_err(|e: ParseStorePathError| {
+                        NarInfoError::InvalidValue {
+                            field: key.to_owned(),
+                            value: val.to_owned(),
+                            source: e.into(),
+                        }
+                    })?)
                 };
             }
             "CA" => {

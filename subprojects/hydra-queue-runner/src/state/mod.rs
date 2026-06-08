@@ -14,6 +14,7 @@ mod uploader;
 use anyhow::Context as _;
 pub use atomic::AtomicDateTime;
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
+use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
@@ -35,7 +36,6 @@ use harmonia_store_derivation::derivation::DerivationOutput;
 use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
 use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
-use nix_utils::BaseStore as _;
 
 use crate::config::{App, Cli};
 use crate::state::build::get_mark_build_sccuess_data;
@@ -71,12 +71,13 @@ struct ProcessedBuild {
 #[allow(missing_debug_implementations)]
 pub enum RemoteStoreBackend {
     S3(binary_cache::S3BinaryCacheClient),
-    Nix(nix_utils::RemoteStore),
+    /// A nix store reachable via `nix copy --to <uri>`.
+    NixCopy(String),
 }
 
 #[allow(missing_debug_implementations)]
 pub struct State {
-    pub store: nix_utils::LocalStore,
+    pub pool: harmonia_store_remote::ConnectionPool,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
@@ -107,14 +108,52 @@ pub struct State {
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
     pub uploader: uploader::Uploader,
+
+    /// Parsed nix daemon store config (for reconstructing URIs etc).
+    pub nix_daemon_config: daemon_client_utils::NixDaemonStoreConfig,
+    /// Physical store directory on disk (for chroot stores).
+    /// Cached from `nix_daemon_config.real_store_dir()`.
+    /// `None` means the logical store dir is the filesystem path.
+    pub real_store_dir: Option<std::path::PathBuf>,
 }
 
 impl State {
+    /// Resolve a store path to a filesystem path, accounting for chroot stores.
+    fn real_path(&self, path: &StorePath) -> std::path::PathBuf {
+        match &self.real_store_dir {
+            Some(real) => real.join(path.to_string()),
+            None => std::path::PathBuf::from(self.pool.store_dir().display(path).to_string()),
+        }
+    }
+
+    /// Read and parse a `.drv` file from the store.
+    async fn read_derivation(&self, drv_path: &StorePath) -> anyhow::Result<Derivation> {
+        let content = fs_err::tokio::read_to_string(self.real_path(drv_path)).await?;
+        let drv_name_str = drv_path.name().to_string();
+        let name = drv_name_str
+            .strip_suffix(".drv")
+            .ok_or_else(|| anyhow::anyhow!("drv path does not end in .drv"))?
+            .parse()
+            .context("failed to parse derivation name")?;
+        harmonia_store_aterm::parse_derivation_aterm(
+            self.pool.store_dir(),
+            content.as_bytes(),
+            name,
+        )
+        .context("failed to parse derivation ATerm")
+    }
+
     #[tracing::instrument(err)]
     pub async fn new() -> anyhow::Result<Arc<Self>> {
-        let store = nix_utils::LocalStore::init();
-        nix_utils::set_verbosity(1);
-        tracing::info!("LocalStore dir={}", nix_utils::get_store_dir());
+        let nix_config = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
+        let store_dir = nix_config.store_dir.clone();
+        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
+            &nix_config.socket,
+            store_dir.clone(),
+            harmonia_store_remote::PoolConfig::default(),
+        );
+
+        tracing::info!("LocalStore dir={store_dir}");
 
         let cli = Cli::new();
 
@@ -138,13 +177,18 @@ impl State {
                     binary_cache::S3BinaryCacheClient::new(cfg).await?,
                 ));
             } else {
-                tracing::info!("Opening FFI store for: {uri}");
-                remote_stores.push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(&uri)));
+                remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
             }
         }
 
+        let fod_checker = if config.get_enable_fod_checker() {
+            Some(Arc::new(FodChecker::new(pool.clone(), None)))
+        } else {
+            None
+        };
+
         Ok(Arc::new(Self {
-            store,
+            pool,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             cli,
             db,
@@ -155,11 +199,7 @@ impl State {
             jobsets: Jobsets::new(),
             steps: Steps::new(),
             queues: Queues::new(),
-            fod_checker: if config.get_enable_fod_checker() {
-                Some(Arc::new(FodChecker::new(None)))
-            } else {
-                None
-            },
+            fod_checker,
             started_at: jiff::Timestamp::now(),
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
@@ -167,6 +207,8 @@ impl State {
                 config.get_hydra_data_dir().join("uploader_state.json"),
             )
             .await,
+            real_store_dir: nix_config.real_store_dir(),
+            nix_daemon_config: nix_config,
             config,
         }))
     }
@@ -193,9 +235,7 @@ impl State {
                         binary_cache::S3BinaryCacheClient::new(cfg).await?,
                     ));
                 } else {
-                    tracing::info!("Opening FFI store for: {uri}");
-                    new_remote_stores
-                        .push(RemoteStoreBackend::Nix(nix_utils::RemoteStore::init(uri)));
+                    new_remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
                 }
             }
         }
@@ -299,7 +339,9 @@ impl State {
             return Ok(RealiseStepResult::None);
         };
         let drv = step_info.step.get_drv_path();
-        let mut build_options = nix_utils::BuildOptions::new(None);
+        let default_max_log_size: u64 = 64 << 20; // 64 MiB
+        let max_silent_time: i32;
+        let build_timeout: i32;
 
         let build = {
             let mut dependents = HashSet::new();
@@ -331,9 +373,8 @@ impl State {
             let biggest_max_silent_time = dependents.iter().map(|x| x.max_silent_time).max();
             let biggest_build_timeout = dependents.iter().map(|x| x.timeout).max();
 
-            build_options
-                .set_max_silent_time(biggest_max_silent_time.unwrap_or(build.max_silent_time));
-            build_options.set_build_timeout(biggest_build_timeout.unwrap_or(build.timeout));
+            max_silent_time = biggest_max_silent_time.unwrap_or(build.max_silent_time);
+            build_timeout = biggest_build_timeout.unwrap_or(build.timeout);
             build.clone()
         };
 
@@ -357,7 +398,7 @@ impl State {
 
             let step_nr = tx
                 .create_build_step(
-                    self.store.store_dir(),
+                    self.pool.store_dir(),
                     Some(job.result.get_start_time_as_i32()?),
                     build_id,
                     step_info.step.get_drv_path(),
@@ -368,7 +409,7 @@ impl State {
                     None,
                     step_info
                         .step
-                        .get_output_paths(self.store.store_dir())
+                        .get_output_paths(self.pool.store_dir())
                         .unwrap_or_default()
                         .into_iter()
                         .collect(),
@@ -425,12 +466,28 @@ impl State {
                 // paths using outputs recorded in the DB.
                 let resolved_map = self.resolved_drv_map.read().clone();
                 let basic_drv =
-                    StepInfo::try_resolve(self.store.store_dir(), &self.db, drv_ref, &resolved_map)
+                    StepInfo::try_resolve(self.pool.store_dir(), &self.db, drv_ref, &resolved_map)
                         .await
                         .ok_or_else(|| {
                             anyhow::anyhow!("Failed to resolve CAFloating derivation {drv}")
                         })?;
-                let resolved_path = self.store.write_derivation(&basic_drv).await?;
+                // Serialize the resolved derivation to ATerm and write it
+                // to the store as a text-hashed content-addressed `.drv`.
+                let resolved_path = {
+                    let mut guard = self
+                        .pool
+                        .acquire()
+                        .await
+                        .map_err(|e| anyhow::anyhow!("daemon connection failed: {e}"))?;
+                    harmonia_protocol::daemon::write_derivation(
+                        guard.client(),
+                        self.pool.store_dir(),
+                        &basic_drv,
+                        false,
+                    )
+                    .await?
+                    .path
+                };
                 // If resolution changed the drv, we need a two-phase
                 // build; otherwise just build the original directly.
                 Ok((&resolved_path != drv).then_some(resolved_path))
@@ -455,7 +512,7 @@ impl State {
                 resolved_result.log_file.clone_from(&job.result.log_file);
                 finish_build_step(
                     &self.db,
-                    &self.store,
+                    self.pool.store_dir(),
                     build_id,
                     step_nr,
                     &resolved_result,
@@ -579,7 +636,9 @@ impl State {
             .build_drv(
                 job,
                 drv.clone(),
-                &build_options,
+                default_max_log_size,
+                max_silent_time,
+                build_timeout,
                 // TODO: cleanup
                 if self.config.use_presigned_uploads() {
                     let remote_stores = self.remote_stores.read();
@@ -587,7 +646,7 @@ impl State {
                         RemoteStoreBackend::S3(s) => Some(hydra_proto::PresignedUploadOpts {
                             upload_debug_info: s.cfg.write_debug_info,
                         }),
-                        RemoteStoreBackend::Nix(_) => None,
+                        RemoteStoreBackend::NixCopy(_) => None,
                     })
                 } else {
                     None
@@ -797,11 +856,9 @@ impl State {
         drv_path: &StorePath,
     ) -> anyhow::Result<()> {
         let mut db = self.db.get().await?;
-        let drv = nix_utils::query_drv(&self.store, drv_path)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("drv not found"))?;
+        let drv = self.read_derivation(drv_path).await?;
         db.insert_debug_build(
-            self.store.store_dir(),
+            self.pool.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform)?,
@@ -823,7 +880,7 @@ impl State {
         {
             let mut conn = self.db.get().await?;
             for b in conn
-                .get_not_finished_builds(self.store.store_dir())
+                .get_not_finished_builds(self.pool.store_dir())
                 .await?
                 .into_iter()
                 .filter(|b| b.id == build_id)
@@ -866,7 +923,7 @@ impl State {
 
         {
             let mut conn = self.db.get().await?;
-            for b in conn.get_not_finished_builds(self.store.store_dir()).await? {
+            for b in conn.get_not_finished_builds(self.pool.store_dir()).await? {
                 let jobset = self
                     .jobsets
                     .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
@@ -919,7 +976,7 @@ impl State {
 
         loop {
             let before_work = Instant::now();
-            self.store.clear_path_info_cache();
+            // no cache in daemon protocol
             let early_exit = match self.get_queued_builds().await {
                 Ok(early_exit) => early_exit,
                 Err(e) => {
@@ -1058,13 +1115,13 @@ impl State {
         let task = tokio::task::spawn({
             async move {
                 loop {
-                    let local_store = nix_utils::LocalStore::init();
+                    let local_store = self.pool.clone();
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
                         r.iter()
                             .filter_map(|s| match s {
                                 RemoteStoreBackend::S3(s) => Some(s.clone()),
-                                RemoteStoreBackend::Nix(_) => None,
+                                RemoteStoreBackend::NixCopy(_) => None,
                             })
                             .collect()
                     };
@@ -1198,7 +1255,7 @@ impl State {
         // the queue runner and builder are disagreeing on what the drv itself
         // means (regardless of what it produces) which would be an "all bets
         // are off" bug.
-        if let Some(expected) = item.step_info.step.get_output_paths(self.store.store_dir()) {
+        if let Some(expected) = item.step_info.step.get_output_paths(self.pool.store_dir()) {
             for (name, expected_path) in &expected {
                 let Some(expected_path) = expected_path else {
                     continue; // path not statically known (Deferred/CAFloating/Impure)
@@ -1208,8 +1265,8 @@ impl State {
                         expected_path == actual_path,
                         "output path mismatch for output `{name}` of {drv_path}: \
                          expected {}, got {}",
-                        self.store.print_store_path(expected_path),
-                        self.store.print_store_path(actual_path),
+                        self.pool.store_dir().display(expected_path),
+                        self.pool.store_dir().display(actual_path),
                     );
                 }
             }
@@ -1240,7 +1297,7 @@ impl State {
 
         finish_build_step(
             &self.db,
-            &self.store,
+            self.pool.store_dir(),
             job.build_id,
             job.step_nr,
             &job.result,
@@ -1249,34 +1306,50 @@ impl State {
         )
         .await?;
 
-        // Copy outputs to non-S3 (FFI) stores so that
-        // hydra-notify plugins (e.g. DeclarativeJobsets) can read them.
+        // Copy outputs to non-S3 stores via `nix copy`.
         {
-            let ffi_base_stores: Vec<(String, nix_utils::BaseStoreImpl)> = {
+            let nix_copy_uris: Vec<String> = {
                 let stores = self.remote_stores.read();
                 stores
                     .iter()
                     .filter_map(|s| match s {
-                        RemoteStoreBackend::Nix(s) => {
-                            Some((s.uri.clone(), s.as_base_store().clone()))
-                        }
+                        RemoteStoreBackend::NixCopy(uri) => Some(uri.clone()),
                         RemoteStoreBackend::S3(_) => None,
                     })
                     .collect()
             };
-            let outputs_to_copy = output.outputs.values().cloned().collect::<Vec<_>>();
-            for (uri, base_store) in &ffi_base_stores {
-                if let Err(e) = nix_utils::copy_paths(
-                    self.store.as_base_store(),
-                    base_store,
-                    &outputs_to_copy,
-                    false,
-                    false,
-                    false,
-                )
-                .await
-                {
-                    tracing::error!("Failed to copy outputs to store {uri}: {e}");
+            if !nix_copy_uris.is_empty() {
+                let paths: Vec<String> = output
+                    .outputs
+                    .values()
+                    .map(|p| self.pool.store_dir().display(p).to_string())
+                    .collect();
+                for dest_uri in &nix_copy_uris {
+                    let output = tokio::process::Command::new("nix")
+                        .arg("--extra-experimental-features")
+                        .arg("nix-command")
+                        .arg("copy")
+                        .arg("--from")
+                        .arg(self.nix_daemon_config.to_uri())
+                        .arg("--to")
+                        .arg(dest_uri)
+                        .args(&paths)
+                        .output()
+                        .await;
+                    match output {
+                        Ok(out) if out.status.success() => {
+                            tracing::info!("Copied {} paths to {dest_uri}", paths.len());
+                        }
+                        Ok(out) => {
+                            tracing::error!(
+                                "nix copy to {dest_uri} failed: {}",
+                                str::from_utf8(&out.stderr).unwrap_or("Invalid UTF-8")
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to run nix copy to {dest_uri}: {e}");
+                        }
+                    }
                 }
             }
         }
@@ -1325,7 +1398,7 @@ impl State {
                     r.iter()
                         .filter_map(|s| match s {
                             RemoteStoreBackend::S3(s) => Some(s.clone()),
-                            RemoteStoreBackend::Nix(_) => None,
+                            RemoteStoreBackend::NixCopy(_) => None,
                         })
                         .collect()
                 };
@@ -1368,7 +1441,7 @@ impl State {
                     is_cached,
                     start_time,
                     stop_time,
-                    self.store.store_dir(),
+                    self.pool.store_dir(),
                 )
                 .await?;
                 self.metrics.nr_builds_done.inc();
@@ -1538,7 +1611,7 @@ impl State {
 
                 finish_build_step(
                     &self.db,
-                    &self.store,
+                    self.pool.store_dir(),
                     job.build_id,
                     job.step_nr,
                     &job.result,
@@ -1618,7 +1691,7 @@ impl State {
         if job.step_nr != 0 {
             finish_build_step(
                 &self.db,
-                &self.store,
+                self.pool.store_dir(),
                 job.build_id,
                 job.step_nr,
                 &job.result,
@@ -1654,7 +1727,7 @@ impl State {
                     }
 
                     tx.create_build_step(
-                        self.store.store_dir(),
+                        self.pool.store_dir(),
                         None,
                         b.id,
                         step.get_drv_path(),
@@ -1670,7 +1743,7 @@ impl State {
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_output_paths(self.store.store_dir())
+                        step.get_output_paths(self.pool.store_dir())
                             .unwrap_or_default()
                             .into_iter()
                             .collect(),
@@ -1707,12 +1780,11 @@ impl State {
                 // Remember failed paths in the database so that they won't be built again.
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
                     for (_, path) in step
-                        .get_output_paths(self.store.store_dir())
+                        .get_output_paths(self.pool.store_dir())
                         .unwrap_or_default()
                     {
                         if let Some(path) = path {
-                            tx.insert_failed_paths(self.store.store_dir(), &path)
-                                .await?;
+                            tx.insert_failed_paths(self.pool.store_dir(), &path).await?;
                         }
                     }
                 }
@@ -1787,7 +1859,7 @@ impl State {
         // Find the previous build step record, first by derivation path, then by output
         // path.
         let mut propagated_from = tx
-            .get_last_build_step_id(self.store.store_dir(), step.get_drv_path())
+            .get_last_build_step_id(self.pool.store_dir(), step.get_drv_path())
             .await?
             .unwrap_or_default();
 
@@ -1796,15 +1868,15 @@ impl State {
             // PreviousFailure is returned, so this should never yield None
 
             let outputs = step
-                .get_output_paths(self.store.store_dir())
+                .get_output_paths(self.pool.store_dir())
                 .unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(self.store.store_dir(), path)
+                    tx.get_last_build_step_id_for_output_path(self.pool.store_dir(), path)
                         .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
-                        self.store.store_dir(),
+                        self.pool.store_dir(),
                         step.get_drv_path(),
                         name.as_ref(),
                     )
@@ -1818,7 +1890,7 @@ impl State {
         }
 
         tx.create_build_step(
-            self.store.store_dir(),
+            self.pool.store_dir(),
             None,
             build.id,
             step.get_drv_path(),
@@ -1827,7 +1899,7 @@ impl State {
             BuildStatus::CachedFailure,
             None,
             Some(propagated_from),
-            step.get_output_paths(self.store.store_dir())
+            step.get_output_paths(self.pool.store_dir())
                 .unwrap_or_default()
                 .into_iter()
                 .collect(),
@@ -1878,11 +1950,11 @@ impl State {
             new_builds_by_id.remove(&build.id);
         }
 
-        if !self.store.is_valid_path(&build.drv_path).await? {
+        if !daemon_client_utils::is_valid_path(&self.pool, &build.drv_path).await? {
             tracing::error!(
                 "aborting GC'ed build id={} path={}",
                 build.id,
-                self.store.print_store_path(&build.drv_path)
+                self.pool.store_dir().display(&build.drv_path)
             );
             if !build.get_finished_in_db() {
                 match self.db.get().await {
@@ -2054,9 +2126,27 @@ impl State {
             if step.get_finished() {
                 return CreateStepResult::None;
             }
-            if let Some(output_paths) = step.get_output_paths(self.store.store_dir()) {
-                let missing = self.store.query_missing_outputs(output_paths).await;
-                if missing.is_empty() {
+            if let Some(output_paths) = step.get_output_paths(self.pool.store_dir()) {
+                // All output paths must be known (Some) and valid in
+                // the store for the step to count as finished.  CA
+                // floating outputs have None paths until built.
+                let all_resolved = output_paths.values().all(Option::is_some);
+                let all_valid = if all_resolved {
+                    let mut valid = true;
+                    for path in output_paths.values().flatten() {
+                        if !daemon_client_utils::is_valid_path(&self.pool, path)
+                            .await
+                            .unwrap_or(false)
+                        {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    valid
+                } else {
+                    false
+                };
+                if all_valid {
                     finished_drvs.write().insert(drv_path.clone());
                     step.set_finished(true);
                     return CreateStepResult::None;
@@ -2067,11 +2157,7 @@ impl State {
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
-        let Some(drv) = nix_utils::query_drv(&self.store, &drv_path)
-            .await
-            .ok()
-            .flatten()
-        else {
+        let Some(drv) = self.read_derivation(&drv_path).await.ok() else {
             tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
             return CreateStepResult::None;
         };
@@ -2095,10 +2181,22 @@ impl State {
             let r = self.remote_stores.read();
             r.iter().find_map(|s| match s {
                 RemoteStoreBackend::S3(s) => Some(s.clone()),
-                RemoteStoreBackend::Nix(_) => None,
+                RemoteStoreBackend::NixCopy(_) => None,
             })
         };
-        let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
+        let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
+            .outputs
+            .iter()
+            .map(|(name, output)| {
+                (
+                    name.clone(),
+                    output
+                        .path(self.pool.store_dir(), &drv.name, name)
+                        .ok()
+                        .flatten(),
+                )
+            })
+            .collect();
         let known_outputs = self
             .query_known_drv_outputs(&drv_path)
             .await
@@ -2106,7 +2204,28 @@ impl State {
                 tracing::warn!("Could not query known outputs, continuing: {e}");
                 BTreeMap::new()
             });
-        let missing_local_outputs = self.store.query_missing_outputs(output_paths.clone()).await;
+        // Outputs with None paths (CA floating) are always missing —
+        // their path is unknown until the derivation is built.
+        let missing_local_outputs: BTreeMap<OutputName, Option<StorePath>> = {
+            let mut missing = BTreeMap::new();
+            for (name, path) in &output_paths {
+                match path {
+                    Some(path) => {
+                        if !daemon_client_utils::is_valid_path(&self.pool, path)
+                            .await
+                            .unwrap_or(false)
+                        {
+                            missing.insert(name.clone(), Some(path.clone()));
+                        }
+                    }
+                    None => {
+                        // CA floating: output path unknown, definitely missing
+                        missing.insert(name.clone(), None);
+                    }
+                }
+            }
+            missing
+        };
         // Handle paths that aren't in the database (for resolution)
         // existing_local_outputs = output_paths - missing_local_outputs
         // unregistered_local_outputs = existing_local_outputs - known_outputs
@@ -2122,7 +2241,7 @@ impl State {
         if !unregistered_local_outputs.is_empty()
             && let Err(e) = crate::utils::make_local_step(
                 &self.db,
-                &self.store,
+                self.pool.store_dir(),
                 build.id,
                 &drv_path,
                 &unregistered_local_outputs,
@@ -2150,7 +2269,10 @@ impl State {
             }
             missing
         } else {
-            self.store.query_missing_outputs(output_paths).await
+            // Without a remote store, just check the local store.
+            // Reuse missing_local_outputs which already includes None
+            // (CA floating) paths as missing.
+            missing_local_outputs.clone()
         };
 
         let input_drvs = drv::input_drvs(&drv);
@@ -2171,7 +2293,7 @@ impl State {
                 self.metrics.nr_substitutes_started.inc();
                 crate::utils::substitute_output(
                     self.db.clone(),
-                    nix_utils::LocalStore::init(),
+                    self.pool.clone(),
                     o,
                     build.id,
                     &drv_path,
@@ -2196,6 +2318,7 @@ impl State {
             }
             substituted == missing_outputs_len
         } else {
+            // CA floating outputs have None paths — they must be built.
             missing_outputs.is_empty()
         };
 
@@ -2274,13 +2397,13 @@ impl State {
         let mut db = self.db.get().await?;
         let mut tx = db.begin_transaction().await?;
         Ok(tx
-            .find_build_step_outputs(self.store.store_dir(), drv_path)
+            .find_build_step_outputs(self.pool.store_dir(), drv_path)
             .await?)
     }
 
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
     async fn check_cached_failure(&self, step: Arc<Step>) -> bool {
-        let Some(drv_outputs) = step.get_output_paths(self.store.store_dir()) else {
+        let Some(drv_outputs) = step.get_output_paths(self.pool.store_dir()) else {
             return false;
         };
 
@@ -2289,7 +2412,7 @@ impl State {
         };
 
         conn.check_if_paths_failed(
-            self.store.store_dir(),
+            self.pool.store_dir(),
             &drv_outputs
                 .iter()
                 .filter_map(|(_, path)| path.clone())
@@ -2314,7 +2437,7 @@ impl State {
                 true,
                 i32::try_from(now)?, // TODO
                 i32::try_from(now)?, // TODO
-                self.store.store_dir(),
+                self.pool.store_dir(),
             )
             .await?;
             self.metrics.nr_builds_done.inc();
@@ -2329,11 +2452,21 @@ impl State {
 
     #[tracing::instrument(skip(self), err)]
     async fn get_build_output_cached(&self, drv_path: &StorePath) -> anyhow::Result<BuildOutput> {
-        let drv = nix_utils::query_drv(&self.store, drv_path)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Derivation not found"))?;
+        let drv = self.read_derivation(drv_path).await?;
 
-        let output_paths = nix_utils::output_paths(&drv, self.store.store_dir());
+        let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
+            .outputs
+            .iter()
+            .map(|(name, output)| {
+                (
+                    name.clone(),
+                    output
+                        .path(self.pool.store_dir(), &drv.name, name)
+                        .ok()
+                        .flatten(),
+                )
+            })
+            .collect();
         {
             let mut db = self.db.get().await?;
             for out_path in output_paths.values() {
@@ -2341,7 +2474,7 @@ impl State {
                     continue;
                 };
                 let Some(db_build_output) = db
-                    .get_build_output_for_path(self.store.store_dir(), out_path)
+                    .get_build_output_for_path(self.pool.store_dir(), out_path)
                     .await?
                 else {
                     continue;
@@ -2352,7 +2485,7 @@ impl State {
                 };
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id, self.store.store_dir())
+                    .get_build_products_for_build_id(build_id, self.pool.store_dir())
                     .await?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
@@ -2364,7 +2497,9 @@ impl State {
             }
         }
 
-        let build_output = BuildOutput::new(&self.store, output_paths).await?;
+        let default_store: std::path::PathBuf = self.pool.store_dir().to_string().into();
+        let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
+        let build_output = BuildOutput::new(&self.pool, real_dir, output_paths).await?;
 
         if let Ok(platform) = std::str::from_utf8(&drv.platform) {
             #[allow(clippy::cast_precision_loss)]
@@ -2376,9 +2511,12 @@ impl State {
     }
 
     #[allow(unused)]
-    fn add_root(&self, store_path: &StorePath) {
+    fn add_root(&self, store_path: &StorePath) -> std::io::Result<()> {
         let roots_dir = self.config.get_roots_dir();
-        nix_utils::add_root(&self.store, &roots_dir, store_path);
+        // Inline filesystem symlink for GC roots
+        let link_path = roots_dir.join(store_path.to_string());
+        let store_path_full = format!("{}/{store_path}", self.pool.store_dir());
+        fs_err::os::unix::fs::symlink(&store_path_full, &link_path)
     }
 
     async fn abort_unsupported(&self) {

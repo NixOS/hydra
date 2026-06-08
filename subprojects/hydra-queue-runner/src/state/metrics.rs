@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use prometheus::Encoder as _;
 
-use nix_utils::BaseStore as _;
-
 #[derive(Debug)]
 pub struct PromMetrics {
     pub queue_runner_current_time_seconds: prometheus::IntGauge, // hydraqueuerunner_current_time_seconds
@@ -890,7 +888,6 @@ impl PromMetrics {
 
         self.refresh_per_machine_type_metrics(state).await;
         self.refresh_per_machine_metrics(state);
-        self.refresh_store_metrics(state);
         self.refresh_s3_metrics(state);
         self.refresh_transfer_metrics(state);
         self.refresh_jobset_metrics(state);
@@ -996,54 +993,6 @@ impl PromMetrics {
         }
     }
 
-    fn refresh_store_metrics(&self, state: &Arc<super::State>) {
-        if let Ok(store_stats) = state.store.get_store_stats() {
-            if let Ok(v) = i64::try_from(store_stats.nar_info_read) {
-                self.store_nar_info_read.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_read_averted) {
-                self.store_nar_info_read_averted.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_missing) {
-                self.store_nar_info_missing.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_write) {
-                self.store_nar_info_write.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.path_info_cache_size) {
-                self.store_path_info_cache_size.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read) {
-                self.store_nar_read.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read_bytes) {
-                self.store_nar_read_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read_compressed_bytes) {
-                self.store_nar_read_compressed_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write) {
-                self.store_nar_write.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_averted) {
-                self.store_nar_write_averted.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_bytes) {
-                self.store_nar_write_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_compressed_bytes) {
-                self.store_nar_write_compressed_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_compression_time_ms) {
-                self.store_nar_write_compression_time_ms.set(v);
-            }
-            self.store_nar_compression_savings
-                .set(store_stats.nar_compression_savings());
-            self.store_nar_compression_speed
-                .set(store_stats.nar_compression_speed());
-        }
-    }
-
     fn refresh_s3_metrics(&self, state: &Arc<super::State>) {
         self.s3_put.reset();
         self.s3_put_bytes.reset();
@@ -1063,7 +1012,7 @@ impl PromMetrics {
         let backends = state.remote_stores.read();
         for remote_store in backends.iter().filter_map(|s| match s {
             super::RemoteStoreBackend::S3(s) => Some(s),
-            super::RemoteStoreBackend::Nix(_) => None,
+            super::RemoteStoreBackend::NixCopy(_) => None,
         }) {
             let backend_name = &remote_store.cfg.client_config.bucket;
             let s3_stats = remote_store.s3_stats();

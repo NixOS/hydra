@@ -24,6 +24,8 @@ disallowed-methods = [
 
     { path = "std::ffi::OsStr::to_string_lossy", reason = "Handle UTF-8 errors" },
 
+    { path = "std::string::String::from_utf8_lossy", reason = "Handle UTF-8 errors" },
+
     { path = "std::os::unix::fs::symlink", replacement = "fs_err::os::unix::symlink" },
 
     { path = "std::path::Path::try_exists", reason = "Use fs_err::path::PathExt methods" },

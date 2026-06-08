@@ -1,10 +1,13 @@
 use binary_cache::S3BinaryCacheClient;
-use harmonia_store_derivation::realisation::DrvOutput;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracing_guard = hydra_tracing::init()?;
-    let _local = nix_utils::LocalStore::init();
+    let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
+    let _local = harmonia_store_remote::ConnectionPool::new(
+        &nix_config.socket,
+        harmonia_store_remote::PoolConfig::default(),
+    );
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -14,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     tracing::info!("{:#?}", client.cfg);
 
-    let id = DrvOutput {
+    let id = harmonia_store_derivation::realisation::DrvOutput {
         drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv"
             .parse()
             .unwrap(),

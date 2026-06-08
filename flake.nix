@@ -80,10 +80,8 @@
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix {
           };
           hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix {
-            inherit nixComponents;
           };
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
-            inherit nixComponents;
           };
         });
       mkHydraBuilder =
@@ -91,7 +89,6 @@
         pkgs.lib.makeScope pkgs.newScope (self': {
           inherit version releaseVersion;
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
-            inherit nixComponents;
           };
         });
 
