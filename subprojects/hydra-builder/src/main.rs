@@ -12,7 +12,10 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+use crate::error::BuilderError;
+
 mod config;
+mod error;
 mod grpc;
 mod metrics;
 mod nix_config;
@@ -41,8 +44,9 @@ async fn stop_application(
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let _tracing_guard = hydra_tracing::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+async fn main() -> color_eyre::Result<()> {
+    let _tracing_guard = hydra_tracing::init()?;
+
     let cli = config::Cli::new();
 
     let state = state::State::new(&cli).await?;
@@ -65,27 +69,25 @@ async fn main() -> anyhow::Result<()> {
         _ = sigint.recv() => {
             tracing::info!("Received sigint - shutting down gracefully");
             stop_application(&state, &abort_handle).await;
+            Ok(())
         }
         _ = sigterm.recv() => {
             tracing::info!("Received sigterm - shutting down gracefully");
             stop_application(&state, &abort_handle).await;
+            Ok(())
         }
         r = task => {
             let _ = state.clear_gcroots().await;
-            match r {
-                Ok(Ok(())) => (),
-                Ok(Err(e)) => {
-                    let error_str = e.to_string();
-                    if error_str.contains("API version mismatch") {
-                        tracing::error!("ERROR: {error_str}");
-                        std::process::exit(65); // EX_DATAERR
-                    } else {
-                        return Err(e);
-                    }
+            match r.map_err(BuilderError::from).flatten() {
+                Ok(()) => Ok(()),
+                Err(e) => match e {
+                    BuilderError::VersionIncompatible(_) => {
+                        tracing::error!("ERROR: {e:?}");
+                        std::process::exit(65) // EX_DATAERR
+                    },
+                _=> Err(e.into())
                 }
-                Err(e) => return Err(e.into()),
             }
         }
-    };
-    Ok(())
+    }
 }

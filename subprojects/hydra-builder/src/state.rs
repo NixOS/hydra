@@ -10,6 +10,7 @@ use harmonia_protocol::daemon_wire::types2::BuildResultSuccess;
 use harmonia_store_remote::DaemonStore as _;
 use hashbrown::HashMap;
 
+use crate::error::BuilderError;
 use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
 use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
@@ -139,17 +140,22 @@ impl Drop for Gcroot {
 
 impl State {
     #[tracing::instrument(err)]
-    pub async fn new(cli: &super::config::Cli) -> anyhow::Result<Arc<Self>> {
-        let nix_config = crate::nix_config::NixConfig::load()?;
-        let nix_remote = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
+    pub async fn new(cli: &super::config::Cli) -> Result<Arc<Self>, BuilderError> {
+        let nix_config =
+            crate::nix_config::NixConfig::load().map_err(BuilderError::LoadNixConfig)?;
+        let nix_remote =
+            daemon_client_utils::parse_nix_remote().map_err(BuilderError::ParseNixStore)?;
 
-        let logname = std::env::var("LOGNAME").context("LOGNAME not set")?;
+        let logname =
+            std::env::var("LOGNAME").map_err(|_| BuilderError::MissingEnvVar("LOGNAME"))?;
         let gcroots = nix_remote
             .state_dir
             .join("gcroots/per-user")
             .join(logname)
             .join("hydra-roots/builder");
-        fs_err::tokio::create_dir_all(&gcroots).await?;
+        fs_err::tokio::create_dir_all(&gcroots)
+            .await
+            .map_err(BuilderError::CreateGcroots)?;
 
         let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
             &nix_remote.socket,
@@ -159,12 +165,9 @@ impl State {
 
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
-            hostname: gethostname::gethostname().into_string().map_err(|v| {
-                anyhow::anyhow!(
-                    "Couldn't convert hostname to string! OsString={}",
-                    v.display()
-                )
-            })?,
+            hostname: gethostname::gethostname()
+                .into_string()
+                .map_err(BuilderError::Hostname)?,
             active_builds: parking_lot::RwLock::new(HashMap::with_capacity(10)),
             config: Config {
                 ping_interval: cli.ping_interval,
