@@ -37,6 +37,12 @@ message ContentAddress {
   Hash hash = 2;
 }
 
+// Mirrors harmonia_store_core::store_path::ContentAddressMethodAlgorithm.
+message ContentAddressMethodAlgorithm {
+  ContentAddress.Method method = 1;
+  Hash.Algorithm algorithm = 2;
+}
+
 message Signature {
   string key_name = 1;
   string sig = 2;

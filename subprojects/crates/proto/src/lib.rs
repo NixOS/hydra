@@ -12,6 +12,11 @@ pub mod nix {
         pub mod v1 {
             tonic::include_proto!("nix.store.v1");
         }
+        pub mod derivation {
+            pub mod v1 {
+                tonic::include_proto!("nix.store.derivation.v1");
+            }
+        }
     }
 }
 
@@ -173,6 +178,182 @@ impl TryFrom<nix::store::v1::ContentAddress> for harmonia_store_content_address:
             Ok(nix::store::v1::content_address::Method::NixArchive) => Ok(CA::NixArchive(hash)),
             Err(_) => Err("unknown CA method"),
         }
+    }
+}
+
+// -- ContentAddressMethodAlgorithm --
+
+impl From<&harmonia_store_content_address::ContentAddressMethodAlgorithm>
+    for nix::store::v1::ContentAddressMethodAlgorithm
+{
+    fn from(ca: &harmonia_store_content_address::ContentAddressMethodAlgorithm) -> Self {
+        use harmonia_store_content_address::ContentAddressMethodAlgorithm as CAMA;
+        match ca {
+            CAMA::Text => Self {
+                method: nix::store::v1::content_address::Method::Text as i32,
+                algorithm: nix::store::v1::hash::Algorithm::Sha256 as i32,
+            },
+            CAMA::Flat(algo) => Self {
+                method: nix::store::v1::content_address::Method::Flat as i32,
+                algorithm: nix::store::v1::hash::Algorithm::from(*algo) as i32,
+            },
+            CAMA::NixArchive(algo) => Self {
+                method: nix::store::v1::content_address::Method::NixArchive as i32,
+                algorithm: nix::store::v1::hash::Algorithm::from(*algo) as i32,
+            },
+        }
+    }
+}
+
+impl TryFrom<nix::store::v1::ContentAddressMethodAlgorithm>
+    for harmonia_store_content_address::ContentAddressMethodAlgorithm
+{
+    type Error = &'static str;
+
+    fn try_from(ca: nix::store::v1::ContentAddressMethodAlgorithm) -> Result<Self, Self::Error> {
+        use harmonia_store_content_address::ContentAddressMethodAlgorithm as CAMA;
+        let method = nix::store::v1::content_address::Method::try_from(ca.method)
+            .map_err(|_| "unknown content address method")?;
+        let algo: harmonia_utils_hash::Algorithm =
+            nix::store::v1::hash::Algorithm::try_from(ca.algorithm)
+                .map_err(|_| "unknown hash algorithm")?
+                .into();
+        match method {
+            nix::store::v1::content_address::Method::Text => Ok(CAMA::Text),
+            nix::store::v1::content_address::Method::Flat => Ok(CAMA::Flat(algo)),
+            nix::store::v1::content_address::Method::NixArchive => Ok(CAMA::NixArchive(algo)),
+        }
+    }
+}
+
+// -- DerivationOutput --
+
+impl From<&harmonia_store_derivation::derivation::DerivationOutput>
+    for nix::store::derivation::v1::Output
+{
+    fn from(o: &harmonia_store_derivation::derivation::DerivationOutput) -> Self {
+        use harmonia_store_derivation::derivation::DerivationOutput as DO;
+        use nix::store::derivation::v1::output::Output;
+        Self {
+            output: Some(match o {
+                DO::InputAddressed(p) => Output::InputAddressed(ProtoStorePath::from(p)),
+                DO::CAFixed(ca) => Output::CaFixed(nix::store::v1::ContentAddress::from(ca)),
+                DO::Deferred => Output::Deferred(nix::store::derivation::v1::Unit {}),
+                DO::CAFloating(cama) => {
+                    Output::CaFloating(nix::store::v1::ContentAddressMethodAlgorithm::from(cama))
+                }
+                DO::Impure(cama) => {
+                    Output::Impure(nix::store::v1::ContentAddressMethodAlgorithm::from(cama))
+                }
+            }),
+        }
+    }
+}
+
+impl TryFrom<nix::store::derivation::v1::Output>
+    for harmonia_store_derivation::derivation::DerivationOutput
+{
+    type Error = &'static str;
+
+    fn try_from(o: nix::store::derivation::v1::Output) -> Result<Self, Self::Error> {
+        use harmonia_store_derivation::derivation::DerivationOutput as DO;
+        use nix::store::derivation::v1::output::Output;
+        match o.output.ok_or("missing DerivationOutput variant")? {
+            Output::InputAddressed(p) => Ok(DO::InputAddressed(p.0)),
+            Output::CaFixed(ca) => Ok(DO::CAFixed(ca.try_into()?)),
+            Output::Deferred(_) => Ok(DO::Deferred),
+            Output::CaFloating(cama) => Ok(DO::CAFloating(cama.try_into()?)),
+            Output::Impure(cama) => Ok(DO::Impure(cama.try_into()?)),
+        }
+    }
+}
+
+// -- BasicDerivation --
+
+impl From<&harmonia_store_derivation::derivation::BasicDerivation>
+    for nix::store::derivation::v1::Basic
+{
+    fn from(d: &harmonia_store_derivation::derivation::BasicDerivation) -> Self {
+        Self {
+            name: d.name.to_string(),
+            outputs: d
+                .outputs
+                .iter()
+                .map(|(name, output)| {
+                    (
+                        name.to_string(),
+                        nix::store::derivation::v1::Output::from(output),
+                    )
+                })
+                .collect(),
+            inputs: d.inputs.iter().map(ProtoStorePath::from).collect(),
+            platform: d.platform.to_vec(),
+            builder: d.builder.to_vec(),
+            args: d.args.iter().map(|a| a.to_vec()).collect(),
+            env: d
+                .env
+                .iter()
+                .map(|(k, v)| (std::str::from_utf8(k).unwrap_or("").to_owned(), v.to_vec()))
+                .collect(),
+            structured_attrs: d
+                .structured_attrs
+                .as_ref()
+                .map(|sa| serde_json::to_string(&sa.attrs).unwrap_or_default()),
+        }
+    }
+}
+
+impl TryFrom<nix::store::derivation::v1::Basic>
+    for harmonia_store_derivation::derivation::BasicDerivation
+{
+    type Error = String;
+
+    fn try_from(d: nix::store::derivation::v1::Basic) -> Result<Self, Self::Error> {
+        use bytes::Bytes as ByteString;
+        use harmonia_store_derivation::derivation::{DerivationOutput, StructuredAttrs};
+        use harmonia_store_derivation::derived_path::OutputName;
+
+        let name = d
+            .name
+            .parse()
+            .map_err(|e| format!("invalid derivation name: {e}"))?;
+
+        let outputs = d
+            .outputs
+            .into_iter()
+            .map(|(k, v)| {
+                let name: OutputName =
+                    k.parse().map_err(|e| format!("invalid output name: {e}"))?;
+                let output: DerivationOutput = v.try_into().map_err(|e: &str| e.to_owned())?;
+                Ok((name, output))
+            })
+            .collect::<Result<_, String>>()?;
+
+        let inputs = d.inputs.into_iter().map(|p| p.0).collect();
+
+        let structured_attrs = d
+            .structured_attrs
+            .map(|s| {
+                let attrs: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&s)
+                    .map_err(|e| format!("invalid structured_attrs JSON: {e}"))?;
+                Ok::<_, String>(StructuredAttrs { attrs })
+            })
+            .transpose()?;
+
+        Ok(harmonia_store_derivation::derivation::DerivationT {
+            name,
+            outputs,
+            inputs,
+            platform: ByteString::from(d.platform),
+            builder: ByteString::from(d.builder),
+            args: d.args.into_iter().map(ByteString::from).collect(),
+            env: d
+                .env
+                .into_iter()
+                .map(|(k, v)| (ByteString::from(k), ByteString::from(v)))
+                .collect(),
+            structured_attrs,
+        })
     }
 }
 

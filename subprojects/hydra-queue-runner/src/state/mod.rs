@@ -33,7 +33,7 @@ use secrecy::ExposeSecret as _;
 
 use db::models::{BuildID, BuildStatus};
 use harmonia_store_derivation::derivation::DerivationOutput;
-use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
 
@@ -421,80 +421,86 @@ impl State {
         };
         job.step_nr = step_nr;
 
-        // Try to resolve CA derivation inputs. If resolution yields a
-        // different drv, mark this step as Resolved in the DB and create a new
-        // step for the resolved drv that will be built at a later time.
-        {
+        // Resolve derivation inputs: replace `Built` input references with
+        // concrete output store paths using `try_resolve_force`. For
+        // input-addressed drvs this keeps the original output paths
+        // (the "force" part); for CA floating drvs it doesn't matter
+        // since there are no `InputAddressed` outputs. CA floating drvs
+        // that resolve to a different drv path still need the two-phase
+        // build dance.
+        let (basic_drv, was_deferred) = {
             let guard = step_info.step.get_drv();
             let Some(drv_ref) = guard.as_ref() else {
                 // Should never happen
                 return Ok(RealiseStepResult::MaybeCancelled);
             };
 
-            // `Some(path)` if this CA derivation was resolved to a
-            // different drv; `None` if resolution is not needed or is
-            // a no-op (same drv path).
-            let resolved_path = async {
-                // Only CA floating derivations need resolution, and only
-                // when they have `Built` inputs (dynamic derivation deps).
-                // `Opaque`-only inputs are already resolved.
-                let is_ca_with_built_inputs = drv_ref
+            // Resolve `Built` input references to concrete store paths.
+            let resolved_map = self.resolved_drv_map.read().clone();
+            let mut basic_drv = StepInfo::try_resolve_force(
+                self.pool.store_dir(),
+                &self.db,
+                drv_ref,
+                &resolved_map,
+            )
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Failed to resolve derivation {drv}"))?;
+
+            // Input-addressed outputs that transitively depend on a CA
+            // derivation come out of eval as `Deferred` because the IA
+            // hash can't be computed until the CA dep's path is known.
+            // Now that inputs are resolved, fill in the IA paths and
+            // matching `$out` env vars via `fill_outputs`. The resolved
+            // drv is then routed through the same two-phase dance as
+            // CAFloating below so we can detect if resolution changed
+            // the drv path.
+            let was_deferred = !basic_drv.outputs.is_empty()
+                && basic_drv
                     .outputs
-                    .iter()
-                    .all(|output| matches!(output.1, DerivationOutput::CAFloating(_)))
-                    && drv_ref
-                        .inputs
-                        .iter()
-                        .any(|input| matches!(input, SingleDerivedPath::Built { .. }));
-                tracing::info!(
-                    is_ca_with_built_inputs,
-                    ca_floating = drv_ref
-                        .outputs
-                        .iter()
-                        .all(|o| matches!(o.1, DerivationOutput::CAFloating(_))),
-                    has_built_inputs = drv_ref
-                        .inputs
-                        .iter()
-                        .any(|i| matches!(i, SingleDerivedPath::Built { .. })),
-                    "resolution check for {drv}"
-                );
-                if !is_ca_with_built_inputs {
-                    return Ok::<_, anyhow::Error>(None);
-                }
-
-                // Resolve `Built` input placeholders to concrete store
-                // paths using outputs recorded in the DB.
-                let resolved_map = self.resolved_drv_map.read().clone();
-                let basic_drv =
-                    StepInfo::try_resolve(self.pool.store_dir(), &self.db, drv_ref, &resolved_map)
-                        .await
-                        .ok_or_else(|| {
-                            anyhow::anyhow!("Failed to resolve CAFloating derivation {drv}")
-                        })?;
-                // Serialize the resolved derivation to ATerm and write it
-                // to the store as a text-hashed content-addressed `.drv`.
-                let resolved_path = {
-                    let mut guard = self
-                        .pool
-                        .acquire()
-                        .await
-                        .map_err(|e| anyhow::anyhow!("daemon connection failed: {e}"))?;
-                    harmonia_protocol::daemon::write_derivation(
-                        guard.client(),
-                        self.pool.store_dir(),
-                        &basic_drv,
-                        false,
-                    )
-                    .await?
-                    .path
-                };
-                // If resolution changed the drv, we need a two-phase
-                // build; otherwise just build the original directly.
-                Ok((&resolved_path != drv).then_some(resolved_path))
+                    .values()
+                    .any(|o| matches!(o, DerivationOutput::Deferred));
+            if was_deferred {
+                let unfilled = basic_drv
+                    .clone()
+                    .map_outputs(|_| harmonia_store_aterm::input_address::UnfilledOutput);
+                let filled = harmonia_store_aterm::input_address::fill_outputs(
+                    self.pool.store_dir(),
+                    unfilled,
+                )
+                .map_err(|e| anyhow::anyhow!("Failed to fill deferred outputs for {drv}: {e}"))?;
+                basic_drv = filled.map_outputs(DerivationOutput::InputAddressed);
             }
-            .await?;
+            (basic_drv, was_deferred)
+        };
 
-            if let Some(resolved_path) = resolved_path {
+        // CA floating derivations and originally-Deferred derivations
+        // both need a two-phase build: write the resolved drv to the
+        // store via the daemon, get its assigned path, and (if it
+        // differs from the original) dispatch a new step for it.
+        if was_deferred
+            || basic_drv
+                .outputs
+                .iter()
+                .any(|o| matches!(o.1, DerivationOutput::CAFloating(_)))
+        {
+            // Write the resolved derivation to the store via daemon
+            // protocol so we can compare its path.
+            let resolved_path = {
+                let mut guard = self
+                    .pool
+                    .acquire()
+                    .await
+                    .map_err(|e| anyhow::anyhow!("daemon connection failed: {e}"))?;
+                harmonia_protocol::daemon::write_derivation(
+                    guard.client(),
+                    self.pool.store_dir(),
+                    &basic_drv,
+                    false,
+                )
+                .await?
+                .path
+            };
+            if &resolved_path != drv {
                 tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
 
                 // Record the resolved drv path in memory so future
@@ -521,6 +527,16 @@ impl State {
                 )
                 .await?;
 
+                // Only mark the resolved step as a direct build if the
+                // unresolved step was the toplevel derivation of the build.
+                // Otherwise, `succeed_step` would prematurely mark the build as
+                // finished when an intermediate resolved step completes.
+                let is_toplevel = build.toplevel.load().as_deref() == Some(&*step_info.step);
+                let referring_build = if is_toplevel {
+                    Some(build.clone())
+                } else {
+                    None
+                };
                 // Create a resolved in-memory step
                 // We do not need the global state because they are only relevant when making
                 // multiple steps. Our resolved step, by definition, has no dependencies, so
@@ -533,16 +549,6 @@ impl State {
                 // we can take the return of the function.
                 // new_runnable: An output list of the runnable steps. Again, only one will be made, so we
                 // can take the function return.
-                // Only mark the resolved step as a direct build if the
-                // unresolved step was the toplevel derivation of the build.
-                // Otherwise, `succeed_step` would prematurely mark the build as
-                // finished when an intermediate resolved step completes.
-                let is_toplevel = build.toplevel.load().as_deref() == Some(&*step_info.step);
-                let referring_build = if is_toplevel {
-                    Some(build.clone())
-                } else {
-                    None
-                };
                 let resolved_step = match self
                     .create_step(
                         build.clone(),
@@ -612,6 +618,9 @@ impl State {
             }
         }
 
+        // Encode the force-resolved derivation as protobuf to send to the builder.
+        let resolved_drv = hydra_proto::nix::store::derivation::v1::Basic::from(&basic_drv);
+
         {
             let mut tx = db.begin_transaction().await?;
             tx.notify_build_started(build_id).await?;
@@ -651,6 +660,7 @@ impl State {
                 } else {
                     None
                 },
+                resolved_drv,
             )
             .await?;
         self.metrics.nr_steps_started.inc();

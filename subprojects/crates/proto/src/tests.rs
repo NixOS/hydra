@@ -7,6 +7,8 @@ use harmonia_store_path_info::NarHash;
 use harmonia_utils_hash::{Algorithm, Hash, Sha256};
 use harmonia_utils_signature::Signature;
 
+use super::{BuildMetric, BuildProduct, NixSupport};
+
 fn test_store_dir() -> StoreDir {
     StoreDir::default()
 }

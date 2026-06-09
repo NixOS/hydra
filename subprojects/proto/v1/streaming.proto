@@ -3,6 +3,7 @@ syntax = "proto3";
 package runner.v1;
 
 import "v1/store.proto";
+import "v1/store/derivation.proto";
 import "v1/nix-support.proto";
 
 option java_multiple_files = true;
@@ -16,7 +17,7 @@ service RunnerService {
   rpc BuildResult(stream AddToStoreRequest) returns (Empty) {}
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
-  rpc FetchRequisites(nix.store.v1.StorePath) returns (RequisitesResponse) {}
+  rpc FetchRequisites(nix.store.v1.StorePaths) returns (RequisitesResponse) {}
   rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
   rpc FetchPaths(nix.store.v1.StorePaths) returns (stream AddToStoreRequest) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
@@ -134,6 +135,12 @@ message BuildMessage {
   optional PresignedUploadOpts presigned_url_opts = 7; // None if presigned url upload is disabled
   // bool is_deterministic = 5;
   // bool enforce_determinism = 6;
+
+  // Force-resolved derivation. The builder uses this with
+  // buildDerivation via the daemon protocol, rather than fetching
+  // the drv closure from the queue runner. All inputDrvs have been
+  // resolved to concrete output store paths in inputSrcs.
+  optional nix.store.derivation.v1.Basic resolved_drv = 8;
 }
 
 message RequisitesResponse {

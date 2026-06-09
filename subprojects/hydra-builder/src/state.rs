@@ -402,24 +402,17 @@ impl State {
         active.clear();
     }
 
-    #[tracing::instrument(skip(self, pool))]
+    #[tracing::instrument(skip(self, pool, basic_drv))]
     async fn request_build(
         &self,
         pool: &harmonia_store_remote::ConnectionPool,
         drv: &StorePath,
+        basic_drv: &harmonia_store_derivation::derivation::BasicDerivation,
         max_log_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
     ) -> anyhow::Result<BuildResultSuccess> {
-        // Build via daemon protocol using build_paths_with_results.
-        // Log messages from the ResultLog stream are sent to the
-        // queue-runner concurrently via the gRPC build_log stream.
-        let build_path = harmonia_store_derivation::derived_path::DerivedPath::Built {
-            drv_path: Arc::new(
-                harmonia_store_derivation::derived_path::SingleDerivedPath::Opaque(drv.clone()),
-            ),
-            outputs: harmonia_store_derivation::derived_path::OutputSpec::All,
-        };
+        // Build the pre-resolved BasicDerivation; logs stream to the queue-runner.
         let mut guard = pool.acquire().await.context("daemon connection failed")?;
 
         let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel::<bytes::Bytes>();
@@ -429,7 +422,7 @@ impl State {
             async move { client.build_log(log_stream).await }
         });
 
-        let build_results = {
+        let build_result = {
             use futures::stream::StreamExt as _;
 
             {
@@ -441,19 +434,18 @@ impl State {
                 options
                     .other_settings
                     .insert("timeout".to_string(), build_timeout.to_string().into());
-                // Unfortunately BuildPathsWithResults does not take options,
-                // they must be set per-client with a separate call.
+                // build_derivation does not take options; they must be
+                // set per-client with a separate call.
                 guard.client().set_options(&options).await?;
             }
 
-            let build_paths = [build_path];
-            let mut result_log = std::pin::pin!(
-                harmonia_protocol::types::DaemonStore::build_paths_with_results(
+            let mut result_log =
+                std::pin::pin!(harmonia_protocol::types::DaemonStore::build_derivation(
                     guard.client(),
-                    &build_paths,
+                    drv,
+                    basic_drv,
                     harmonia_protocol::daemon_wire::types2::BuildMode::Normal,
-                )
-            );
+                ));
             while let Some(msg) = result_log.as_mut().next().await {
                 match msg {
                     harmonia_protocol::log::LogMessage::Message(m) => {
@@ -480,9 +472,7 @@ impl State {
                 }
             }
             drop(log_tx);
-            result_log
-                .await
-                .context("build_paths_with_results failed")?
+            result_log.await.context("build_derivation failed")?
         };
         drop(guard);
 
@@ -496,21 +486,9 @@ impl State {
             tracing::warn!("build log shipping failed for {drv}: {e}");
         }
 
-        // Extract outputs from the build result.
-        if build_results.len() != 1 {
-            return Err(anyhow::anyhow!(
-                "build_paths_with_results returned {} results, expected 1",
-                build_results.len()
-            ));
-        }
-        let build_result = build_results
-            .into_iter()
-            .next()
-            .ok_or_else(|| anyhow::anyhow!("empty build results"))?;
-
         // Check for build failure.
         use harmonia_protocol::daemon_wire::types2::BuildResultInner;
-        Ok(match build_result.result.inner {
+        Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
                 return Err(anyhow::anyhow!(
@@ -549,8 +527,23 @@ impl State {
                 step_status: StepStatus::SeningInputs as i32,
             })
             .await;
+
+        // Decode the force-resolved BasicDerivation sent by the queue runner.
+        let basic_drv: harmonia_store_derivation::derivation::BasicDerivation = m
+            .resolved_drv
+            .ok_or(JobFailure::Preparing(anyhow::anyhow!(
+                "missing resolved_drv in BuildMessage",
+            )))?
+            .try_into()
+            .map_err(|e: String| {
+                JobFailure::Import(anyhow::anyhow!("failed to decode resolved derivation: {e}"))
+            })?;
+
+        // Fetch the transitive closure of the resolved inputs.
         let requisites = client
-            .fetch_requisites(ProtoStorePath::from(drv.clone()))
+            .fetch_requisites(hydra_proto::StorePaths {
+                paths: basic_drv.inputs.iter().map(ProtoStorePath::from).collect(),
+            })
             .await
             .map_err(|e| JobFailure::Import(e.into()))?
             .into_inner()
@@ -583,6 +576,7 @@ impl State {
             .request_build(
                 &self.pool,
                 &drv,
+                &basic_drv,
                 m.max_log_size,
                 m.max_silent_time,
                 m.build_timeout,

@@ -488,6 +488,7 @@ pub enum Message {
         max_silent_time: i32,
         build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
+        resolved_drv: Box<hydra_proto::nix::store::derivation::v1::Basic>,
     },
     AbortMessage {
         build_id: uuid::Uuid,
@@ -506,6 +507,7 @@ impl Message {
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
+                resolved_drv,
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
                 drv: Some(hydra_proto::ProtoStorePath::from(drv)),
@@ -513,6 +515,7 @@ impl Message {
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
+                resolved_drv: Some(*resolved_drv),
             }),
             Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
                 build_id: build_id.to_string(),
@@ -633,6 +636,10 @@ impl Machine {
         fields(build_id=job.build_id, step_nr=job.step_nr),
         err,
     )]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "params mirror the fields dispatched in `Message::BuildMessage`"
+    )]
     pub async fn build_drv(
         &self,
         job: Job,
@@ -641,6 +648,7 @@ impl Machine {
         max_silent_time: i32,
         build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
+        resolved_drv: hydra_proto::nix::store::derivation::v1::Basic,
     ) -> anyhow::Result<()> {
         let drv = effective_drv;
         self.msg_queue
@@ -651,6 +659,7 @@ impl Machine {
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
+                resolved_drv: Box::new(resolved_drv),
             })
             .await?;
 
