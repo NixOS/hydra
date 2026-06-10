@@ -454,7 +454,9 @@ impl Queues {
         metrics: &super::metrics::PromMetrics,
     ) -> i64
     where
-        F: AsyncFn(JobConstraint) -> anyhow::Result<crate::state::RealiseStepResult>,
+        F: AsyncFn(
+            JobConstraint,
+        ) -> Result<crate::state::RealiseStepResult, crate::state::StateError>,
     {
         let now = jiff::Timestamp::now();
         let mut nr_steps_waiting_all_queues = 0;

@@ -2,6 +2,16 @@ use backon::ExponentialBuilder;
 use backon::Retryable as _;
 use harmonia_store_path::StorePath;
 
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum UploaderError {
+    #[error("uploader state I/O")]
+    Io(#[from] std::io::Error),
+    #[error("(de)serializing uploader state")]
+    Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Cache(#[from] binary_cache::CacheError),
+}
+
 #[allow(clippy::unnecessary_wraps)]
 fn deserialize_with_new_v4<'de, D>(_: D) -> Result<uuid::Uuid, D::Error>
 where
@@ -46,7 +56,7 @@ impl Uploader {
         uploader
     }
 
-    async fn save_state(&self) -> anyhow::Result<()> {
+    async fn save_state(&self) -> Result<(), UploaderError> {
         let mut queue = self.queue.inspect();
         queue.extend(self.current_tasks.read().iter().cloned());
         let json = serde_json::to_string(&queue)?;
@@ -55,7 +65,7 @@ impl Uploader {
         Ok(())
     }
 
-    async fn load_state(&self) -> anyhow::Result<()> {
+    async fn load_state(&self) -> Result<(), UploaderError> {
         if !self.state_file_path.exists() {
             tracing::info!(
                 "Uploader state file {} does not exist, starting with empty queue",
@@ -145,7 +155,7 @@ impl Uploader {
         local_store: &harmonia_store_remote::ConnectionPool,
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), UploaderError> {
         // Upload log file
         (|| async {
             let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
@@ -153,15 +163,14 @@ impl Uploader {
             remote_store
                 .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
                 .await?;
-            Ok::<(), anyhow::Error>(())
+            Ok::<(), UploaderError>(())
         })
         .retry(
             ExponentialBuilder::default()
                 .with_max_delay(std::time::Duration::from_secs(30))
                 .with_max_times(3),
         )
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to upload log file: {e}"))?;
+        .await?;
 
         // Copy NARs
         let missing_paths: hashbrown::HashSet<StorePath> = remote_store
@@ -183,15 +192,14 @@ impl Uploader {
             remote_store
                 .copy_paths(local_store, paths_to_copy.clone(), false)
                 .await?;
-            Ok::<(), anyhow::Error>(())
+            Ok::<(), UploaderError>(())
         })
         .retry(
             ExponentialBuilder::default()
                 .with_max_delay(std::time::Duration::from_secs(60))
                 .with_max_times(5),
         )
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to copy paths: {e}"))?;
+        .await?;
 
         tracing::debug!(
             "Successfully uploaded {} paths to bucket {}",

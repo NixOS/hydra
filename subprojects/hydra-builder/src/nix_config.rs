@@ -1,5 +1,6 @@
 //! Read nix configuration by shelling out to `nix show-config --json`.
 
+use color_eyre::eyre;
 use std::collections::HashMap;
 
 /// Cached nix configuration values.
@@ -10,7 +11,7 @@ pub struct NixConfig {
 
 impl NixConfig {
     /// Read nix configuration by running `nix show-config --json`.
-    pub fn load() -> anyhow::Result<Self> {
+    pub fn load() -> eyre::Result<Self> {
         let output = std::process::Command::new("nix")
             .args([
                 "--extra-experimental-features",
@@ -20,7 +21,7 @@ impl NixConfig {
             ])
             .output()?;
         if !output.status.success() {
-            anyhow::bail!(
+            eyre::bail!(
                 "nix show-config failed: {}",
                 str::from_utf8(&output.stderr).unwrap_or("Invalid UTF-8")
             );
