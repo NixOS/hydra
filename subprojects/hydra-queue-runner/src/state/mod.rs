@@ -791,6 +791,9 @@ pub enum ResolutionError {
     #[error("could not create resolved build step")]
     ResolvedStepCreationFailed,
 
+    #[error("no recorded output path for {drv}^{name}")]
+    MissingRecordedOutput { drv: StorePath, name: String },
+
     #[error("output path mismatch for output `{name}` of {drv}: expected {expected}, got {actual}")]
     OutputPathMismatch {
         name: String,
@@ -1019,7 +1022,7 @@ impl State {
                 let resolved_step = match self
                     .create_step(
                         build.clone(),
-                        resolved_path,
+                        resolved_path.clone(),
                         referring_build,
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
@@ -1029,9 +1032,41 @@ impl State {
                     .await
                 {
                     CreateStepResult::None => {
-                        return Err(StateError::from(
-                            ResolutionError::ResolvedStepCreationFailed,
-                        ));
+                        // The resolved derivation is already built, so no new
+                        // step will run. Finish the owning builds as cached and
+                        // wake dependents with the resolved outputs.
+                        let output = self.get_build_output_cached(&resolved_path).await?;
+                        let now = i32::try_from(jiff::Timestamp::now().as_second())?;
+                        let mut direct = step_info.step.get_direct_builds();
+                        direct.sort_by_key(|b| b.id);
+                        crate::utils::with_serialization_retry("cached_resolved_step", || async {
+                            let mut db = self.db.get().await?;
+                            let mut tx = db.begin_transaction().await?;
+                            for b in &direct {
+                                tx.mark_succeeded_build(
+                                    get_mark_build_sccuess_data(b, &output),
+                                    true,
+                                    now,
+                                    now,
+                                    self.connector.store_dir(),
+                                )
+                                .await?;
+                                tx.notify_build_finished(b.id, &[]).await?;
+                            }
+                            Ok(tx.commit().await?)
+                        })
+                        .await?;
+                        for b in &direct {
+                            self.metrics.nr_builds_done.inc();
+                            b.set_finished_in_db(true);
+                            self.builds.remove_by_id(b.id);
+                        }
+                        if direct.is_empty() {
+                            self.steps.remove(step_info.step.get_drv_path());
+                        }
+                        self.finish_step_rdeps(&step_info.step, &resolved_path, &output, &direct)
+                            .await?;
+                        return Ok(RealiseStepResult::Resolved);
                     }
                     CreateStepResult::Valid(step) => step,
                     CreateStepResult::PreviousFailure(step) => {
@@ -2132,10 +2167,22 @@ impl State {
             tx.commit().await?;
         }
 
-        // Process dynamic rdeps first, as we must add new step dependencies for dynamically
-        // generated derivations
+        self.finish_step_rdeps(&item.step_info.step, drv_path, &output, &direct)
+            .await
+    }
+
+    /// Wake a finished step's reverse dependencies. Dynamic rdeps are
+    /// handled first so the generated derivations in `output` get steps
+    /// before `make_rdeps_runnable` runs.
+    async fn finish_step_rdeps(
+        &self,
+        step: &Arc<Step>,
+        drv_path: &StorePath,
+        output: &BuildOutput,
+        direct: &[Arc<Build>],
+    ) -> Result<(), StateError> {
         {
-            for (dep_step, output_name, relation) in item.step_info.step.pop_dynamic_rdeps() {
+            for (dep_step, output_name, relation) in step.pop_dynamic_rdeps() {
                 let Some(dependent_step) = dep_step.upgrade() else {
                     continue;
                 };
@@ -2155,9 +2202,7 @@ impl State {
                 } else {
                     let mut dependents = HashSet::new();
                     let mut visited_steps = HashSet::new();
-                    item.step_info
-                        .step
-                        .get_dependents(&mut dependents, &mut visited_steps);
+                    step.get_dependents(&mut dependents, &mut visited_steps);
                     let Some(b) = dependents.into_iter().next() else {
                         tracing::warn!("Finished step does not have associated build");
                         continue;
@@ -2204,7 +2249,7 @@ impl State {
                 dependent_step.add_dep_if_unfinished(new_step);
             }
         }
-        item.step_info.step.make_rdeps_runnable();
+        step.make_rdeps_runnable();
 
         // always trigger dispatch, as we now might have a free machine again
         self.trigger_dispatch();
@@ -3031,21 +3076,28 @@ impl State {
         self.observe_input_drvs(&drv);
 
         let use_substitutes = self.config.get_use_substitutes();
+        let known_outputs = self
+            .query_known_drv_outputs(drv_path)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("Could not query known outputs, continuing: {e}");
+                BTreeMap::new()
+            });
+        // A CA floating output has no path until built; recorded build steps are the only way to find it.
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
             .outputs
             .iter()
             .map(|(name, output)| {
-                (
-                    name.clone(),
-                    output
-                        .path(self.connector.store_dir(), &drv.name, name)
-                        .ok()
-                        .flatten(),
-                )
+                let path = output
+                    .path(self.connector.store_dir(), &drv.name, name)
+                    .ok()
+                    .flatten()
+                    .or_else(|| known_outputs.get(name).cloned());
+                (name.clone(), path)
             })
             .collect();
         let missing_local_outputs = self
-            .missing_local_outputs(build, drv_path, &output_paths, pool)
+            .missing_local_outputs(build, drv_path, &output_paths, &known_outputs, pool)
             .await;
 
         // Handle paths that aren't in the remote store (for pushing).
@@ -3180,15 +3232,9 @@ impl State {
         build: &Arc<Build>,
         drv_path: &StorePath,
         output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+        known_outputs: &BTreeMap<OutputName, StorePath>,
         pool: &Arc<daemon_client_utils::DaemonConnPool>,
     ) -> BTreeMap<OutputName, Option<StorePath>> {
-        let known_outputs = self
-            .query_known_drv_outputs(drv_path)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("Could not query known outputs, continuing: {e}");
-                BTreeMap::new()
-            });
         let mut conn = pool.acquire().await.ok();
         let mut missing = BTreeMap::new();
         for (name, path) in output_paths {
@@ -3411,19 +3457,33 @@ impl State {
     ) -> Result<BuildOutput, StateError> {
         let drv = self.read_derivation(drv_path).await?;
 
+        let known_outputs = self.query_known_drv_outputs(drv_path).await?;
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
             .outputs
             .iter()
             .map(|(name, output)| {
-                (
-                    name.clone(),
-                    output
-                        .path(self.connector.store_dir(), &drv.name, name)
-                        .ok()
-                        .flatten(),
-                )
+                let path = output
+                    .path(self.connector.store_dir(), &drv.name, name)
+                    .ok()
+                    .flatten()
+                    .or_else(|| known_outputs.get(name).cloned());
+                (name.clone(), path)
             })
             .collect();
+
+        // Finishing a build as cached writes these paths to buildoutputs, so a
+        // gap there would record NULL rather than fail loudly.
+        if let Some(name) = output_paths
+            .iter()
+            .find_map(|(n, p)| p.is_none().then_some(n))
+        {
+            return Err(ResolutionError::MissingRecordedOutput {
+                drv: drv_path.clone(),
+                name: name.to_string(),
+            }
+            .into());
+        }
+
         {
             let mut db = self.db.get().await?;
             for out_path in output_paths.values() {
@@ -3448,6 +3508,10 @@ impl State {
                     .get_build_metrics_for_build_id(build_id)
                     .await?
                     .into_iter()
+                    .collect();
+                res.outputs = output_paths
+                    .iter()
+                    .filter_map(|(name, path)| Some((name.clone(), path.clone()?)))
                     .collect();
 
                 return Ok(res);
