@@ -1,3 +1,5 @@
+use color_eyre::eyre;
+
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {
     #[error("environment variable {0} not set")]
@@ -22,7 +24,7 @@ pub enum BuilderError {
     ParseNixStore(String),
 
     #[error("Loading Nix configuration")]
-    LoadNixConfig(#[source] anyhow::Error),
+    LoadNixConfig(#[source] eyre::Report),
 
     #[error("Gateway API missing host")]
     GatewayMissingHost,
@@ -43,13 +45,13 @@ pub enum BuilderError {
     VersionIncompatible(String),
 
     #[error("Reading system information")]
-    ReadingSystemInfo(#[source] anyhow::Error),
+    ReadingSystemInfo(#[source] eyre::Report),
 
     #[error("Failed to communicate {0} times over the channel. Terminating the application.")]
     RepeatedFailure(u32),
 
     #[error("While handling request")]
-    HandlingRequest(#[source] anyhow::Error),
+    HandlingRequest(#[source] eyre::Report),
 
     #[error("Task failed")]
     Task(#[from] tokio::task::JoinError),

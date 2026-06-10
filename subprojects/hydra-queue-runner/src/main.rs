@@ -23,9 +23,12 @@ pub mod utils;
 
 use std::future::Future;
 
-use anyhow::Context as _;
+use color_eyre::eyre::{self, WrapErr as _};
 
 use state::State;
+
+type GrpcServer =
+    std::pin::Pin<Box<dyn Future<Output = Result<(), server::grpc::ServerError>> + Send>>;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -76,8 +79,8 @@ fn spawn_config_reloader(
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
-async fn main() -> anyhow::Result<()> {
-    let _tracing_guard = hydra_tracing::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+async fn main() -> color_eyre::Result<()> {
+    let _tracing_guard = hydra_tracing::init()?;
 
     #[cfg(debug_assertions)]
     {
@@ -94,7 +97,7 @@ async fn main() -> anyhow::Result<()> {
 
     let lockfile_path = state.config.get_lockfile();
     let _lock = lock_file::LockFile::acquire(&lockfile_path)
-        .context("Another instance is already running.")?;
+        .wrap_err("Another instance is already running.")?;
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
@@ -102,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::error!(
             "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
         );
-        return Err(anyhow::anyhow!("Configuration issue"));
+        return Err(eyre::eyre!("Configuration issue"));
     }
 
     let task_abort_handles = start_task_loops(&state);
@@ -120,22 +123,19 @@ async fn main() -> anyhow::Result<()> {
         config::BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                anyhow::anyhow!("No listenfd TCP listener at index {idx} for REST")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for REST"))?;
             std_listener.set_nonblocking(true)?;
             tokio::net::TcpListener::from_std(std_listener)?
         }
         config::BindSocket::Unix(_) => {
-            anyhow::bail!("HTTP server does not support Unix sockets");
+            return Err(eyre::eyre!("HTTP server does not support Unix sockets"));
         }
     };
     let http_addr = http_listener.local_addr()?;
 
-    let (srv1, grpc_info): (
-        std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>,
-        String,
-    ) = match &state.cli.grpc_bind {
+    let (srv1, grpc_info): (GrpcServer, String) = match &state.cli.grpc_bind {
         config::BindSocket::Tcp(s) => {
             let listener = tokio::net::TcpListener::bind(s).await?;
             let addr = listener.local_addr()?;
@@ -147,9 +147,9 @@ async fn main() -> anyhow::Result<()> {
         }
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                anyhow::anyhow!("No listenfd TCP listener at index {idx} for gRPC")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for gRPC"))?;
             let addr = std_listener.local_addr()?;
             let info = addr.to_string();
             std_listener.set_nonblocking(true)?;
@@ -180,9 +180,13 @@ async fn main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         match futures_util::future::join(srv1, srv2).await {
             (Ok(()), Ok(())) => Ok(()),
-            (Ok(()), Err(e)) => Err(anyhow::anyhow!("hyper error while awaiting handle: {e}")),
-            (Err(e), Ok(())) => Err(anyhow::anyhow!("tonic error while awaiting handle: {e}")),
-            (Err(e1), Err(e2)) => Err(anyhow::anyhow!(
+            (Ok(()), Err(e)) => Err(color_eyre::eyre::eyre!(
+                "hyper error while awaiting handle: {e}"
+            )),
+            (Err(e), Ok(())) => Err(color_eyre::eyre::eyre!(
+                "tonic error while awaiting handle: {e}"
+            )),
+            (Err(e1), Err(e2)) => Err(color_eyre::eyre::eyre!(
                 "tonic and hyper error while awaiting handle: {e1} | {e2}"
             )),
         }

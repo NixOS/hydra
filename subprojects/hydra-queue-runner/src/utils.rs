@@ -1,11 +1,10 @@
 use std::{collections::BTreeMap, os::unix::ffi::OsStrExt as _};
 
-use anyhow::Context as _;
 use db::models::BuildID;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use crate::state::RemoteBuild;
+use crate::state::{RemoteBuild, StateError};
 
 #[tracing::instrument(skip(db, store_dir, res), err)]
 pub async fn finish_build_step(
@@ -16,7 +15,7 @@ pub async fn finish_build_step(
     res: &RemoteBuild,
     machine: Option<&str>,
     output_paths: Option<&BTreeMap<OutputName, StorePath>>,
-) -> anyhow::Result<()> {
+) -> Result<(), StateError> {
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
 
@@ -47,7 +46,7 @@ pub async fn finish_build_step(
     tx.notify_step_finished(
         build_id,
         step_nr,
-        res.log_file.to_str().context("Non UTF-8 log file path")?,
+        res.log_file.to_str().ok_or(StateError::LogPathNotUtf8)?,
     )
     .await?;
 
@@ -72,7 +71,7 @@ pub async fn substitute_output(
     build_id: BuildID,
     drv_path: &StorePath,
     remote_store: Option<&binary_cache::S3BinaryCacheClient>,
-) -> anyhow::Result<bool> {
+) -> Result<bool, StateError> {
     let (name, path) = o;
     let Some(path) = path else {
         return Ok(false);
@@ -85,7 +84,7 @@ pub async fn substitute_output(
         return Ok(false);
     }
     if let Some(remote_store) = remote_store {
-        let _: Result<(), anyhow::Error> = async {
+        let _: Result<(), StateError> = async {
             let closure =
                 daemon_client_utils::query_closure(&pool, std::slice::from_ref(&path)).await?;
             let missing: hashbrown::HashSet<StorePath> = remote_store
@@ -133,7 +132,7 @@ pub async fn make_local_step(
     build_id: BuildID,
     drv_path: &StorePath,
     missing: &BTreeMap<OutputName, Option<StorePath>>,
-) -> anyhow::Result<()> {
+) -> Result<(), StateError> {
     let time = i32::try_from(jiff::Timestamp::now().as_second())?;
 
     let mut db = db.get().await?;
