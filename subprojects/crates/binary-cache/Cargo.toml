@@ -51,5 +51,6 @@ harmonia-utils-io.workspace         = true
 harmonia-utils-signature.workspace  = true
 
 [dev-dependencies]
+eyre                    = "0.6"
 hydra-tracing.workspace = true
 tempfile                = "3.23.0"

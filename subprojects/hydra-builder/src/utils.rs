@@ -48,8 +48,10 @@ pub(crate) fn compressed_log_stream(
                     data: bytes.into(),
                 },
                 Err(e) => {
-                    tracing::error!("Failed to compress log chunk: {e}");
-                    break;
+                    // Zstd encoding of in-memory data should never
+                    // fail. The only input is the duplex pipe reader
+                    // which returns EOF when the writer is dropped.
+                    panic!("Failed to compress log chunk: {e}");
                 }
             }
         }

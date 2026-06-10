@@ -23,31 +23,76 @@ pub mod utils;
 
 use std::future::Future;
 
-use anyhow::Context as _;
-
 use state::State;
+
+#[derive(Debug, thiserror::Error)]
+enum MainError {
+    #[error(transparent)]
+    State(#[from] state::StateError),
+    #[error(transparent)]
+    Config(#[from] config::ConfigError),
+    #[error(transparent)]
+    LoadConfig(#[from] config::LoadConfigError),
+    #[error(transparent)]
+    Db(#[from] db::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Server(#[from] server::grpc::ServerError),
+    #[error(transparent)]
+    Join(#[from] tokio::task::JoinError),
+    #[error("another instance is already running (lock file: {path})")]
+    LockFile {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("tracing init failed: {0}")]
+    Tracing(String),
+    #[error("no listenfd TCP listener at index {0}")]
+    NoListenFd(usize),
+    #[error("HTTP server does not support Unix sockets")]
+    HttpUnixUnsupported,
+    #[error("server error: {0}")]
+    ServerTask(String),
+}
+
+type GrpcServer =
+    std::pin::Pin<Box<dyn Future<Output = Result<(), server::grpc::ServerError>> + Send>>;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-fn start_task_loops(state: &std::sync::Arc<State>) -> Vec<tokio::task::AbortHandle> {
+struct TaskLoops {
+    /// Background tasks that only need to be aborted on shutdown.
+    abort_only: Vec<tokio::task::AbortHandle>,
+    /// Critical tasks whose errors should halt the queue-runner.
+    critical: Vec<tokio::task::JoinHandle<Result<(), state::StateError>>>,
+}
+
+fn start_task_loops(state: &std::sync::Arc<State>) -> TaskLoops {
     tracing::info!("QueueRunner starting task loops");
 
-    let mut service_list = vec![
+    let mut abort_only = vec![
         spawn_config_reloader(state.clone(), state.config.clone(), &state.cli.config_path),
-        state.clone().start_dispatch_loop(),
         state.clone().start_uploader_queue(),
     ];
+
+    let mut critical = vec![state.clone().start_dispatch_loop()];
+
     if !state.cli.disable_queue_monitor_loop {
-        service_list.push(state.clone().start_queue_monitor_loop());
+        critical.push(state.clone().start_queue_monitor_loop());
     }
 
     if let Some(fod_checker) = &state.fod_checker {
-        service_list.push(fod_checker.clone().start_traverse_loop());
+        abort_only.push(fod_checker.clone().start_traverse_loop());
     }
 
-    service_list
+    TaskLoops {
+        abort_only,
+        critical,
+    }
 }
 
 fn spawn_config_reloader(
@@ -65,6 +110,8 @@ fn spawn_config_reloader(
                     config::reload(&current_config, &filepath, &state).await;
                 }
                 Err(e) => {
+                    // Non-fatal: `io::Error` — signal handling infra, no DB.
+                    // Config reloads stop working but queue-runner continues.
                     tracing::error!("Failed to create signal listener for SIGHUP: {e}");
                     break;
                 }
@@ -76,8 +123,10 @@ fn spawn_config_reloader(
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
-async fn main() -> anyhow::Result<()> {
-    let _tracing_guard = hydra_tracing::init().map_err(|e| anyhow::anyhow!("{e}"))?;
+async fn main() -> Result<(), MainError> {
+    color_eyre::install().map_err(|e| MainError::Tracing(e.to_string()))?;
+    let _tracing_guard =
+        hydra_tracing::init().map_err(|e| MainError::Tracing(e.to_string()))?;
 
     #[cfg(debug_assertions)]
     {
@@ -93,19 +142,22 @@ async fn main() -> anyhow::Result<()> {
     let state = State::new().await?;
 
     let lockfile_path = state.config.get_lockfile();
-    let _lock = lock_file::LockFile::acquire(&lockfile_path)
-        .context("Another instance is already running.")?;
+    let _lock =
+        lock_file::LockFile::acquire(&lockfile_path).map_err(|source| MainError::LockFile {
+            path: lockfile_path.display().to_string(),
+            source,
+        })?;
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
     if !state.cli.mtls_configured_correctly() {
-        tracing::error!(
-            "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
-        );
-        return Err(anyhow::anyhow!("Configuration issue"));
+        return Err(config::ConfigError::MissingOption(
+            "server_cert_path, server_key_path and client_ca_cert_path",
+        )
+        .into());
     }
 
-    let task_abort_handles = start_task_loops(&state);
+    let tasks = start_task_loops(&state);
 
     // Resolve listeners for both servers. When using socket activation
     // (ListenFd), we use LISTEN_FDNAMES to map names to fd indices.
@@ -120,22 +172,19 @@ async fn main() -> anyhow::Result<()> {
         config::BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                anyhow::anyhow!("No listenfd TCP listener at index {idx} for REST")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or(MainError::NoListenFd(idx))?;
             std_listener.set_nonblocking(true)?;
             tokio::net::TcpListener::from_std(std_listener)?
         }
         config::BindSocket::Unix(_) => {
-            anyhow::bail!("HTTP server does not support Unix sockets");
+            return Err(MainError::HttpUnixUnsupported);
         }
     };
     let http_addr = http_listener.local_addr()?;
 
-    let (srv1, grpc_info): (
-        std::pin::Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>>,
-        String,
-    ) = match &state.cli.grpc_bind {
+    let (srv1, grpc_info): (GrpcServer, String) = match &state.cli.grpc_bind {
         config::BindSocket::Tcp(s) => {
             let listener = tokio::net::TcpListener::bind(s).await?;
             let addr = listener.local_addr()?;
@@ -147,9 +196,9 @@ async fn main() -> anyhow::Result<()> {
         }
         config::BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
-            let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                anyhow::anyhow!("No listenfd TCP listener at index {idx} for gRPC")
-            })?;
+            let std_listener = listenfd
+                .take_tcp_listener(idx)?
+                .ok_or(MainError::NoListenFd(idx))?;
             let addr = std_listener.local_addr()?;
             let info = addr.to_string();
             std_listener.set_nonblocking(true)?;
@@ -180,11 +229,9 @@ async fn main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         match futures_util::future::join(srv1, srv2).await {
             (Ok(()), Ok(())) => Ok(()),
-            (Ok(()), Err(e)) => Err(anyhow::anyhow!("hyper error while awaiting handle: {e}")),
-            (Err(e), Ok(())) => Err(anyhow::anyhow!("tonic error while awaiting handle: {e}")),
-            (Err(e1), Err(e2)) => Err(anyhow::anyhow!(
-                "tonic and hyper error while awaiting handle: {e1} | {e2}"
-            )),
+            (Ok(()), Err(e)) => Err(format!("HTTP server error: {e}")),
+            (Err(e), Ok(())) => Err(format!("gRPC server error: {e}")),
+            (Err(e1), Err(e2)) => Err(format!("gRPC and HTTP server errors: {e1} | {e2}")),
         }
     });
 
@@ -196,35 +243,37 @@ async fn main() -> anyhow::Result<()> {
     let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
-    let abort_handle = task.abort_handle();
+    let server_handle = task.abort_handle();
+    let mut critical_tasks =
+        futures_util::future::try_join_all(tasks.critical.into_iter().map(|h| async { h.await? }));
+
     tokio::select! {
         _ = sigint.recv() => {
             tracing::info!("Received sigint - shutting down gracefully");
-            let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
-            abort_handle.abort();
-            for h in task_abort_handles {
-                h.abort();
-            }
-            // removing all machines will also mark all currently running jobs as cancelled
-            state.remove_all_machines().await;
-            let _ = state.clear_busy().await;
-            Ok(())
         }
         _ = sigterm.recv() => {
             tracing::info!("Received sigterm - shutting down gracefully");
-            let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
-            abort_handle.abort();
-            for h in task_abort_handles {
-                h.abort();
-            }
-            // removing all machines will also mark all currently running jobs as cancelled
-            state.remove_all_machines().await;
-            let _ = state.clear_busy().await;
-            Ok(())
         }
         r = task => {
-            r??;
-            Ok(())
+            if let Err(e) = r? {
+                return Err(MainError::ServerTask(e));
+            }
+            return Ok(());
+        }
+        r = &mut critical_tasks => {
+            r?;
+            return Ok(());
         }
     }
+
+    // Shutdown path (signal received)
+    let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
+    server_handle.abort();
+    for h in tasks.abort_only {
+        h.abort();
+    }
+    // removing all machines will also mark all currently running jobs as cancelled
+    state.remove_all_machines().await?;
+    let _ = state.clear_busy().await;
+    Ok(())
 }

@@ -1,6 +1,19 @@
 use hashbrown::HashMap;
 use procfs_core::FromRead as _;
 
+/// Errors from reading system information.
+#[derive(Debug, thiserror::Error)]
+pub enum SystemInfoError {
+    #[error(transparent)]
+    Proc(#[from] procfs_core::ProcError),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Nix(#[from] nix::errno::Errno),
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct BaseSystemInfo {
     pub cpu_count: usize,
@@ -11,7 +24,7 @@ pub struct BaseSystemInfo {
 impl BaseSystemInfo {
     #[cfg(target_os = "linux")]
     #[tracing::instrument(err)]
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Result<Self, SystemInfoError> {
         let cpuinfo = procfs_core::CpuInfo::from_file("/proc/cpuinfo")?;
         let meminfo = procfs_core::Meminfo::from_file("/proc/meminfo")?;
         let bogomips = cpuinfo
@@ -29,7 +42,7 @@ impl BaseSystemInfo {
 
     #[cfg(target_os = "macos")]
     #[tracing::instrument(err)]
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Result<Self, SystemInfoError> {
         let mut sys = sysinfo::System::new_all();
         sys.refresh_memory();
         sys.refresh_cpu_all();
@@ -143,7 +156,7 @@ pub struct SystemLoad {
 }
 
 #[tracing::instrument(err)]
-pub fn get_mount_free_percent(dest: &str) -> anyhow::Result<f64> {
+pub fn get_mount_free_percent(dest: &str) -> Result<f64, SystemInfoError> {
     let stat = nix::sys::statvfs::statvfs(dest)?;
 
     let total_bytes = (stat.blocks() as u64) * stat.block_size();
@@ -155,7 +168,7 @@ pub fn get_mount_free_percent(dest: &str) -> anyhow::Result<f64> {
 impl SystemLoad {
     #[cfg(target_os = "linux")]
     #[tracing::instrument(err)]
-    pub fn new(build_dir: &str, store_dir: &str) -> anyhow::Result<Self> {
+    pub fn new(build_dir: &str, store_dir: &str) -> Result<Self, SystemInfoError> {
         let meminfo = procfs_core::Meminfo::from_file("/proc/meminfo")?;
         let load = procfs_core::LoadAverage::from_file("/proc/loadavg")?;
 
@@ -172,7 +185,7 @@ impl SystemLoad {
 
     #[cfg(target_os = "macos")]
     #[tracing::instrument(err)]
-    pub fn new(build_dir: &str, store_dir: &str) -> anyhow::Result<Self> {
+    pub fn new(build_dir: &str, store_dir: &str) -> Result<Self, SystemInfoError> {
         let mut sys = sysinfo::System::new_all();
         sys.refresh_memory();
         let load = sysinfo::System::load_average();

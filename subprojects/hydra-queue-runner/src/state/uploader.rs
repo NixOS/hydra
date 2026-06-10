@@ -2,6 +2,22 @@ use backon::ExponentialBuilder;
 use backon::Retryable as _;
 use harmonia_store_path::StorePath;
 
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum PersistError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum UploadError {
+    #[error(transparent)]
+    Cache(#[from] binary_cache::CacheError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
+
 #[allow(clippy::unnecessary_wraps)]
 fn deserialize_with_new_v4<'de, D>(_: D) -> Result<uuid::Uuid, D::Error>
 where
@@ -36,6 +52,8 @@ impl Uploader {
         };
 
         if let Err(e) = uploader.load_state().await {
+            // Non-fatal: `PersistError` is IO/JSON — no DB.
+            // Starting with an empty upload queue is fine.
             tracing::warn!(
                 "Failed to load uploader state from {}: {}",
                 uploader.state_file_path.display(),
@@ -46,7 +64,7 @@ impl Uploader {
         uploader
     }
 
-    async fn save_state(&self) -> anyhow::Result<()> {
+    async fn save_state(&self) -> Result<(), PersistError> {
         let mut queue = self.queue.inspect();
         queue.extend(self.current_tasks.read().iter().cloned());
         let json = serde_json::to_string(&queue)?;
@@ -55,7 +73,7 @@ impl Uploader {
         Ok(())
     }
 
-    async fn load_state(&self) -> anyhow::Result<()> {
+    async fn load_state(&self) -> Result<(), PersistError> {
         if !self.state_file_path.exists() {
             tracing::info!(
                 "Uploader state file {} does not exist, starting with empty queue",
@@ -110,6 +128,9 @@ impl Uploader {
         {
             Ok(c) => c,
             Err(e) => {
+                // Non-fatal: outputs remain in the local store. The
+                // uploader is best-effort — a transient daemon issue
+                // shouldn't stop other uploads from proceeding.
                 tracing::error!("Failed to query requisites: {e}");
                 return;
             }
@@ -145,7 +166,7 @@ impl Uploader {
         local_store: &harmonia_store_remote::ConnectionPool,
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), UploadError> {
         // Upload log file
         (|| async {
             let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
@@ -153,15 +174,14 @@ impl Uploader {
             remote_store
                 .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
                 .await?;
-            Ok::<(), anyhow::Error>(())
+            Ok::<(), UploadError>(())
         })
         .retry(
             ExponentialBuilder::default()
                 .with_max_delay(std::time::Duration::from_secs(30))
                 .with_max_times(3),
         )
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to upload log file: {e}"))?;
+        .await?;
 
         // Copy NARs
         let missing_paths: hashbrown::HashSet<StorePath> = remote_store
@@ -183,15 +203,14 @@ impl Uploader {
             remote_store
                 .copy_paths(local_store, paths_to_copy.clone(), false)
                 .await?;
-            Ok::<(), anyhow::Error>(())
+            Ok::<(), UploadError>(())
         })
         .retry(
             ExponentialBuilder::default()
                 .with_max_delay(std::time::Duration::from_secs(60))
                 .with_max_times(5),
         )
-        .await
-        .map_err(|e| anyhow::anyhow!("failed to copy paths: {e}"))?;
+        .await?;
 
         tracing::debug!(
             "Successfully uploaded {} paths to bucket {}",

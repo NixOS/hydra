@@ -270,19 +270,19 @@ impl InnerQueues {
     }
 
     fn remove_job_by_path(&mut self, drv: &StorePath) {
-        if self.jobs.remove(drv).is_none() {
-            tracing::error!("Failed to remove stepinfo drv={drv} from jobs!");
-        }
+        assert!(
+            self.jobs.remove(drv).is_some(),
+            "tried to remove non-existent job drv={drv}"
+        );
     }
 
     #[tracing::instrument(skip(self, stepinfo, queue))]
     fn remove_job(&mut self, stepinfo: &Arc<StepInfo>, queue: &Arc<BuildQueue>) {
-        if self.jobs.remove(stepinfo.step.get_drv_path()).is_none() {
-            tracing::error!(
-                "Failed to remove stepinfo drv={} from jobs!",
-                stepinfo.step.get_drv_path(),
-            );
-        }
+        assert!(
+            self.jobs.remove(stepinfo.step.get_drv_path()).is_some(),
+            "tried to remove non-existent job drv={}",
+            stepinfo.step.get_drv_path(),
+        );
         // active should be removed
         queue.scrube_jobs();
     }
@@ -318,6 +318,8 @@ impl InnerQueues {
                     item.machine.get_internal_build_id_for_drv(drv_path)
                 {
                     if let Err(e) = item.machine.abort_build(internal_build_id).await {
+                        // Non-fatal: `ChannelClosedError` — builder
+                        // already disconnected. No DB involved.
                         tracing::error!(
                             "Failed to abort build drv_path={drv_path} build_id={internal_build_id} e={e}",
                         );
@@ -452,9 +454,11 @@ impl Queues {
         &self,
         processor: F,
         metrics: &super::metrics::PromMetrics,
-    ) -> i64
+    ) -> Result<i64, crate::state::StateError>
     where
-        F: AsyncFn(JobConstraint) -> anyhow::Result<crate::state::RealiseStepResult>,
+        F: AsyncFn(
+            JobConstraint,
+        ) -> Result<crate::state::RealiseStepResult, crate::state::StateError>,
     {
         let now = jiff::Timestamp::now();
         let mut nr_steps_waiting_all_queues = 0;
@@ -519,18 +523,26 @@ impl Queues {
 
                         metrics.queue_aborted_jobs_total.inc();
                     }
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to realise drv on valid machine, will be skipped: drv={} e={e}",
-                            job.step.get_drv_path(),
-                        );
-                    }
+                    Err(e) => match &e {
+                        // Fatal: DB infrastructure error — halt the
+                        // dispatch loop so the queue-runner can restart.
+                        super::StateError::Db(_) => return Err(e),
+                        // Non-fatal: store unavailable, logic error,
+                        // timestamp overflow, etc. — skip this drv and
+                        // continue dispatching.
+                        _ => {
+                            tracing::warn!(
+                                "Failed to realise drv on valid machine, skipping: drv={} e={e}",
+                                job.step.get_drv_path(),
+                            );
+                        }
+                    },
                 }
                 queue.set_nr_runnable_waiting(nr_waiting);
                 queue.set_nr_runnable_disabled(nr_disabled);
             }
         }
-        nr_steps_waiting_all_queues
+        Ok(nr_steps_waiting_all_queues)
     }
 
     pub async fn clone_inner(&self) -> HashMap<System, Arc<BuildQueue>> {

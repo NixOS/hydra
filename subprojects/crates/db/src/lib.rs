@@ -20,7 +20,7 @@ pub mod models;
 use std::str::FromStr as _;
 
 pub use connection::{Connection, Transaction};
-pub use error::{DataError, Error, Result};
+pub use error::{DataError, DbConfigurationError, Error, Result};
 pub use harmonia_store_path::StoreDir;
 
 #[derive(Debug, Clone)]
@@ -43,12 +43,26 @@ impl Database {
         Ok(Connection::new(conn))
     }
 
+    /// Re-configure the connection pool with a new URL.
+    ///
+    /// This only parses and stores the new options — it does **not**
+    /// contact the database.
+    // TODO: ability to change max_connections by dropping the pool and recreating it
     #[tracing::instrument(skip(self, url), err)]
-    pub fn reconfigure_pool(&self, url: &str) -> Result<()> {
-        // TODO: ability to change max_connections by dropping the pool and recreating it
-        self.pool
-            .set_connect_options(sqlx::postgres::PgConnectOptions::from_str(url)?);
-        Ok(())
+    pub fn reconfigure_pool(&self, url: &str) -> std::result::Result<(), DbConfigurationError> {
+        match sqlx::postgres::PgConnectOptions::from_str(url) {
+            Ok(options) => {
+                self.pool.set_connect_options(options);
+                Ok(())
+            }
+            Err(sqlx::Error::Configuration(e)) => Err(DbConfigurationError(e)),
+            Err(e) => {
+                // PgConnectOptions::from_str only produces Configuration
+                // errors. If this changes in a future sqlx version, fail
+                // loudly rather than silently swallowing it.
+                panic!("unexpected error from PgConnectOptions::from_str: {e}")
+            }
+        }
     }
 
     pub async fn listener(

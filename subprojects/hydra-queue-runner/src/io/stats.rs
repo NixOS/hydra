@@ -1,4 +1,20 @@
-use anyhow::Context as _;
+#[derive(Debug, thiserror::Error)]
+pub enum CgroupError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Proc(#[from] procfs::ProcError),
+
+    #[error("failed to parse cgroup value: {0}")]
+    Parse(#[from] std::num::ParseIntError),
+
+    #[error("cgroup information is missing in process")]
+    NoCgroup,
+
+    #[error("cgroups directory does not exist")]
+    NoCgroupDir,
+}
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,24 +52,20 @@ pub struct MemoryStats {
 
 impl MemoryStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         Ok(Self {
             current_bytes: fs_err::read_to_string(cgroups_path.join("memory.current"))?
                 .trim()
-                .parse()
-                .context("memory current parsing failed")?,
+                .parse()?,
             peak_bytes: fs_err::read_to_string(cgroups_path.join("memory.peak"))?
                 .trim()
-                .parse()
-                .context("memory peak parsing failed")?,
+                .parse()?,
             swap_current_bytes: fs_err::read_to_string(cgroups_path.join("memory.swap.current"))?
                 .trim()
-                .parse()
-                .context("swap parsing failed")?,
+                .parse()?,
             zswap_current_bytes: fs_err::read_to_string(cgroups_path.join("memory.zswap.current"))?
                 .trim()
-                .parse()
-                .context("zswap parsing failed")?,
+                .parse()?,
         })
     }
 }
@@ -67,7 +79,7 @@ pub struct IoStats {
 
 impl IoStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         let mut total_read_bytes: u64 = 0;
         let mut total_write_bytes: u64 = 0;
 
@@ -108,7 +120,7 @@ pub struct CpuStats {
 
 impl CpuStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         let contents = fs_err::read_to_string(cgroups_path.join("cpu.stat"))?;
 
         let mut usage_usec: u128 = 0;
@@ -154,18 +166,18 @@ pub struct CgroupStats {
 
 impl CgroupStats {
     #[tracing::instrument(err)]
-    fn new(me: &procfs::process::Process) -> anyhow::Result<Self> {
+    fn new(me: &procfs::process::Process) -> Result<Self, CgroupError> {
         let cgroups_pathname = format!(
             "/sys/fs/cgroup/{}",
             me.cgroups()?
                 .0
                 .first()
-                .ok_or_else(|| anyhow::anyhow!("cgroup information is missing in process."))?
+                .ok_or(CgroupError::NoCgroup)?
                 .pathname
         );
         let cgroups_path = std::path::Path::new(&cgroups_pathname);
         if !cgroups_path.exists() {
-            return Err(anyhow::anyhow!("cgroups directory does not exists."));
+            return Err(CgroupError::NoCgroupDir);
         }
 
         Ok(Self {
@@ -202,6 +214,8 @@ impl Process {
             cgroup: match CgroupStats::new(&me) {
                 Ok(v) => Some(v),
                 Err(e) => {
+                    // Non-fatal: `CgroupError` is procfs/IO/parse — no DB.
+                    // Cgroup info is optional for metrics.
                     tracing::error!("failed to cgroups stats: {e}");
                     None
                 }

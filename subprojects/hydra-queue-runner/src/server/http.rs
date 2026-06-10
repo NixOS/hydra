@@ -22,11 +22,17 @@ pub enum Error {
     #[error("std io error: `{0}`")]
     Io(#[from] std::io::Error),
 
-    #[error("anyhow error: `{0}`")]
-    Anyhow(#[from] anyhow::Error),
+    #[error("prometheus error: `{0}`")]
+    Prometheus(#[from] prometheus::Error),
+
+    #[error(transparent)]
+    State(#[from] crate::state::StateError),
 
     #[error("db error: `{0}`")]
     Sqlx(#[from] db::Error),
+
+    #[error("invalid store path: {0}")]
+    StorePath(#[from] harmonia_store_path::ParseStorePathError),
 
     #[error("Not found")]
     NotFound,
@@ -44,9 +50,11 @@ impl Error {
             | Self::HyperHttp(_)
             | Self::Hyper(_)
             | Self::Io(_)
-            | Self::Anyhow(_)
+            | Self::Prometheus(_)
+            | Self::State(_)
             | Self::Sqlx(_)
             | Self::Fatal => hyper::StatusCode::INTERNAL_SERVER_ERROR,
+            Self::StorePath(_) => hyper::StatusCode::BAD_REQUEST,
             Self::NotFound => hyper::StatusCode::NOT_FOUND,
         }
     }
@@ -104,6 +112,9 @@ impl Server {
                         .instrument(server_span.clone())
                         .await
                     {
+                        // Non-fatal: `hyper::Error` — per-connection HTTP
+                        // error, no DB. A bad client shouldn't bring
+                        // down the server.
                         tracing::error!("Error serving connection: {err:?}");
                     }
                 }
@@ -354,10 +365,7 @@ mod handler {
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
             state
-                .queue_one_build(
-                    data.jobset_id,
-                    &StorePath::from_base_path(&data.drv).map_err(|e| anyhow::anyhow!("{e}"))?,
-                )
+                .queue_one_build(data.jobset_id, &StorePath::from_base_path(&data.drv)?)
                 .await?;
             construct_json_ok_response(&io::Empty {})
         }

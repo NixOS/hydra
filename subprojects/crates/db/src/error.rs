@@ -45,3 +45,9 @@ impl From<std::num::TryFromIntError> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Error from parsing a database connection URL. This is a config
+/// error, not a connection error — no database was contacted.
+#[derive(Debug, thiserror::Error)]
+#[error("bad database configuration: {0}")]
+pub struct DbConfigurationError(pub Box<dyn std::error::Error + Send + Sync>);

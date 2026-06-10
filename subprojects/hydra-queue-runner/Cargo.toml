@@ -18,10 +18,10 @@ serde_json.workspace  = true
 smallvec              = { workspace = true, features = [ "serde" ] }
 toml.workspace        = true
 
-anyhow.workspace       = true
 atomic_float.workspace = true
 backon.workspace       = true
 clap                   = { workspace = true, features = [ "derive", "env" ] }
+color-eyre.workspace   = true
 fs-err                 = { workspace = true, features = [ "tokio" ] }
 thiserror.workspace    = true
 uuid                   = { workspace = true, features = [ "v4", "serde" ] }

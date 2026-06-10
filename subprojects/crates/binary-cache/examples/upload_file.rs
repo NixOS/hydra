@@ -2,7 +2,7 @@ use binary_cache::S3BinaryCacheClient;
 use harmonia_store_path::StorePath;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> eyre::Result<()> {
     let now = std::time::Instant::now();
 
     let _tracing_guard = hydra_tracing::init()?;

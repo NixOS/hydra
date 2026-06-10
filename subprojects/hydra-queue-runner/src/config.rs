@@ -1,7 +1,15 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Context as _;
 use clap::Parser;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("missing option: {0}")]
+    MissingOption(&'static str),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+}
 
 #[derive(Debug, Clone)]
 pub enum BindSocket {
@@ -86,20 +94,20 @@ impl Cli {
     #[tracing::instrument(skip(self), err)]
     pub async fn get_mtls(
         &self,
-    ) -> anyhow::Result<(tonic::transport::Certificate, tonic::transport::Identity)> {
+    ) -> Result<(tonic::transport::Certificate, tonic::transport::Identity), ConfigError> {
         let server_cert_path = self
             .server_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_cert_path"))?;
         let server_key_path = self
             .server_key_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_key_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_key_path"))?;
 
         let client_ca_cert_path = self
             .client_ca_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("client_ca_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("client_ca_cert_path"))?;
         let client_ca_cert = fs_err::tokio::read_to_string(client_ca_cert_path).await?;
         let client_ca_cert = tonic::transport::Certificate::from_pem(client_ca_cert);
 
@@ -287,8 +295,20 @@ pub struct PreparedApp {
     pub forced_substituters: Vec<String>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PrepareConfigError {
+    #[error("environment variable `{0}` is missing")]
+    MissingEnvVar(&'static str),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error("failed to parse NIX_REMOTE: {0}")]
+    NixRemote(String),
+}
+
 impl TryFrom<AppConfig> for PreparedApp {
-    type Error = anyhow::Error;
+    type Error = PrepareConfigError;
 
     fn try_from(val: AppConfig) -> Result<Self, Self::Error> {
         let remote_store_addr = val
@@ -302,8 +322,10 @@ impl TryFrom<AppConfig> for PreparedApp {
             })
             .collect();
 
-        let logname = std::env::var("LOGNAME").context("LOGNAME env var missing")?;
-        let nix_remote = daemon_client_utils::parse_nix_remote().map_err(|e| anyhow::anyhow!(e))?;
+        let logname =
+            std::env::var("LOGNAME").map_err(|_| PrepareConfigError::MissingEnvVar("LOGNAME"))?;
+        let nix_remote =
+            daemon_client_utils::parse_nix_remote().map_err(PrepareConfigError::NixRemote)?;
         let roots_dir = val.roots_dir.map_or_else(
             || {
                 nix_remote
@@ -386,20 +408,28 @@ impl TryFrom<AppConfig> for PreparedApp {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum LoadConfigError {
+    #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+
+    #[error(transparent)]
+    Prepare(#[from] PrepareConfigError),
+}
+
 /// Loads the config from specified path
 #[tracing::instrument(err)]
-fn load_config(filepath: &str) -> anyhow::Result<PreparedApp> {
+fn load_config(filepath: &str) -> Result<PreparedApp, LoadConfigError> {
     tracing::info!("Trying to loading file: {filepath}");
     let toml: AppConfig = if let Ok(content) = fs_err::read_to_string(filepath) {
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to toml load from '{filepath}'"))?
+        toml::from_str(&content)?
     } else {
         tracing::warn!("no config file found! Using default config");
-        toml::from_str("").context("Failed to parse empty string as config")?
+        toml::from_str("")?
     };
     tracing::info!("Loaded config: {toml:?}");
 
-    toml.try_into().context("Failed to prepare configuration")
+    Ok(toml.try_into()?)
 }
 
 #[derive(Debug, Clone)]
@@ -409,7 +439,7 @@ pub struct App {
 
 impl App {
     #[tracing::instrument(err)]
-    pub fn init(filepath: &str) -> anyhow::Result<Self> {
+    pub fn init(filepath: &str) -> Result<Self, LoadConfigError> {
         Ok(Self {
             inner: Arc::new(arc_swap::ArcSwap::from(Arc::new(load_config(filepath)?))),
         })
@@ -565,6 +595,8 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
     let new_config = match load_config(filepath) {
         Ok(c) => c,
         Err(e) => {
+            // Non-fatal: `LoadConfigError` is toml parse / config
+            // validation — no DB. Old config remains in effect.
             tracing::warn!("Failed to load new config: {e}");
             let _notify = sd_notify::notify(&[
                 sd_notify::NotifyState::Status("Reload failed"),
@@ -576,6 +608,9 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
     };
 
     if let Err(e) = state.reload_config_callback(&new_config).await {
+        // Non-fatal: `ReloadConfigError` contains `BadDbUrl` (invalid
+        // pool URL) and `CacheError` (bad S3 config). Neither
+        // indicates "DB is down" — the old config remains in effect.
         tracing::error!("Config reload failed with {e}");
         let _notify = sd_notify::notify(&[
             sd_notify::NotifyState::Status("Configuration reloaded failed - Running"),
