@@ -999,7 +999,7 @@ impl State {
                 let resolved_step = match self
                     .create_step(
                         build.clone(),
-                        resolved_path,
+                        resolved_path.clone(),
                         referring_build,
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
@@ -1009,9 +1009,41 @@ impl State {
                     .await
                 {
                     CreateStepResult::None => {
-                        return Err(StateError::from(
-                            ResolutionError::ResolvedStepCreationFailed,
-                        ));
+                        // The resolved derivation is already built, so no new
+                        // step will run. Finish the owning builds as cached and
+                        // wake dependents with the resolved outputs.
+                        let output = self.get_build_output_cached(&resolved_path).await?;
+                        let now = i32::try_from(jiff::Timestamp::now().as_second())?;
+                        let mut direct = step_info.step.get_direct_builds();
+                        direct.sort_by_key(|b| b.id);
+                        crate::utils::with_serialization_retry("cached_resolved_step", || async {
+                            let mut db = self.db.get().await?;
+                            let mut tx = db.begin_transaction().await?;
+                            for b in &direct {
+                                tx.mark_succeeded_build(
+                                    get_mark_build_sccuess_data(b, &output),
+                                    true,
+                                    now,
+                                    now,
+                                    self.connector.store_dir(),
+                                )
+                                .await?;
+                                tx.notify_build_finished(b.id, &[]).await?;
+                            }
+                            Ok(tx.commit().await?)
+                        })
+                        .await?;
+                        for b in &direct {
+                            self.metrics.nr_builds_done.inc();
+                            b.set_finished_in_db(true);
+                            self.builds.remove_by_id(b.id);
+                        }
+                        if direct.is_empty() {
+                            self.steps.remove(step_info.step.get_drv_path());
+                        }
+                        self.finish_step_rdeps(&step_info.step, &resolved_path, &output, &direct)
+                            .await?;
+                        return Ok(RealiseStepResult::Resolved);
                     }
                     CreateStepResult::Valid(step) => step,
                     CreateStepResult::PreviousFailure(step) => {
@@ -2081,10 +2113,22 @@ impl State {
             tx.commit().await?;
         }
 
-        // Process dynamic rdeps first, as we must add new step dependencies for dynamically
-        // generated derivations
+        self.finish_step_rdeps(&item.step_info.step, &drv_path, &output, &direct)
+            .await
+    }
+
+    /// Wake a finished step's reverse dependencies. Dynamic rdeps are
+    /// handled first so the generated derivations in `output` get steps
+    /// before `make_rdeps_runnable` runs.
+    async fn finish_step_rdeps(
+        &self,
+        step: &Arc<Step>,
+        drv_path: &StorePath,
+        output: &BuildOutput,
+        direct: &[Arc<Build>],
+    ) -> Result<(), StateError> {
         {
-            for (dep_step, output_name, relation) in item.step_info.step.pop_dynamic_rdeps() {
+            for (dep_step, output_name, relation) in step.pop_dynamic_rdeps() {
                 let Some(dependent_step) = dep_step.upgrade() else {
                     continue;
                 };
@@ -2104,9 +2148,7 @@ impl State {
                 } else {
                     let mut dependents = HashSet::new();
                     let mut visited_steps = HashSet::new();
-                    item.step_info
-                        .step
-                        .get_dependents(&mut dependents, &mut visited_steps);
+                    step.get_dependents(&mut dependents, &mut visited_steps);
                     let Some(b) = dependents.into_iter().next() else {
                         tracing::warn!("Finished step does not have associated build");
                         continue;
@@ -2153,7 +2195,7 @@ impl State {
                 dependent_step.add_dep_if_unfinished(new_step);
             }
         }
-        item.step_info.step.make_rdeps_runnable();
+        step.make_rdeps_runnable();
 
         // always trigger dispatch, as we now might have a free machine again
         self.trigger_dispatch();
