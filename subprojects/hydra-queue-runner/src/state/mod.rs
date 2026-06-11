@@ -140,6 +140,66 @@ enum CreateStepResult {
     PreviousFailure(Arc<Step>),
 }
 
+/// Output availability as discovered by [`State::prefetch_step_facts`].
+#[derive(Debug)]
+enum OutputAvailability {
+    /// All outputs are available where builders fetch their inputs from.
+    Complete,
+    /// Outputs are missing; the step has to be built.
+    Incomplete,
+}
+
+/// What the IO phase ([`State::prefetch_step_facts`]) learned about a
+/// derivation, used by the synchronous [`attach_step`].
+struct StepFacts {
+    drv: Derivation,
+    availability: OutputAvailability,
+    previous_failure: bool,
+}
+
+enum AttachOutcome {
+    Finished,
+    PreviousFailure,
+    Attached,
+}
+
+/// Synchronously attach a prefetched step to the in-memory step graph:
+/// finished/failure marking, dep registration, created flag and runnability
+/// all happen here, with no IO in between. Deps are inserted via
+/// [`Step::add_dep_if_unfinished`], so a dep that finished since the
+/// prefetch is never added and the step cannot get stuck waiting on it.
+fn attach_step(
+    step: &Arc<Step>,
+    availability: &OutputAvailability,
+    previous_failure: bool,
+    deps: Vec<Arc<Step>>,
+    new_runnable: &mut HashSet<Arc<Step>>,
+) -> AttachOutcome {
+    if previous_failure {
+        step.set_previous_failure(true);
+        return AttachOutcome::PreviousFailure;
+    }
+    match availability {
+        OutputAvailability::Complete => {
+            step.set_finished(true);
+            AttachOutcome::Finished
+        }
+        OutputAvailability::Incomplete => {
+            for dep in deps {
+                if dep.get_previous_failure() {
+                    continue;
+                }
+                step.add_dep_if_unfinished(dep);
+            }
+            step.atomic_state.set_created(true);
+            if step.get_deps_size() == 0 {
+                new_runnable.insert(step.clone());
+            }
+            AttachOutcome::Attached
+        }
+    }
+}
+
 enum RealiseStepResult {
     None,
     /// Created a new resolved `BuildStep`
@@ -1694,8 +1754,11 @@ impl State {
                     r.make_runnable();
                 }
 
-                // create_step already added rdeps, but we need to add a forward dep as well
-                dependent_step.add_dep(new_step);
+                // create_step already added the rdep; add the forward dep
+                // unless the new step finished in the meantime (then its
+                // make_rdeps_runnable already woke the dependent and the dep
+                // would linger in deps forever).
+                dependent_step.add_dep_if_unfinished(new_step);
             }
         }
         item.step_info.step.make_rdeps_runnable();
@@ -2331,12 +2394,105 @@ impl State {
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
-        let Some(drv) = self.read_derivation(&drv_path).await.ok() else {
-            tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
+        let Some(facts) = self.prefetch_step_facts(&build, &drv_path).await else {
             return CreateStepResult::None;
         };
+        let StepFacts {
+            drv,
+            availability,
+            previous_failure,
+        } = facts;
+        let input_drvs = drv::input_drvs(&drv);
+        step.set_drv(drv);
+
+        // Recurse into the input derivations only when the step actually has
+        // to be built; finished and previously-failed steps never get
+        // forward deps.
+        let mut deps = Vec::new();
+        if !previous_failure && matches!(availability, OutputAvailability::Incomplete) {
+            tracing::debug!("creating build step '{drv_path}");
+
+            let step2 = step.clone();
+            let mut stream = futures::StreamExt::map(
+                tokio_stream::iter(input_drvs),
+                |(input_path, relation)| {
+                    let build = build.clone();
+                    let step = step2.clone();
+                    let finished_drvs = finished_drvs.clone();
+                    let new_steps = new_steps.clone();
+                    let new_runnable = new_runnable.clone();
+
+                    async move {
+                        Box::pin(self.create_step(
+                            build,
+                            input_path,
+                            None,
+                            Some((step, relation)),
+                            finished_drvs,
+                            new_steps,
+                            new_runnable,
+                        ))
+                        .await
+                    }
+                },
+            )
+            .buffered(25);
+            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+                match result {
+                    CreateStepResult::None => (),
+                    CreateStepResult::Valid(dep) => deps.push(dep),
+                    CreateStepResult::PreviousFailure(step) => {
+                        return CreateStepResult::PreviousFailure(step);
+                    }
+                }
+            }
+        }
+
+        let outcome = {
+            let mut new_runnable = new_runnable.write();
+            attach_step(
+                &step,
+                &availability,
+                previous_failure,
+                deps,
+                &mut new_runnable,
+            )
+        };
+        match outcome {
+            AttachOutcome::PreviousFailure => CreateStepResult::PreviousFailure(step),
+            AttachOutcome::Finished => {
+                tracing::info!(
+                    "create_step: {drv_path} already finished (outputs in store), skipping"
+                );
+                if let Some(fod_checker) = &self.fod_checker {
+                    fod_checker.to_traverse(&drv_path);
+                }
+                finished_drvs.write().insert(drv_path.clone());
+                CreateStepResult::None
+            }
+            AttachOutcome::Attached => {
+                new_steps.write().insert(step.clone());
+                CreateStepResult::Valid(step)
+            }
+        }
+    }
+
+    /// IO phase of step creation: read the derivation, check local/remote
+    /// output validity, try substitutes and look up cached failures. Must
+    /// not mutate the step graph; that happens in [`attach_step`].
+    #[allow(clippy::too_many_lines)]
+    #[tracing::instrument(skip(self, build), fields(build_id = build.id, %drv_path))]
+    async fn prefetch_step_facts(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+    ) -> Option<StepFacts> {
+        let Some(drv) = self.read_derivation(drv_path).await.ok() else {
+            tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
+            return None;
+        };
         if let Some(fod_checker) = &self.fod_checker {
-            fod_checker.add_ca_drv_parsed(&drv_path, &drv);
+            fod_checker.add_ca_drv_parsed(drv_path, &drv);
         }
 
         if let Ok(system_type) = std::str::from_utf8(&drv.platform) {
@@ -2372,7 +2528,7 @@ impl State {
             })
             .collect();
         let known_outputs = self
-            .query_known_drv_outputs(&drv_path)
+            .query_known_drv_outputs(drv_path)
             .await
             .unwrap_or_else(|e| {
                 tracing::warn!("Could not query known outputs, continuing: {e}");
@@ -2417,7 +2573,7 @@ impl State {
                 &self.db,
                 self.pool.store_dir(),
                 build.id,
-                &drv_path,
+                drv_path,
                 &unregistered_local_outputs,
             )
             .await
@@ -2433,7 +2589,7 @@ impl State {
             if !missing.is_empty() && missing_local_outputs.is_empty() {
                 // we have all paths locally, so we can just upload them to the remote_store
                 {
-                    let log_file = self.construct_log_file_path(&drv_path).await;
+                    let log_file = self.construct_log_file_path(drv_path).await;
                     let missing_paths: Vec<StorePath> =
                         missing.values().filter_map(Clone::clone).collect();
                     self.uploader
@@ -2450,12 +2606,24 @@ impl State {
             missing_local_outputs.clone()
         };
 
-        let input_drvs = drv::input_drvs(&drv);
-        step.set_drv(drv);
-
-        if self.check_cached_failure(step.clone()).await {
-            step.set_previous_failure(true);
-            return CreateStepResult::PreviousFailure(step);
+        // Same lookup as `check_cached_failure`, but from the prefetched
+        // output paths so the step graph is not touched in this phase.
+        let previous_failure = match self.db.get().await {
+            Ok(mut conn) => conn
+                .check_if_paths_failed(
+                    self.pool.store_dir(),
+                    &output_paths.values().flatten().cloned().collect::<Vec<_>>(),
+                )
+                .await
+                .unwrap_or_default(),
+            Err(_) => false,
+        };
+        if previous_failure {
+            return Some(StepFacts {
+                drv,
+                availability: OutputAvailability::Incomplete,
+                previous_failure: true,
+            });
         }
 
         tracing::debug!("missing outputs: {missing_outputs:?}");
@@ -2471,7 +2639,7 @@ impl State {
                     self.pool.clone(),
                     o,
                     build.id,
-                    &drv_path,
+                    drv_path,
                     remote_store.as_ref(),
                 )
             })
@@ -2497,71 +2665,15 @@ impl State {
             missing_outputs.is_empty()
         };
 
-        if finished {
-            tracing::info!("create_step: {drv_path} already finished (outputs in store), skipping");
-            if let Some(fod_checker) = &self.fod_checker {
-                fod_checker.to_traverse(&drv_path);
-            }
-
-            finished_drvs.write().insert(drv_path.clone());
-            step.set_finished(true);
-            return CreateStepResult::None;
-        }
-
-        tracing::debug!("creating build step '{drv_path}");
-
-        let step2 = step.clone();
-        let mut stream =
-            futures::StreamExt::map(tokio_stream::iter(input_drvs), |(input_path, relation)| {
-                let build = build.clone();
-                let step = step2.clone();
-                let finished_drvs = finished_drvs.clone();
-                let new_steps = new_steps.clone();
-                let new_runnable = new_runnable.clone();
-
-                async move {
-                    Box::pin(self.create_step(
-                        build,
-                        input_path,
-                        None,
-                        Some((step, relation)),
-                        finished_drvs,
-                        new_steps,
-                        new_runnable,
-                    ))
-                    .await
-                }
-            })
-            .buffered(25);
-        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
-            match result {
-                CreateStepResult::None => (),
-                CreateStepResult::Valid(dep) => {
-                    if !dep.get_finished() && !dep.get_previous_failure() {
-                        // finished can be true if a step was returned, that already exists in
-                        // self.steps and is currently being processed for completion
-                        step.add_dep(dep);
-                    }
-                }
-                CreateStepResult::PreviousFailure(step) => {
-                    return CreateStepResult::PreviousFailure(step);
-                }
-            }
-        }
-
-        {
-            step.atomic_state.set_created(true);
-            if step.get_deps_size() == 0 {
-                let mut new_runnable = new_runnable.write();
-                new_runnable.insert(step.clone());
-            }
-        }
-
-        {
-            let mut new_steps = new_steps.write();
-            new_steps.insert(step.clone());
-        }
-        CreateStepResult::Valid(step)
+        Some(StepFacts {
+            drv,
+            availability: if finished {
+                OutputAvailability::Complete
+            } else {
+                OutputAvailability::Incomplete
+            },
+            previous_failure: false,
+        })
     }
 
     #[tracing::instrument(skip(self))]
@@ -2763,5 +2875,76 @@ impl State {
         self.metrics
             .nr_unsupported_steps_aborted
             .inc_by(aborted.len() as u64);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    fn drv_path(name: &str) -> StorePath {
+        StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
+    }
+
+    /// A parent step and its dep, registered like `create_step` does it:
+    /// the child carries the parent as rdep before the parent attaches.
+    fn parent_and_child(steps: &Steps) -> (Arc<Step>, Arc<Step>) {
+        let (parent, _) = steps.create(&drv_path("parent"), None, None);
+        let (child, _) = steps.create(
+            &drv_path("child"),
+            None,
+            Some((&parent, drv::OutputNameChain::default())),
+        );
+        (parent, child)
+    }
+
+    /// Regression test for a lost wakeup: the dep finishes and runs its
+    /// `make_rdeps_runnable` pass between prefetch and attach. The parent
+    /// must still come out runnable instead of keeping a finished dep.
+    #[test]
+    fn attach_skips_dep_that_finished_after_prefetch() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        child.set_finished(true);
+        child.make_rdeps_runnable();
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &parent,
+            &OutputAvailability::Incomplete,
+            false,
+            vec![child],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert_eq!(parent.get_deps_size(), 0);
+        assert!(new_runnable.contains(&parent));
+    }
+
+    #[test]
+    fn dep_finishing_after_attach_wakes_parent() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &parent,
+            &OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert!(new_runnable.is_empty());
+        assert!(!parent.get_runnable());
+        assert_eq!(parent.get_deps_size(), 1);
+
+        child.set_finished(true);
+        child.make_rdeps_runnable();
+        assert_eq!(parent.get_deps_size(), 0);
+        assert!(parent.get_runnable());
     }
 }

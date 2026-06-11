@@ -372,6 +372,28 @@ impl Step {
         state.jobsets.insert(jobset);
     }
 
+    /// Add `dep` to this step's forward deps unless it already finished.
+    ///
+    /// The finished flag is checked while holding this step's state lock:
+    /// a finishing dep's `make_rdeps_runnable` takes the same lock to clear
+    /// the dep from `deps`, so we either observe the dep as finished here
+    /// and skip it, or its cleanup runs after our insertion and removes it
+    /// again. Checking before taking the lock left a window in which the
+    /// dep finished in between and this step waited on it forever.
+    ///
+    /// Returns whether the dep was added.
+    pub fn add_dep_if_unfinished(&self, dep: Arc<Self>) -> bool {
+        let mut state = self.state.write();
+        if dep.get_finished() {
+            return false;
+        }
+        state.deps.insert(dep);
+        self.atomic_state
+            .deps_len
+            .store(state.deps.len() as u64, Ordering::Relaxed);
+        true
+    }
+
     pub fn add_dep(&self, dep: Arc<Self>) {
         let mut state = self.state.write();
         state.deps.insert(dep);
