@@ -407,9 +407,7 @@ impl State {
         pool: &harmonia_store_remote::ConnectionPool,
         drv: &StorePath,
         basic_drv: &harmonia_store_derivation::derivation::BasicDerivation,
-        max_log_size: u64,
-        max_silent_time: i32,
-        build_timeout: i32,
+        options: harmonia_protocol::types::ClientOptions,
     ) -> eyre::Result<BuildResultSuccess> {
         // Build the pre-resolved BasicDerivation; logs stream to the queue-runner.
         let mut guard = pool.acquire().await.wrap_err("daemon connection failed")?;
@@ -424,19 +422,9 @@ impl State {
         let build_result = {
             use futures::stream::StreamExt as _;
 
-            {
-                let mut options = harmonia_protocol::types::ClientOptions::default();
-                options.max_silent_time = i64::from(max_silent_time);
-                options
-                    .other_settings
-                    .insert("max-log-size".to_string(), max_log_size.to_string().into());
-                options
-                    .other_settings
-                    .insert("timeout".to_string(), build_timeout.to_string().into());
-                // build_derivation does not take options; they must be
-                // set per-client with a separate call.
-                guard.client().set_options(&options).await?;
-            }
+            // build_derivation does not take options; they must be
+            // set per-client with a separate call.
+            guard.client().set_options(&options).await?;
 
             let mut result_log =
                 std::pin::pin!(harmonia_protocol::types::DaemonStore::build_derivation(
@@ -571,15 +559,30 @@ impl State {
             .await;
         let before_build = Instant::now();
 
+        let options = {
+            let mut options = harmonia_protocol::types::ClientOptions::default();
+            options.max_silent_time = i64::from(m.max_silent_time);
+            options.other_settings.insert(
+                "max-log-size".to_string(),
+                m.max_log_size.to_string().into(),
+            );
+            options
+                .other_settings
+                .insert("timeout".to_string(), m.build_timeout.to_string().into());
+            if m.presigned_url_opts.is_some() {
+                // With presigned uploads, inputs are substituted from a binary
+                // cache that other builders write to continuously; a cached
+                // negative narinfo lookup makes the daemon fail substitution
+                // of a just-uploaded input during the build.
+                options
+                    .other_settings
+                    .insert("narinfo-cache-negative-ttl".to_string(), "0".into());
+            }
+            options
+        };
+
         let success = self
-            .request_build(
-                &self.pool,
-                &drv,
-                &basic_drv,
-                m.max_log_size,
-                m.max_silent_time,
-                m.build_timeout,
-            )
+            .request_build(&self.pool, &drv, &basic_drv, options)
             .await
             .map_err(JobFailure::Build)?;
 
