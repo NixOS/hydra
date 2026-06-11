@@ -85,16 +85,18 @@ impl MachineStats {
             avg_step_import_time_ms,
             avg_step_build_time_ms,
             avg_step_upload_time_ms,
-        ) = if nr_steps_done > 0 {
-            (
-                total_step_time_ms / nr_steps_done,
-                total_step_import_time_ms / nr_steps_done,
-                total_step_build_time_ms / nr_steps_done,
-                total_step_upload_time_ms / nr_steps_done,
-            )
-        } else {
-            (0, 0, 0, 0)
-        };
+        ) = (
+            total_step_time_ms.checked_div(nr_steps_done).unwrap_or(0),
+            total_step_import_time_ms
+                .checked_div(nr_steps_done)
+                .unwrap_or(0),
+            total_step_build_time_ms
+                .checked_div(nr_steps_done)
+                .unwrap_or(0),
+            total_step_upload_time_ms
+                .checked_div(nr_steps_done)
+                .unwrap_or(0),
+        );
 
         Self {
             current_jobs: item.get_current_jobs(),

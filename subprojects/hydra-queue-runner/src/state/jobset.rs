@@ -98,10 +98,7 @@ impl Jobset {
         let now = jiff::Timestamp::now().as_second();
         let mut steps = self.steps.write();
 
-        loop {
-            let Some(first) = steps.first_entry() else {
-                break;
-            };
+        while let Some(first) = steps.first_entry() {
             let start_time = *first.key();
 
             if start_time > now - SCHEDULING_WINDOW {

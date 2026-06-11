@@ -156,7 +156,7 @@ impl FodChecker {
         loop {
             tokio::select! {
                 () = self.notify_traverse.notified() => {},
-                () = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {},
+                () = tokio::time::sleep(tokio::time::Duration::from_mins(1)) => {},
             };
             self.traverse(&self.pool).await;
             if let Some(tx) = &self.traverse_done_notifier {

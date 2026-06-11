@@ -580,14 +580,11 @@ impl Steps {
         let mut is_new = false;
         let mut steps = self.inner.write();
         let step = if let Some(step) = steps.get(drv_path) {
-            step.upgrade().map_or_else(
-                || {
-                    steps.remove(drv_path);
-                    is_new = true;
-                    Step::new(drv_path.to_owned())
-                },
-                |step| step,
-            )
+            step.upgrade().unwrap_or_else(|| {
+                steps.remove(drv_path);
+                is_new = true;
+                Step::new(drv_path.to_owned())
+            })
         } else {
             is_new = true;
             Step::new(drv_path.to_owned())
