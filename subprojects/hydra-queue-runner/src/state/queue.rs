@@ -522,9 +522,18 @@ impl Queues {
                         metrics.queue_aborted_jobs_total.inc();
                     }
                     Err(e) => {
+                        // thiserror's Display does not include the source
+                        // chain; render it so the root cause is visible.
+                        let chain: Vec<String> =
+                            std::iter::successors(Some(&e as &dyn std::error::Error), |e| {
+                                e.source()
+                            })
+                            .map(ToString::to_string)
+                            .collect();
                         tracing::warn!(
-                            "Failed to realise drv on valid machine, will be skipped: drv={} e={e}",
+                            "Failed to realise drv on valid machine, will be skipped: drv={} e={}",
                             job.step.get_drv_path(),
+                            chain.join(": "),
                         );
                     }
                 }
