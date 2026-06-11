@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
 
                 let narinfo = upload_client
-                    .process_presigned_request(&store, narinfo, presigned_request)
+                    .process_presigned_request(store.store_dir(), narinfo, presigned_request)
                     .await?;
 
                 client

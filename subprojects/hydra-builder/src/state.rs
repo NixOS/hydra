@@ -1138,7 +1138,7 @@ async fn upload_single_nar_presigned(
     };
 
     let updated_narinfo = upload_client
-        .process_presigned_request(pool, narinfo, presigned_request)
+        .process_presigned_request(pool.store_dir(), narinfo, presigned_request)
         .await?;
 
     tracing::debug!(

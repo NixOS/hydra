@@ -23,7 +23,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root: StorePath = "m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1".parse()?;
     let paths_to_copy = daemon_client_utils::query_closure(&local, &[root]).await?;
 
-    client.copy_paths(&local, paths_to_copy, true).await?;
+    client
+        .copy_paths(local.store_dir(), paths_to_copy, true)
+        .await?;
 
     tracing::info!("stats: {:#?}", client.s3_stats());
     tracing::info!("Elapsed: {:#?}", now.elapsed());

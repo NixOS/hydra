@@ -8,6 +8,11 @@
 use std::collections::BTreeSet;
 
 use harmonia_store_path::{StoreDir, StorePath};
+use harmonia_store_path_info::{UnkeyedValidPathInfo, ValidPathInfo};
+
+fn decode_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> sqlx::Error {
+    sqlx::Error::Decode(Box::new(e))
+}
 
 /// Read-only pool on `/nix/var/nix/db/db.sqlite`.
 #[derive(Debug, Clone)]
@@ -42,6 +47,99 @@ impl LocalNixDb {
             .fetch_optional(&self.pool)
             .await?;
         Ok(row.is_some())
+    }
+
+    /// Query full path info, `None` if the path is not valid.
+    pub async fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> Result<Option<ValidPathInfo>, sqlx::Error> {
+        type Row = (
+            i64,            // id
+            String,         // hash
+            i64,            // registrationTime
+            Option<String>, // deriver
+            Option<i64>,    // narSize
+            Option<i32>,    // ultimate
+            Option<String>, // sigs
+            Option<String>, // ca
+        );
+        let full = self.store_dir.display(path).to_string();
+        let row: Option<Row> = sqlx::query_as(
+            "SELECT id, hash, registrationTime, deriver, narSize, ultimate, sigs, ca \
+             FROM ValidPaths WHERE path = ?",
+        )
+        .bind(full)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some((id, hash_str, reg_time, deriver_str, nar_size, ultimate, sigs_str, ca_str)) = row
+        else {
+            return Ok(None);
+        };
+
+        let nar_hash = hash_str
+            .parse::<harmonia_utils_hash::fmt::Any<harmonia_store_path_info::NarHash>>()
+            .map_err(decode_err)?
+            .into_hash();
+        let deriver = deriver_str
+            .map(|s| self.store_dir.parse(&s))
+            .transpose()
+            .map_err(decode_err)?;
+        let signatures = sigs_str
+            .map(|s| {
+                s.split_whitespace()
+                    .filter_map(|sig| sig.parse().ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let ca = ca_str.map(|s| s.parse()).transpose().map_err(decode_err)?;
+
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT v.path FROM Refs r \
+             JOIN ValidPaths v ON r.reference = v.id \
+             WHERE r.referrer = ?",
+        )
+        .bind(id)
+        .fetch_all(&self.pool)
+        .await?;
+        let references = rows
+            .into_iter()
+            .filter_map(|(p,)| self.store_dir.parse(&p).ok())
+            .collect();
+
+        Ok(Some(ValidPathInfo {
+            path: path.clone(),
+            info: UnkeyedValidPathInfo {
+                deriver,
+                nar_hash,
+                references,
+                registration_time: std::num::NonZero::new(reg_time),
+                nar_size: nar_size.map_or(0, i64::cast_unsigned),
+                ultimate: ultimate.unwrap_or(0) != 0,
+                signatures,
+                ca,
+                store_dir: self.store_dir.clone(),
+            },
+        }))
+    }
+
+    /// Closure of `roots` with full path info, dependencies first.
+    pub async fn query_closure_infos(
+        &self,
+        roots: Vec<StorePath>,
+    ) -> Result<Vec<ValidPathInfo>, sqlx::Error> {
+        let closure = self.query_closure(roots).await?;
+        let mut infos = Vec::with_capacity(closure.len());
+        for path in closure {
+            // The path was valid during the walk; treat disappearance
+            // (e.g. concurrent GC) as an error rather than skipping.
+            let info = self
+                .query_path_info(&path)
+                .await?
+                .ok_or_else(|| sqlx::Error::RowNotFound)?;
+            infos.push(info);
+        }
+        Ok(infos)
     }
 
     async fn references(&self, path: &StorePath) -> Result<Vec<StorePath>, sqlx::Error> {
@@ -114,16 +212,24 @@ mod tests {
                  id integer primary key autoincrement not null,
                  path text unique not null,
                  hash text not null,
-                 registrationTime integer not null
+                 registrationTime integer not null,
+                 deriver text,
+                 narSize integer,
+                 ultimate integer,
+                 sigs text,
+                 ca text
              );
              CREATE TABLE Refs (
                  referrer integer not null,
                  reference integer not null
              );
-             INSERT INTO ValidPaths (id, path, hash, registrationTime) VALUES
-               (1, '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-a', 'sha256:0', 0),
-               (2, '/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-b', 'sha256:0', 0),
-               (3, '/nix/store/cccccccccccccccccccccccccccccccc-c', 'sha256:0', 0);
+             INSERT INTO ValidPaths (id, path, hash, registrationTime, narSize) VALUES
+               (1, '/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-a',
+                'sha256:0000000000000000000000000000000000000000000000000000000000000000', 0, 120),
+               (2, '/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-b',
+                'sha256:0000000000000000000000000000000000000000000000000000000000000000', 0, 240),
+               (3, '/nix/store/cccccccccccccccccccccccccccccccc-c',
+                'sha256:0000000000000000000000000000000000000000000000000000000000000000', 0, 360);
              -- a depends on b, b depends on c
              INSERT INTO Refs VALUES (1, 2), (2, 3);",
         )
@@ -169,5 +275,16 @@ mod tests {
             .await
             .unwrap();
         assert!(closure.is_empty());
+
+        let infos = db
+            .query_closure_infos(vec![sp("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-a")])
+            .await
+            .unwrap();
+        assert_eq!(infos.len(), 3);
+        assert_eq!(infos[0].info.nar_size, 360); // c, dependencies first
+        assert_eq!(
+            infos[2].info.references,
+            [sp("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-b")].into()
+        );
     }
 }
