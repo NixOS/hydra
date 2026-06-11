@@ -184,13 +184,17 @@ pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
 
         match key {
             "StorePath" => {
-                store_path_opt = Some(val.parse().map_err(|e: ParseStorePathError| {
-                    NarInfoError::InvalidValue {
+                // The field holds the full path, but `StorePath::from_str`
+                // only accepts the base name. Parsing via the store
+                // directory (assumed to be the default one throughout this
+                // function) also rejects narinfos for a different store.
+                store_path_opt = Some(StoreDir::default().parse(val).map_err(
+                    |e: ParseStorePathError| NarInfoError::InvalidValue {
                         field: key.to_owned(),
                         value: val.to_owned(),
                         source: e.into(),
-                    }
-                })?);
+                    },
+                )?);
             }
             "URL" => {
                 url_opt = Some(val.to_string());
@@ -294,4 +298,31 @@ pub fn parse_narinfo(raw: &[u8]) -> Result<NarInfo, NarInfoError> {
             download_size: file_size,
         },
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    /// `StorePath` holds the full path, references and deriver base names,
+    /// as served by cache.nixos.org and written by `harmonia_store_nar_info`.
+    #[test]
+    fn parse_narinfo_accepts_full_store_path() {
+        let raw = b"StorePath: /nix/store/syd87l2rxw8cbsxmxl853h0r6pdwhwjr-curl-7.82.0-bin\n\
+URL: nar/1bjjbgp9p4hxbjy2gs1rajk5qvbwzgsm87lqycpvxmsq0d11h5cl.nar.xz\n\
+Compression: xz\n\
+NarHash: sha256:1m9hzhwddwpl6kcyiyhpkbhqkdgvqrgss132f0jknsws6albmbcl\n\
+NarSize: 196040\n\
+References: 0jqd0rlxzra1rs38rdxl43yh6rxchgc6-curl-7.82.0\n\
+Deriver: 5rwxzi7pal3qhpsyfc16gzkh939q1np6-curl-7.82.0.drv\n";
+
+        let narinfo = parse_narinfo(raw).expect("spec-conforming narinfo should parse");
+        assert_eq!(
+            narinfo.path.to_string(),
+            "syd87l2rxw8cbsxmxl853h0r6pdwhwjr-curl-7.82.0-bin"
+        );
+        assert_eq!(narinfo.info.info.references.len(), 1);
+        assert!(narinfo.info.info.deriver.is_some());
+    }
 }
