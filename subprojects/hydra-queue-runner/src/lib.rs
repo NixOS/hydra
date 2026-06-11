@@ -16,6 +16,7 @@
 
 pub mod config;
 pub mod io;
+pub mod local_db;
 pub mod server;
 pub mod state;
 pub mod utils;
