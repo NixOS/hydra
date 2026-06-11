@@ -497,11 +497,10 @@ impl State {
                     .fail_step(
                         machine_id,
                         &job.path,
-                        // we fail this with preparing because we kinda want to restart all jobs if
-                        // a machine is removed
-                        BuildResultState::Completed(
-                            hydra_proto::BuildResultState::PreparingFailure,
-                        ),
+                        // The machine went away (disconnect or shutdown); the
+                        // step itself did not fail. Record Aborted, like
+                        // clear_busy, and let the retry reschedule it.
+                        BuildResultState::Aborted,
                         BuildTimings::default(),
                     )
                     .await
