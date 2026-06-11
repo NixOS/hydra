@@ -27,21 +27,30 @@ struct Message {
     store_paths: std::sync::Arc<Vec<StorePath>>,
     log_remote_path: std::sync::Arc<String>,
     log_local_path: std::sync::Arc<std::path::PathBuf>,
+    /// Drv path to report on the completion channel once the upload was
+    /// attempted. Set for steps whose finished flag is gated on the upload.
+    #[serde(default)]
+    notify_drv: Option<StorePath>,
 }
 
 #[derive(Debug)]
 pub struct Uploader {
     queue: super::InspectableChannel<Message>,
     current_tasks: parking_lot::RwLock<Vec<Message>>,
+    completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
 
     state_file_path: std::path::PathBuf,
 }
 
 impl Uploader {
-    pub async fn new(state_file_path: std::path::PathBuf) -> Self {
+    pub async fn new(
+        state_file_path: std::path::PathBuf,
+        completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
+    ) -> Self {
         let uploader = Self {
             queue: super::InspectableChannel::with_capacity(1000),
             current_tasks: parking_lot::RwLock::new(Vec::with_capacity(10)),
+            completion_tx,
             state_file_path,
         };
 
@@ -90,6 +99,7 @@ impl Uploader {
         store_paths: Vec<StorePath>,
         log_remote_path: String,
         log_local_path: std::path::PathBuf,
+        notify_drv: Option<StorePath>,
     ) {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
         self.queue.send(Message {
@@ -97,6 +107,7 @@ impl Uploader {
             store_paths: std::sync::Arc::new(store_paths),
             log_remote_path: std::sync::Arc::new(log_remote_path),
             log_local_path: std::sync::Arc::new(log_local_path),
+            notify_drv,
         });
         let _ = self.save_state().await;
     }
@@ -107,6 +118,23 @@ impl Uploader {
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
+    ) {
+        self.upload_msg_inner(local_store, remote_stores, &msg)
+            .await;
+        if let Some(drv) = &msg.notify_drv {
+            // Reported even when the upload failed: the gated step then
+            // finishes anyway and dependents fall back to substituting the
+            // inputs themselves, instead of hanging forever.
+            let _ = self.completion_tx.send(drv.clone());
+        }
+    }
+
+    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    async fn upload_msg_inner(
+        &self,
+        local_store: harmonia_store_remote::ConnectionPool,
+        remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        msg: &Message,
     ) {
         let span = tracing::info_span!("upload_msg", msg = ?msg);
         let _ = span.enter();
@@ -131,7 +159,7 @@ impl Uploader {
         );
 
         for remote_store in remote_stores {
-            if let Err(e) = Self::upload_to_store(&remote_store, &local_store, &msg, &closure).await
+            if let Err(e) = Self::upload_to_store(&remote_store, &local_store, msg, &closure).await
             {
                 // Non-fatal: per-store failure shouldn't block other
                 // stores. Outputs remain in the local store.
