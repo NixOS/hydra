@@ -213,7 +213,7 @@ impl Uploader {
         })
         .retry(
             ExponentialBuilder::default()
-                .with_max_delay(std::time::Duration::from_secs(60))
+                .with_max_delay(std::time::Duration::from_mins(1))
                 .with_max_times(5),
         )
         .await?;

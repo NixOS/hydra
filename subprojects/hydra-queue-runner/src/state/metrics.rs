@@ -850,12 +850,23 @@ impl PromMetrics {
 
     pub async fn refresh_dynamic_metrics(&self, state: &Arc<super::State>) {
         let nr_steps_done = self.nr_steps_done.get();
-        if nr_steps_done > 0 {
-            let avg_time = self.total_step_time_ms.get() / nr_steps_done;
-            let avg_import_time = self.total_step_import_time_ms.get() / nr_steps_done;
-            let avg_build_time = self.total_step_build_time_ms.get() / nr_steps_done;
-            let avg_upload_time = self.total_step_upload_time_ms.get() / nr_steps_done;
-
+        if let (
+            Some(avg_time),
+            Some(avg_import_time),
+            Some(avg_build_time),
+            Some(avg_upload_time),
+        ) = (
+            self.total_step_time_ms.get().checked_div(nr_steps_done),
+            self.total_step_import_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+            self.total_step_build_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+            self.total_step_upload_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+        ) {
             if let Ok(v) = i64::try_from(avg_time) {
                 self.avg_step_time_ms.set(v);
             }
