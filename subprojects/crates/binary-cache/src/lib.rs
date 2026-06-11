@@ -525,9 +525,11 @@ impl S3BinaryCacheClient {
             Err(e) => {
                 tracing::warn!("Upload was interrupted - Aborting multipart upload: {e}");
 
-                if let Err(e) = multipart_upload.abort().await {
-                    tracing::warn!("Failed to abort multipart upload: {e}");
+                if let Err(abort_err) = multipart_upload.abort().await {
+                    tracing::warn!("Failed to abort multipart upload: {abort_err}");
                 }
+
+                return Err(e);
             }
         }
 
