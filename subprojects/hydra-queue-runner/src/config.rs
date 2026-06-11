@@ -7,24 +7,11 @@ pub enum ConfigError {
     #[error("missing option: {0}")]
     MissingOption(&'static str),
 
-    #[error("environment variable `{0}` is missing")]
-    MissingEnvVar(&'static str),
-
     #[error("parsing Nix remote: {0}")]
     ParseNixStore(String),
 
     #[error("reading configuration file")]
     Io(#[from] std::io::Error),
-
-    #[error("{context}")]
-    Toml {
-        context: String,
-        #[source]
-        source: toml::de::Error,
-    },
-
-    #[error("preparing configuration")]
-    Prepare(#[source] Box<ConfigError>),
 }
 
 #[derive(Debug, Clone)]
@@ -311,8 +298,20 @@ pub struct PreparedApp {
     pub forced_substituters: Vec<String>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum PrepareConfigError {
+    #[error("environment variable `{0}` is missing")]
+    MissingEnvVar(&'static str),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error("failed to parse NIX_REMOTE: {0}")]
+    NixRemote(String),
+}
+
 impl TryFrom<AppConfig> for PreparedApp {
-    type Error = ConfigError;
+    type Error = PrepareConfigError;
 
     fn try_from(val: AppConfig) -> Result<Self, Self::Error> {
         let remote_store_addr = val
@@ -327,9 +326,9 @@ impl TryFrom<AppConfig> for PreparedApp {
             .collect();
 
         let logname =
-            std::env::var("LOGNAME").map_err(|_| ConfigError::MissingEnvVar("LOGNAME"))?;
+            std::env::var("LOGNAME").map_err(|_| PrepareConfigError::MissingEnvVar("LOGNAME"))?;
         let nix_remote =
-            daemon_client_utils::parse_nix_remote().map_err(ConfigError::ParseNixStore)?;
+            daemon_client_utils::parse_nix_remote().map_err(PrepareConfigError::NixRemote)?;
         let roots_dir = val.roots_dir.map_or_else(
             || {
                 nix_remote
@@ -412,26 +411,38 @@ impl TryFrom<AppConfig> for PreparedApp {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum LoadConfigError {
+    #[error("{context}")]
+    Toml {
+        context: String,
+        #[source]
+        source: toml::de::Error,
+    },
+
+    #[error("preparing configuration")]
+    Prepare(#[from] PrepareConfigError),
+}
+
 /// Loads the config from specified path
 #[tracing::instrument(err)]
-fn load_config(filepath: &str) -> Result<PreparedApp, ConfigError> {
+fn load_config(filepath: &str) -> Result<PreparedApp, LoadConfigError> {
     tracing::info!("Trying to loading file: {filepath}");
     let toml: AppConfig = if let Ok(content) = fs_err::read_to_string(filepath) {
-        toml::from_str(&content).map_err(|source| ConfigError::Toml {
+        toml::from_str(&content).map_err(|source| LoadConfigError::Toml {
             context: format!("loading config from '{filepath}'"),
             source,
         })?
     } else {
         tracing::warn!("no config file found! Using default config");
-        toml::from_str("").map_err(|source| ConfigError::Toml {
+        toml::from_str("").map_err(|source| LoadConfigError::Toml {
             context: "parsing empty string as config".to_owned(),
             source,
         })?
     };
     tracing::info!("Loaded config: {toml:?}");
 
-    toml.try_into()
-        .map_err(|e| ConfigError::Prepare(Box::new(e)))
+    Ok(toml.try_into()?)
 }
 
 #[derive(Debug, Clone)]
@@ -441,7 +452,7 @@ pub struct App {
 
 impl App {
     #[tracing::instrument(err)]
-    pub fn init(filepath: &str) -> Result<Self, ConfigError> {
+    pub fn init(filepath: &str) -> Result<Self, LoadConfigError> {
         Ok(Self {
             inner: Arc::new(arc_swap::ArcSwap::from(Arc::new(load_config(filepath)?))),
         })

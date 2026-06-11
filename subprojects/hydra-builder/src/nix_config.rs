@@ -1,7 +1,17 @@
 //! Read nix configuration by shelling out to `nix show-config --json`.
 
-use color_eyre::eyre;
 use std::collections::HashMap;
+
+/// Errors from loading nix configuration.
+#[derive(Debug, thiserror::Error)]
+pub enum NixConfigError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    #[error("nix show-config failed: {0}")]
+    Command(String),
+}
 
 /// Cached nix configuration values.
 #[derive(Debug, Clone)]
@@ -11,7 +21,7 @@ pub struct NixConfig {
 
 impl NixConfig {
     /// Read nix configuration by running `nix show-config --json`.
-    pub fn load() -> eyre::Result<Self> {
+    pub fn load() -> Result<Self, NixConfigError> {
         let output = std::process::Command::new("nix")
             .args([
                 "--extra-experimental-features",
@@ -21,10 +31,11 @@ impl NixConfig {
             ])
             .output()?;
         if !output.status.success() {
-            eyre::bail!(
-                "nix show-config failed: {}",
-                str::from_utf8(&output.stderr).unwrap_or("Invalid UTF-8")
-            );
+            return Err(NixConfigError::Command(
+                str::from_utf8(&output.stderr)
+                    .unwrap_or("Invalid UTF-8")
+                    .to_owned(),
+            ));
         }
         let values: HashMap<String, serde_json::Value> = serde_json::from_slice(&output.stdout)?;
         Ok(Self { values })

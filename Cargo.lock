@@ -317,6 +317,7 @@ dependencies = [
  "bytes",
  "configparser",
  "daemon-client-utils",
+ "eyre",
  "foldhash 0.2.0",
  "fs-err",
  "futures",

@@ -110,6 +110,7 @@ zstd = "0.13"
 binary-cache        = { path = "subprojects/crates/binary-cache" }
 daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
 db                  = { path = "subprojects/crates/db" }
+error-context       = { path = "subprojects/crates/error-context" }
 hydra-proto         = { path = "subprojects/crates/proto" }
 hydra-tracing       = { path = "subprojects/crates/tracing" }
 nix-support         = { path = "subprojects/crates/nix-support" }

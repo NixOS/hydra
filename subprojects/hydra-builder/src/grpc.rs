@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
 
 use harmonia_store_path::StorePath;
+
 use hydra_proto::{
     BuilderRequest, VersionCheckRequest, builder_request, runner_request,
     runner_service_client::RunnerServiceClient,
@@ -195,12 +196,12 @@ async fn handle_request(
         runner_request::Message::Build(m) => {
             state
                 .schedule_build(m)
-                .map_err(BuilderError::HandlingRequest)?;
+                .map_err(|e| BuilderError::HandlingRequest(e.into()))?;
         }
         runner_request::Message::Abort(m) => {
             state
                 .abort_build(&m)
-                .map_err(BuilderError::HandlingRequest)?;
+                .map_err(|e| BuilderError::HandlingRequest(e.into()))?;
         }
     }
     Ok(())
@@ -244,7 +245,7 @@ pub async fn start_bidirectional_stream(
     let join_msg = state
         .get_join_message()
         .await
-        .map_err(BuilderError::ReadingSystemInfo)?;
+        .map_err(|e| BuilderError::ReadingSystemInfo(e.into()))?;
     let state2 = state.clone();
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
@@ -283,7 +284,7 @@ pub async fn start_bidirectional_stream(
         }
     };
 
-    let mut consecutive_failure_count = 0;
+    let mut consecutive_failure_count: u32 = 0;
     while let Some(item) = stream.next().await {
         match item.map(|v| v.message) {
             Ok(Some(v)) => {
