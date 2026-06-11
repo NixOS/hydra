@@ -1,0 +1,35 @@
+[package]
+name                   = "hydra-ws"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace              = true
+bytecount.workspace           = true
+clap                          = { workspace = true, features = [ "derive" ] }
+dashmap.workspace             = true
+db.workspace                  = true
+fs-err                        = { workspace = true, features = [ "tokio" ] }
+futures-util.workspace        = true
+harmonia-store-path.workspace = true
+hydra-tracing                 = { workspace = true, features = [ "tonic" ] }
+jiff.workspace                = true
+listenfd.workspace            = true
+parking_lot.workspace         = true
+sd-notify.workspace           = true
+secrecy                       = { workspace = true, features = [ "serde" ] }
+serde                         = { workspace = true, features = [ "derive" ] }
+serde_json.workspace          = true
+tokio                         = { workspace = true, features = [ "full" ] }
+tokio-tungstenite.workspace   = true
+toml.workspace                = true
+thiserror.workspace           = true
+tracing.workspace             = true
+
+[features]
+otel = ["hydra-tracing/otel"]
+
+[dev-dependencies]
+tempfile = "3.23.0"
