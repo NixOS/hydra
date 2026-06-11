@@ -145,6 +145,11 @@ enum CreateStepResult {
 enum OutputAvailability {
     /// All outputs are available where builders fetch their inputs from.
     Complete,
+    /// All outputs are valid locally, but builders fetch their inputs from
+    /// the remote binary cache (presigned uploads) and these paths are
+    /// missing there. The step must not count as finished before the upload
+    /// completed.
+    PendingUpload(Vec<StorePath>),
     /// Outputs are missing; the step has to be built.
     Incomplete,
 }
@@ -160,7 +165,16 @@ struct StepFacts {
 enum AttachOutcome {
     Finished,
     PreviousFailure,
+    /// Created but gated: the caller must schedule an upload of these paths
+    /// and finish the step via [`complete_step`] once it is done.
+    PendingUpload(Vec<StorePath>),
     Attached,
+}
+
+/// Mark a step finished and wake its reverse dependencies.
+fn complete_step(step: &Arc<Step>) {
+    step.set_finished(true);
+    step.make_rdeps_runnable();
 }
 
 /// Synchronously attach a prefetched step to the in-memory step graph:
@@ -170,7 +184,7 @@ enum AttachOutcome {
 /// prefetch is never added and the step cannot get stuck waiting on it.
 fn attach_step(
     step: &Arc<Step>,
-    availability: &OutputAvailability,
+    availability: OutputAvailability,
     previous_failure: bool,
     deps: Vec<Arc<Step>>,
     new_runnable: &mut HashSet<Arc<Step>>,
@@ -181,8 +195,14 @@ fn attach_step(
     }
     match availability {
         OutputAvailability::Complete => {
-            step.set_finished(true);
+            complete_step(step);
             AttachOutcome::Finished
+        }
+        OutputAvailability::PendingUpload(paths) => {
+            // No deps and not runnable: nothing to build, but rdeps must
+            // wait for the upload before they may be dispatched.
+            step.atomic_state.set_created(true);
+            AttachOutcome::PendingUpload(paths)
         }
         OutputAvailability::Incomplete => {
             for dep in deps {
@@ -256,6 +276,11 @@ pub struct State {
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
     pub uploader: uploader::Uploader,
+    /// Receiver for upload completions of steps gated on
+    /// [`OutputAvailability::PendingUpload`]; consumed by
+    /// [`State::start_upload_completion_loop`].
+    upload_completion_rx:
+        parking_lot::Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<StorePath>>>,
 
     /// Parsed nix daemon store config (for reconstructing URIs etc).
     pub nix_daemon_config: daemon_client_utils::NixDaemonStoreConfig,
@@ -345,6 +370,8 @@ impl State {
             None
         };
 
+        let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
+
         Ok(Arc::new(Self {
             pool,
             remote_stores: parking_lot::RwLock::new(remote_stores),
@@ -363,8 +390,10 @@ impl State {
             notify_dispatch: tokio::sync::Notify::new(),
             uploader: uploader::Uploader::new(
                 config.get_hydra_data_dir().join("uploader_state.json"),
+                upload_completion_tx,
             )
             .await,
+            upload_completion_rx: parking_lot::Mutex::new(Some(upload_completion_rx)),
             real_store_dir: nix_config.real_store_dir(),
             nix_daemon_config: nix_config,
             config,
@@ -757,7 +786,12 @@ impl State {
                     }
                 };
 
-                resolved_step.make_runnable();
+                // Do not dispatch a resolved step that only waits for its
+                // outputs to be uploaded; the upload completion wakes its
+                // rdeps instead.
+                if !resolved_step.get_finished() && !resolved_step.has_pending_upload() {
+                    resolved_step.make_runnable();
+                }
 
                 // The in-memory `Arc<Step>` objects are kept alive by having a reference
                 // from a `Build` (if they are the root build) or a dependant `Step`
@@ -1349,6 +1383,49 @@ impl State {
         task.abort_handle()
     }
 
+    /// Process upload completions for steps gated on
+    /// [`OutputAvailability::PendingUpload`]: only once their outputs exist
+    /// in the remote binary cache that builders fetch inputs from may the
+    /// steps finish and their rdeps be dispatched.
+    #[tracing::instrument(skip(self))]
+    pub fn start_upload_completion_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
+        let task = tokio::task::spawn(async move {
+            let Some(mut rx) = self.upload_completion_rx.lock().take() else {
+                tracing::error!("upload completion loop started twice");
+                return;
+            };
+            while let Some(drv_path) = rx.recv().await {
+                self.finish_uploaded_step(&drv_path).await;
+            }
+        });
+        task.abort_handle()
+    }
+
+    #[tracing::instrument(skip(self), fields(%drv_path))]
+    async fn finish_uploaded_step(&self, drv_path: &StorePath) {
+        let Some(step) = self.steps.get(drv_path) else {
+            // Step is gone (e.g. the upload was re-queued from disk after a
+            // restart); the queue monitor revalidates it on the next run.
+            return;
+        };
+        if step.get_finished() {
+            return;
+        }
+        complete_step(&step);
+        if let Some(fod_checker) = &self.fod_checker {
+            fod_checker.to_traverse(drv_path);
+        }
+        // Builds with this step as toplevel are now cached successes.
+        for build in step.get_direct_builds() {
+            let build_id = build.id;
+            if let Err(e) = self.handle_cached_build(build).await {
+                tracing::error!("failed to handle cached build: {e}");
+            }
+            self.builds.remove_by_id(build_id);
+        }
+        self.trigger_dispatch();
+    }
+
     #[tracing::instrument(skip(self))]
     pub fn trigger_dispatch(&self) {
         self.notify_dispatch.notify_one();
@@ -1595,6 +1672,7 @@ impl State {
                         outputs_to_upload,
                         format!("log/{}", job.path),
                         job.result.log_file.clone(),
+                        None,
                     )
                     .await;
             }
@@ -2384,9 +2462,9 @@ impl State {
                     false
                 };
                 if all_valid {
-                    finished_drvs.write().insert(drv_path.clone());
-                    step.set_finished(true);
-                    return CreateStepResult::None;
+                    return self
+                        .revalidate_locally_valid_step(step, &drv_path, &finished_drvs)
+                        .await;
                 }
             }
             return CreateStepResult::Valid(step);
@@ -2452,7 +2530,7 @@ impl State {
             let mut new_runnable = new_runnable.write();
             attach_step(
                 &step,
-                &availability,
+                availability,
                 previous_failure,
                 deps,
                 &mut new_runnable,
@@ -2470,11 +2548,82 @@ impl State {
                 finished_drvs.write().insert(drv_path.clone());
                 CreateStepResult::None
             }
+            AttachOutcome::PendingUpload(paths) => {
+                tracing::info!(
+                    "create_step: {drv_path} outputs valid locally, awaiting upload to remote store"
+                );
+                step.try_mark_upload_scheduled();
+                let log_file = self.construct_log_file_path(&drv_path).await;
+                self.uploader
+                    .schedule_upload(
+                        paths,
+                        format!("log/{drv_path}"),
+                        log_file,
+                        Some(drv_path.clone()),
+                    )
+                    .await;
+                new_steps.write().insert(step.clone());
+                CreateStepResult::Valid(step)
+            }
             AttachOutcome::Attached => {
                 new_steps.write().insert(step.clone());
                 CreateStepResult::Valid(step)
             }
         }
+    }
+
+    /// A pre-existing step whose outputs turned out to be all valid in the
+    /// local store. Decide whether it counts as finished, applying the same
+    /// upload gating as [`State::prefetch_step_facts`]: with presigned
+    /// uploads builders fetch inputs from the remote binary cache, so the
+    /// step only finishes once its outputs were uploaded there.
+    async fn revalidate_locally_valid_step(
+        &self,
+        step: Arc<Step>,
+        drv_path: &StorePath,
+        finished_drvs: &parking_lot::RwLock<HashSet<StorePath>>,
+    ) -> CreateStepResult {
+        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
+            let r = self.remote_stores.read();
+            r.iter().find_map(|s| match s {
+                RemoteStoreBackend::S3(s) => Some(s.clone()),
+                RemoteStoreBackend::NixCopy(_) => None,
+            })
+        };
+        if let Some(remote_store) = remote_store {
+            let output_paths = step
+                .get_output_paths(self.pool.store_dir())
+                .unwrap_or_default();
+            let missing = remote_store
+                .query_missing_remote_outputs(output_paths)
+                .await;
+            if !missing.is_empty() {
+                let paths: Vec<StorePath> = missing.values().filter_map(Clone::clone).collect();
+                let gated = self.config.use_presigned_uploads();
+                if step.try_mark_upload_scheduled() {
+                    let log_file = self.construct_log_file_path(drv_path).await;
+                    self.uploader
+                        .schedule_upload(
+                            paths,
+                            format!("log/{drv_path}"),
+                            log_file,
+                            gated.then(|| drv_path.clone()),
+                        )
+                        .await;
+                }
+                if gated {
+                    // Builders fetch inputs from the remote cache; the step
+                    // stays unfinished until the upload completion event.
+                    return CreateStepResult::Valid(step);
+                }
+                // Builders import inputs from the queue runner's local
+                // store: local validity is enough, the upload only fills
+                // the cache.
+            }
+        }
+        finished_drvs.write().insert(drv_path.clone());
+        complete_step(&step);
+        CreateStepResult::None
     }
 
     /// IO phase of step creation: read the derivation, check local/remote
@@ -2582,21 +2731,32 @@ impl State {
         }
 
         // Handle paths that aren't in the remote store (for pushing)
+        let mut pending_upload: Option<Vec<StorePath>> = None;
         let missing_outputs = if let Some(ref remote_store) = remote_store {
             let mut missing = remote_store
                 .query_missing_remote_outputs(output_paths.clone())
                 .await;
             if !missing.is_empty() && missing_local_outputs.is_empty() {
-                // we have all paths locally, so we can just upload them to the remote_store
-                {
+                // We have all paths locally, so we can just upload them to
+                // the remote store.
+                let missing_paths: Vec<StorePath> =
+                    missing.values().filter_map(Clone::clone).collect();
+                if self.config.use_presigned_uploads() {
+                    // Builders fetch their inputs from the remote cache, so
+                    // the step must not count as finished before the upload
+                    // completed. The caller schedules the upload when
+                    // attaching the step.
+                    pending_upload = Some(missing_paths);
+                } else {
+                    // Builders import inputs from the queue runner's local
+                    // store: local validity is enough, the upload only
+                    // fills the cache.
                     let log_file = self.construct_log_file_path(drv_path).await;
-                    let missing_paths: Vec<StorePath> =
-                        missing.values().filter_map(Clone::clone).collect();
                     self.uploader
-                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file)
+                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file, None)
                         .await;
-                    missing.clear();
                 }
+                missing.clear();
             }
             missing
         } else {
@@ -2665,13 +2825,16 @@ impl State {
             missing_outputs.is_empty()
         };
 
+        let availability = if let Some(paths) = pending_upload {
+            OutputAvailability::PendingUpload(paths)
+        } else if finished {
+            OutputAvailability::Complete
+        } else {
+            OutputAvailability::Incomplete
+        };
         Some(StepFacts {
             drv,
-            availability: if finished {
-                OutputAvailability::Complete
-            } else {
-                OutputAvailability::Incomplete
-            },
+            availability,
             previous_failure: false,
         })
     }
@@ -2914,7 +3077,7 @@ mod tests {
         let mut new_runnable = HashSet::new();
         let outcome = attach_step(
             &parent,
-            &OutputAvailability::Incomplete,
+            OutputAvailability::Incomplete,
             false,
             vec![child],
             &mut new_runnable,
@@ -2932,7 +3095,7 @@ mod tests {
         let mut new_runnable = HashSet::new();
         let outcome = attach_step(
             &parent,
-            &OutputAvailability::Incomplete,
+            OutputAvailability::Incomplete,
             false,
             vec![child.clone()],
             &mut new_runnable,
@@ -2945,6 +3108,72 @@ mod tests {
         child.set_finished(true);
         child.make_rdeps_runnable();
         assert_eq!(parent.get_deps_size(), 0);
+        assert!(parent.get_runnable());
+    }
+
+    /// Regression test for premature dispatch: a dep whose outputs are
+    /// valid locally but
+    /// missing in the remote binary cache must keep its rdeps blocked until
+    /// the upload completion event, and must not be dispatchable itself.
+    #[test]
+    fn pending_upload_gates_parent_until_upload_completes() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &child,
+            OutputAvailability::PendingUpload(Vec::new()),
+            false,
+            Vec::new(),
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::PendingUpload(_)));
+        assert!(!child.get_finished());
+        assert!(new_runnable.is_empty());
+
+        let outcome = attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert!(new_runnable.is_empty());
+        assert!(!parent.get_runnable());
+
+        // Upload completion event.
+        complete_step(&child);
+        assert!(child.get_finished());
+        assert!(parent.get_runnable());
+    }
+
+    /// A step revalidating as complete must wake rdeps that already wait on
+    /// it; the old revalidation path never called `make_rdeps_runnable`.
+    #[test]
+    fn complete_step_wakes_existing_rdeps() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(!parent.get_runnable());
+
+        let outcome = attach_step(
+            &child,
+            OutputAvailability::Complete,
+            false,
+            Vec::new(),
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Finished));
         assert!(parent.get_runnable());
     }
 }
