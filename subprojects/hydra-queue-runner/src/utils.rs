@@ -96,7 +96,9 @@ pub async fn substitute_output(
                 .into_iter()
                 .filter(|vpi| missing.contains(&vpi.path))
                 .collect();
-            remote_store.copy_paths(&pool, paths_to_copy, false).await?;
+            remote_store
+                .copy_paths(pool.store_dir(), paths_to_copy, false)
+                .await?;
             Ok(())
         }
         .await

@@ -1373,6 +1373,7 @@ impl State {
         let task = tokio::task::spawn({
             async move {
                 loop {
+                    let local_db = self.local_db.clone();
                     let local_store = self.pool.clone();
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
@@ -1385,10 +1386,12 @@ impl State {
                     };
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
-                        self.uploader.upload_once(local_store, s3_stores).await;
+                        self.uploader
+                            .upload_once(local_db, local_store, s3_stores)
+                            .await;
                     } else {
                         self.uploader
-                            .upload_many(local_store, s3_stores, limit)
+                            .upload_many(local_db, local_store, s3_stores, limit)
                             .await;
                     }
                 }
