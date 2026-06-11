@@ -9,6 +9,29 @@ use harmonia_store_path::{StoreDir, StorePath};
 use super::Step;
 use super::drv::flatten_chain;
 
+/// Resolve an input-addressed derivation output from the `.drv` file on
+/// disk. The build-history lookup in the database can miss outputs that
+/// never got a successful build step row, e.g. paths that were already
+/// valid when the step was created or whose step was aborted by a
+/// restart after the build finished. For input-addressed derivations the
+/// output path is fixed by the derivation itself, so the file is
+/// authoritative.
+fn resolve_from_drv_file(
+    store_dir: &StoreDir,
+    drv_path: &StorePath,
+    output_name: &OutputName,
+) -> Option<StorePath> {
+    let path = std::path::PathBuf::from(store_dir.display(drv_path).to_string());
+    let content = fs_err::read(path).ok()?;
+    let name = drv_path.name().strip_suffix(".drv")?.parse().ok()?;
+    let drv = harmonia_store_aterm::parse_derivation_aterm(store_dir, &content, name).ok()?;
+    let output = drv.outputs.get(output_name)?;
+    output
+        .path(store_dir, &drv.name, output_name)
+        .ok()
+        .flatten()
+}
+
 #[derive(Debug)]
 pub struct StepInfo {
     pub step: Arc<Step>,
@@ -100,7 +123,8 @@ impl StepInfo {
                                     .unwrap_or_else(|e| {
                                         tracing::warn!("resolve_drv_output failed: {e}");
                                         None
-                                    });
+                                    })
+                                    .or_else(|| resolve_from_drv_file(store_dir, &key.0, &key.1));
                                 memo.insert(key, r.clone());
                                 r
                             };
