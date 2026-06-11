@@ -112,14 +112,15 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     async fn upload_msg(
         &self,
+        local_db: Option<crate::local_db::LocalNixDb>,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
     ) {
-        self.upload_msg_inner(local_store, remote_stores, &msg)
+        self.upload_msg_inner(local_db, local_store, remote_stores, &msg)
             .await;
         if let Some(drv) = &msg.notify_drv {
             // Reported even when the upload failed: the gated step then
@@ -129,9 +130,10 @@ impl Uploader {
         }
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     async fn upload_msg_inner(
         &self,
+        local_db: Option<crate::local_db::LocalNixDb>,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
@@ -140,16 +142,23 @@ impl Uploader {
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
-        let closure = match daemon_client_utils::query_closure(
-            &local_store,
-            msg.store_paths.as_ref(),
-        )
-        .await
-        {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::error!("Failed to query requisites: {e}");
-                return;
+        // Prefer the SQLite database: the closure walk via the daemon does
+        // one round trip per path while holding a pooled connection.
+        let closure = if let Some(db) = &local_db {
+            match db.query_closure_infos(msg.store_paths.to_vec()).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("Failed to query requisites: {e}");
+                    return;
+                }
+            }
+        } else {
+            match daemon_client_utils::query_closure(&local_store, msg.store_paths.as_ref()).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("Failed to query requisites: {e}");
+                    return;
+                }
             }
         };
         tracing::info!(
@@ -158,9 +167,9 @@ impl Uploader {
             closure.len()
         );
 
+        let store_dir = local_store.store_dir().clone();
         for remote_store in remote_stores {
-            if let Err(e) = Self::upload_to_store(&remote_store, &local_store, msg, &closure).await
-            {
+            if let Err(e) = Self::upload_to_store(&remote_store, &store_dir, msg, &closure).await {
                 // Non-fatal: per-store failure shouldn't block other
                 // stores. Outputs remain in the local store.
                 tracing::error!(
@@ -180,7 +189,7 @@ impl Uploader {
     /// anything goes wrong (after retries).
     async fn upload_to_store(
         remote_store: &binary_cache::S3BinaryCacheClient,
-        local_store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &harmonia_store_path::StoreDir,
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
     ) -> Result<(), UploaderError> {
@@ -235,7 +244,7 @@ impl Uploader {
 
         (|| async {
             remote_store
-                .copy_paths(local_store, paths_to_copy.clone(), false)
+                .copy_paths(store_dir, paths_to_copy.clone(), false)
                 .await?;
             Ok::<(), UploaderError>(())
         })
@@ -254,9 +263,10 @@ impl Uploader {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     pub async fn upload_once(
         &self,
+        local_db: Option<crate::local_db::LocalNixDb>,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
@@ -269,7 +279,8 @@ impl Uploader {
             current_tasks.push(msg.clone());
         }
 
-        self.upload_msg(local_store, remote_stores, msg).await;
+        self.upload_msg(local_db, local_store, remote_stores, msg)
+            .await;
 
         {
             let mut current_tasks = self.current_tasks.write();
@@ -278,9 +289,10 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     pub async fn upload_many(
         &self,
+        local_db: Option<crate::local_db::LocalNixDb>,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,
@@ -298,7 +310,12 @@ impl Uploader {
 
         let mut jobs = vec![];
         for msg in messages {
-            jobs.push(self.upload_msg(local_store.clone(), remote_stores.clone(), msg));
+            jobs.push(self.upload_msg(
+                local_db.clone(),
+                local_store.clone(),
+                remote_stores.clone(),
+                msg,
+            ));
         }
         futures::future::join_all(jobs).await;
 

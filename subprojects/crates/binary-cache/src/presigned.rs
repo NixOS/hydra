@@ -102,10 +102,10 @@ impl PresignedUploadClient {
         }
     }
 
-    #[tracing::instrument(skip(self, store, narinfo, req), err)]
+    #[tracing::instrument(skip(self, store_dir, narinfo, req), err)]
     pub async fn process_presigned_request(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &harmonia_store_path::StoreDir,
         mut narinfo: crate::NarInfo,
         req: PresignedUploadResponse,
     ) -> Result<crate::NarInfo, CacheError> {
@@ -113,7 +113,7 @@ impl PresignedUploadClient {
         narinfo.info.compression = Some(req.nar_upload.compression.as_str().to_owned());
 
         if let Some(ls_upload) = req.ls_upload {
-            let _ = self.upload_ls(store, &narinfo.path, &ls_upload).await?;
+            let _ = self.upload_ls(store_dir, &narinfo.path, &ls_upload).await?;
         }
 
         if !req.debug_info_upload.is_empty() {
@@ -123,7 +123,7 @@ impl PresignedUploadClient {
             };
             crate::debug_info::process_debug_info(
                 &req.nar_url,
-                store.store_dir().as_ref(),
+                store_dir.as_ref(),
                 &narinfo.path,
                 debug_info_client.clone(),
             )
@@ -131,7 +131,7 @@ impl PresignedUploadClient {
         }
 
         let upload_res = self
-            .upload_nar(store, &narinfo.path, &req.nar_upload)
+            .upload_nar(store_dir, &narinfo.path, &req.nar_upload)
             .await?;
         narinfo.info.download_hash = Some(upload_res.file_hash);
         narinfo.info.download_size = Some(upload_res.file_size);
@@ -139,16 +139,16 @@ impl PresignedUploadClient {
         Ok(narinfo)
     }
 
-    #[tracing::instrument(skip(self, store, store_path), err)]
+    #[tracing::instrument(skip(self, store_dir, store_path), err)]
     async fn upload_nar(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &harmonia_store_path::StoreDir,
         store_path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let stream = read_nar_stream(store, store_path);
+        let stream = read_nar_stream(store_dir, store_path);
         let compressor = upload
             .compression
             .get_compression_fn(upload.compression_level, false);
@@ -158,16 +158,16 @@ impl PresignedUploadClient {
         self.upload_any(upload, hashing_reader, start, None).await
     }
 
-    #[tracing::instrument(skip(self, store), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     async fn upload_ls(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &harmonia_store_path::StoreDir,
         path: &StorePath,
         upload: &PresignedUpload,
     ) -> Result<PresignedUploadResult, CacheError> {
         let start = std::time::Instant::now();
 
-        let listing = super::nar_listing(store, path).await?;
+        let listing = super::nar_listing(store_dir, path).await?;
         let ls_json = serde_json::json!({
             "version": 1,
             "root": listing,

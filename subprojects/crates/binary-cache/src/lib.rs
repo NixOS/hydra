@@ -126,24 +126,6 @@ impl S3Stats {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum NarReadErrorInner {
-    #[error("Connecting to Nix daemon")]
-    DaemonPool(#[source] harmonia_store_remote::DaemonError),
-    #[error("Requesting nar from Nix daemon")]
-    RequestingNar(#[source] harmonia_store_remote::DaemonError),
-    #[error("Reading nar from Nix daemon")]
-    Reading(#[source] std::io::Error),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to serialise nar from store path {path}")]
-pub struct NarReadError {
-    #[source]
-    source: NarReadErrorInner,
-    path: StorePath,
-}
-
-#[derive(Debug, thiserror::Error)]
 pub enum CacheError {
     #[error("Object store error: {0}")]
     ObjectStore(#[from] object_store::Error),
@@ -248,60 +230,15 @@ async fn run_multipart_upload(
     Ok(file_size)
 }
 
+/// Stream a NAR by serializing the store path directly from the
+/// filesystem, like harmonia-cache does when serving NARs. This avoids
+/// holding a nix-daemon connection for the duration of the stream.
 fn read_nar_stream(
-    store: &harmonia_store_remote::ConnectionPool,
+    store_dir: &StoreDir,
     path: &StorePath,
-) -> tokio_util::io::StreamReader<
-    tokio_stream::wrappers::UnboundedReceiverStream<std::io::Result<Bytes>>,
-    Bytes,
-> {
-    // Has to be std::io::Error because of StreamReader, but it will still pass through source
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Bytes, std::io::Error>>();
-
-    tokio::task::spawn({
-        let path = path.clone();
-        let store = store.clone();
-        async move {
-            use harmonia_protocol::types::DaemonStore;
-            use tokio::io::AsyncBufReadExt as _;
-            let result: Result<(), NarReadErrorInner> = async {
-                let mut guard = store
-                    .acquire()
-                    .await
-                    .map_err(NarReadErrorInner::DaemonPool)?;
-                let mut nar_reader = guard
-                    .client()
-                    .nar_from_path(&path)
-                    .await
-                    .map_err(NarReadErrorInner::RequestingNar)?;
-                loop {
-                    let buf = nar_reader
-                        .fill_buf()
-                        .await
-                        .map_err(NarReadErrorInner::Reading)?;
-                    if buf.is_empty() {
-                        break;
-                    }
-                    let data = Bytes::copy_from_slice(buf);
-                    let len = data.len();
-                    if tx.send(Ok(data)).is_err() {
-                        break;
-                    }
-                    nar_reader.consume(len);
-                }
-                Ok(())
-            }
-            .await;
-            if let Err(source) = result {
-                let _ = tx.send(Err(std::io::Error::other(NarReadError {
-                    source,
-                    path: path.clone(),
-                })));
-            }
-        }
-    });
-
-    tokio_util::io::StreamReader::new(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
+) -> tokio_util::io::StreamReader<harmonia_file_nar::NarByteStream, Bytes> {
+    let full_path = std::path::PathBuf::from(store_dir.display(path).to_string());
+    tokio_util::io::StreamReader::new(harmonia_file_nar::NarByteStream::new(full_path))
 }
 
 impl S3BinaryCacheClient {
@@ -633,10 +570,9 @@ impl S3BinaryCacheClient {
         )
     }
 
-    #[tracing::instrument(skip(self, store, store_dir, vpi), fields(%vpi.path), err)]
+    #[tracing::instrument(skip(self, store_dir, vpi), fields(%vpi.path), err)]
     pub async fn copy_path(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
         store_dir: &StoreDir,
         vpi: &harmonia_store_path_info::ValidPathInfo,
         repair: bool,
@@ -648,7 +584,7 @@ impl S3BinaryCacheClient {
         tracing::debug!("start copying path: {}", vpi.path);
         let mut narinfo = self.narinfo_from_valid_path_info(store_dir, vpi);
         if self.cfg.write_nar_listing {
-            let listing = nar_listing(store, &narinfo.path).await?;
+            let listing = nar_listing(store_dir, &narinfo.path).await?;
             let ls_json = serde_json::json!({
                 "version": 1,
                 "root": listing,
@@ -670,7 +606,7 @@ impl S3BinaryCacheClient {
             .await?;
         }
 
-        let stream = read_nar_stream(store, &narinfo.path);
+        let stream = read_nar_stream(store_dir, &narinfo.path);
 
         let compressor = compression.get_compression_fn(
             self.cfg.get_compression_level(),
@@ -699,27 +635,26 @@ impl S3BinaryCacheClient {
         // (e.g. the queue-runner after resolving and building a CA drv),
         // not here during path copy.
 
-        self.upload_narinfo(store.store_dir(), narinfo).await?;
+        self.upload_narinfo(store_dir, narinfo).await?;
 
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store, paths), err)]
+    #[tracing::instrument(skip(self, store_dir, paths), err)]
     pub async fn copy_paths(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &StoreDir,
         paths: Vec<harmonia_store_path_info::ValidPathInfo>,
         repair: bool,
     ) -> Result<(), CacheError> {
         use futures::stream::StreamExt as _;
 
-        let store_dir = store.store_dir().clone();
         let mut stream = tokio_stream::iter(paths)
             .map(|vpi| {
                 let store_dir = store_dir.clone();
                 async move {
                     tracing::debug!("copying path {} to s3 binary cache.", vpi.path);
-                    self.copy_path(store, &store_dir, &vpi, repair).await
+                    self.copy_path(&store_dir, &vpi, repair).await
                 }
             })
             .buffered(10);
@@ -1019,16 +954,12 @@ impl debug_info::DebugInfoClient for S3BinaryCacheClient {
     }
 }
 
-/// Generate a NAR listing from a store path via the daemon protocol.
+/// Generate a NAR listing by serializing the store path from the filesystem.
 async fn nar_listing(
-    store: &harmonia_store_remote::ConnectionPool,
+    store_dir: &StoreDir,
     path: &StorePath,
 ) -> Result<harmonia_file_core::FileTree<harmonia_file_nar::NarFileInfo>, CacheError> {
-    use harmonia_protocol::types::DaemonStore;
-
-    let mut guard = store.acquire().await?;
-    let nar_reader = guard.client().nar_from_path(path).await?;
-    let reader = harmonia_utils_io::BytesReader::new(nar_reader);
+    let reader = harmonia_utils_io::BytesReader::new(read_nar_stream(store_dir, path));
     let listing = harmonia_file_nar::parse_nar_listing(reader).await?;
 
     Ok(listing)
