@@ -246,6 +246,9 @@ pub enum RemoteStoreBackend {
 #[allow(missing_debug_implementations)]
 pub struct State {
     pub pool: harmonia_store_remote::ConnectionPool,
+    /// Direct read-only access to the Nix `SQLite` database; `None` when the
+    /// database cannot be opened (e.g. in tests without a real store).
+    pub local_db: Option<crate::local_db::LocalNixDb>,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
@@ -372,8 +375,19 @@ impl State {
 
         let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
 
+        let local_db = match crate::local_db::LocalNixDb::open(store_dir.clone()).await {
+            Ok(db) => Some(db),
+            Err(e) => {
+                tracing::warn!(
+                    "cannot open nix database read-only, falling back to daemon for read queries: {e}"
+                );
+                None
+            }
+        };
+
         Ok(Arc::new(Self {
             pool,
+            local_db,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             cli,
             db,
