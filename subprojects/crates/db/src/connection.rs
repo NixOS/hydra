@@ -17,6 +17,10 @@ pub struct Connection {
     conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
 }
 
+/// Lock class for `pg_advisory_xact_lock(class, build_id)`, used to
+/// serialize build step inserts per build.
+const BUILD_STEP_LOCK_CLASS: i32 = 0x4879_6472; // "Hydr"
+
 #[derive(Debug)]
 pub struct Transaction<'a> {
     tx: sqlx::PgTransaction<'a>,
@@ -609,6 +613,16 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         step: InsertBuildStep<'_>,
     ) -> crate::Result<Option<i32>> {
+        // stepnr is MAX(stepnr) + 1, so concurrent transactions for the
+        // same build pick the same number and all but one have to retry
+        // after blocking on the winner's commit. Serialize them instead;
+        // the lock is released on commit.
+        sqlx::query("SELECT pg_advisory_xact_lock($1, $2)")
+            .bind(BUILD_STEP_LOCK_CLASS)
+            .bind(step.build_id)
+            .execute(&mut *self.tx)
+            .await?;
+
         let drv_path = store_dir.display(step.drv_path).to_string();
         let success = sqlx::query!(
             r#"
@@ -1597,5 +1611,66 @@ mod tests {
         )
         .await;
         assert_eq!(result, Some(sp("final-result")));
+    }
+
+    async fn replica_conn(pool: &sqlx::PgPool) -> Connection {
+        let mut conn = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql("SET session_replication_role = 'replica';")
+            .execute(&mut *conn.conn)
+            .await
+            .unwrap();
+        conn
+    }
+
+    fn substitution_step(build_id: i32, drv_path: &StorePath) -> InsertBuildStep<'_> {
+        InsertBuildStep {
+            build_id,
+            r#type: crate::models::BuildType::Substitution,
+            drv_path,
+            status: BuildStatus::Success,
+            busy: false,
+            start_time: Some(0),
+            stop_time: Some(0),
+            platform: None,
+            propagated_from: None,
+            error_msg: None,
+            machine: "",
+        }
+    }
+
+    /// The advisory lock makes a concurrent insert for the same build wait
+    /// for the open transaction and then pick the next step number. Without
+    /// it the insert returns `None` (ON CONFLICT DO NOTHING).
+    #[tokio::test]
+    async fn concurrent_step_inserts_for_same_build_are_serialized() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+        let sd = test_store_dir();
+
+        let mut conn_a = replica_conn(&pool).await;
+        let mut conn_b = replica_conn(&pool).await;
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        let step_a = tx_a
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        assert_eq!(step_a, Some(1));
+
+        let task_b = tokio::spawn(async move {
+            let sd = test_store_dir();
+            let mut tx_b = conn_b.begin_transaction().await.unwrap();
+            let step = tx_b
+                .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+                .await
+                .unwrap();
+            tx_b.commit().await.unwrap();
+            step
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(!task_b.is_finished(), "concurrent insert should block");
+
+        tx_a.commit().await.unwrap();
+
+        assert_eq!(task_b.await.unwrap(), Some(2));
     }
 }
