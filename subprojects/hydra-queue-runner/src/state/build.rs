@@ -239,6 +239,8 @@ impl RemoteBuild {
             | hydra_proto::BuildResultState::UploadFailure
             | hydra_proto::BuildResultState::PostProcessingFailure => {
                 self.can_retry = true;
+                // Retryable: only genuine build failures are recorded as Failed.
+                self.step_status = BuildStatus::Aborted;
             }
         }
     }
@@ -591,5 +593,27 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transient_completed_failures_are_recorded_as_aborted() {
+        for state in [
+            hydra_proto::BuildResultState::PreparingFailure,
+            hydra_proto::BuildResultState::ImportFailure,
+            hydra_proto::BuildResultState::UploadFailure,
+            hydra_proto::BuildResultState::PostProcessingFailure,
+        ] {
+            let mut result = RemoteBuild::new();
+            result.step_status = BuildStatus::Failed;
+            result.update_with_result_state(BuildResultState::Completed(state));
+            assert!(result.can_retry);
+            assert_eq!(result.step_status, BuildStatus::Aborted, "{state:?}");
+        }
     }
 }
