@@ -114,6 +114,10 @@ pub struct Step {
     runnable: AtomicBool,
     finished: AtomicBool,
     previous_failure: AtomicBool,
+    /// An upload of this step's outputs to the remote binary cache has been
+    /// scheduled. Guards against re-scheduling on every queue run while the
+    /// upload is still in flight.
+    upload_scheduled: AtomicBool,
     pub atomic_state: StepAtomicState,
     state: parking_lot::RwLock<StepState>,
 }
@@ -143,6 +147,7 @@ impl Step {
             runnable: false.into(),
             finished: false.into(),
             previous_failure: false.into(),
+            upload_scheduled: false.into(),
             atomic_state: StepAtomicState::new(
                 jiff::Timestamp::UNIX_EPOCH,
                 jiff::Timestamp::UNIX_EPOCH,
@@ -179,6 +184,18 @@ impl Step {
     #[inline]
     pub fn get_runnable(&self) -> bool {
         self.runnable.load(Ordering::SeqCst)
+    }
+
+    /// Returns true only the first time, so a step's upload is scheduled
+    /// once even when the step is revisited by later queue runs.
+    pub fn try_mark_upload_scheduled(&self) -> bool {
+        !self.upload_scheduled.swap(true, Ordering::SeqCst)
+    }
+
+    /// Whether the step waits for its outputs to reach the remote binary
+    /// cache before it may count as finished.
+    pub fn has_pending_upload(&self) -> bool {
+        self.upload_scheduled.load(Ordering::SeqCst) && !self.get_finished()
     }
 
     pub fn get_drv(&self) -> arc_swap::Guard<Option<Arc<Derivation>>> {
@@ -615,6 +632,11 @@ impl Steps {
         step.add_referring_data(referring_build, referring_step);
         steps.insert(drv_path.to_owned(), Arc::downgrade(&step));
         (step, is_new)
+    }
+
+    #[must_use]
+    pub fn get(&self, drv_path: &StorePath) -> Option<Arc<Step>> {
+        self.inner.read().get(drv_path).and_then(Weak::upgrade)
     }
 
     pub fn remove(&self, drv_path: &StorePath) {
