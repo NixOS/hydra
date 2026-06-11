@@ -2587,10 +2587,7 @@ impl State {
 
         conn.check_if_paths_failed(
             self.pool.store_dir(),
-            &drv_outputs
-                .iter()
-                .filter_map(|(_, path)| path.clone())
-                .collect::<Vec<_>>(),
+            &drv_outputs.values().flatten().cloned().collect::<Vec<_>>(),
         )
         .await
         .unwrap_or_default()
