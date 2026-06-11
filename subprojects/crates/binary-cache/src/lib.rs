@@ -24,7 +24,7 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
-use harmonia_store_path::{StoreDir, StorePath};
+use harmonia_store_path::StorePath;
 
 // Realisation writing is now done by the caller, not via FFI query.
 
@@ -38,10 +38,9 @@ mod streaming_hash;
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
-use crate::narinfo::NarInfoError;
 pub use crate::narinfo::{
     NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
-    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo,
+    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo_txt,
 };
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
@@ -153,8 +152,10 @@ pub enum CacheError {
     Serde(#[from] serde_json::Error),
     #[error("Signing error: {0}")]
     Signing(String),
+    #[error("narinfo was not valid utf-8")]
+    NarInfoUtf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
-    NarInfoParseError(#[from] NarInfoError),
+    NarInfoParseError(#[from] harmonia_store_nar_info::NarInfoParseError),
     #[error("daemon error: {0}")]
     DaemonError(#[from] harmonia_protocol::types::DaemonError),
     #[error("cannot add '{0}' to the binary cache because the reference '{1}' is not valid")]
@@ -602,17 +603,13 @@ impl S3BinaryCacheClient {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store_dir, narinfo), err)]
-    async fn upload_narinfo(
-        &self,
-        store_dir: &StoreDir,
-        narinfo: NarInfo,
-    ) -> Result<String, CacheError> {
+    #[tracing::instrument(skip(self, narinfo), err)]
+    async fn upload_narinfo(&self, narinfo: NarInfo) -> Result<String, CacheError> {
         let base = narinfo.path.hash().to_string();
         let info_key = format!("{base}.narinfo");
         self.upsert_file(
             &info_key,
-            format_narinfo_txt(store_dir, &narinfo),
+            format_narinfo_txt(&self.cfg.store_dir, &narinfo),
             "text/x-nix-narinfo",
         )
         .await?;
@@ -621,23 +618,21 @@ impl S3BinaryCacheClient {
 
     fn narinfo_from_valid_path_info(
         &self,
-        store_dir: &StoreDir,
         vpi: &harmonia_store_path_info::ValidPathInfo,
     ) -> NarInfo {
         narinfo_from_path_info(
             &vpi.path,
             vpi.info.clone(),
             self.cfg.compression,
-            store_dir,
+            &self.cfg.store_dir,
             &self.signing_keys,
         )
     }
 
-    #[tracing::instrument(skip(self, store, store_dir, vpi), fields(%vpi.path), err)]
+    #[tracing::instrument(skip(self, store, vpi), fields(%vpi.path), err)]
     pub async fn copy_path(
         &self,
         store: &harmonia_store_remote::ConnectionPool,
-        store_dir: &StoreDir,
         vpi: &harmonia_store_path_info::ValidPathInfo,
         repair: bool,
     ) -> Result<(), CacheError> {
@@ -646,7 +641,7 @@ impl S3BinaryCacheClient {
         }
 
         tracing::debug!("start copying path: {}", vpi.path);
-        let mut narinfo = self.narinfo_from_valid_path_info(store_dir, vpi);
+        let mut narinfo = self.narinfo_from_valid_path_info(vpi);
         if self.cfg.write_nar_listing {
             let listing = nar_listing(store, &narinfo.path).await?;
             let ls_json = serde_json::json!({
@@ -663,7 +658,7 @@ impl S3BinaryCacheClient {
         if self.cfg.write_debug_info {
             debug_info::process_debug_info(
                 &nar_url,
-                store_dir.as_ref(),
+                self.cfg.store_dir.as_ref(),
                 &narinfo.path,
                 self.clone(),
             )
@@ -699,7 +694,7 @@ impl S3BinaryCacheClient {
         // (e.g. the queue-runner after resolving and building a CA drv),
         // not here during path copy.
 
-        self.upload_narinfo(store.store_dir(), narinfo).await?;
+        self.upload_narinfo(narinfo).await?;
 
         Ok(())
     }
@@ -713,14 +708,10 @@ impl S3BinaryCacheClient {
     ) -> Result<(), CacheError> {
         use futures::stream::StreamExt as _;
 
-        let store_dir = store.store_dir().clone();
         let mut stream = tokio_stream::iter(paths)
-            .map(|vpi| {
-                let store_dir = store_dir.clone();
-                async move {
-                    tracing::debug!("copying path {} to s3 binary cache.", vpi.path);
-                    self.copy_path(store, &store_dir, &vpi, repair).await
-                }
+            .map(|vpi| async move {
+                tracing::debug!("copying path {} to s3 binary cache.", vpi.path);
+                self.copy_path(store, &vpi, repair).await
             })
             .buffered(10);
 
@@ -767,7 +758,7 @@ impl S3BinaryCacheClient {
             .await?
         {
             Some(v) => {
-                let narinfo = parse_narinfo(&v)?;
+                let narinfo = parse_narinfo_txt(&self.cfg.store_dir, std::str::from_utf8(&v)?)?;
                 self.narinfo_cache
                     .insert(store_path.to_owned(), narinfo.clone())
                     .await;
@@ -943,10 +934,9 @@ impl S3BinaryCacheClient {
         })
     }
 
-    #[tracing::instrument(skip(self, store, narinfo), err)]
+    #[tracing::instrument(skip(self, narinfo), err)]
     pub async fn upload_narinfo_after_presigned_upload(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
         if self.cfg.write_nar_listing {
@@ -962,9 +952,9 @@ impl S3BinaryCacheClient {
             .then_some(())
             .ok_or(CacheError::PathNotFound { path: nar_url })?;
 
-        let narinfo = clear_sigs_and_sign(narinfo, store.store_dir(), &self.signing_keys);
+        let narinfo = clear_sigs_and_sign(narinfo, &self.cfg.store_dir, &self.signing_keys);
         // TODO: we also need to integarte realisation into this!
-        self.upload_narinfo(store.store_dir(), narinfo).await
+        self.upload_narinfo(narinfo).await
     }
 }
 

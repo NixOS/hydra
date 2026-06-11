@@ -49,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
 
                 client
-                    .upload_narinfo_after_presigned_upload(&store, narinfo)
+                    .upload_narinfo_after_presigned_upload(narinfo)
                     .await?;
                 Ok::<(), Box<dyn std::error::Error>>(())
             }
