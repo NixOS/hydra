@@ -569,8 +569,11 @@ impl State {
         };
         let drv = step_info.step.get_drv_path();
         let default_max_log_size: u64 = 64 << 20; // 64 MiB
-        let max_silent_time: i32;
-        let build_timeout: i32;
+        // hydra-eval-jobs defaults for builds without meta.maxSilent/meta.timeout.
+        const DEFAULT_MAX_SILENT_TIME: i32 = 3600;
+        const DEFAULT_BUILD_TIMEOUT: i32 = 36000;
+        let mut max_silent_time: i32;
+        let mut build_timeout: i32;
 
         let build = {
             let mut dependents = HashSet::new();
@@ -604,6 +607,16 @@ impl State {
 
             max_silent_time = biggest_max_silent_time.unwrap_or(build.max_silent_time);
             build_timeout = biggest_build_timeout.unwrap_or(build.timeout);
+
+            // A build's meta.timeout describes its own derivation. When this
+            // step is only a dependency of other builds (none has it as its
+            // top-level), don't let their budgets cut below the hydra
+            // defaults: a nixos test with meta.timeout = 180 must not limit
+            // building its dependency closure on an empty binary cache.
+            if !dependents.iter().any(|b| &b.drv_path == drv) {
+                max_silent_time = max_silent_time.max(DEFAULT_MAX_SILENT_TIME);
+                build_timeout = build_timeout.max(DEFAULT_BUILD_TIMEOUT);
+            }
             build.clone()
         };
 
