@@ -1467,6 +1467,11 @@ impl State {
     async fn do_dispatch_once(self: Arc<Self>) {
         // Prune old historical build step info from the jobsets.
         self.jobsets.prune();
+        if self.config.get_step_sort_fn() == crate::config::StepSortFn::WithCriticalPath {
+            // New steps start with cp_length 0 and sort last until the next
+            // recomputation; acceptable for a priority heuristic.
+            self.steps.compute_critical_paths_throttled(60);
+        }
         let new_runnable = self.steps.clone_runnable();
 
         let now = jiff::Timestamp::now();

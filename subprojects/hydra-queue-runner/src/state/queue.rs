@@ -103,6 +103,7 @@ impl BuildQueue {
         let cmp_fn = match sort_fn {
             StepSortFn::Legacy => StepInfo::legacy_compare,
             StepSortFn::WithRdeps => StepInfo::compare_with_rdeps,
+            StepSortFn::WithCriticalPath => StepInfo::compare_with_critical_path,
         };
 
         {
