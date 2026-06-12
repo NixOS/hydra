@@ -58,6 +58,7 @@ in
               type = lib.types.enum [
                 "Legacy"
                 "WithRdeps"
+                "WithCriticalPath"
               ];
               default = "WithRdeps";
             };
