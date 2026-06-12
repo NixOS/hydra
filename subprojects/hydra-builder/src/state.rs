@@ -35,6 +35,10 @@ fn retry_strategy() -> backon::ExponentialBuilder {
 pub enum JobFailure {
     #[error("Build failure")]
     Build(#[source] eyre::Report),
+    #[error("Build timed out")]
+    TimedOut(#[source] eyre::Report),
+    #[error("Build log limit exceeded")]
+    LogLimit(#[source] eyre::Report),
     #[error("Preparing failure")]
     Preparing(#[source] eyre::Report),
     #[error("Import failure")]
@@ -45,10 +49,18 @@ pub enum JobFailure {
     PostProcessing(#[source] eyre::Report),
 }
 
+impl From<eyre::Report> for JobFailure {
+    fn from(e: eyre::Report) -> Self {
+        Self::Build(e)
+    }
+}
+
 impl From<&JobFailure> for BuildResultState {
     fn from(item: &JobFailure) -> Self {
         match item {
             JobFailure::Build(_) => Self::BuildFailure,
+            JobFailure::TimedOut(_) => Self::TimedOutFailure,
+            JobFailure::LogLimit(_) => Self::LogLimitFailure,
             JobFailure::Preparing(_) => Self::PreparingFailure,
             JobFailure::Import(_) => Self::ImportFailure,
             JobFailure::Upload(_) => Self::UploadFailure,
@@ -408,7 +420,7 @@ impl State {
         drv: &StorePath,
         basic_drv: &harmonia_store_derivation::derivation::BasicDerivation,
         options: harmonia_protocol::types::ClientOptions,
-    ) -> eyre::Result<BuildResultSuccess> {
+    ) -> Result<BuildResultSuccess, JobFailure> {
         // Build the pre-resolved BasicDerivation; logs stream to the queue-runner.
         let mut guard = pool.acquire().await.wrap_err("daemon connection failed")?;
 
@@ -424,7 +436,11 @@ impl State {
 
             // build_derivation does not take options; they must be
             // set per-client with a separate call.
-            guard.client().set_options(&options).await?;
+            guard
+                .client()
+                .set_options(&options)
+                .await
+                .map_err(|e| JobFailure::Build(e.into()))?;
 
             let mut result_log =
                 std::pin::pin!(harmonia_protocol::types::DaemonStore::build_derivation(
@@ -474,15 +490,22 @@ impl State {
         }
 
         // Check for build failure.
-        use harmonia_protocol::daemon_wire::types2::BuildResultInner;
+        use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
-                return Err(eyre::eyre!(
+                let report = eyre::eyre!(
                     "build failed: {:?}: {}",
                     f.status,
                     str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8")
-                ));
+                );
+                // Preserve the daemon's failure status where the database
+                // distinguishes it; everything else is a plain build failure.
+                return Err(match f.status {
+                    FailureStatus::TimedOut => JobFailure::TimedOut(report),
+                    FailureStatus::LogLimitExceeded => JobFailure::LogLimit(report),
+                    _ => JobFailure::Build(report),
+                });
             }
         })
     }
@@ -583,8 +606,7 @@ impl State {
 
         let success = self
             .request_build(&self.pool, &drv, &basic_drv, options)
-            .await
-            .map_err(JobFailure::Build)?;
+            .await?;
 
         // Extract output paths from the build result.
         let outputs: BTreeMap<OutputName, StorePath> = success

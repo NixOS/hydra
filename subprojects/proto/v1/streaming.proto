@@ -210,6 +210,8 @@ enum BuildResultState {
   ImportFailure = 3;
   UploadFailure = 4;
   PostProcessingFailure = 5;
+  TimedOutFailure = 6;
+  LogLimitFailure = 7;
 }
 
 message BuildResultInfo {
