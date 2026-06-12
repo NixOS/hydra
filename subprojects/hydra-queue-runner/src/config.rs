@@ -207,6 +207,7 @@ pub enum StepSortFn {
     Legacy,
     #[default]
     WithRdeps,
+    WithCriticalPath,
 }
 
 /// Main configuration of the application

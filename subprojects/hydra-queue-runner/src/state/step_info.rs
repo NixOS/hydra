@@ -209,6 +209,41 @@ impl StepInfo {
         .reverse()
     }
 
+    pub(super) fn compare_with_critical_path(&self, other: &Self) -> std::cmp::Ordering {
+        #[allow(irrefutable_let_patterns)]
+        (if let c1 = self
+            .get_highest_global_priority()
+            .cmp(&other.get_highest_global_priority())
+            && c1 != std::cmp::Ordering::Equal
+        {
+            c1
+        } else if let c2 = other
+            .get_lowest_share_used()
+            .total_cmp(&self.get_lowest_share_used())
+            && c2 != std::cmp::Ordering::Equal
+        {
+            c2
+        } else if let c3 = self
+            .step
+            .atomic_state
+            .cp_length
+            .load(Ordering::Relaxed)
+            .cmp(&other.step.atomic_state.cp_length.load(Ordering::Relaxed))
+            && c3 != std::cmp::Ordering::Equal
+        {
+            c3
+        } else if let c4 = self
+            .get_highest_local_priority()
+            .cmp(&other.get_highest_local_priority())
+            && c4 != std::cmp::Ordering::Equal
+        {
+            c4
+        } else {
+            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
+        })
+        .reverse()
+    }
+
     pub(super) fn compare_with_rdeps(&self, other: &Self) -> std::cmp::Ordering {
         #[allow(irrefutable_let_patterns)]
         (if let c1 = self

@@ -43,6 +43,9 @@ pub struct StepAtomicState {
 
     pub deps_len: AtomicU64,
     pub rdeps_len: AtomicU64,
+    /// Length of the longest chain of unfinished steps depending on this
+    /// step (in steps, including itself). Recomputed before dispatch.
+    pub cp_length: AtomicU64,
 }
 
 impl StepAtomicState {
@@ -62,6 +65,7 @@ impl StepAtomicState {
             last_supported: super::AtomicDateTime::new(runnable_since),
             deps_len: 0.into(),
             rdeps_len: 0.into(),
+            cp_length: 0.into(),
         }
     }
 
@@ -518,6 +522,9 @@ impl Step {
 #[derive(Debug, Clone)]
 pub struct Steps {
     inner: Arc<parking_lot::RwLock<HashMap<StorePath, Weak<Step>>>>,
+    /// Last critical-path recomputation (unix seconds); the DFS over the
+    /// whole step graph is too expensive to run on every dispatch round.
+    cp_computed_at: Arc<AtomicU64>,
 }
 
 impl Default for Steps {
@@ -531,6 +538,7 @@ impl Steps {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(parking_lot::RwLock::new(HashMap::with_capacity(10000))),
+            cp_computed_at: Arc::new(0.into()),
         }
     }
 
@@ -594,6 +602,74 @@ impl Steps {
             true
         });
         new_runnable
+    }
+
+    /// Recompute critical paths at most every `interval_s` seconds.
+    pub fn compute_critical_paths_throttled(&self, interval_s: u64) {
+        let now = u64::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+        let last = self.cp_computed_at.load(Ordering::Relaxed);
+        if now.saturating_sub(last) < interval_s {
+            return;
+        }
+        if self
+            .cp_computed_at
+            .compare_exchange(last, now, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            self.compute_critical_paths();
+        }
+    }
+
+    /// Recompute `cp_length` for all live steps: the number of steps on the
+    /// longest chain of unfinished reverse dependencies, including the step
+    /// itself. Iterative DFS; chains can be thousands of steps deep.
+    pub fn compute_critical_paths(&self) {
+        let steps: Vec<Arc<Step>> = {
+            let inner = self.inner.read();
+            inner.values().filter_map(Weak::upgrade).collect()
+        };
+        let mut done: HashMap<StorePath, u64> = HashMap::with_capacity(steps.len());
+        for root in &steps {
+            if done.contains_key(root.get_drv_path()) {
+                continue;
+            }
+            let mut stack: Vec<(Arc<Step>, bool)> = vec![(root.clone(), false)];
+            while let Some((step, expanded)) = stack.pop() {
+                if done.contains_key(step.get_drv_path()) {
+                    continue;
+                }
+                let rdeps: Vec<Arc<Step>> = {
+                    let state = step.state.read();
+                    state
+                        .rdeps
+                        .iter()
+                        .filter_map(|r| r.step.upgrade())
+                        .collect()
+                };
+                if expanded {
+                    let longest_rdep = rdeps
+                        .iter()
+                        .filter_map(|r| done.get(r.get_drv_path()))
+                        .max()
+                        .copied()
+                        .unwrap_or(0);
+                    let cp = if step.get_finished() {
+                        0
+                    } else {
+                        longest_rdep + 1
+                    };
+                    step.atomic_state.cp_length.store(cp, Ordering::Relaxed);
+                    done.insert(step.get_drv_path().clone(), cp);
+                } else {
+                    stack.push((step.clone(), true));
+                    for r in rdeps {
+                        if !done.contains_key(r.get_drv_path()) {
+                            stack.push((r, false));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub fn make_rdeps_runnable(&self) {
@@ -664,6 +740,31 @@ mod tests {
 
         steps.remove(step.get_drv_path());
         assert_eq!(steps.len(), 0);
+    }
+
+    #[test]
+    fn critical_path_lengths() {
+        // c depends on b depends on a; d also depends on a. a's cp comes
+        // from the longer chain through b.
+        let steps = Steps::new();
+        let (c, _) = steps.create(&drv("c"), None, None);
+        let (b, _) = steps.create(&drv("b"), None, Some((&c, OutputNameChain::default())));
+        let (a, _) = steps.create(&drv("a"), None, Some((&b, OutputNameChain::default())));
+        let (d, _) = steps.create(&drv("d"), None, None);
+        let (_, is_new) = steps.create(&drv("a"), None, Some((&d, OutputNameChain::default())));
+        assert!(!is_new);
+
+        steps.compute_critical_paths();
+        let cp = |s: &Arc<Step>| s.atomic_state.cp_length.load(Ordering::Relaxed);
+        assert_eq!(cp(&a), 3); // a -> b -> c
+        assert_eq!(cp(&b), 2);
+        assert_eq!(cp(&c), 1);
+        assert_eq!(cp(&d), 1);
+
+        // finished steps drop out of the chain
+        c.set_finished(true);
+        steps.compute_critical_paths();
+        assert_eq!(cp(&a), 2);
     }
 
     #[test]
