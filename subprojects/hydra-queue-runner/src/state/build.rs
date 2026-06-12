@@ -233,6 +233,14 @@ impl RemoteBuild {
             hydra_proto::BuildResultState::BuildFailure => {
                 self.can_retry = false;
             }
+            hydra_proto::BuildResultState::TimedOutFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::TimedOut;
+            }
+            hydra_proto::BuildResultState::LogLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::LogLimitExceeded;
+            }
             hydra_proto::BuildResultState::Success => (),
             hydra_proto::BuildResultState::PreparingFailure
             | hydra_proto::BuildResultState::ImportFailure
