@@ -72,16 +72,7 @@ impl BuildQueue {
 
         for j in jobs {
             if let Some(owned) = j.upgrade() {
-                // this ensures we only ever have each step once
-                // so ensure that current_jobs is never written anywhere else
-                // this should never continue as jobs, should already exclude duplicates
-                if current_jobs
-                    .iter()
-                    .filter_map(Weak::upgrade)
-                    .any(|v| v.step.get_drv_path() == owned.step.get_drv_path())
-                {
-                    continue;
-                }
+                // Uniqueness is guaranteed by InnerQueues, the sole writer here.
 
                 // runnable since is always > now
                 wait_time_ms += u64::try_from(now.duration_since(owned.runnable_since).as_millis())
