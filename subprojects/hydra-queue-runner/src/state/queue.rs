@@ -271,7 +271,9 @@ impl InnerQueues {
     }
 
     fn remove_job_by_path(&mut self, drv: &StorePath) {
-        if self.jobs.remove(drv).is_none() {
+        if let Some(j) = self.jobs.remove(drv) {
+            j.step.clear_queued();
+        } else {
             tracing::error!("Failed to remove stepinfo drv={drv} from jobs!");
         }
     }
@@ -284,6 +286,7 @@ impl InnerQueues {
                 stepinfo.step.get_drv_path(),
             );
         }
+        stepinfo.step.clear_queued();
         // active should be removed
         queue.scrube_jobs();
     }

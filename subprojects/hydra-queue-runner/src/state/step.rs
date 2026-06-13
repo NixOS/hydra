@@ -116,6 +116,8 @@ pub struct Step {
     drv: arc_swap::ArcSwapOption<Derivation>,
 
     runnable: AtomicBool,
+    /// The step is currently held in the dispatch queues.
+    queued: AtomicBool,
     finished: AtomicBool,
     previous_failure: AtomicBool,
     /// An upload of this step's outputs to the remote binary cache has been
@@ -149,6 +151,7 @@ impl Step {
             drv_path,
             drv: arc_swap::ArcSwapOption::from(None),
             runnable: false.into(),
+            queued: false.into(),
             finished: false.into(),
             previous_failure: false.into(),
             upload_scheduled: false.into(),
@@ -188,6 +191,16 @@ impl Step {
     #[inline]
     pub fn get_runnable(&self) -> bool {
         self.runnable.load(Ordering::SeqCst)
+    }
+
+    /// Marks the step as queued; returns true if it wasn't already.
+    pub fn try_mark_queued(&self) -> bool {
+        !self.queued.swap(true, Ordering::SeqCst)
+    }
+
+    /// Called when the step is dropped from the dispatch queues.
+    pub fn clear_queued(&self) {
+        self.queued.store(false, Ordering::SeqCst);
     }
 
     /// Returns true only the first time, so a step's upload is scheduled
