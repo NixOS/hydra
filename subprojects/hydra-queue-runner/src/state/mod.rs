@@ -653,7 +653,7 @@ impl State {
                     None,
                     step_info
                         .step
-                        .get_output_paths(self.pool.store_dir())
+                        .get_output_paths()
                         .unwrap_or_default()
                         .into_iter()
                         .collect(),
@@ -673,11 +673,12 @@ impl State {
         // that resolve to a different drv path still need the two-phase
         // build dance.
         let (basic_drv, was_deferred) = {
-            let guard = step_info.step.get_drv();
-            let Some(drv_ref) = guard.as_ref() else {
-                // Should never happen
+            // Steps no longer keep the parsed derivation in memory; re-read it
+            // from the local store now that the step is actually being realised.
+            let Ok(full_drv) = self.read_derivation(drv).await else {
                 return Ok(RealiseStepResult::MaybeCancelled);
             };
+            let drv_ref = &full_drv;
 
             // Resolve `Built` input references to concrete store paths.
             let resolved_map = self.resolved_drv_map.read().clone();
@@ -1602,7 +1603,7 @@ impl State {
         // the queue runner and builder are disagreeing on what the drv itself
         // means (regardless of what it produces) which would be an "all bets
         // are off" bug.
-        if let Some(expected) = item.step_info.step.get_output_paths(self.pool.store_dir()) {
+        if let Some(expected) = item.step_info.step.get_output_paths() {
             for (name, expected_path) in &expected {
                 let Some(expected_path) = expected_path else {
                     continue; // path not statically known (Deferred/CAFloating/Impure)
@@ -1734,12 +1735,8 @@ impl State {
         // `Realisations` table (for non-S3 / FFI stores) once nix is
         // updated to 2.35, which uses path-based DrvOutput matching
         // the harmonia types.
-        let drv_guard = item.step_info.step.get_drv();
-        if let Some(drv_ref) = drv_guard.as_ref() {
-            let has_ca_floating = drv_ref
-                .outputs
-                .values()
-                .any(|o| matches!(o, DerivationOutput::CAFloating(_)));
+        {
+            let has_ca_floating = item.step_info.step.has_ca_floating_outputs();
             if has_ca_floating {
                 let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                     let r = self.remote_stores.read();
@@ -2106,7 +2103,7 @@ impl State {
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_output_paths(self.pool.store_dir())
+                        step.get_output_paths()
                             .unwrap_or_default()
                             .into_iter()
                             .collect(),
@@ -2142,10 +2139,7 @@ impl State {
 
                 // Remember failed paths in the database so that they won't be built again.
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
-                    for (_, path) in step
-                        .get_output_paths(self.pool.store_dir())
-                        .unwrap_or_default()
-                    {
+                    for (_, path) in step.get_output_paths().unwrap_or_default() {
                         if let Some(path) = path {
                             tx.insert_failed_paths(self.pool.store_dir(), &path).await?;
                         }
@@ -2230,9 +2224,7 @@ impl State {
             // we can access step.drv here because the value is always set if
             // PreviousFailure is returned, so this should never yield None
 
-            let outputs = step
-                .get_output_paths(self.pool.store_dir())
-                .unwrap_or_default();
+            let outputs = step.get_output_paths().unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
                     tx.get_last_build_step_id_for_output_path(self.pool.store_dir(), path)
@@ -2262,7 +2254,7 @@ impl State {
             BuildStatus::CachedFailure,
             None,
             Some(propagated_from),
-            step.get_output_paths(self.pool.store_dir())
+            step.get_output_paths()
                 .unwrap_or_default()
                 .into_iter()
                 .collect(),
@@ -2489,7 +2481,7 @@ impl State {
             if step.get_finished() {
                 return CreateStepResult::None;
             }
-            if let Some(output_paths) = step.get_output_paths(self.pool.store_dir()) {
+            if let Some(output_paths) = step.get_output_paths() {
                 // All output paths must be known (Some) and valid in
                 // the store for the step to count as finished.  CA
                 // floating outputs have None paths until built.
@@ -2529,7 +2521,7 @@ impl State {
             previous_failure,
         } = facts;
         let input_drvs = drv::input_drvs(&drv);
-        step.set_drv(drv);
+        step.set_drv(&drv, self.pool.store_dir());
 
         // Recurse into the input derivations only when the step actually has
         // to be built; finished and previously-failed steps never get
@@ -2639,9 +2631,7 @@ impl State {
             })
         };
         if let Some(remote_store) = remote_store {
-            let output_paths = step
-                .get_output_paths(self.pool.store_dir())
-                .unwrap_or_default();
+            let output_paths = step.get_output_paths().unwrap_or_default();
             let missing = remote_store
                 .query_missing_remote_outputs(output_paths)
                 .await;
@@ -2900,7 +2890,7 @@ impl State {
 
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
     async fn check_cached_failure(&self, step: Arc<Step>) -> bool {
-        let Some(drv_outputs) = step.get_output_paths(self.pool.store_dir()) else {
+        let Some(drv_outputs) = step.get_output_paths() else {
             return false;
         };
 

@@ -113,10 +113,63 @@ impl StepState {
 /// Steps that became runnable since the dispatcher last drained them.
 pub(super) type PendingRunnable = Arc<parking_lot::Mutex<Vec<Weak<Step>>>>;
 
+/// The subset of a step's derivation needed for scheduling. Keeping only
+/// this instead of the full parsed `Derivation` bounds per-step memory; the
+/// full derivation is re-read from the store when the step is realised.
+#[derive(Debug)]
+pub(crate) struct StepDrvInfo {
+    system: String,
+    output_paths: BTreeMap<OutputName, Option<StorePath>>,
+    required_features: Vec<String>,
+    has_ca_floating: bool,
+}
+
+impl StepDrvInfo {
+    /// # Panics
+    ///
+    /// Will panic if drv.platform is not a UTF-8 string
+    #[must_use]
+    pub(crate) fn new(drv: &Derivation, store_dir: &StoreDir) -> Self {
+        #[allow(clippy::expect_used)]
+        Self {
+            system: std::str::from_utf8(&drv.platform)
+                .expect("platform must be valid UTF-8")
+                .to_owned(),
+            output_paths: drv
+                .outputs
+                .iter()
+                .map(|(name, output)| {
+                    (
+                        name.clone(),
+                        output.path(store_dir, &drv.name, name).ok().flatten(),
+                    )
+                })
+                .collect(),
+            required_features: drv
+                .env
+                .get(b"requiredSystemFeatures".as_slice())
+                .and_then(|v| std::str::from_utf8(v).ok())
+                .map(|v| {
+                    v.split(' ')
+                        .filter(|s| !s.is_empty())
+                        .map(ToOwned::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            has_ca_floating: drv.outputs.values().any(|o| {
+                matches!(
+                    o,
+                    harmonia_store_derivation::derivation::DerivationOutput::CAFloating(_)
+                )
+            }),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Step {
     drv_path: StorePath,
-    drv: arc_swap::ArcSwapOption<Derivation>,
+    drv_info: arc_swap::ArcSwapOption<StepDrvInfo>,
     me: Weak<Step>,
     pending_runnable: PendingRunnable,
 
@@ -154,7 +207,7 @@ impl Step {
     pub fn new(drv_path: StorePath, pending_runnable: PendingRunnable) -> Arc<Self> {
         Arc::new_cyclic(|me| Self {
             drv_path,
-            drv: arc_swap::ArcSwapOption::from(None),
+            drv_info: arc_swap::ArcSwapOption::from(None),
             me: me.clone(),
             pending_runnable,
             runnable: false.into(),
@@ -222,25 +275,20 @@ impl Step {
         self.upload_scheduled.load(Ordering::SeqCst) && !self.get_finished()
     }
 
-    pub fn get_drv(&self) -> arc_swap::Guard<Option<Arc<Derivation>>> {
-        self.drv.load()
-    }
-
-    pub fn set_drv(&self, drv: Derivation) {
-        self.drv.store(Some(Arc::new(drv)));
-    }
-
     /// # Panics
     ///
     /// Will panic if drv.platform is not a UTF-8 string
+    pub fn set_drv(&self, drv: &Derivation, store_dir: &StoreDir) {
+        self.drv_info
+            .store(Some(Arc::new(StepDrvInfo::new(drv, store_dir))));
+    }
+
+    pub fn has_ca_floating_outputs(&self) -> bool {
+        self.drv_info.load_full().is_some_and(|i| i.has_ca_floating)
+    }
+
     pub fn get_system(&self) -> Option<String> {
-        let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| {
-            #[allow(clippy::expect_used)]
-            std::str::from_utf8(&drv.platform)
-                .expect("platform must be valid UTF-8")
-                .to_owned()
-        })
+        self.drv_info.load_full().map(|i| i.system.clone())
     }
 
     pub fn get_after(&self) -> jiff::Timestamp {
@@ -265,40 +313,15 @@ impl Step {
             .store(jiff::Timestamp::now());
     }
 
-    pub fn get_output_paths(
-        &self,
-        store_dir: &StoreDir,
-    ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
-        let drv = self.drv.load_full();
-        drv.as_ref().map(|drv| {
-            drv.outputs
-                .iter()
-                .map(|(name, output)| {
-                    (
-                        name.clone(),
-                        output.path(store_dir, &drv.name, name).ok().flatten(),
-                    )
-                })
-                .collect()
-        })
+    pub fn get_output_paths(&self) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
+        self.drv_info.load_full().map(|i| i.output_paths.clone())
     }
 
     // TODO: properly parse derivation options instead of reading env vars directly
     pub fn get_required_features(&self) -> Vec<String> {
-        let drv = self.drv.load_full();
-        drv.as_ref()
-            .map(|drv| {
-                drv.env
-                    .get(b"requiredSystemFeatures".as_slice())
-                    .and_then(|v| std::str::from_utf8(v).ok())
-                    .map(|v| {
-                        v.split(' ')
-                            .filter(|s| !s.is_empty())
-                            .map(ToOwned::to_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            })
+        self.drv_info
+            .load_full()
+            .map(|i| i.required_features.clone())
             .unwrap_or_default()
     }
 
