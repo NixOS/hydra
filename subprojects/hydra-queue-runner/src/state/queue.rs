@@ -449,15 +449,17 @@ impl Queues {
         wq.ensure_queues_for_systems(systems);
     }
 
-    pub(super) async fn process<F>(
+    pub(super) async fn process<F, C>(
         &self,
         processor: F,
+        system_has_capacity: C,
         metrics: &super::metrics::PromMetrics,
     ) -> i64
     where
         F: AsyncFn(
             JobConstraint,
         ) -> Result<crate::state::RealiseStepResult, crate::state::StateError>,
+        C: Fn(&str) -> bool,
     {
         let now = jiff::Timestamp::now();
         let mut nr_steps_waiting_all_queues = 0;
@@ -465,10 +467,23 @@ impl Queues {
         for (system, queue) in queues {
             let mut nr_disabled = 0;
             let mut nr_waiting = 0;
+            // Don't scan the queue if no machine of this system has a free slot.
+            if !system_has_capacity(&system) {
+                let remaining = i64::try_from(queue.get_stats().total_runnable).unwrap_or(0);
+                nr_steps_waiting_all_queues += remaining;
+                queue.set_nr_runnable_waiting(u64::try_from(remaining).unwrap_or(0));
+                continue;
+            }
+            let mut capacity_exhausted = false;
             for job in queue.clone_inner() {
                 let Some(job) = job.upgrade() else {
                     continue;
                 };
+                if capacity_exhausted {
+                    nr_waiting += 1;
+                    nr_steps_waiting_all_queues += 1;
+                    continue;
+                }
                 if job.get_already_scheduled() {
                     tracing::debug!(
                         "Can't schedule job because job is already scheduled system={system} drv={}",
@@ -507,6 +522,10 @@ impl Queues {
                         );
                         nr_waiting += 1;
                         nr_steps_waiting_all_queues += 1;
+                        // Stop early only when capacity ran out, not on a feature mismatch.
+                        if !system_has_capacity(&system) {
+                            capacity_exhausted = true;
+                        }
                     }
                     Ok(crate::state::RealiseStepResult::Resolved) => {}
                     Ok(

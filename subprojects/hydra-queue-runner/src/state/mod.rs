@@ -1367,6 +1367,8 @@ impl State {
                     self.clone().do_dispatch_once().await;
 
                     let elapsed = before_work.elapsed();
+                    // Coalesce trigger bursts; every finished build notifies.
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
                     #[allow(clippy::cast_possible_truncation)]
                     self.metrics
@@ -1504,6 +1506,7 @@ impl State {
         }
         self.queues.remove_all_weak_pointer().await;
 
+        let free_fn = self.config.get_machine_free_fn();
         let nr_steps_waiting_all_queues = self
             .queues
             .process(
@@ -1513,6 +1516,7 @@ impl State {
                         Box::pin(state.clone().realise_drv_on_valid_machine(constraint)).await
                     }
                 },
+                |system: &str| self.machines.has_capacity_for_system(system, free_fn),
                 &self.metrics,
             )
             .await;
