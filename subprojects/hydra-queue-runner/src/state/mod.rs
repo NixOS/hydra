@@ -1009,12 +1009,38 @@ impl State {
         let mut early_exit = false;
 
         while let Some(result) = futures.next().await {
+            let processed = result?;
+
+            // Check early exit only once, after each completed build.
+            // If already exiting, we let in-flight tasks drain naturally.
+            if !early_exit {
+                let stop_queue_run_after = self.config.get_stop_queue_run_after();
+                if let Some(stop_queue_run_after) = stop_queue_run_after
+                    && jiff::Timestamp::now() > (starttime + stop_queue_run_after)
+                {
+                    early_exit = true;
+                    self.metrics.queue_checks_early_exits.inc();
+                }
+            }
+
+            // Refill for every completed future, also those that resolved to
+            // None, otherwise the in-flight set shrinks until the run ends.
+            if !early_exit && let Some(id) = ids_iter.next() {
+                futures.push(Box::pin(Self::process_single_build(
+                    self,
+                    id,
+                    new_builds_by_id.clone(),
+                    new_builds_by_path.clone(),
+                    finished_drvs.clone(),
+                )));
+            }
+
             let Some(ProcessedBuild {
                 nr_added,
                 new_runnable,
                 elapsed,
                 ..
-            }) = result?
+            }) = processed
             else {
                 continue;
             };
@@ -1034,29 +1060,6 @@ impl State {
             }
             if let Ok(added_u64) = u64::try_from(nr_added.load(Ordering::Relaxed)) {
                 self.metrics.nr_builds_read.inc_by(added_u64);
-            }
-
-            // Check early exit only once, after each completed build.
-            // If already exiting, we let in-flight tasks drain naturally.
-            if !early_exit {
-                let stop_queue_run_after = self.config.get_stop_queue_run_after();
-                if let Some(stop_queue_run_after) = stop_queue_run_after
-                    && jiff::Timestamp::now() > (starttime + stop_queue_run_after)
-                {
-                    early_exit = true;
-                    self.metrics.queue_checks_early_exits.inc();
-                }
-            }
-
-            // Queue the next build if not exiting early.
-            if !early_exit && let Some(id) = ids_iter.next() {
-                futures.push(Box::pin(Self::process_single_build(
-                    self,
-                    id,
-                    new_builds_by_id.clone(),
-                    new_builds_by_path.clone(),
-                    finished_drvs.clone(),
-                )));
             }
         }
 
