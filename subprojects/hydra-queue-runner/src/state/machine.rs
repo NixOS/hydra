@@ -393,6 +393,20 @@ impl Machines {
     }
 
     #[tracing::instrument(skip(self, system))]
+    /// Whether any machine of this system has a free slot, ignoring
+    /// feature matching. Used as a cheap saturation probe by the dispatcher.
+    pub fn has_capacity_for_system(&self, system: &str, free_fn: MachineFreeFn) -> bool {
+        let inner = self.inner.read();
+        if system == "builtin" {
+            inner.by_uuid.values().any(|m| m.has_capacity(free_fn))
+        } else {
+            inner
+                .by_system
+                .get(system)
+                .is_some_and(|machines| machines.iter().any(|m| m.has_capacity(free_fn)))
+        }
+    }
+
     pub fn get_machine_for_system(
         &self,
         system: &str,
