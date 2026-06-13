@@ -110,10 +110,15 @@ impl StepState {
     }
 }
 
+/// Steps that became runnable since the dispatcher last drained them.
+pub(super) type PendingRunnable = Arc<parking_lot::Mutex<Vec<Weak<Step>>>>;
+
 #[derive(Debug)]
 pub struct Step {
     drv_path: StorePath,
     drv: arc_swap::ArcSwapOption<Derivation>,
+    me: Weak<Step>,
+    pending_runnable: PendingRunnable,
 
     runnable: AtomicBool,
     /// The step is currently held in the dispatch queues.
@@ -146,10 +151,12 @@ impl Hash for Step {
 
 impl Step {
     #[must_use]
-    pub fn new(drv_path: StorePath) -> Arc<Self> {
-        Arc::new(Self {
+    pub fn new(drv_path: StorePath, pending_runnable: PendingRunnable) -> Arc<Self> {
+        Arc::new_cyclic(|me| Self {
             drv_path,
             drv: arc_swap::ArcSwapOption::from(None),
+            me: me.clone(),
+            pending_runnable,
             runnable: false.into(),
             queued: false.into(),
             finished: false.into(),
@@ -381,6 +388,7 @@ impl Step {
             tracing::info!("step '{}' is now runnable", self.get_drv_path());
 
             self.runnable.store(true, Ordering::SeqCst);
+            self.pending_runnable.lock().push(self.me.clone());
             let now = jiff::Timestamp::now();
             self.atomic_state.runnable_since.store(now);
             // we also say now, is the last time that we supported this step.
@@ -535,9 +543,12 @@ impl Step {
 #[derive(Debug, Clone)]
 pub struct Steps {
     inner: Arc<parking_lot::RwLock<HashMap<StorePath, Weak<Step>>>>,
+    pending_runnable: PendingRunnable,
     /// Last critical-path recomputation (unix seconds); the DFS over the
     /// whole step graph is too expensive to run on every dispatch round.
     cp_computed_at: Arc<AtomicU64>,
+    /// Last full runnable scan (unix seconds).
+    full_scan_at: Arc<AtomicU64>,
 }
 
 impl Default for Steps {
@@ -551,7 +562,9 @@ impl Steps {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(parking_lot::RwLock::new(HashMap::with_capacity(10000))),
+            pending_runnable: Arc::default(),
             cp_computed_at: Arc::new(0.into()),
+            full_scan_at: Arc::new(0.into()),
         }
     }
 
@@ -615,6 +628,27 @@ impl Steps {
             true
         });
         new_runnable
+    }
+
+    /// Drain steps that became runnable since the last call.
+    #[must_use]
+    pub fn drain_pending_runnable(&self) -> Vec<Arc<Step>> {
+        let pending: Vec<_> = std::mem::take(&mut *self.pending_runnable.lock());
+        pending.iter().filter_map(Weak::upgrade).collect()
+    }
+
+    /// Full scan at most every `interval_s` seconds; safety net for steps
+    /// that left the queues without finishing.
+    #[must_use]
+    pub fn clone_runnable_throttled(&self, interval_s: u64) -> Vec<Arc<Step>> {
+        #[allow(clippy::cast_sign_loss)]
+        let now = jiff::Timestamp::now().as_second() as u64;
+        let last = self.full_scan_at.load(Ordering::Relaxed);
+        if now.saturating_sub(last) < interval_s {
+            return Vec::new();
+        }
+        self.full_scan_at.store(now, Ordering::Relaxed);
+        self.clone_runnable()
     }
 
     /// Recompute critical paths at most every `interval_s` seconds.
@@ -711,11 +745,11 @@ impl Steps {
             step.upgrade().unwrap_or_else(|| {
                 steps.remove(drv_path);
                 is_new = true;
-                Step::new(drv_path.to_owned())
+                Step::new(drv_path.to_owned(), self.pending_runnable.clone())
             })
         } else {
             is_new = true;
-            Step::new(drv_path.to_owned())
+            Step::new(drv_path.to_owned(), self.pending_runnable.clone())
         };
 
         step.add_referring_data(referring_build, referring_step);
@@ -742,6 +776,20 @@ mod tests {
 
     fn drv(name: &str) -> StorePath {
         StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
+    }
+
+    #[test]
+    fn pending_runnable_drained_once() {
+        let steps = Steps::new();
+        let (step, _) = steps.create(&drv("a"), None, None);
+        step.atomic_state.set_created(true);
+        step.make_runnable();
+        step.make_runnable();
+
+        let drained = steps.drain_pending_runnable();
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].get_drv_path(), step.get_drv_path());
+        assert!(steps.drain_pending_runnable().is_empty());
     }
 
     #[test]
