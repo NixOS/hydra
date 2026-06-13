@@ -1485,6 +1485,10 @@ impl State {
             if r.atomic_state.tries.load(Ordering::Relaxed) > 0 {
                 continue;
             }
+            // Only offer steps that are not already held in the queues.
+            if !r.try_mark_queued() {
+                continue;
+            }
             let step_info = StepInfo::new(r.clone());
 
             new_queues
