@@ -132,7 +132,7 @@ use crate::state::machine::Machines;
 use crate::utils::finish_build_step;
 
 pub type System = String;
-const MAX_CONCURRENT_BUILD_INJECTION: usize = 10;
+const MAX_CONCURRENT_BUILD_INJECTION: usize = 50;
 
 enum CreateStepResult {
     None,
