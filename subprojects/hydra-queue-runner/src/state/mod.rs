@@ -278,7 +278,7 @@ pub struct State {
 
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
-    pub uploader: uploader::Uploader,
+    pub uploader: Arc<uploader::Uploader>,
     /// Receiver for upload completions of steps gated on
     /// [`OutputAvailability::PendingUpload`]; consumed by
     /// [`State::start_upload_completion_loop`].
@@ -402,11 +402,13 @@ impl State {
             started_at: jiff::Timestamp::now(),
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
-            uploader: uploader::Uploader::new(
-                config.get_hydra_data_dir().join("uploader_state.json"),
-                upload_completion_tx,
-            )
-            .await,
+            uploader: Arc::new(
+                uploader::Uploader::new(
+                    config.get_hydra_data_dir().join("uploader_state.json"),
+                    upload_completion_tx,
+                )
+                .await,
+            ),
             upload_completion_rx: parking_lot::Mutex::new(Some(upload_completion_rx)),
             real_store_dir: nix_config.real_store_dir(),
             nix_daemon_config: nix_config,

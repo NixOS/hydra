@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
 use harmonia_store_path::StorePath;
@@ -24,9 +26,9 @@ where
 struct Message {
     #[serde(skip_serializing, deserialize_with = "deserialize_with_new_v4")]
     id: uuid::Uuid,
-    store_paths: std::sync::Arc<Vec<StorePath>>,
-    log_remote_path: std::sync::Arc<String>,
-    log_local_path: std::sync::Arc<std::path::PathBuf>,
+    store_paths: Arc<Vec<StorePath>>,
+    log_remote_path: Arc<String>,
+    log_local_path: Arc<std::path::PathBuf>,
     /// Drv path to report on the completion channel once the upload was
     /// attempted. Set for steps whose finished flag is gated on the upload.
     #[serde(default)]
@@ -104,9 +106,9 @@ impl Uploader {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
         self.queue.send(Message {
             id: uuid::Uuid::new_v4(),
-            store_paths: std::sync::Arc::new(store_paths),
-            log_remote_path: std::sync::Arc::new(log_remote_path),
-            log_local_path: std::sync::Arc::new(log_local_path),
+            store_paths: Arc::new(store_paths),
+            log_remote_path: Arc::new(log_remote_path),
+            log_local_path: Arc::new(log_local_path),
             notify_drv,
         });
         let _ = self.save_state().await;
@@ -291,7 +293,7 @@ impl Uploader {
 
     #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     pub async fn upload_many(
-        &self,
+        self: &Arc<Self>,
         local_db: Option<crate::local_db::LocalNixDb>,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
@@ -308,16 +310,24 @@ impl Uploader {
             current_tasks.extend(messages.iter().cloned());
         }
 
-        let mut jobs = vec![];
+        // Spawn a task per upload so NAR compression runs on multiple worker
+        // threads instead of interleaving on one.
+        let mut jobs = tokio::task::JoinSet::new();
         for msg in messages {
-            jobs.push(self.upload_msg(
-                local_db.clone(),
-                local_store.clone(),
-                remote_stores.clone(),
-                msg,
-            ));
+            let this = self.clone();
+            let local_db = local_db.clone();
+            let local_store = local_store.clone();
+            let remote_stores = remote_stores.clone();
+            jobs.spawn(async move {
+                this.upload_msg(local_db, local_store, remote_stores, msg)
+                    .await;
+            });
         }
-        futures::future::join_all(jobs).await;
+        while let Some(res) = jobs.join_next().await {
+            if let Err(e) = res {
+                tracing::error!("Upload task panicked: {e}");
+            }
+        }
 
         {
             let mut current_tasks = self.current_tasks.write();
