@@ -566,10 +566,10 @@ sub checkBuild {
             , ischannel => getMeta($buildInfo->{meta}->{isChannel}, 0)
             });
 
-        $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
-            foreach @outputNames;
-
-        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
+        # Output rows are inserted in bulk by the caller (see populate below);
+        # row-at-a-time creates dominate eval insertion time on large jobsets.
+        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath
+                                  , outputs => [ map { { build => $build->id, name => $_, path => $buildInfo->{outputs}->{$_} } } @outputNames ] };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
@@ -831,6 +831,10 @@ sub checkJobsetWrapped {
             }
         }
 
+        # Bulk-insert the outputs of all new builds in one statement.
+        my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
+        $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
+
         # Have any builds been added or removed since last time?
         $jobsetChanged =
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
@@ -845,11 +849,9 @@ sub checkJobsetWrapped {
                               join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
 
         if ($jobsetChanged) {
-            # Create JobsetEvalMembers mappings.
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
-            }
+            # Create JobsetEvalMembers mappings in bulk.
+            $db->resultset('JobsetEvalMembers')->populate(
+                [ map { { eval => $ev->id, build => $_, isnew => $buildMap{$_}->{new} } } keys %buildMap ]);
 
             # Create AggregateConstituents mappings.  Since there can
             # be jobs that alias each other, if there are multiple
