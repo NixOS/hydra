@@ -1474,7 +1474,8 @@ impl State {
             // recomputation; acceptable for a priority heuristic.
             self.steps.compute_critical_paths_throttled(60);
         }
-        let new_runnable = self.steps.clone_runnable();
+        let mut new_runnable = self.steps.drain_pending_runnable();
+        new_runnable.extend(self.steps.clone_runnable_throttled(300));
 
         let now = jiff::Timestamp::now();
         let mut new_queues = HashMap::<System, Vec<StepInfo>>::with_capacity(10);

@@ -296,6 +296,7 @@ mod tests {
     ) -> StepInfo {
         let step = Step::new(
             StorePath::from_base_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv").unwrap(),
+            Arc::default(),
         );
 
         step.atomic_state
