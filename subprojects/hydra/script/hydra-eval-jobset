@@ -651,6 +651,44 @@ sub permute {
 }
 
 
+# Point the jobset's iscurrent flags at the given evaluation, in id-ordered
+# batches outside the evaluation transaction: updating 100k+ Builds rows
+# inside it holds their locks for minutes and deadlocks against the queue
+# runner finishing builds.
+sub syncCurrentBuilds {
+    my ($jobset, $evalId) = @_;
+    my $dbh = $db->storage->dbh;
+    my $batch = 10000;
+
+    my $run = sub {
+        my ($sql, @bind) = @_;
+        while (1) {
+            my $n;
+            for (my $attempt = 1; ; $attempt++) {
+                eval { $n = $dbh->do($sql, undef, @bind); };
+                last unless $@;
+                die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+                sleep 1;
+            }
+            last if $n == 0;
+        }
+    };
+
+    $run->(q{
+        update builds set iscurrent = 1 where id in (
+          select b.id from builds b join jobsetevalmembers m on m.build = b.id
+          where m.eval = ? and b.iscurrent = 0 order by b.id limit ?)
+    }, $evalId, $batch);
+
+    $run->(q{
+        update builds set iscurrent = 0 where id in (
+          select b.id from builds b
+          where b.jobset_id = ? and b.iscurrent = 1
+            and not exists (select 1 from jobsetevalmembers m where m.eval = ? and m.build = b.id)
+          order by b.id limit ?)
+    }, $jobset->get_column('id'), $evalId, $batch);
+}
+
 sub checkJobsetWrapped {
     my ($jobset, $tmpId) = @_;
     my $project = $jobset->project;
@@ -790,13 +828,10 @@ sub checkJobsetWrapped {
     my @jobs;
     push @jobs, $_ while defined($_ = $jobsIter->());
 
+    my $currentEval;
     my $evalTxn = sub {
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
-
-        # Clear the "current" flag on all builds.  Since we're in a
-        # transaction this will only become visible after the new
-        # current builds have been added.
-        $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
+        $currentEval = undef;
 
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash
@@ -905,7 +940,7 @@ sub checkJobsetWrapped {
             }
 
             print STDERR "  created new eval ", $ev->id, "\n";
-            $ev->builds->update({iscurrent => 1});
+            $currentEval = $ev->id;
 
             # Wake up hydra-queue-runner.
             my $lowestId;
@@ -917,7 +952,7 @@ sub checkJobsetWrapped {
 
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
-            $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
+            $currentEval = $prevEval->id if defined $prevEval;
         }
 
         # If this is a one-shot jobset, disable it now.
@@ -945,6 +980,8 @@ sub checkJobsetWrapped {
         $jobsetChanged = 0;
         sleep $attempt;
     }
+
+    syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
 
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");
