@@ -491,9 +491,13 @@ sub checkBuild {
                 # the Nixpkgs jobset with PostgreSQL.
                 { jobset_id => $jobset->get_column('id'), job => $jobName,
                   name => $firstOutputName, %$pathOrDrvConstraint },
-                { rows => 1, columns => ['id', 'finished'], join => ['buildoutputs'] });
+                { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
                 #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
+                # Same output path but a different drv means a fixed-output input
+                # changed recipe; rebuild from the new closure instead of the old one.
+                $prevBuild->update({ drvpath => $drvPath, finished => 0, buildstatus => undef })
+                    if $prevBuild->drvpath ne $drvPath;
                 $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
 
                 if ($prevBuild->finished) {
