@@ -786,7 +786,7 @@ sub checkJobsetWrapped {
     my @jobs;
     push @jobs, $_ while defined($_ = $jobsIter->());
 
-    $db->txn_do(sub {
+    my $evalTxn = sub {
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
 
         # Clear the "current" flag on all builds.  Since we're in a
@@ -924,7 +924,21 @@ sub checkJobsetWrapped {
 
         $evalStop = clock_gettime(CLOCK_MONOTONIC);
         $ev->update({ evaltime => abs(int($evalStop - $evalStart)) });
-    });
+    };
+
+    # The transaction contends with the queue runner, which updates Builds
+    # rows of the same jobset as builds finish; when Postgres aborts it to
+    # break a lock cycle, retry instead of losing the evaluation.
+    for (my $attempt = 1; ; $attempt++) {
+        eval { $db->txn_do($evalTxn); };
+        last unless $@;
+        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+        print STDERR "evaluation transaction aborted (attempt $attempt), retrying: $@";
+        %buildMap = ();
+        $jobOutPathMap = {};
+        $jobsetChanged = 0;
+        sleep $attempt;
+    }
 
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");
