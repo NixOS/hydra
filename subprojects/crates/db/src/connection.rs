@@ -432,7 +432,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, v), err)]
-    pub async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
+    async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
         sqlx::query!(
             r#"
             UPDATE builds SET

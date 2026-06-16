@@ -655,6 +655,25 @@ impl State {
                 // Otherwise, `succeed_step` would prematurely mark the build as
                 // finished when an intermediate resolved step completes.
                 let is_toplevel = build.toplevel.load().as_deref() == Some(&*step_info.step);
+
+                // If this resolved derivation was already built, mark the build
+                // cached instead of rebuilding. CA floating outputs have no
+                // statically-known path, so an already-built resolved drv can't
+                // be detected from the derivation alone; its concrete outputs
+                // are recovered from the recorded buildstep outputs in the DB.
+                // Only safe at toplevel: an intermediate resolved step does not
+                // finish the build itself.
+                if is_toplevel
+                    && let Some(output) = self.cached_resolved_output(&resolved_path).await?
+                {
+                    tracing::info!(
+                        "resolved derivation {resolved_path} already built, marking build {} as cached",
+                        build.id
+                    );
+                    self.mark_build_cached(build.clone(), output).await?;
+                    return Ok(RealiseStepResult::Resolved);
+                }
+
                 let referring_build = if is_toplevel {
                     Some(build.clone())
                 } else {
@@ -675,7 +694,7 @@ impl State {
                 let resolved_step = match self
                     .create_step(
                         build.clone(),
-                        resolved_path,
+                        resolved_path.clone(),
                         referring_build,
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
@@ -685,6 +704,17 @@ impl State {
                     .await
                 {
                     CreateStepResult::None => {
+                        // `create_step` reports the resolved drv's outputs as
+                        // already present (e.g. it finished between our cache
+                        // check above and here). Mark the build cached rather
+                        // than treating it as a failure.
+                        if is_toplevel
+                            && let Some(output) =
+                                self.cached_resolved_output(&resolved_path).await?
+                        {
+                            self.mark_build_cached(build.clone(), output).await?;
+                            return Ok(RealiseStepResult::Resolved);
+                        }
                         return Err(StateError::from(
                             ResolutionError::ResolvedStepCreationFailed,
                         ));
@@ -2350,14 +2380,6 @@ impl State {
         }
 
         let use_substitutes = self.config.get_use_substitutes();
-        // TODO: check all remote stores
-        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
-            let r = self.remote_stores.read();
-            r.iter().find_map(|s| match s {
-                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                RemoteStoreBackend::NixCopy(_) => None,
-            })
-        };
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
             .outputs
             .iter()
@@ -2380,26 +2402,8 @@ impl State {
             });
         // Outputs with None paths (CA floating) are always missing —
         // their path is unknown until the derivation is built.
-        let missing_local_outputs: BTreeMap<OutputName, Option<StorePath>> = {
-            let mut missing = BTreeMap::new();
-            for (name, path) in &output_paths {
-                match path {
-                    Some(path) => {
-                        if !daemon_client_utils::is_valid_path(&self.pool, path)
-                            .await
-                            .unwrap_or(false)
-                        {
-                            missing.insert(name.clone(), Some(path.clone()));
-                        }
-                    }
-                    None => {
-                        // CA floating: output path unknown, definitely missing
-                        missing.insert(name.clone(), None);
-                    }
-                }
-            }
-            missing
-        };
+        let (missing_local_outputs, mut missing_outputs) =
+            self.compute_missing_outputs(&output_paths).await;
         // Handle paths that aren't in the database (for resolution)
         // existing_local_outputs = output_paths - missing_local_outputs
         // unregistered_local_outputs = existing_local_outputs - known_outputs
@@ -2426,29 +2430,20 @@ impl State {
         }
 
         // Handle paths that aren't in the remote store (for pushing)
-        let missing_outputs = if let Some(ref remote_store) = remote_store {
-            let mut missing = remote_store
-                .query_missing_remote_outputs(output_paths.clone())
+        // TODO: check all remote stores
+        let remote_store = self.first_s3_remote_store();
+        // With a remote store, an output present locally but missing from the
+        // cache should be uploaded, then counted as present.
+        if remote_store.is_some() && !missing_outputs.is_empty() && missing_local_outputs.is_empty()
+        {
+            let log_file = self.construct_log_file_path(&drv_path).await;
+            let missing_paths: Vec<StorePath> =
+                missing_outputs.values().filter_map(Clone::clone).collect();
+            self.uploader
+                .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file)
                 .await;
-            if !missing.is_empty() && missing_local_outputs.is_empty() {
-                // we have all paths locally, so we can just upload them to the remote_store
-                {
-                    let log_file = self.construct_log_file_path(&drv_path).await;
-                    let missing_paths: Vec<StorePath> =
-                        missing.values().filter_map(Clone::clone).collect();
-                    self.uploader
-                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file)
-                        .await;
-                    missing.clear();
-                }
-            }
-            missing
-        } else {
-            // Without a remote store, just check the local store.
-            // Reuse missing_local_outputs which already includes None
-            // (CA floating) paths as missing.
-            missing_local_outputs.clone()
-        };
+            missing_outputs.clear();
+        }
 
         let input_drvs = drv::input_drvs(&drv);
         step.set_drv(drv);
@@ -2594,31 +2589,38 @@ impl State {
     }
 
     #[tracing::instrument(skip(self, build), fields(build_id=build.id), err)]
-    async fn handle_cached_build(&self, build: Arc<Build>) -> Result<(), StateError> {
-        let res = self.get_build_output_cached(&build.drv_path).await?;
-
+    /// Mark a build succeeded and cached using a known build output, without
+    /// re-deriving it from the store.
+    async fn mark_build_cached(
+        &self,
+        build: Arc<Build>,
+        output: BuildOutput,
+    ) -> Result<(), StateError> {
         {
             let mut db = self.db.get().await?;
             let mut tx = db.begin_transaction().await?;
-
-            tracing::info!("marking build {} as succeeded (cached)", build.id);
             let now = jiff::Timestamp::now().as_second();
             tx.mark_succeeded_build(
-                get_mark_build_sccuess_data(&build, &res),
+                get_mark_build_sccuess_data(&build, &output),
                 true,
-                i32::try_from(now)?, // TODO
-                i32::try_from(now)?, // TODO
+                i32::try_from(now)?,
+                i32::try_from(now)?,
                 self.pool.store_dir(),
             )
             .await?;
             self.metrics.nr_builds_done.inc();
-
             tx.notify_build_finished(build.id, &[]).await?;
             tx.commit().await?;
         }
         build.set_finished_in_db(true);
-
+        self.builds.remove_by_id(build.id);
         Ok(())
+    }
+
+    async fn handle_cached_build(&self, build: Arc<Build>) -> Result<(), StateError> {
+        let res = self.get_build_output_cached(&build.drv_path).await?;
+        tracing::info!("marking build {} as succeeded (cached)", build.id);
+        self.mark_build_cached(build, res).await
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -2641,12 +2643,121 @@ impl State {
                 )
             })
             .collect();
+
+        let build_output = self.build_output_for_paths(output_paths).await?;
+
+        if let Ok(platform) = std::str::from_utf8(&drv.platform) {
+            #[allow(clippy::cast_precision_loss)]
+            self.metrics
+                .observe_build_closure_size(build_output.closure_size as f64, platform);
+        }
+
+        Ok(build_output)
+    }
+
+    /// Recover the `BuildOutput` for an already-built resolved (CA) derivation.
+    ///
+    /// CA floating outputs have no statically-known path, so an already-built
+    /// resolved drv can't be detected from the derivation alone. Its concrete
+    /// outputs are recovered from the recorded buildstep outputs in the DB
+    /// (keyed by the resolved drv path). Returns `None` if the resolved drv has
+    /// not been built, or its outputs are no longer available.
+    async fn cached_resolved_output(
+        &self,
+        resolved_path: &StorePath,
+    ) -> Result<Option<BuildOutput>, StateError> {
+        let known = self
+            .query_known_drv_outputs(resolved_path)
+            .await
+            .unwrap_or_default();
+        if known.is_empty() {
+            return Ok(None);
+        }
+
+        // The recorded outputs must still be available, or the build genuinely
+        // needs to run again. Otherwise return `None` and let it build.
+        if !self.outputs_available(&known).await {
+            return Ok(None);
+        }
+
+        let output_paths = known.into_iter().map(|(n, p)| (n, Some(p))).collect();
+        Ok(Some(self.build_output_for_paths(output_paths).await?))
+    }
+
+    /// Whether all of `outputs` are still available — present in the local
+    /// store, or (when a remote store is configured) in the binary cache.
+    ///
+    /// Shares `compute_missing_outputs` with `create_step`. The remote case
+    /// matters for presigned uploads, where a builder pushes outputs straight
+    /// to the cache and they may never exist in the queue-runner's local store.
+    async fn outputs_available(&self, outputs: &BTreeMap<OutputName, StorePath>) -> bool {
+        let output_paths = outputs
+            .iter()
+            .map(|(n, p)| (n.clone(), Some(p.clone())))
+            .collect();
+        let (missing_local, missing_overall) = self.compute_missing_outputs(&output_paths).await;
+        // Available if present everywhere locally, or (with a remote store)
+        // present in the cache — matching create_step's "finished" condition.
+        missing_local.is_empty() || missing_overall.is_empty()
+    }
+
+    /// The first configured S3 binary cache, if any.
+    fn first_s3_remote_store(&self) -> Option<binary_cache::S3BinaryCacheClient> {
+        let r = self.remote_stores.read();
+        r.iter().find_map(|s| match s {
+            RemoteStoreBackend::S3(s) => Some(s.clone()),
+            RemoteStoreBackend::NixCopy(_) => None,
+        })
+    }
+
+    /// Partition `output_paths` into those missing from the local store and
+    /// those missing overall (local store, plus the binary cache when one is
+    /// configured). CA-floating outputs (`None` path) are always missing.
+    /// Returns `(missing_local, missing_overall)`.
+    async fn compute_missing_outputs(
+        &self,
+        output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+    ) -> (
+        BTreeMap<OutputName, Option<StorePath>>,
+        BTreeMap<OutputName, Option<StorePath>>,
+    ) {
+        // TODO: check all remote stores
+        let remote_store = self.first_s3_remote_store();
+        let mut missing_local = BTreeMap::new();
+        for (name, path) in output_paths {
+            match path {
+                // CA floating: output path unknown until built, so always missing.
+                Some(path)
+                    if daemon_client_utils::is_valid_path(&self.pool, path)
+                        .await
+                        .unwrap_or(false) => {}
+                _ => {
+                    missing_local.insert(name.clone(), path.clone());
+                }
+            }
+        }
+
+        let missing_overall = if let Some(remote_store) = remote_store {
+            remote_store
+                .query_missing_remote_outputs(output_paths.clone())
+                .await
+        } else {
+            missing_local.clone()
+        };
+
+        (missing_local, missing_overall)
+    }
+
+    /// Build a `BuildOutput` for a set of output paths, preferring the recorded
+    /// DB build output (with products and metrics) and falling back to reading
+    /// the store directly.
+    async fn build_output_for_paths(
+        &self,
+        output_paths: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> Result<BuildOutput, StateError> {
         {
             let mut db = self.db.get().await?;
-            for out_path in output_paths.values() {
-                let Some(out_path) = out_path else {
-                    continue;
-                };
+            for out_path in output_paths.values().flatten() {
                 let Some(db_build_output) = db
                     .get_build_output_for_path(self.pool.store_dir(), out_path)
                     .await?
@@ -2673,15 +2784,7 @@ impl State {
 
         let default_store: std::path::PathBuf = self.pool.store_dir().to_string().into();
         let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
-        let build_output = BuildOutput::new(&self.pool, real_dir, output_paths).await?;
-
-        if let Ok(platform) = std::str::from_utf8(&drv.platform) {
-            #[allow(clippy::cast_precision_loss)]
-            self.metrics
-                .observe_build_closure_size(build_output.closure_size as f64, platform);
-        }
-
-        Ok(build_output)
+        Ok(BuildOutput::new(&self.pool, real_dir, output_paths).await?)
     }
 
     #[allow(unused)]
