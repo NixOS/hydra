@@ -2626,41 +2626,31 @@ impl State {
         drv_path: &StorePath,
         finished_drvs: &parking_lot::RwLock<HashSet<StorePath>>,
     ) -> CreateStepResult {
-        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
-            let r = self.remote_stores.read();
-            r.iter().find_map(|s| match s {
-                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                RemoteStoreBackend::NixCopy(_) => None,
-            })
-        };
-        if let Some(remote_store) = remote_store {
-            let output_paths = step.get_output_paths().unwrap_or_default();
-            let missing = remote_store
-                .query_missing_remote_outputs(output_paths)
-                .await;
-            if !missing.is_empty() {
-                let paths: Vec<StorePath> = missing.values().filter_map(Clone::clone).collect();
-                let gated = self.config.use_presigned_uploads();
-                if step.try_mark_upload_scheduled() {
-                    let log_file = self.construct_log_file_path(drv_path).await;
-                    self.uploader
-                        .schedule_upload(
-                            paths,
-                            format!("log/{drv_path}"),
-                            log_file,
-                            gated.then(|| drv_path.clone()),
-                        )
-                        .await;
-                }
-                if gated {
-                    // Builders fetch inputs from the remote cache; the step
-                    // stays unfinished until the upload completion event.
-                    return CreateStepResult::Valid(step);
-                }
-                // Builders import inputs from the queue runner's local
-                // store: local validity is enough, the upload only fills
-                // the cache.
+        let output_paths = step.get_output_paths().unwrap_or_default();
+        if let Some(missing) = self.query_missing_remote_outputs(output_paths).await
+            && !missing.is_empty()
+        {
+            let paths: Vec<StorePath> = missing.values().filter_map(Clone::clone).collect();
+            let gated = self.config.use_presigned_uploads();
+            if step.try_mark_upload_scheduled() {
+                let log_file = self.construct_log_file_path(drv_path).await;
+                self.uploader
+                    .schedule_upload(
+                        paths,
+                        format!("log/{drv_path}"),
+                        log_file,
+                        gated.then(|| drv_path.clone()),
+                    )
+                    .await;
             }
+            if gated {
+                // Builders fetch inputs from the remote cache; the step
+                // stays unfinished until the upload completion event.
+                return CreateStepResult::Valid(step);
+            }
+            // Builders import inputs from the queue runner's local
+            // store: local validity is enough, the upload only fills
+            // the cache.
         }
         finished_drvs.write().insert(drv_path.clone());
         complete_step(&step);
@@ -2696,14 +2686,6 @@ impl State {
         }
 
         let use_substitutes = self.config.get_use_substitutes();
-        // TODO: check all remote stores
-        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
-            let r = self.remote_stores.read();
-            r.iter().find_map(|s| match s {
-                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                RemoteStoreBackend::NixCopy(_) => None,
-            })
-        };
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
             .outputs
             .iter()
@@ -2768,46 +2750,48 @@ impl State {
             tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
         }
 
-        // Handle paths that aren't in the remote store (for pushing)
+        // Handle paths that aren't in the remote store (for pushing).
         let mut pending_upload: Option<Vec<StorePath>> = None;
-        let missing_outputs = if let Some(ref remote_store) = remote_store {
-            // Outputs of previously succeeded build steps are already in
-            // the binary cache; only ask the remote store about the rest.
-            let db_known = self.query_succeeded_outputs(&output_paths).await;
-            let mut unknown_outputs = output_paths.clone();
-            unknown_outputs
-                .retain(|_, path| path.as_ref().is_none_or(|p| !db_known.contains(p)));
-            let mut missing = remote_store
-                .query_missing_remote_outputs(unknown_outputs)
-                .await;
-            if !missing.is_empty() && missing_local_outputs.is_empty() {
-                // We have all paths locally, so we can just upload them to
-                // the remote store.
-                let missing_paths: Vec<StorePath> =
-                    missing.values().filter_map(Clone::clone).collect();
-                if self.config.use_presigned_uploads() {
-                    // Builders fetch their inputs from the remote cache, so
-                    // the step must not count as finished before the upload
-                    // completed. The caller schedules the upload when
-                    // attaching the step.
-                    pending_upload = Some(missing_paths);
-                } else {
-                    // Builders import inputs from the queue runner's local
-                    // store: local validity is enough, the upload only
-                    // fills the cache.
-                    let log_file = self.construct_log_file_path(drv_path).await;
-                    self.uploader
-                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file, None)
-                        .await;
+        let missing_outputs = match self
+            .query_missing_remote_outputs(output_paths.clone())
+            .await
+        {
+            Some(mut missing) => {
+                if !missing.is_empty() && missing_local_outputs.is_empty() {
+                    // We have all paths locally, so we can just upload them to
+                    // the remote store.
+                    let missing_paths: Vec<StorePath> =
+                        missing.values().filter_map(Clone::clone).collect();
+                    if self.config.use_presigned_uploads() {
+                        // Builders fetch their inputs from the remote cache, so
+                        // the step must not count as finished before the upload
+                        // completed. The caller schedules the upload when
+                        // attaching the step.
+                        pending_upload = Some(missing_paths);
+                    } else {
+                        // Builders import inputs from the queue runner's local
+                        // store: local validity is enough, the upload only
+                        // fills the cache.
+                        let log_file = self.construct_log_file_path(drv_path).await;
+                        self.uploader
+                            .schedule_upload(
+                                missing_paths,
+                                format!("log/{drv_path}"),
+                                log_file,
+                                None,
+                            )
+                            .await;
+                    }
+                    missing.clear();
                 }
-                missing.clear();
+                missing
             }
-            missing
-        } else {
-            // Without a remote store, just check the local store.
-            // Reuse missing_local_outputs which already includes None
-            // (CA floating) paths as missing.
-            missing_local_outputs.clone()
+            None => {
+                // Without a remote store, just check the local store.
+                // Reuse missing_local_outputs which already includes None
+                // (CA floating) paths as missing.
+                missing_local_outputs.clone()
+            }
         };
 
         // Same lookup as `check_cached_failure`, but from the prefetched
@@ -2834,6 +2818,9 @@ impl State {
         let finished = if !missing_outputs.is_empty() && use_substitutes {
             use futures::stream::StreamExt as _;
 
+            // Substitution falls back to the binary cache for paths the
+            // local store is missing.
+            let remote_store = self.first_s3_remote_store();
             let mut substituted = 0;
             let missing_outputs_len = missing_outputs.len();
             let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
@@ -2914,6 +2901,41 @@ impl State {
             tracing::warn!("Could not query succeeded outputs, continuing: {e}");
             HashSet::new()
         })
+    }
+
+    /// The first configured S3 remote store, if any. Several scheduling
+    /// paths only need a single S3 store to decide whether outputs already
+    /// live in the binary cache.
+    // TODO: check all remote stores
+    fn first_s3_remote_store(&self) -> Option<binary_cache::S3BinaryCacheClient> {
+        let r = self.remote_stores.read();
+        r.iter().find_map(|s| match s {
+            RemoteStoreBackend::S3(s) => Some(s.clone()),
+            RemoteStoreBackend::NixCopy(_) => None,
+        })
+    }
+
+    /// Database-first version of
+    /// [`binary_cache::S3BinaryCacheClient::query_missing_remote_outputs`].
+    /// Returns `None` when no S3 store is configured.
+    ///
+    /// Outputs of previously succeeded build steps were uploaded to the
+    /// binary cache, so they can be treated as present without a narinfo
+    /// request. Always go through this rather than calling the remote store
+    /// directly, so the database short-circuit is never skipped.
+    async fn query_missing_remote_outputs(
+        &self,
+        output_paths: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
+        let remote_store = self.first_s3_remote_store()?;
+        let db_known = self.query_succeeded_outputs(&output_paths).await;
+        let mut unknown_outputs = output_paths;
+        unknown_outputs.retain(|_, path| path.as_ref().is_none_or(|p| !db_known.contains(p)));
+        Some(
+            remote_store
+                .query_missing_remote_outputs(unknown_outputs)
+                .await,
+        )
     }
 
     #[tracing::instrument(skip(self))]
