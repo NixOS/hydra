@@ -2771,8 +2771,14 @@ impl State {
         // Handle paths that aren't in the remote store (for pushing)
         let mut pending_upload: Option<Vec<StorePath>> = None;
         let missing_outputs = if let Some(ref remote_store) = remote_store {
+            // Outputs of previously succeeded build steps are already in
+            // the binary cache; only ask the remote store about the rest.
+            let db_known = self.query_succeeded_outputs(&output_paths).await;
+            let mut unknown_outputs = output_paths.clone();
+            unknown_outputs
+                .retain(|_, path| path.as_ref().is_none_or(|p| !db_known.contains(p)));
             let mut missing = remote_store
-                .query_missing_remote_outputs(output_paths.clone())
+                .query_missing_remote_outputs(unknown_outputs)
                 .await;
             if !missing.is_empty() && missing_local_outputs.is_empty() {
                 // We have all paths locally, so we can just upload them to
@@ -2874,6 +2880,28 @@ impl State {
             drv,
             availability,
             previous_failure: false,
+        })
+    }
+
+    /// Output paths that a previously succeeded build step produced. These
+    /// were uploaded to the binary cache, so no narinfo lookup is needed for
+    /// them.
+    #[tracing::instrument(skip(self, output_paths))]
+    async fn query_succeeded_outputs(
+        &self,
+        output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+    ) -> HashSet<StorePath> {
+        let paths: Vec<StorePath> = output_paths.values().flatten().cloned().collect();
+        let res = match self.db.get().await {
+            Ok(mut conn) => conn
+                .query_succeeded_output_paths(self.pool.store_dir(), &paths)
+                .await
+                .map(|v| v.into_iter().collect()),
+            Err(e) => Err(e),
+        };
+        res.unwrap_or_else(|e| {
+            tracing::warn!("Could not query succeeded outputs, continuing: {e}");
+            HashSet::new()
         })
     }
 
