@@ -680,7 +680,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 8 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -788,7 +788,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
 
         let config = S3CacheConfig::new(client_config)
@@ -796,7 +796,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -835,7 +835,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16_777_216);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
     }
 
@@ -1053,7 +1053,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
         assert_eq!(config.secret_key_files.len(), 2);
     }
@@ -1084,14 +1084,14 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(60)
+            std::time::Duration::from_mins(1)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=86400";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(86400)
+            std::time::Duration::from_hours(24)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=59";
