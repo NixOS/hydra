@@ -356,7 +356,7 @@ impl BuildTimings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuildOutput {
     pub failed: bool,
     pub timings: BuildTimings,

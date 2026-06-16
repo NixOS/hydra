@@ -189,6 +189,14 @@ pub struct State {
     /// restart.
     pub resolved_drv_map: parking_lot::RwLock<HashMap<StorePath, StorePath>>,
 
+    /// Cache mapping a CA derivation path to the `BuildOutput` it produced.
+    /// CA floating outputs have no statically-known path, so an already-built
+    /// CA derivation can only be detected via the in-memory `Steps` map, which
+    /// drops entries once the owning build finishes. A later build resolving to
+    /// the same derivation would then rebuild it (and lose its output). This
+    /// cache lets such builds be marked cached instead.
+    pub resolved_output_cache: parking_lot::RwLock<HashMap<StorePath, BuildOutput>>,
+
     pub fod_checker: Option<Arc<FodChecker>>,
 
     pub started_at: jiff::Timestamp,
@@ -292,6 +300,7 @@ impl State {
             db,
             machines: Machines::new(),
             resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
+            resolved_output_cache: parking_lot::RwLock::new(HashMap::new()),
             log_dir,
             builds: Builds::new(),
             jobsets: Jobsets::new(),
@@ -655,6 +664,26 @@ impl State {
                 // Otherwise, `succeed_step` would prematurely mark the build as
                 // finished when an intermediate resolved step completes.
                 let is_toplevel = build.toplevel.load().as_deref() == Some(&*step_info.step);
+
+                // If this resolved derivation was already built, mark the
+                // build cached instead of rebuilding. Only safe at toplevel: an
+                // intermediate resolved step does not finish the build itself.
+                if is_toplevel {
+                    let cached_output = self
+                        .resolved_output_cache
+                        .read()
+                        .get(&resolved_path)
+                        .cloned();
+                    if let Some(output) = cached_output {
+                        tracing::info!(
+                            "resolved derivation {resolved_path} already built, marking build {} as cached",
+                            build.id
+                        );
+                        self.mark_build_cached(build.clone(), output).await?;
+                        return Ok(RealiseStepResult::Resolved);
+                    }
+                }
+
                 let referring_build = if is_toplevel {
                     Some(build.clone())
                 } else {
@@ -2594,8 +2623,47 @@ impl State {
     }
 
     #[tracing::instrument(skip(self, build), fields(build_id=build.id), err)]
+    /// Mark a build succeeded and cached using a known build output, without
+    /// re-deriving it from the store.
+    async fn mark_build_cached(
+        &self,
+        build: Arc<Build>,
+        output: BuildOutput,
+    ) -> Result<(), StateError> {
+        {
+            let mut db = self.db.get().await?;
+            let mut tx = db.begin_transaction().await?;
+            let now = jiff::Timestamp::now().as_second();
+            tx.mark_succeeded_build(
+                get_mark_build_sccuess_data(&build, &output),
+                true,
+                i32::try_from(now)?,
+                i32::try_from(now)?,
+                self.pool.store_dir(),
+            )
+            .await?;
+            self.metrics.nr_builds_done.inc();
+            tx.notify_build_finished(build.id, &[]).await?;
+            tx.commit().await?;
+        }
+        build.set_finished_in_db(true);
+        self.builds.remove_by_id(build.id);
+        Ok(())
+    }
+
     async fn handle_cached_build(&self, build: Arc<Build>) -> Result<(), StateError> {
-        let res = self.get_build_output_cached(&build.drv_path).await?;
+        // CA floating outputs have no statically-known path, so
+        // `get_build_output_cached` cannot recover them from the derivation
+        // alone and would yield an empty output. Prefer a cached output.
+        let cached = self
+            .resolved_output_cache
+            .read()
+            .get(&build.drv_path)
+            .cloned();
+        let res = match cached {
+            Some(output) => output,
+            None => self.get_build_output_cached(&build.drv_path).await?,
+        };
 
         {
             let mut db = self.db.get().await?;
