@@ -23,7 +23,15 @@ pub struct LocalNixDb {
 
 impl LocalNixDb {
     pub async fn open(store_dir: StoreDir) -> Result<Self, sqlx::Error> {
-        Self::open_at(store_dir, "/nix/var/nix/db/db.sqlite").await
+        Self::open_at(store_dir, &Self::default_db_path()).await
+    }
+
+    /// Database location, honoring `NIX_STATE_DIR` like libnixstore so
+    /// non-default Nix stores (e.g. the test harness) are found.
+    fn default_db_path() -> String {
+        let state_dir =
+            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix".to_string());
+        format!("{state_dir}/db/db.sqlite")
     }
 
     pub async fn open_at(store_dir: StoreDir, path: &str) -> Result<Self, sqlx::Error> {
