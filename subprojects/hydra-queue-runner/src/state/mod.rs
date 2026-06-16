@@ -56,6 +56,12 @@ pub enum StateError {
     #[error("failed to construct log path string")]
     LogPathNotUtf8,
 
+    #[error("local nix database error")]
+    LocalNixDb(#[from] sqlx::Error),
+
+    #[error("local nix database is not available")]
+    LocalNixDbUnavailable,
+
     #[error("reading derivation `{drv}`: {reason}")]
     ReadDerivation {
         drv: StorePath,
@@ -2305,7 +2311,7 @@ impl State {
             new_builds_by_id.remove(&build.id);
         }
 
-        if !daemon_client_utils::is_valid_path(&self.pool, &build.drv_path).await? {
+        if !self.is_valid_path(&build.drv_path).await? {
             tracing::error!(
                 "aborting GC'ed build id={} path={}",
                 build.id,
@@ -2489,10 +2495,7 @@ impl State {
                 let all_valid = if all_resolved {
                     let mut valid = true;
                     for path in output_paths.values().flatten() {
-                        if !daemon_client_utils::is_valid_path(&self.pool, path)
-                            .await
-                            .unwrap_or(false)
-                        {
+                        if !self.is_valid_path(path).await.unwrap_or(false) {
                             valid = false;
                             break;
                         }
@@ -2728,10 +2731,7 @@ impl State {
             for (name, path) in &output_paths {
                 match path {
                     Some(path) => {
-                        if !daemon_client_utils::is_valid_path(&self.pool, path)
-                            .await
-                            .unwrap_or(false)
-                        {
+                        if !self.is_valid_path(path).await.unwrap_or(false) {
                             missing.insert(name.clone(), Some(path.clone()));
                         }
                     }
@@ -2881,6 +2881,17 @@ impl State {
             availability,
             previous_failure: false,
         })
+    }
+
+    /// Check local store validity through the Nix `SQLite` database instead
+    /// of the nix-daemon, so queue ingestion does not compete with NAR
+    /// uploads for daemon connections.
+    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
+        let local_db = self
+            .local_db
+            .as_ref()
+            .ok_or(StateError::LocalNixDbUnavailable)?;
+        Ok(local_db.is_valid_path(path).await?)
     }
 
     /// Output paths that a previously succeeded build step produced. These
