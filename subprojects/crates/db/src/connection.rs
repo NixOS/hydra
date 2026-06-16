@@ -17,10 +17,6 @@ pub struct Connection {
     conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
 }
 
-/// Lock class for `pg_advisory_xact_lock(class, build_id)`, used to
-/// serialize build step inserts per build.
-const BUILD_STEP_LOCK_CLASS: i32 = 0x4879_6472; // "Hydr"
-
 #[derive(Debug)]
 pub struct Transaction<'a> {
     tx: sqlx::PgTransaction<'a>,
@@ -644,16 +640,10 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         step: InsertBuildStep<'_>,
     ) -> crate::Result<Option<i32>> {
-        // stepnr is MAX(stepnr) + 1, so concurrent transactions for the
-        // same build pick the same number and all but one have to retry
-        // after blocking on the winner's commit. Serialize them instead;
-        // the lock is released on commit.
-        sqlx::query("SELECT pg_advisory_xact_lock($1, $2)")
-            .bind(BUILD_STEP_LOCK_CLASS)
-            .bind(step.build_id)
-            .execute(&mut *self.tx)
-            .await?;
-
+        // stepnr is MAX(stepnr) + 1; concurrent transactions for the same
+        // build pick the same number and all but one return None and retry.
+        // The queue runner serializes the hot dispatch path with an
+        // in-process per-build lock, so this only happens on rare paths.
         let drv_path = store_dir.display(step.drv_path).to_string();
         let success = sqlx::query!(
             r#"

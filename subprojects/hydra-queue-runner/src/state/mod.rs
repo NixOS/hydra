@@ -139,6 +139,7 @@ use crate::utils::finish_build_step;
 
 pub type System = String;
 const MAX_CONCURRENT_BUILD_INJECTION: usize = 50;
+const BUILD_STEP_LOCK_SHARDS: usize = 1024;
 
 enum CreateStepResult {
     None,
@@ -282,6 +283,11 @@ pub struct State {
 
     pub started_at: jiff::Timestamp,
 
+    /// Per-build locks (sharded by build id) serializing build step
+    /// inserts; the queue runner is the only writer of `buildsteps`, so
+    /// stepnr allocation only needs in-process serialization.
+    build_step_locks: [tokio::sync::Mutex<()>; BUILD_STEP_LOCK_SHARDS],
+
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
     pub uploader: Arc<uploader::Uploader>,
@@ -406,6 +412,7 @@ impl State {
             queues: Queues::new(),
             fod_checker,
             started_at: jiff::Timestamp::now(),
+            build_step_locks: std::array::from_fn(|_| tokio::sync::Mutex::new(())),
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
             uploader: Arc::new(
@@ -644,6 +651,7 @@ impl State {
             .clone_into(&mut job.result.log_file);
         let mut db = self.db.get().await?;
         let step_nr = {
+            let _step_lock = self.build_step_lock(build_id).lock().await;
             let mut tx = db.begin_transaction().await?;
 
             let step_nr = tx
@@ -2868,6 +2876,12 @@ impl State {
             availability,
             previous_failure: false,
         })
+    }
+
+    /// Lock guarding build step inserts for a build, sharded by build id.
+    fn build_step_lock(&self, build_id: BuildID) -> &tokio::sync::Mutex<()> {
+        let idx = usize::try_from(build_id.unsigned_abs()).unwrap_or_default();
+        &self.build_step_locks[idx % BUILD_STEP_LOCK_SHARDS]
     }
 
     /// Check local store validity through the Nix `SQLite` database instead
