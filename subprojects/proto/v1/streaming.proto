@@ -133,6 +133,7 @@ message BuildMessage {
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
   int32 build_timeout = 6;
+  uint64 max_output_size = 9; // per-output NAR size limit; 0 disables it
   optional PresignedUploadOpts presigned_url_opts = 7; // None if presigned url upload is disabled
   // bool is_deterministic = 5;
   // bool enforce_determinism = 6;
@@ -213,6 +214,7 @@ enum BuildResultState {
   PostProcessingFailure = 5;
   TimedOutFailure = 6;
   LogLimitFailure = 7;
+  NarSizeLimitFailure = 8;
 }
 
 message BuildResultInfo {

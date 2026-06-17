@@ -146,6 +146,11 @@ in
               type = lib.types.listOf lib.types.singleLineStr;
               default = [ ];
             };
+            maxOutputSize = lib.mkOption {
+              description = "Per-output NAR size limit in bytes. Builds whose output exceeds this fail with NarSizeLimitExceeded. 0 disables the check.";
+              type = lib.types.ints.unsigned;
+              default = 0;
+            };
           };
         };
         default = { };
