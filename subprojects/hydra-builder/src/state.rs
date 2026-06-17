@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
 
-use backon::RetryableWithContext as _;
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::TryFutureExt as _;
 use harmonia_protocol::daemon_wire::types2::BuildResultSuccess;
@@ -21,16 +20,6 @@ use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
     PingMessage, StepStatus, StepUpdate,
 };
-const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
-const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
-
-fn retry_strategy() -> backon::ExponentialBuilder {
-    backon::ExponentialBuilder::default()
-        .with_jitter()
-        .with_min_delay(RETRY_MIN_DELAY)
-        .with_max_delay(RETRY_MAX_DELAY)
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure")]
@@ -346,19 +335,7 @@ impl State {
                             error_msg: Some(error_msg),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
-                        .await
-                        {
+                        if let Err(e) = self_.client.complete_build(failed_build).await {
                             tracing::error!("Failed to submit build failure info: {e}");
                         }
                     }
@@ -685,22 +662,7 @@ impl State {
         .await
         .map_err(JobFailure::PostProcessing)?;
 
-        // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
-        // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
-        .await
-        .1
-        .map_err(|e| {
+        client.complete_build(build_results).await.map_err(|e| {
             tracing::error!("Failed to submit build success info. Will fail build: err={e}");
             JobFailure::PostProcessing(e.into())
         })?;
