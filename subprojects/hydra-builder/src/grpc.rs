@@ -120,18 +120,24 @@ impl BuilderClient {
         &self,
         build_id: &str,
         machine_id: &str,
-        store_paths: Vec<(StorePath, harmonia_store_path_info::NarHash, Vec<String>)>,
+        store_paths: Vec<(
+            StorePath,
+            harmonia_store_path_info::NarHash,
+            u64,
+            Vec<String>,
+        )>,
     ) -> Result<Vec<hydra_proto::PresignedNarResponse>, BuilderError> {
         use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 
         let request = store_paths
             .into_iter()
-            .map(|(path, nar_hash, build_ids)| {
+            .map(|(path, nar_hash, nar_size, build_ids)| {
                 let hash: harmonia_utils_hash::Hash = nar_hash.into();
                 PresignedNarRequest {
                     store_path: path.to_string(),
                     nar_hash: Some((&hash).into()),
                     debug_info_build_ids: build_ids,
+                    nar_size,
                 }
             })
             .collect::<Vec<_>>();
@@ -154,6 +160,25 @@ impl BuilderClient {
             .map_err(BuilderError::PresignedUrls)?;
 
         Ok(response.into_inner().inner)
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn request_multipart_parts(
+        &self,
+        req: hydra_proto::MultipartPartsRequest,
+    ) -> Result<Vec<hydra_proto::MultipartPart>, BuilderError> {
+        let response = self
+            .call_with_retry("request_multipart_parts", |mut client: Self| {
+                let req = req.clone();
+                async move {
+                    let res = client.0.request_multipart_parts(req).await;
+                    (client, res)
+                }
+            })
+            .await
+            .map_err(BuilderError::PresignedUrls)?;
+
+        Ok(response.into_inner().parts)
     }
 }
 
