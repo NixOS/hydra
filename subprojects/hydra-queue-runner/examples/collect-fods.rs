@@ -2,12 +2,11 @@ use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
 
 #[tokio::main]
-async fn main() -> color_eyre::eyre::Result<()> {
+async fn main() -> eyre::Result<()> {
     let p: StorePath = "dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv".parse()?;
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(4);
 
-    let nix_config =
-        daemon_client_utils::parse_nix_remote().map_err(|e| color_eyre::eyre::eyre!(e))?;
+    let nix_config = daemon_client_utils::parse_nix_remote().map_err(|e| eyre::eyre!(e))?;
     let pool = harmonia_store_remote::ConnectionPool::new(
         &nix_config.socket,
         harmonia_store_remote::PoolConfig::default(),

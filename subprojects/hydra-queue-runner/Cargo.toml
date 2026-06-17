@@ -21,7 +21,6 @@ toml.workspace        = true
 atomic_float.workspace = true
 backon.workspace       = true
 clap                   = { workspace = true, features = [ "derive", "env" ] }
-color-eyre.workspace   = true
 fs-err                 = { workspace = true, features = [ "tokio" ] }
 thiserror.workspace    = true
 uuid                   = { workspace = true, features = [ "v4", "serde" ] }
@@ -71,6 +70,9 @@ store-transfer.workspace                 = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
+
+[dev-dependencies]
+eyre = "0.6"
 
 [features]
 otel = [ "hydra-tracing/otel" ]

@@ -8,8 +8,14 @@ pub(crate) enum UploaderError {
     Io(#[from] std::io::Error),
     #[error("(de)serializing uploader state")]
     Json(#[from] serde_json::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum UploadError {
     #[error(transparent)]
     Cache(#[from] binary_cache::CacheError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -155,7 +161,7 @@ impl Uploader {
         local_store: &harmonia_store_remote::ConnectionPool,
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
-    ) -> Result<(), UploaderError> {
+    ) -> Result<(), UploadError> {
         // Upload log file
         (|| async {
             let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
@@ -163,7 +169,7 @@ impl Uploader {
             remote_store
                 .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
                 .await?;
-            Ok::<(), UploaderError>(())
+            Ok::<(), UploadError>(())
         })
         .retry(
             ExponentialBuilder::default()
@@ -192,7 +198,7 @@ impl Uploader {
             remote_store
                 .copy_paths(local_store, paths_to_copy.clone(), false)
                 .await?;
-            Ok::<(), UploaderError>(())
+            Ok::<(), UploadError>(())
         })
         .retry(
             ExponentialBuilder::default()
