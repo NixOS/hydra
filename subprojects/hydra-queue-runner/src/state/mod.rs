@@ -125,7 +125,7 @@ use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
 
-use crate::config::{App, Cli};
+use crate::config::{App, MtlsConfig};
 use crate::state::build::get_mark_build_sccuess_data;
 pub use crate::state::fod_checker::FodChecker;
 use crate::state::machine::Machines;
@@ -168,7 +168,7 @@ pub struct State {
     pub pool: harmonia_store_remote::ConnectionPool,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
-    pub cli: Cli,
+    pub mtls: MtlsConfig,
     pub db: db::Database,
 
     pub machines: Machines,
@@ -241,7 +241,7 @@ impl State {
     }
 
     #[tracing::instrument(err)]
-    pub async fn new() -> Result<Arc<Self>, StateError> {
+    pub async fn new(mtls: MtlsConfig, config: App) -> Result<Arc<Self>, StateError> {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
         let store_dir = nix_config.store_dir.clone();
@@ -253,9 +253,6 @@ impl State {
 
         tracing::info!("LocalStore dir={store_dir}");
 
-        let cli = Cli::new();
-
-        let config = App::init(&cli.config_path)?;
         let log_dir = config.get_hydra_log_dir();
         let db = db::Database::new(
             config.get_db_url().expose_secret(),
@@ -288,7 +285,7 @@ impl State {
         Ok(Arc::new(Self {
             pool,
             remote_stores: parking_lot::RwLock::new(remote_stores),
-            cli,
+            mtls,
             db,
             machines: Machines::new(),
             resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
