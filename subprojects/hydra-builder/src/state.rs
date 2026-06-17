@@ -140,7 +140,10 @@ impl Drop for Gcroot {
 
 impl State {
     #[tracing::instrument(err)]
-    pub async fn new(cli: &super::config::Cli) -> Result<Arc<Self>, BuilderError> {
+    pub async fn new(
+        cli: &super::config::Cli,
+        app_config: super::config::AppConfig,
+    ) -> Result<Arc<Self>, BuilderError> {
         let nix_config =
             crate::nix_config::NixConfig::load().map_err(BuilderError::LoadNixConfig)?;
         let nix_remote =
@@ -170,32 +173,29 @@ impl State {
                 .map_err(BuilderError::Hostname)?,
             active_builds: parking_lot::RwLock::new(HashMap::with_capacity(10)),
             config: Config {
-                ping_interval: cli.ping_interval,
-                speed_factor: cli.speed_factor,
-                max_jobs: cli.max_jobs,
-                build_dir_avail_threshold: cli.build_dir_avail_threshold,
-                store_avail_threshold: cli.store_avail_threshold,
-                load1_threshold: cli.load1_threshold,
-                cpu_psi_threshold: cli.cpu_psi_threshold,
-                mem_psi_threshold: cli.mem_psi_threshold,
-                io_psi_threshold: cli.io_psi_threshold,
+                ping_interval: app_config.ping_interval,
+                speed_factor: app_config.speed_factor,
+                max_jobs: app_config.max_jobs,
+                build_dir_avail_threshold: app_config.build_dir_avail_threshold,
+                store_avail_threshold: app_config.store_avail_threshold,
+                load1_threshold: app_config.load1_threshold,
+                cpu_psi_threshold: app_config.cpu_psi_threshold,
+                mem_psi_threshold: app_config.mem_psi_threshold,
+                io_psi_threshold: app_config.io_psi_threshold,
                 gcroots,
-                systems: cli.systems.as_ref().map_or_else(
-                    || {
-                        let mut out = Vec::with_capacity(8);
-                        out.push(nix_config.system());
-                        out.extend(nix_config.extra_platforms());
-                        out
-                    },
-                    Clone::clone,
-                ),
-                supported_features: cli
+                systems: app_config.systems.clone().unwrap_or_else(|| {
+                    let mut out = Vec::with_capacity(8);
+                    out.push(nix_config.system());
+                    out.extend(nix_config.extra_platforms());
+                    out
+                }),
+                supported_features: app_config
                     .supported_features
-                    .as_ref()
-                    .map_or_else(|| nix_config.system_features(), Clone::clone),
-                mandatory_features: cli.mandatory_features.clone().unwrap_or_default(),
+                    .clone()
+                    .unwrap_or_else(|| nix_config.system_features()),
+                mandatory_features: app_config.mandatory_features.clone(),
                 cgroups: nix_config.use_cgroups(),
-                use_substitutes: cli.use_substitutes,
+                use_substitutes: app_config.use_substitutes,
                 substituters: nix_config.substituters(),
                 nix_version: nix_config.nix_version(),
                 build_dir: nix_config.build_dir(),

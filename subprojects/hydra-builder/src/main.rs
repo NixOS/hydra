@@ -47,9 +47,10 @@ async fn stop_application(
 async fn main() -> color_eyre::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
 
-    let cli = config::Cli::new();
+    let args = config::Args::new();
+    let app_config = config::load_config(&args.config_path)?;
 
-    let state = state::State::new(&cli).await?;
+    let state = state::State::new(&args.cli, app_config).await?;
     let task = tokio::spawn({
         let state = state.clone();
         async move { grpc::start_bidirectional_stream(state.clone()).await }
