@@ -326,8 +326,11 @@ impl State {
                         }
 
                         let result_state = BuildResultState::from(&e) as i32;
+                        // Report the reason so it reaches the queue runner, not
+                        // just this builder's journal.
+                        let error_msg = format!("{:?}", eyre::Report::new(e));
 
-                        tracing::error!("Build of {drv} failed with: {:?}", eyre::Report::new(e));
+                        tracing::error!("Build of {drv} failed with: {error_msg}");
                         self_.remove_build(build_id);
                         let failed_build = BuildResultInfo {
                             build_id: build_id.to_string(),
@@ -340,6 +343,7 @@ impl State {
                                 .unwrap_or_default(),
                             result_state,
                             output_infos: std::collections::HashMap::new(),
+                            error_msg: Some(error_msg),
                         };
 
                         if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
@@ -1246,5 +1250,6 @@ async fn new_success_build_result_info(
         upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())?,
         result_state: BuildResultState::Success as i32,
         output_infos: result_infos,
+        error_msg: None,
     })
 }
