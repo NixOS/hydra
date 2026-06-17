@@ -497,6 +497,7 @@ impl RunnerService for Server {
                             req.build_time_ms,
                             req.upload_time_ms,
                         ),
+                        req.error_msg.clone(),
                     )
                     .await
                 {

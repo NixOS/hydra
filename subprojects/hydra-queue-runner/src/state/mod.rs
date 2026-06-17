@@ -517,6 +517,7 @@ impl State {
                         // clear_busy, and let the retry reschedule it.
                         BuildResultState::Aborted,
                         BuildTimings::default(),
+                        None,
                     )
                     .await
                 {
@@ -1113,6 +1114,7 @@ impl State {
                     &drv_path,
                     BuildResultState::Cancelled,
                     BuildTimings::default(),
+                    None,
                 )
                 .await
             {
@@ -1913,6 +1915,7 @@ impl State {
         drv_path: &StorePath,
         state: BuildResultState,
         timings: BuildTimings,
+        error_msg: Option<String>,
     ) -> Result<(), StateError> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
         let item = self
@@ -1934,6 +1937,9 @@ impl State {
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
         job.result.update_with_result_state(state);
+        if let Some(error_msg) = error_msg {
+            job.result.error_msg = Some(error_msg);
+        }
         job.result.set_stop_time_now();
         job.result.set_overhead(timings.get_overhead())?;
 
@@ -2037,6 +2043,7 @@ impl State {
         machine_id: uuid::Uuid,
         state: BuildResultState,
         timings: BuildTimings,
+        error_msg: Option<String>,
     ) -> Result<(), StateError> {
         let machine = self
             .machines
@@ -2046,7 +2053,8 @@ impl State {
             .get_job_drv_for_build_id(build_id)
             .ok_or(StateError::from(MachineLookupError::JobNotFound))?;
 
-        self.fail_step(machine_id, &drv_path, state, timings).await
+        self.fail_step(machine_id, &drv_path, state, timings, error_msg)
+            .await
     }
 
     #[allow(clippy::too_many_lines)]
