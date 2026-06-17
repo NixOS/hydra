@@ -222,6 +222,8 @@ message BuildResultInfo {
   uint64 upload_time_ms = 5;
   BuildResultState result_state = 6;
   map<string, OutputInfo> outputInfos = 7;
+  // Failure reason, set only for failure result_states.
+  optional string error_msg = 8;
 }
 
 message PresignedNarRequest {
