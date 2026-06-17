@@ -32,6 +32,9 @@ secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+aws-sigv4.workspace = true
+aws-credential-types.workspace = true
+aws-smithy-runtime-api.workspace = true
 smallvec.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 tokio-stream = { workspace = true, features = [ "io-util" ] }
@@ -49,6 +52,7 @@ harmonia-store-remote.workspace     = true
 harmonia-utils-hash.workspace       = true
 harmonia-utils-io.workspace         = true
 harmonia-utils-signature.workspace  = true
+percent-encoding.workspace = true
 
 [dev-dependencies]
 hydra-tracing.workspace = true

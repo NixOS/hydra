@@ -24,13 +24,14 @@ use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
 
-use harmonia_store_path::StorePath;
+use harmonia_store_path::{StoreDir, StorePath};
 
 // Realisation writing is now done by the caller, not via FFI query.
 
 mod cfg;
 mod compression;
 mod debug_info;
+mod multipart;
 mod narinfo;
 mod presigned;
 mod streaming_hash;
@@ -38,6 +39,10 @@ mod streaming_hash;
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
+pub use crate::multipart::{
+    CompletedPart, MORE_PARTS_BATCH, MULTIPART_THRESHOLD, MorePartsSource, MultipartCompletion,
+    MultipartPresigner, PresignedMultipart, PresignedPart, S3_MAX_PARTS, part_size_for_nar,
+};
 pub use crate::narinfo::{
     NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
     narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo_txt,
@@ -171,6 +176,9 @@ pub struct S3BinaryCacheClient {
     s3_stats: Arc<AtomicS3Stats>,
     signing_keys: SmallVec<[secrecy::SecretString; 4]>,
     narinfo_cache: Cache<StorePath, NarInfo, foldhash::fast::RandomState>,
+    /// `None` when no static credentials are available; large NARs then fall
+    /// back to a single presigned `PUT` (which fails above S3's 5 GiB limit).
+    multipart: Option<MultipartPresigner>,
 }
 
 #[tracing::instrument(skip(stream, chunk), err)]
@@ -300,6 +308,11 @@ impl S3BinaryCacheClient {
 
         Ok(Self {
             s3: Self::construct_client(&cfg.client_config)?,
+            multipart: MultipartPresigner::from_config(&cfg.client_config)
+                .inspect_err(|e| {
+                    tracing::warn!("multipart presigning disabled: {e}");
+                })
+                .ok(),
             cfg: cfg.into(),
             s3_stats: Arc::new(AtomicS3Stats::default()),
             signing_keys,
@@ -650,7 +663,7 @@ impl S3BinaryCacheClient {
         let mut stream = tokio_stream::iter(paths)
             .map(|vpi| async move {
                 tracing::debug!("copying path {} to s3 binary cache.", vpi.path);
-                self.copy_path(store, &vpi, repair).await
+                self.copy_path(store_dir, &vpi, repair).await
             })
             .buffered(10);
 
@@ -779,6 +792,7 @@ impl S3BinaryCacheClient {
         &self,
         path: &StorePath,
         nar_hash: &harmonia_store_path_info::NarHash,
+        nar_size: u64,
         debug_info_build_ids: Vec<String>,
     ) -> Result<PresignedUploadResponse, CacheError> {
         use harmonia_utils_hash::HashFormat as _;
@@ -798,6 +812,8 @@ impl S3BinaryCacheClient {
                 path: path.to_string(),
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
+
+        let multipart = self.create_multipart_if_large(&nar_url, nar_size).await?;
         let ls_upload = if self.cfg.write_nar_listing {
             let s3_file_path = format!("{}.ls", path.hash());
             Some(PresignedUpload {
@@ -817,6 +833,7 @@ impl S3BinaryCacheClient {
                 path: s3_file_path,
                 compression: self.cfg.ls_compression,
                 compression_level: self.cfg.get_compression_level(),
+                multipart: None,
             })
         } else {
             None
@@ -845,6 +862,7 @@ impl S3BinaryCacheClient {
                             path: s3_file_path,
                             compression: Compression::None,
                             compression_level: async_compression::Level::Default,
+                            multipart: None,
                         }))
                     }
                 })
@@ -867,10 +885,75 @@ impl S3BinaryCacheClient {
                 url: url.to_string(),
                 compression: self.cfg.compression,
                 compression_level: self.cfg.get_compression_level(),
+                multipart,
             },
             ls_upload,
             debug_info_upload,
         })
+    }
+
+    /// Initiate a multipart upload for NARs that might exceed S3's 5 GiB
+    /// single-`PUT` limit; `None` for smaller objects or without a presigner.
+    async fn create_multipart_if_large(
+        &self,
+        nar_url: &str,
+        nar_size: u64,
+    ) -> Result<Option<PresignedMultipart>, CacheError> {
+        if nar_size <= MULTIPART_THRESHOLD {
+            return Ok(None);
+        }
+        let Some(presigner) = &self.multipart else {
+            return Ok(None);
+        };
+        Ok(Some(
+            presigner
+                .create(
+                    nar_url,
+                    self.cfg.compression.content_type(),
+                    self.cfg.compression.content_encoding(),
+                    nar_size,
+                    self.cfg.presigned_url_expiry,
+                )
+                .await?,
+        ))
+    }
+
+    /// Presign more `UploadPart` URLs for an in-progress multipart upload.
+    pub fn presign_more_multipart_parts(
+        &self,
+        key: &str,
+        upload_id: &str,
+        start_part: u32,
+        count: u32,
+    ) -> Result<Vec<PresignedPart>, CacheError> {
+        let presigner = self.require_multipart()?;
+        let end = start_part.saturating_add(count.saturating_sub(1));
+        presigner.presign_parts(
+            key,
+            upload_id,
+            start_part..=end,
+            self.cfg.presigned_url_expiry,
+        )
+    }
+
+    /// Finalise a multipart upload from the builder-reported part `ETag`s.
+    pub async fn complete_multipart_upload(
+        &self,
+        key: &str,
+        upload_id: &str,
+        parts: Vec<CompletedPart>,
+    ) -> Result<(), CacheError> {
+        self.require_multipart()?
+            .complete(key, upload_id, parts)
+            .await
+    }
+
+    fn require_multipart(&self) -> Result<&MultipartPresigner, CacheError> {
+        self.multipart
+            .as_ref()
+            .ok_or_else(|| CacheError::ConfigurationError {
+                message: "multipart uploads require static S3 credentials".to_owned(),
+            })
     }
 
     #[tracing::instrument(skip(self, narinfo), err)]

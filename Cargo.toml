@@ -75,6 +75,9 @@ reqwest = { version = "0.12", default-features = false, features = [
     "system-proxy",
 ] }
 ring = "0.17"
+aws-sigv4 = "1"
+aws-credential-types = "1"
+aws-smithy-runtime-api = "1"
 sd-notify = "0.5.0"
 secrecy = "0.10"
 serde = "1.0"
@@ -102,6 +105,7 @@ tracing-log = "0.2.0"
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.18"
 url = "2.5.4"
+percent-encoding = "2.3.2"
 uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
 zstd = "0.13"

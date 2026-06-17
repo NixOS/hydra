@@ -1,7 +1,32 @@
 use futures::stream::StreamExt as _;
 
-use binary_cache::{PresignedUploadClient, S3BinaryCacheClient, path_to_narinfo};
+use binary_cache::{
+    CacheError, MorePartsSource, PresignedPart, PresignedUploadClient, S3BinaryCacheClient,
+    path_to_narinfo,
+};
 use harmonia_store_path::StorePath;
+
+/// The example only uploads small paths, so multipart never engages and this is
+/// never called.
+struct NoMoreParts;
+
+impl MorePartsSource for NoMoreParts {
+    fn more_parts<'a>(
+        &'a self,
+        _upload_id: &'a str,
+        _start_part: u32,
+        _count: u32,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Vec<PresignedPart>, CacheError>> + Send + 'a>,
+    > {
+        Box::pin(async {
+            Err(CacheError::PresignedUrlError {
+                path: String::new(),
+                reason: "multipart not supported in example".to_owned(),
+            })
+        })
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -39,13 +64,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .generate_nar_upload_presigned_url(
                         &narinfo.path,
                         &narinfo.info.info.nar_hash,
+                        narinfo.info.info.nar_size,
                         binary_cache::get_debug_info_build_ids(store.store_dir().as_ref(), &p)
                             .await?,
                     )
                     .await?;
 
-                let narinfo = upload_client
-                    .process_presigned_request(store.store_dir(), narinfo, presigned_request)
+                let (narinfo, _completion) = upload_client
+                    .process_presigned_request(
+                        store.store_dir(),
+                        narinfo,
+                        presigned_request,
+                        &NoMoreParts,
+                    )
                     .await?;
 
                 client
