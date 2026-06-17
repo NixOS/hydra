@@ -904,6 +904,7 @@ impl State {
                 job,
                 drv.clone(),
                 default_max_log_size,
+                self.config.max_output_size(),
                 max_silent_time,
                 build_timeout,
                 // TODO: cleanup

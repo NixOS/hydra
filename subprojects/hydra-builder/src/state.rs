@@ -32,6 +32,8 @@ pub enum JobFailure {
     TimedOut(#[source] eyre::Report),
     #[error("Build log limit exceeded")]
     LogLimit(#[source] eyre::Report),
+    #[error("Output size limit exceeded")]
+    OutputLimit(#[source] eyre::Report),
     #[error("Preparing failure")]
     Preparing(#[source] eyre::Report),
     #[error("Import failure")]
@@ -54,6 +56,7 @@ impl From<&JobFailure> for BuildResultState {
             JobFailure::Build(_) => Self::BuildFailure,
             JobFailure::TimedOut(_) => Self::TimedOutFailure,
             JobFailure::LogLimit(_) => Self::LogLimitFailure,
+            JobFailure::OutputLimit(_) => Self::NarSizeLimitFailure,
             JobFailure::Preparing(_) => Self::PreparingFailure,
             JobFailure::Import(_) => Self::ImportFailure,
             JobFailure::Upload(_) => Self::UploadFailure,
@@ -626,6 +629,19 @@ impl State {
                     info,
                 },
             );
+        }
+
+        // Enforce the per-output NAR size limit before uploading anything.
+        if m.max_output_size > 0 {
+            for (name, vpi) in &output_infos {
+                if vpi.info.nar_size > m.max_output_size {
+                    return Err(JobFailure::OutputLimit(eyre::eyre!(
+                        "output `{name}` NAR size {} exceeds limit {}",
+                        vpi.info.nar_size,
+                        m.max_output_size,
+                    )));
+                }
+            }
         }
 
         let _ = client // we ignore the error here, as this step status has no prio

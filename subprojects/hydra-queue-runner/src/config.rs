@@ -278,6 +278,11 @@ struct AppConfig {
     #[serde(default)]
     use_presigned_uploads: bool,
 
+    // Per-output NAR size limit in bytes; builds whose output exceeds it fail
+    // with NarSizeLimitExceeded. 0 (default) disables the check.
+    #[serde(default)]
+    max_output_size: u64,
+
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -309,6 +314,7 @@ pub struct PreparedApp {
     token_list: Option<Vec<String>>,
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
+    pub max_output_size: u64,
     pub forced_substituters: Vec<String>,
 }
 
@@ -405,6 +411,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             token_list,
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
+            max_output_size: val.max_output_size,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -501,6 +508,12 @@ impl App {
     pub fn use_presigned_uploads(&self) -> bool {
         let inner = self.inner.load();
         inner.use_presigned_uploads
+    }
+
+    #[must_use]
+    pub fn max_output_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_output_size
     }
 
     #[must_use]

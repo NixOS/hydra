@@ -241,6 +241,10 @@ impl RemoteBuild {
                 self.can_retry = false;
                 self.step_status = BuildStatus::LogLimitExceeded;
             }
+            hydra_proto::BuildResultState::NarSizeLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::NarSizeLimitExceeded;
+            }
             hydra_proto::BuildResultState::Success => (),
             hydra_proto::BuildResultState::PreparingFailure
             | hydra_proto::BuildResultState::ImportFailure
