@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
@@ -12,7 +14,9 @@ use hashbrown::HashMap;
 use crate::error::BuilderError;
 use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
-use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
+use binary_cache::{
+    CacheError, Compression, MorePartsSource, PresignedPart, PresignedUpload, PresignedUploadClient,
+};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
@@ -1021,10 +1025,12 @@ async fn upload_nars_presigned(
                 } else {
                     Vec::new()
                 };
-                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash) else {
+                let Some((narhash, nar_size)) =
+                    path_infos.get(&path).map(|i| (i.nar_hash, i.nar_size))
+                else {
                     return Ok(None);
                 };
-                Ok::<_, eyre::Report>(Some((path, narhash, debug_info_ids)))
+                Ok::<_, eyre::Report>(Some((path, narhash, nar_size, debug_info_ids)))
             }
         })
         .buffered(10);
@@ -1076,6 +1082,50 @@ async fn upload_nars_presigned(
     Ok(())
 }
 
+/// Supplies more presigned part URLs over gRPC when a multipart upload exhausts
+/// its initial estimate (compressed size is unknown when the server presigns).
+struct GrpcMoreParts {
+    client: BuilderClient,
+    build_id: String,
+    machine_id: String,
+    object_key: String,
+}
+
+impl MorePartsSource for GrpcMoreParts {
+    fn more_parts<'a>(
+        &'a self,
+        upload_id: &'a str,
+        start_part: u32,
+        count: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<PresignedPart>, CacheError>> + Send + 'a>> {
+        Box::pin(async move {
+            let req = hydra_proto::MultipartPartsRequest {
+                build_id: self.build_id.clone(),
+                machine_id: self.machine_id.clone(),
+                object_key: self.object_key.clone(),
+                upload_id: upload_id.to_owned(),
+                start_part_number: start_part,
+                num_parts: count,
+            };
+            let parts = self
+                .client
+                .request_multipart_parts(req)
+                .await
+                .map_err(|e| CacheError::PresignedUrlError {
+                    path: self.object_key.clone(),
+                    reason: e.to_string(),
+                })?;
+            Ok(parts
+                .into_iter()
+                .map(|p| PresignedPart {
+                    part_number: p.part_number,
+                    url: p.url,
+                })
+                .collect())
+        })
+    }
+}
+
 #[tracing::instrument(skip(pool, nar_path, presigned_response), err)]
 async fn upload_single_nar_presigned(
     pool: &harmonia_store_remote::ConnectionPool,
@@ -1098,6 +1148,23 @@ async fn upload_single_nar_presigned(
         .as_ref()
         .ok_or_else(|| eyre::eyre!("nar_upload information is missing"))?;
 
+    let multipart = nar_upload
+        .multipart
+        .as_ref()
+        .map(|mp| binary_cache::PresignedMultipart {
+            key: nar_upload.path.clone(),
+            upload_id: mp.upload_id.clone(),
+            part_size: mp.part_size,
+            parts: mp
+                .parts
+                .iter()
+                .map(|p| PresignedPart {
+                    part_number: p.part_number,
+                    url: p.url.clone(),
+                })
+                .collect(),
+        });
+
     let presigned_request = binary_cache::PresignedUploadResponse {
         nar_url: presigned_response.nar_url.clone(),
         nar_upload: PresignedUpload::new(
@@ -1105,7 +1172,8 @@ async fn upload_single_nar_presigned(
             nar_upload.url.clone(),
             nar_upload.compression.parse().unwrap_or(Compression::None),
             nar_upload.compression_level,
-        ),
+        )
+        .with_multipart(multipart),
         ls_upload: presigned_response.ls_upload.as_ref().map(|ls| {
             PresignedUpload::new(
                 ls.path.clone(),
@@ -1128,8 +1196,14 @@ async fn upload_single_nar_presigned(
             .collect(),
     };
 
-    let updated_narinfo = upload_client
-        .process_presigned_request(pool.store_dir(), narinfo, presigned_request)
+    let more_parts = GrpcMoreParts {
+        client: client.clone(),
+        build_id: build_id.to_owned(),
+        machine_id: machine_id.to_owned(),
+        object_key: nar_upload.path.clone(),
+    };
+    let (updated_narinfo, completion) = upload_client
+        .process_presigned_request(pool.store_dir(), narinfo, presigned_request, &more_parts)
         .await?;
 
     tracing::debug!(
@@ -1144,6 +1218,18 @@ async fn upload_single_nar_presigned(
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
             nar_info: Some((&updated_narinfo).into()),
+            multipart: completion.map(|c| hydra_proto::MultipartCompletion {
+                object_key: c.key,
+                upload_id: c.upload_id,
+                parts: c
+                    .parts
+                    .into_iter()
+                    .map(|p| hydra_proto::MultipartCompletedPart {
+                        part_number: p.part_number,
+                        etag: p.etag,
+                    })
+                    .collect(),
+            }),
         };
 
         client

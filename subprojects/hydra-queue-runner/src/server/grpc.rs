@@ -19,11 +19,27 @@ use tracing::Instrument as _;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, PROTO_API_VERSION,
-    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StepUpdate, VersionCheckRequest, VersionCheckResponse, builder_request,
+    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, MultipartPartsRequest,
+    MultipartPartsResponse, PROTO_API_VERSION, PresignedUploadComplete, PresignedUrlRequest,
+    PresignedUrlResponse, RunnerRequest, SimplePingMessage, StepUpdate, VersionCheckRequest,
+    VersionCheckResponse, builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
+
+fn multipart_to_proto(mp: binary_cache::PresignedMultipart) -> hydra_proto::MultipartUpload {
+    hydra_proto::MultipartUpload {
+        upload_id: mp.upload_id,
+        part_size: mp.part_size,
+        parts: mp
+            .parts
+            .into_iter()
+            .map(|p| hydra_proto::MultipartPart {
+                part_number: p.part_number,
+                url: p.url,
+            })
+            .collect(),
+    }
+}
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
@@ -666,6 +682,7 @@ impl RunnerService for Server {
                 .generate_nar_upload_presigned_url(
                     &store_path,
                     &nar_hash,
+                    presigned_request.nar_size,
                     presigned_request.debug_info_build_ids,
                 )
                 .await
@@ -686,6 +703,10 @@ impl RunnerService for Server {
                         .compression
                         .as_str()
                         .to_owned(),
+                    multipart: presigned_response
+                        .nar_upload
+                        .multipart
+                        .map(multipart_to_proto),
                 }),
                 ls_upload: presigned_response
                     .ls_upload
@@ -694,6 +715,7 @@ impl RunnerService for Server {
                         url: ls.url,
                         path: ls.path,
                         compression: ls.compression.as_str().to_owned(),
+                        multipart: None,
                     }),
                 debug_info_upload: presigned_response
                     .debug_info_upload
@@ -703,6 +725,7 @@ impl RunnerService for Server {
                         url: p.url,
                         path: p.path,
                         compression: p.compression.as_str().to_owned(),
+                        multipart: None,
                     })
                     .collect(),
             });
@@ -711,6 +734,56 @@ impl RunnerService for Server {
         tracing::debug!("Generated {} presigned URLs", responses.len());
         Ok(tonic::Response::new(PresignedUrlResponse {
             inner: responses,
+        }))
+    }
+
+    async fn request_multipart_parts(
+        &self,
+        req: tonic::Request<MultipartPartsRequest>,
+    ) -> BuilderResult<MultipartPartsResponse> {
+        let req = req.into_inner();
+
+        uuid::Uuid::parse_str(&req.build_id)
+            .map_err(|_| tonic::Status::invalid_argument("build_id is not a valid uuid."))?;
+        uuid::Uuid::parse_str(&req.machine_id)
+            .map_err(|_| tonic::Status::invalid_argument("machine_id is not a valid uuid."))?;
+        if req.num_parts == 0 {
+            return Err(tonic::Status::invalid_argument(
+                "num_parts must be positive",
+            ));
+        }
+
+        let remote_store = {
+            let remote_stores = self.state.remote_stores.read();
+            remote_stores
+                .iter()
+                .find_map(|s| match s {
+                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
+                })
+                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
+        };
+
+        let parts = remote_store
+            .presign_more_multipart_parts(
+                &req.object_key,
+                &req.upload_id,
+                req.start_part_number,
+                req.num_parts,
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to presign more multipart parts: {e}");
+                tonic::Status::internal("Failed to presign multipart parts")
+            })?;
+
+        Ok(tonic::Response::new(MultipartPartsResponse {
+            parts: parts
+                .into_iter()
+                .map(|p| hydra_proto::MultipartPart {
+                    part_number: p.part_number,
+                    url: p.url,
+                })
+                .collect(),
         }))
     }
 
@@ -780,6 +853,46 @@ impl RunnerService for Server {
 
         let url = narinfo.info.url.clone();
         let size = narinfo.info.download_size;
+
+        // Multipart NAR objects only exist on S3 once finalised; do it here,
+        // before upload_narinfo_after_presigned_upload HEAD-checks the object.
+        if let Some(mp) = req.multipart {
+            let parts = mp
+                .parts
+                .into_iter()
+                .map(|p| binary_cache::CompletedPart {
+                    part_number: p.part_number,
+                    etag: p.etag,
+                })
+                .collect();
+            if let Err(e) = remote_store
+                .complete_multipart_upload(&mp.object_key, &mp.upload_id, parts)
+                .await
+            {
+                // CompleteMultipartUpload is not idempotent. A transient failure
+                // (e.g. a 503) may still have completed the object server-side,
+                // and a retryable failure leaves the upload valid. Do NOT abort:
+                // aborting frees the uploadId, so every builder retry then sees
+                // 404 NoSuchUpload and the NAR can never be finalised. If the
+                // object is already present the completion succeeded; otherwise
+                // return a retryable error and let the builder retry the
+                // completion with the same (still-live) uploadId.
+                if remote_store
+                    .head_object(&mp.object_key)
+                    .await
+                    .unwrap_or(false)
+                {
+                    tracing::warn!(
+                        "complete_multipart_upload for {store_path} reported {e}, but the object is present; treating as complete"
+                    );
+                } else {
+                    tracing::error!("Failed to complete multipart upload for {store_path}: {e}");
+                    return Err(tonic::Status::internal(
+                        "Failed to complete multipart upload",
+                    ));
+                }
+            }
+        }
 
         let narinfo_url = remote_store
             .upload_narinfo_after_presigned_upload(&self.state.pool, narinfo)
