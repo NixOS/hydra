@@ -22,11 +22,11 @@ use secrecy::ExposeSecret as _;
 use crate::CacheError;
 use crate::cfg::{S3ClientConfig, S3Scheme};
 
-/// NARs at or below this uncompressed size use a single presigned `PUT`; the
-/// well-tested simple path is fine until the compressed object risks crossing
-/// S3's 5 GiB single-`PUT` limit. Compression never grows an input by more
-/// than a hair, so 4 GiB leaves ample margin below the limit.
-pub const MULTIPART_THRESHOLD: u64 = 4 * 1024 * 1024 * 1024;
+/// NARs above this uncompressed size stream to S3 as multipart; smaller ones
+/// use a single presigned `PUT`. The single-`PUT` path buffers the whole
+/// compressed NAR in memory (plus a retry clone), so this bounds that buffer
+/// rather than S3's 5 GiB single-`PUT` limit.
+pub const MULTIPART_THRESHOLD: u64 = 256 * 1024 * 1024;
 
 const MIN_PART_SIZE: u64 = 10 * 1024 * 1024;
 const MAX_PART_SIZE: u64 = 5 * 1024 * 1024 * 1024;
