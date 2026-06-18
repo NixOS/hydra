@@ -2835,6 +2835,7 @@ impl State {
                 self.metrics.nr_substitutes_started.inc();
                 crate::utils::substitute_output(
                     self.db.clone(),
+                    &self.local_db,
                     self.pool.clone(),
                     o,
                     build.id,

@@ -1,5 +1,14 @@
 //! Read-only access to the local Nix store database.
 //!
+//! NOTE: harmonia's `harmonia-store-db` crate implements exactly this
+//! (`StoreDb::open_readonly` + `query_path_info`/`is_valid_path`/...) and
+//! would let us delete this hand-rolled SQL. It is `rusqlite`-based, though,
+//! and its `libsqlite3-sys` (`links = "sqlite3"`) conflicts with the
+//! `sqlx-sqlite` that `sqlx` pulls in for the Postgre-based `db` crate —
+//! cargo forbids two crates linking the same native library. Until the
+//! queue-runner's Postgres access stops dragging in `sqlx-sqlite`, we keep
+//! this sqlx implementation.
+//!
 //! `HasPath` and `FetchRequisites` are pure reads, but going through the
 //! nix-daemon makes them compete for pooled daemon connections with NAR
 //! uploads, which hold a connection for minutes. Query the `SQLite` database
@@ -139,6 +148,15 @@ impl LocalNixDb {
                 store_dir: self.store_dir.clone(),
             },
         }))
+    }
+
+    /// Total NAR size of `path`'s closure. Returns 0 on error or for an
+    /// invalid path, matching the daemon-based helper it replaces.
+    pub async fn compute_closure_size(&self, path: &StorePath) -> u64 {
+        self.query_closure_infos(vec![path.clone()])
+            .await
+            .map(|infos| infos.iter().map(|i| i.info.nar_size).sum())
+            .unwrap_or(0)
     }
 
     /// Closure of `roots` with full path info, dependencies first.

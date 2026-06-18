@@ -681,6 +681,7 @@ impl State {
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
+            &self.local_db,
             self.pool.clone(),
             machine_id,
             &drv,
@@ -756,7 +757,14 @@ impl State {
             )
             .await
         } else {
-            upload_nars_regular(self.client.clone(), pool, self.metrics.clone(), nars).await
+            upload_nars_regular(
+                self.client.clone(),
+                &self.local_db,
+                pool,
+                self.metrics.clone(),
+                nars,
+            )
+            .await
         }
     }
 }
@@ -934,17 +942,18 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool, metrics), err)]
+#[tracing::instrument(skip(client, local_db, pool, metrics), err)]
 async fn upload_nars_regular(
     mut client: BuilderClient,
+    local_db: &LocalNixDb,
     pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> eyre::Result<()> {
-    // Compute full closure by walking references via daemon protocol.
-    // query_closure returns ValidPathInfos in dependency order with
+    // query_closure_infos returns ValidPathInfos in dependency order with
     // path infos already populated, so we don't need to re-query.
-    let closure = daemon_client_utils::query_closure(&pool, &nars)
+    let closure = local_db
+        .query_closure_infos(nars)
         .await
         .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
 
@@ -1033,9 +1042,9 @@ async fn upload_nars_presigned(
     tracing::info!("Start uploading paths using presigned urls");
     let before_upload = Instant::now();
 
-    // Compute full closure by walking references. Returns path infos
-    // in dependency order, so no need to re-query.
-    let closure = daemon_client_utils::query_closure(&pool, output_paths).await?;
+    // query_closure_infos returns path infos in dependency order, so no
+    // need to re-query.
+    let closure = local_db.query_closure_infos(output_paths.to_vec()).await?;
 
     let path_info_map: HashMap<_, _> = closure
         .iter()
@@ -1278,8 +1287,10 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(pool, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(local_db, pool, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[allow(clippy::too_many_arguments)]
 async fn new_success_build_result_info(
+    local_db: &LocalNixDb,
     pool: harmonia_store_remote::ConnectionPool,
     machine_id: uuid::Uuid,
     drv: &StorePath,
@@ -1317,7 +1328,7 @@ async fn new_success_build_result_info(
             name.to_string(),
             OutputInfo {
                 path: Some(ProtoStorePath::from(vpi.path.clone())),
-                closure_size: daemon_client_utils::compute_closure_size(&pool, &vpi.path).await,
+                closure_size: local_db.compute_closure_size(&vpi.path).await,
                 nar_size: vpi.info.nar_size,
                 nar_hash: {
                     let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();

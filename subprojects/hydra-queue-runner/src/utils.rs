@@ -63,9 +63,11 @@ pub async fn finish_build_step(
     Ok(())
 }
 
-#[tracing::instrument(skip(db, pool, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[tracing::instrument(skip(db, local_db, pool, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[allow(clippy::too_many_arguments)]
 pub async fn substitute_output(
     db: db::Database,
+    local_db: &crate::local_db::LocalNixDb,
     pool: harmonia_store_remote::ConnectionPool,
     o: (OutputName, Option<StorePath>),
     build_id: BuildID,
@@ -85,8 +87,7 @@ pub async fn substitute_output(
     }
     if let Some(remote_store) = remote_store {
         let _: Result<(), StateError> = async {
-            let closure =
-                daemon_client_utils::query_closure(&pool, std::slice::from_ref(&path)).await?;
+            let closure = local_db.query_closure_infos(vec![path.clone()]).await?;
             let missing: hashbrown::HashSet<StorePath> = remote_store
                 .query_missing_paths(closure.iter().map(|vpi| vpi.path.clone()).collect())
                 .await
