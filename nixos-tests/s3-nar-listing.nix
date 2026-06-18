@@ -2,17 +2,30 @@
   system,
   nixpkgs,
   common,
+  # When true, builders upload NARs via presigned URLs instead of the queue
+  # runner doing the upload.
+  presigned ? false,
 }:
 
 let
   pkgs = nixpkgs.legacyPackages.${system};
+  inherit (pkgs) lib;
 
   garagePort = 3900;
   garageRpcPort = 3901;
   garageAdminPort = 3902;
 
+  # Query parameters are alphabetical: the queue runner matches
+  # forcedSubstituters against the builder's substituters by exact string,
+  # and Nix reports them sorted.
+  s3StoreUri = "s3://hydra-cache?compression=none&endpoint=http://s3:${toString garagePort}&region=garage&scheme=http&write-nar-listing=1";
+
   # 32-byte hex RPC secret for garage
   rpcSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  # Spans several upload parts (part size floors at 10 MiB) so multipart
+  # stitching is exercised, not just a single-part upload.
+  blobSize = 25 * 1024 * 1024;
 
   # A derivation that produces a directory with various entry types
   # (regular files, executable files, symlinks, subdirectories) so we
@@ -33,7 +46,7 @@ let
         preferLocalBuild = true;
         args = [
           "-c"
-          "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; exit 0"
+          "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
         ];
       };
     }
@@ -69,13 +82,18 @@ let
             };
           };
         };
+        blob = {
+          type = "regular";
+          executable = false;
+          size = blobSize;
+        };
       };
     };
   };
 in
 
 (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
-  name = "hydra-s3";
+  name = "hydra-s3${lib.optionalString presigned "-presigned"}";
 
   nodes.s3 =
     { pkgs, ... }:
@@ -113,16 +131,22 @@ in
       imports = [ common.serverConfig ];
 
       services.hydra-queue-runner-dev = {
-        settings.remoteStoreAddr = [
-          "s3://hydra-cache?endpoint=http://s3:${toString garagePort}&region=garage&write-nar-listing=1&compression=none&scheme=http"
-        ];
+        settings.remoteStoreAddr = [ s3StoreUri ];
+        settings.usePresignedUploads = presigned;
+        settings.forcedSubstituters = lib.optionals presigned [ s3StoreUri ];
         awsCredentialsFile = "/var/lib/hydra/queue-runner/.aws-credentials";
       };
 
       environment.systemPackages = [ pkgs.jq ];
     };
 
-  nodes.builder = common.builderConfig;
+  nodes.builder = {
+    imports = [ common.builderConfig ];
+    # Presigned uploads require the builder to advertise the forced
+    # substituter with substitution enabled, or the queue runner rejects it.
+    services.hydra-queue-builder-dev.useSubstitutes = lib.mkForce presigned;
+    nix.settings.substituters = lib.mkForce (lib.optionals presigned [ s3StoreUri ]);
+  };
 
   skipLint = true;
 
