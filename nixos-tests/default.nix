@@ -22,6 +22,14 @@ in
     system: import ./s3-nar-listing.nix { inherit system nixpkgs common; }
   );
 
+  s3-nar-listing-presigned = forEachSystem (
+    system:
+    import ./s3-nar-listing.nix {
+      inherit system nixpkgs common;
+      presigned = true;
+    }
+  );
+
   validate-openapi = forEachSystem (
     system:
     let
