@@ -3061,6 +3061,19 @@ impl State {
             }
         }
 
+        // BuildOutput::new reads nix-support files from the local store. For a
+        // cached build the output may only exist in the binary cache, so
+        // substitute it first or we silently record no build products.
+        if let Ok(mut conn) = self.connector.connect().await {
+            for out_path in output_paths.values().flatten() {
+                if let Err(e) = daemon_client_utils::ensure_path(&mut conn, out_path).await {
+                    tracing::warn!(
+                        "could not substitute {out_path} to read nix-support files: {e}"
+                    );
+                }
+            }
+        }
+
         let default_store: std::path::PathBuf = self.connector.store_dir().to_string().into();
         let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
         let build_output =
