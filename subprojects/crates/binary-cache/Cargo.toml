@@ -30,6 +30,7 @@ futures.workspace = true
 hashbrown.workspace = true
 moka.workspace = true
 object_store = { workspace = true, features = [ "aws" ] }
+parking_lot.workspace = true
 reqwest.workspace = true
 secrecy.workspace = true
 serde.workspace = true

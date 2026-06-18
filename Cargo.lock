@@ -466,6 +466,7 @@ dependencies = [
  "local-nix-db",
  "moka",
  "object_store",
+ "parking_lot",
  "percent-encoding",
  "reqwest",
  "secrecy",

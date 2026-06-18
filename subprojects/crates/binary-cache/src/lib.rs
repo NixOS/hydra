@@ -177,6 +177,11 @@ pub struct S3BinaryCacheClient {
     s3_stats: Arc<AtomicS3Stats>,
     signing_keys: SmallVec<[secrecy::SecretString; 4]>,
     narinfo_cache: Cache<StorePath, NarInfo, foldhash::fast::RandomState>,
+    /// Per-path single-flight locks: collapse concurrent uploads of one path.
+    /// Entries live exactly as long as a lock is held (Weak, self-cleaning).
+    upload_locks: Arc<
+        parking_lot::Mutex<hashbrown::HashMap<StorePath, std::sync::Weak<tokio::sync::Mutex<()>>>>,
+    >,
     /// `None` when no static credentials are available; large NARs then fall
     /// back to a single presigned `PUT` (which fails above S3's 5 GiB limit).
     multipart: Option<MultipartPresigner>,
@@ -320,7 +325,12 @@ impl S3BinaryCacheClient {
             narinfo_cache: Cache::builder()
                 .initial_capacity(1000)
                 .max_capacity(65536)
+                // Bound staleness: the object can change out-of-band (GC,
+                // restore/repair), so a cached "present" must not be trusted
+                // forever.
+                .time_to_live(std::time::Duration::from_mins(5))
                 .build_with_hasher(foldhash::fast::RandomState::default()),
+            upload_locks: Arc::default(),
         })
     }
 
@@ -569,6 +579,19 @@ impl S3BinaryCacheClient {
         Ok(info_key)
     }
 
+    fn upload_lock(&self, path: &StorePath) -> Arc<tokio::sync::Mutex<()>> {
+        let mut map = self.upload_locks.lock();
+        if let Some(lock) = map.get(path).and_then(std::sync::Weak::upgrade) {
+            return lock;
+        }
+        if map.len() > 1024 {
+            map.retain(|_, w| w.strong_count() > 0);
+        }
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        map.insert(path.clone(), Arc::downgrade(&lock));
+        lock
+    }
+
     fn narinfo_from_valid_path_info(
         &self,
         vpi: &harmonia_store_path_info::ValidPathInfo,
@@ -589,6 +612,10 @@ impl S3BinaryCacheClient {
         vpi: &harmonia_store_path_info::ValidPathInfo,
         repair: bool,
     ) -> Result<(), CacheError> {
+        // Serialize same-path uploads: the has_narinfo guard below is a TOCTOU.
+        let lock = self.upload_lock(&vpi.path);
+        let _guard = lock.lock().await;
+
         if !repair && self.has_narinfo(&vpi.path).await? {
             return Ok(());
         }
@@ -647,7 +674,8 @@ impl S3BinaryCacheClient {
         // (e.g. the queue-runner after resolving and building a CA drv),
         // not here during path copy.
 
-        self.upload_narinfo(narinfo).await?;
+        self.upload_narinfo(narinfo.clone()).await?;
+        self.narinfo_cache.insert(vpi.path.clone(), narinfo).await;
 
         Ok(())
     }
@@ -705,7 +733,6 @@ impl S3BinaryCacheClient {
         if let Some(narinfo) = self.narinfo_cache.get(store_path).await {
             return Ok(Some(narinfo));
         }
-
         match self
             .get_object(&format!("{}.narinfo", store_path.hash()))
             .await?
@@ -731,7 +758,8 @@ impl S3BinaryCacheClient {
         if self.narinfo_cache.contains_key(store_path) {
             return Ok(true);
         }
-        Ok(self.download_narinfo(store_path).await?.is_some())
+        self.head_object(&format!("{}.narinfo", store_path.hash()))
+            .await
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -756,10 +784,16 @@ impl S3BinaryCacheClient {
 
         tokio_stream::iter(paths)
             .map(|p| async move {
-                if self.has_narinfo(&p).await.unwrap_or_default() {
-                    None
-                } else {
-                    Some(p)
+                match self.has_narinfo(&p).await {
+                    Ok(true) => None,
+                    Ok(false) => Some(p),
+                    // Error != absent: skip this cycle, don't re-upload a present path.
+                    Err(e) => {
+                        tracing::warn!(
+                            "has_narinfo({p}) failed, skipping upload this cycle: {e:#}"
+                        );
+                        None
+                    }
                 }
             })
             .buffered(50)
@@ -778,8 +812,17 @@ impl S3BinaryCacheClient {
         tokio_stream::iter(outputs)
             .map(|(name, path)| async move {
                 match path {
-                    Some(p) if self.has_narinfo(&p).await.unwrap_or_default() => None,
-                    other => Some((name, other)),
+                    Some(p) => match self.has_narinfo(&p).await {
+                        Ok(true) => None,
+                        Ok(false) => Some((name, Some(p))),
+                        Err(e) => {
+                            tracing::warn!(
+                                "has_narinfo({p}) failed, skipping upload this cycle: {e:#}"
+                            );
+                            None
+                        }
+                    },
+                    None => Some((name, None)),
                 }
             })
             .buffered(50)
@@ -962,6 +1005,14 @@ impl S3BinaryCacheClient {
         &self,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
+        // Same single-flight + skip-if-present as copy_path: concurrent builder
+        // reports for one output path must not each rewrite the narinfo.
+        let lock = self.upload_lock(&narinfo.path);
+        let _guard = lock.lock().await;
+        if self.has_narinfo(&narinfo.path).await? {
+            return Ok(format!("{}.narinfo", narinfo.path.hash()));
+        }
+
         if self.cfg.write_nar_listing {
             let ls_path = get_ls_path(&narinfo);
             self.head_object(&ls_path)
@@ -976,8 +1027,11 @@ impl S3BinaryCacheClient {
             .ok_or(CacheError::PathNotFound { path: nar_url })?;
 
         let narinfo = clear_sigs_and_sign(narinfo, &self.cfg.store_dir, &self.signing_keys);
-        // TODO: we also need to integarte realisation into this!
-        self.upload_narinfo(narinfo).await
+        // TODO: we also need to integrate realisation into this!
+        let path = narinfo.path.clone();
+        let key = self.upload_narinfo(narinfo.clone()).await?;
+        self.narinfo_cache.insert(path, narinfo).await;
+        Ok(key)
     }
 }
 
