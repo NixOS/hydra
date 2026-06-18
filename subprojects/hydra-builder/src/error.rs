@@ -26,6 +26,9 @@ pub enum BuilderError {
     #[error("Loading Nix configuration")]
     LoadNixConfig(#[source] eyre::Report),
 
+    #[error("Opening local Nix store database at {}", .0.display())]
+    OpenLocalNixDb(std::path::PathBuf, #[source] sqlx::Error),
+
     #[error("Gateway API missing host")]
     GatewayMissingHost,
 

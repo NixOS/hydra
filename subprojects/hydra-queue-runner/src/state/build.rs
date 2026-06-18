@@ -403,6 +403,9 @@ pub enum BuildOutputError {
     #[error("nix daemon error")]
     Daemon(#[from] harmonia_store_remote::DaemonError),
 
+    #[error("local nix database error")]
+    LocalNixDb(#[from] sqlx::Error),
+
     #[error("reading build output")]
     Io(#[from] std::io::Error),
 }
@@ -461,8 +464,9 @@ impl BuildOutput {
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(store, real_store_dir, outputs), err)]
+    #[tracing::instrument(skip(local_db, store, real_store_dir, outputs), err)]
     pub async fn new(
+        local_db: &crate::local_db::LocalNixDb,
         store: &harmonia_store_remote::ConnectionPool,
         real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
@@ -473,8 +477,8 @@ impl BuildOutput {
             .collect();
         let mut pathinfos = BTreeMap::new();
         for path in resolved.values() {
-            if let Some(info) = daemon_client_utils::query_path_info(store, path).await? {
-                pathinfos.insert(path.clone(), info);
+            if let Some(info) = local_db.query_path_info(path).await? {
+                pathinfos.insert(path.clone(), info.info);
             }
         }
         let fs = nix_support::FilesystemOperations {

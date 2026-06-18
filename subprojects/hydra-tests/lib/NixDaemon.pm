@@ -26,6 +26,18 @@ sub start_nix_daemon {
         select(undef, undef, undef, 0.1);
     }
     -S $socket or die "nix-daemon did not start: $socket\n";
+
+    # Initialize the store database so db.sqlite exists. Nix creates it
+    # lazily on the first store write, but hydra-builder opens it read-only
+    # at startup; a real builder's store is always already initialized.
+    local $ENV{NIX_REMOTE}             = $store->{nix_store_uri};
+    local $ENV{NIX_STORE_DIR}          = $store->{nix_store_dir};
+    local $ENV{NIX_STATE_DIR}          = $store->{nix_state_dir};
+    local $ENV{NIX_CONF_DIR}           = $store->{nix_conf_dir};
+    local $ENV{NIX_DAEMON_SOCKET_PATH} = $store->{nix_daemon_socket_path};
+    system("nix-store", "--init") == 0
+        or die "nix-store --init failed for $label: $?\n";
+
     return $harness;
 }
 

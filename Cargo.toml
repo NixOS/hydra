@@ -12,6 +12,9 @@ arc-swap = "1.7"
 async-compression = { version = "0.4", default-features = false }
 async-stream = "0.3"
 atomic_float = "1.1.0"
+aws-credential-types = "1"
+aws-sigv4 = "1"
+aws-smithy-runtime-api = "1"
 backon = "1.5.2"
 byte-unit = "5.1.6"
 bytes = "1"
@@ -61,6 +64,7 @@ opentelemetry-otlp = "0.31.0"
 opentelemetry-semantic-conventions = "0.31.0"
 opentelemetry_sdk = "0.31.0"
 parking_lot = "0.12.4"
+percent-encoding = "2.3.2"
 petgraph = { version = "0.8", default-features = false, features = [ "graphmap", "std" ] }
 pkg-config = "0.3"
 procfs = "0.18"
@@ -75,9 +79,6 @@ reqwest = { version = "0.12", default-features = false, features = [
     "system-proxy",
 ] }
 ring = "0.17"
-aws-sigv4 = "1"
-aws-credential-types = "1"
-aws-smithy-runtime-api = "1"
 sd-notify = "0.5.0"
 secrecy = "0.10"
 serde = "1.0"
@@ -105,7 +106,6 @@ tracing-log = "0.2.0"
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.18"
 url = "2.5.4"
-percent-encoding = "2.3.2"
 uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
 zstd = "0.13"
@@ -116,6 +116,7 @@ daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
 db                  = { path = "subprojects/crates/db" }
 hydra-proto         = { path = "subprojects/crates/proto" }
 hydra-tracing       = { path = "subprojects/crates/tracing" }
+local-nix-db        = { path = "subprojects/crates/local-nix-db" }
 nix-support         = { path = "subprojects/crates/nix-support" }
 store-path-utils    = { path = "subprojects/crates/store-path-utils" }
 store-transfer      = { path = "subprojects/crates/store-transfer" }

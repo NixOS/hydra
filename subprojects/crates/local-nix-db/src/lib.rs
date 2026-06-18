@@ -28,24 +28,34 @@ impl LocalNixDb {
 
     /// Database location, honoring `NIX_STATE_DIR` like libnixstore so
     /// non-default Nix stores (e.g. the test harness) are found.
-    fn default_db_path() -> String {
-        let state_dir =
-            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix".to_string());
-        format!("{state_dir}/db/db.sqlite")
+    fn default_db_path() -> std::path::PathBuf {
+        let state_dir = std::env::var_os("NIX_STATE_DIR")
+            .map_or_else(|| std::path::PathBuf::from("/nix/var/nix"), Into::into);
+        state_dir.join("db/db.sqlite")
     }
 
-    pub async fn open_at(store_dir: StoreDir, path: &str) -> Result<Self, sqlx::Error> {
+    pub async fn open_at(
+        store_dir: StoreDir,
+        path: &std::path::Path,
+    ) -> Result<Self, sqlx::Error> {
         let opts = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(path)
             .read_only(true)
             // Long busy timeout like libnixstore, so a writer checkpointing
             // the WAL does not fail us with SQLITE_BUSY.
             .busy_timeout(std::time::Duration::from_hours(1));
+        // Connect lazily: Nix creates db.sqlite on the first store write, so
+        // on a fresh store it is absent at startup and an eager connect would
+        // abort the process before the first query needs it.
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(4)
-            .connect_with(opts)
-            .await?;
+            .connect_lazy_with(opts);
         Ok(Self { pool, store_dir })
+    }
+
+    /// The store directory this database describes.
+    pub fn store_dir(&self) -> &StoreDir {
+        &self.store_dir
     }
 
     pub async fn is_valid_path(&self, path: &StorePath) -> Result<bool, sqlx::Error> {
@@ -245,7 +255,7 @@ mod tests {
         .await
         .unwrap();
         drop(pool);
-        LocalNixDb::open_at(StoreDir::default(), path.to_str().unwrap())
+        LocalNixDb::open_at(StoreDir::default(), &path)
             .await
             .unwrap()
     }
