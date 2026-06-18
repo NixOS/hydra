@@ -11,7 +11,7 @@ use crate::{Error, ProtocolError};
 /// Rust splits the decompressed stream by counting `nar_size` bytes
 /// per path and feeds each slice into `add_to_store_nar`.
 pub async fn import(
-    guard: &mut harmonia_store_remote::PooledConnectionGuard,
+    client: &mut daemon_client_utils::DaemonConn,
     mut stream: tonic::Streaming<hydra_proto::AddToStoreRequest>,
 ) -> Result<Vec<harmonia_store_path::StorePath>, Error> {
     use futures::StreamExt as _;
@@ -98,9 +98,7 @@ pub async fn import(
             Ok::<(), Error>(())
         };
 
-        let store_fut = guard
-            .client()
-            .add_to_store_nar(vpi, &mut nar_buf_reader, false, true);
+        let store_fut = client.add_to_store_nar(vpi, &mut nar_buf_reader, false, true);
 
         let (copy_result, store_result) = futures::future::join(copy_fut, store_fut).await;
         copy_result?;

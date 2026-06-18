@@ -14,8 +14,8 @@ tokio               = { workspace = true, features = [ "io-util", "rt" ] }
 tonic.workspace     = true
 tracing.workspace   = true
 
+daemon-client-utils.workspace      = true
 harmonia-protocol.workspace        = true
 harmonia-store-path.workspace      = true
 harmonia-store-path-info.workspace = true
-harmonia-store-remote.workspace    = true
 hydra-proto.workspace              = true

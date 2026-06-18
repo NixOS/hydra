@@ -55,20 +55,19 @@ pub use async_compression::Level as CompressionLevel;
 pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 
 pub async fn path_to_narinfo(
-    store: &harmonia_store_remote::ConnectionPool,
+    local_db: &local_nix_db::LocalNixDb,
     path: &StorePath,
 ) -> Result<NarInfo, CacheError> {
-    let path_info = daemon_client_utils::query_path_info(store, path)
-        .await?
-        .ok_or_else(|| CacheError::PathNotFound {
-            path: path.to_string(),
-        })?;
-    let narinfo = narinfo_simple(path, path_info, Compression::None);
-    for r in &narinfo.info.info.references {
-        if daemon_client_utils::query_path_info(store, r)
+    let path_info =
+        local_db
+            .query_path_info(path)
             .await?
-            .is_none()
-        {
+            .ok_or_else(|| CacheError::PathNotFound {
+                path: path.to_string(),
+            })?;
+    let narinfo = narinfo_simple(path, path_info.info, Compression::None);
+    for r in &narinfo.info.info.references {
+        if !local_db.is_valid_path(r).await? {
             return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
         }
     }
@@ -145,6 +144,8 @@ pub enum CacheError {
     NarInfoParseError(#[from] harmonia_store_nar_info::NarInfoParseError),
     #[error("daemon error: {0}")]
     DaemonError(#[from] harmonia_protocol::types::DaemonError),
+    #[error("local nix database error: {0}")]
+    LocalDb(#[from] local_nix_db::Error),
     #[error("cannot add '{0}' to the binary cache because the reference '{1}' is not valid")]
     ReferenceVerifyError(StorePath, StorePath),
     #[error("Hash error: {0}")]
