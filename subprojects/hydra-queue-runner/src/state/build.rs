@@ -464,10 +464,10 @@ impl BuildOutput {
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(local_db, store, real_store_dir, outputs), err)]
+    #[tracing::instrument(skip(local_db, connector, real_store_dir, outputs), err)]
     pub async fn new(
         local_db: &crate::local_db::LocalNixDb,
-        store: &harmonia_store_remote::ConnectionPool,
+        connector: &daemon_client_utils::DaemonConnector,
         real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> Result<Self, BuildOutputError> {
@@ -485,7 +485,7 @@ impl BuildOutput {
             real_store_dir: real_store_dir.to_owned(),
         };
         let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
-            store.store_dir(),
+            connector.store_dir(),
             real_store_dir,
             &fs,
             &resolved,

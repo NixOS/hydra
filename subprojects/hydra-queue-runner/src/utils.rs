@@ -63,12 +63,12 @@ pub async fn finish_build_step(
     Ok(())
 }
 
-#[tracing::instrument(skip(db, local_db, pool, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
+#[tracing::instrument(skip(db, local_db, connector, remote_store), fields(%drv_path), err(level=tracing::Level::WARN))]
 #[allow(clippy::too_many_arguments)]
 pub async fn substitute_output(
     db: db::Database,
     local_db: &crate::local_db::LocalNixDb,
-    pool: harmonia_store_remote::ConnectionPool,
+    connector: daemon_client_utils::DaemonConnector,
     o: (OutputName, Option<StorePath>),
     build_id: BuildID,
     drv_path: &StorePath,
@@ -79,9 +79,10 @@ pub async fn substitute_output(
         return Ok(false);
     };
 
-    let store_dir = pool.store_dir();
+    let store_dir = connector.store_dir();
     let starttime = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
-    if let Err(e) = daemon_client_utils::ensure_path(&pool, &path).await {
+    let mut conn = connector.connect().await?;
+    if let Err(e) = daemon_client_utils::ensure_path(&mut conn, &path).await {
         tracing::debug!("Path not found, can't import={e}");
         return Ok(false);
     }
@@ -98,7 +99,7 @@ pub async fn substitute_output(
                 .filter(|vpi| missing.contains(&vpi.path))
                 .collect();
             remote_store
-                .copy_paths(pool.store_dir(), paths_to_copy, false)
+                .copy_paths(connector.store_dir(), paths_to_copy, false)
                 .await?;
             Ok(())
         }
