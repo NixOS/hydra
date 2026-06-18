@@ -19,6 +19,7 @@ use binary_cache::{
 };
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
+use local_nix_db::LocalNixDb;
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
@@ -112,6 +113,11 @@ pub struct State {
     pub config: Config,
     pub max_concurrent_downloads: AtomicU32,
     pub pool: harmonia_store_remote::ConnectionPool,
+    /// Read-only handle to the local Nix store `SQLite` database. Validity
+    /// and path-info reads go here rather than through the daemon, so they
+    /// neither contend with NAR transfers for pooled connections nor risk
+    /// reading a connection a cancelled transfer left desynced.
+    pub local_db: LocalNixDb,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
     pub client: BuilderClient,
@@ -171,6 +177,11 @@ impl State {
             harmonia_store_remote::PoolConfig::default(),
         );
 
+        let db_path = nix_remote.state_dir.join("db/db.sqlite");
+        let local_db = LocalNixDb::open_at(nix_remote.store_dir.clone(), &db_path)
+            .await
+            .map_err(|e| BuilderError::OpenLocalNixDb(db_path, e))?;
+
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
             hostname: gethostname::gethostname()
@@ -211,6 +222,7 @@ impl State {
                 real_store_dir: nix_remote.real_store_dir(),
             },
             pool,
+            local_db,
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
@@ -549,6 +561,7 @@ impl State {
 
         import_requisites(
             &mut client,
+            &self.local_db,
             self.pool.clone(),
             self.metrics.clone(),
             &gcroot,
@@ -615,20 +628,16 @@ impl State {
         // successful build.
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
-            let info = daemon_client_utils::query_path_info(&self.pool, path)
+            let info = self
+                .local_db
+                .query_path_info(path)
                 .await
                 .wrap_err("query_path_info failed")
                 .map_err(JobFailure::PostProcessing)?
                 .ok_or_else(|| {
                     JobFailure::PostProcessing(eyre::eyre!("missing path info for output `{name}`"))
                 })?;
-            output_infos.insert(
-                name.clone(),
-                harmonia_store_path_info::ValidPathInfo {
-                    path: path.clone(),
-                    info,
-                },
-            );
+            output_infos.insert(name.clone(), info);
         }
 
         // Enforce the per-output NAR size limit before uploading anything.
@@ -737,6 +746,7 @@ impl State {
         if let Some(opts) = presigned_url_opts {
             upload_nars_presigned(
                 self.client.clone(),
+                &self.local_db,
                 self.upload_client.clone(),
                 pool,
                 &nars,
@@ -751,13 +761,14 @@ impl State {
     }
 }
 
-#[tracing::instrument(skip(pool), fields(%gcroot, %path))]
+#[tracing::instrument(skip(local_db, pool), fields(%gcroot, %path))]
 async fn is_path_missing(
+    local_db: &LocalNixDb,
     pool: &harmonia_store_remote::ConnectionPool,
     gcroot: &Gcroot,
     path: StorePath,
 ) -> eyre::Result<Option<StorePath>> {
-    if daemon_client_utils::is_valid_path(pool, &path).await? {
+    if local_db.is_valid_path(&path).await? {
         add_gc_root(&gcroot.root, pool.store_dir(), &path);
         Ok(None)
     } else {
@@ -767,6 +778,7 @@ async fn is_path_missing(
 
 /// Keep only paths not yet present in the local store.
 async fn filter_missing(
+    local_db: &LocalNixDb,
     pool: &harmonia_store_remote::ConnectionPool,
     gcroot: &Gcroot,
     paths: Vec<StorePath>,
@@ -774,7 +786,7 @@ async fn filter_missing(
 ) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-        is_path_missing(pool, gcroot, p)
+        is_path_missing(local_db, pool, gcroot, p)
     })
     .buffered(concurrency)
     .collect::<Vec<_>>()
@@ -808,9 +820,11 @@ async fn substitute_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool, metrics), fields(%gcroot), err)]
+#[tracing::instrument(skip(client, local_db, pool, metrics), fields(%gcroot), err)]
+#[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
+    local_db: &LocalNixDb,
     pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
@@ -819,7 +833,7 @@ async fn import_paths(
     use_substitutes: bool,
 ) -> eyre::Result<()> {
     let paths = if filter {
-        filter_missing(&pool, gcroot, paths, 10).await?
+        filter_missing(local_db, &pool, gcroot, paths, 10).await?
     } else {
         paths
     };
@@ -827,7 +841,7 @@ async fn import_paths(
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&pool, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = filter_missing(&pool, gcroot, paths, 10).await?;
+        let paths = filter_missing(local_db, &pool, gcroot, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -874,6 +888,7 @@ async fn import_paths(
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
+    local_db: &LocalNixDb,
     pool: harmonia_store_remote::ConnectionPool,
     metrics: Arc<crate::metrics::Metrics>,
     gcroot: &Gcroot,
@@ -882,7 +897,8 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
-    let requisites = filter_missing(&pool, gcroot, requisites.into_iter().collect(), 50).await?;
+    let requisites =
+        filter_missing(local_db, &pool, gcroot, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -890,6 +906,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
+            local_db,
             pool.clone(),
             metrics.clone(),
             gcroot,
@@ -903,6 +920,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
+            local_db,
             pool.clone(),
             metrics.clone(),
             gcroot,
@@ -999,8 +1017,10 @@ async fn upload_nars_regular(
 }
 
 #[tracing::instrument(skip(client, pool), err)]
+#[allow(clippy::too_many_arguments)]
 async fn upload_nars_presigned(
     mut client: BuilderClient,
+    local_db: &LocalNixDb,
     upload_client: PresignedUploadClient,
     pool: harmonia_store_remote::ConnectionPool,
     output_paths: &[StorePath],
@@ -1079,7 +1099,7 @@ async fn upload_nars_presigned(
 
     for presigned_response in presigned_responses {
         upload_single_nar_presigned(
-            &pool,
+            local_db,
             &StorePath::from_base_path(&presigned_response.store_path)
                 .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?,
             build_id,
@@ -1142,9 +1162,9 @@ impl MorePartsSource for GrpcMoreParts {
     }
 }
 
-#[tracing::instrument(skip(pool, nar_path, presigned_response), err)]
+#[tracing::instrument(skip(local_db, nar_path, presigned_response), err)]
 async fn upload_single_nar_presigned(
-    pool: &harmonia_store_remote::ConnectionPool,
+    local_db: &LocalNixDb,
     nar_path: &StorePath,
     build_id: &str,
     machine_id: &str,
@@ -1152,11 +1172,13 @@ async fn upload_single_nar_presigned(
     client: &mut BuilderClient,
     upload_client: &PresignedUploadClient,
 ) -> eyre::Result<()> {
-    // Presigned upload requires constructing NarInfo from daemon path info.
+    // Presigned upload requires constructing NarInfo from path info.
     let narinfo: binary_cache::NarInfo = {
-        let info = daemon_client_utils::query_path_info(pool, nar_path)
+        let info = local_db
+            .query_path_info(nar_path)
             .await?
-            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?;
+            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?
+            .info;
         binary_cache::narinfo_simple(nar_path, info, Compression::None)
     };
     let nar_upload = presigned_response
@@ -1219,7 +1241,7 @@ async fn upload_single_nar_presigned(
         object_key: nar_upload.path.clone(),
     };
     let (updated_narinfo, completion) = upload_client
-        .process_presigned_request(pool.store_dir(), narinfo, presigned_request, &more_parts)
+        .process_presigned_request(local_db.store_dir(), narinfo, presigned_request, &more_parts)
         .await?;
 
     tracing::debug!(

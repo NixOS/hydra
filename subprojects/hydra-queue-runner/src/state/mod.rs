@@ -59,9 +59,6 @@ pub enum StateError {
     #[error("local nix database error")]
     LocalNixDb(#[from] sqlx::Error),
 
-    #[error("local nix database is not available")]
-    LocalNixDbUnavailable,
-
     #[error("reading derivation `{drv}`: {reason}")]
     ReadDerivation {
         drv: StorePath,
@@ -253,9 +250,11 @@ pub enum RemoteStoreBackend {
 #[allow(missing_debug_implementations)]
 pub struct State {
     pub pool: harmonia_store_remote::ConnectionPool,
-    /// Direct read-only access to the Nix `SQLite` database; `None` when the
-    /// database cannot be opened (e.g. in tests without a real store).
-    pub local_db: Option<crate::local_db::LocalNixDb>,
+    /// Direct read-only access to the Nix `SQLite` database. Validity
+    /// and path-info reads go here rather than through the daemon, so
+    /// they neither contend with NAR transfers for pooled connections
+    /// nor risk reading a connection a cancelled transfer left desynced.
+    pub local_db: crate::local_db::LocalNixDb,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
@@ -387,15 +386,7 @@ impl State {
 
         let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let local_db = match crate::local_db::LocalNixDb::open(store_dir.clone()).await {
-            Ok(db) => Some(db),
-            Err(e) => {
-                tracing::warn!(
-                    "cannot open nix database read-only, falling back to daemon for read queries: {e}"
-                );
-                None
-            }
-        };
+        let local_db = crate::local_db::LocalNixDb::open(store_dir.clone()).await?;
 
         Ok(Arc::new(Self {
             pool,
@@ -2897,11 +2888,7 @@ impl State {
     /// of the nix-daemon, so queue ingestion does not compete with NAR
     /// uploads for daemon connections.
     async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
-        let local_db = self
-            .local_db
-            .as_ref()
-            .ok_or(StateError::LocalNixDbUnavailable)?;
-        Ok(local_db.is_valid_path(path).await?)
+        Ok(self.local_db.is_valid_path(path).await?)
     }
 
     /// Output paths that a previously succeeded build step produced. These
@@ -3070,7 +3057,8 @@ impl State {
 
         let default_store: std::path::PathBuf = self.pool.store_dir().to_string().into();
         let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
-        let build_output = BuildOutput::new(&self.pool, real_dir, output_paths).await?;
+        let build_output =
+            BuildOutput::new(&self.local_db, &self.pool, real_dir, output_paths).await?;
 
         if let Ok(platform) = std::str::from_utf8(&drv.platform) {
             #[allow(clippy::cast_precision_loss)]

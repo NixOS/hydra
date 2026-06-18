@@ -117,7 +117,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     async fn upload_msg(
         &self,
-        local_db: Option<crate::local_db::LocalNixDb>,
+        local_db: crate::local_db::LocalNixDb,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
@@ -135,7 +135,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     async fn upload_msg_inner(
         &self,
-        local_db: Option<crate::local_db::LocalNixDb>,
+        local_db: crate::local_db::LocalNixDb,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
@@ -144,23 +144,11 @@ impl Uploader {
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
-        // Prefer the SQLite database: the closure walk via the daemon does
-        // one round trip per path while holding a pooled connection.
-        let closure = if let Some(db) = &local_db {
-            match db.query_closure_infos(msg.store_paths.to_vec()).await {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("Failed to query requisites: {e}");
-                    return;
-                }
-            }
-        } else {
-            match daemon_client_utils::query_closure(&local_store, msg.store_paths.as_ref()).await {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("Failed to query requisites: {e}");
-                    return;
-                }
+        let closure = match local_db.query_closure_infos(msg.store_paths.to_vec()).await {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("Failed to query requisites: {e}");
+                return;
             }
         };
         tracing::info!(
@@ -268,7 +256,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     pub async fn upload_once(
         &self,
-        local_db: Option<crate::local_db::LocalNixDb>,
+        local_db: crate::local_db::LocalNixDb,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
@@ -294,7 +282,7 @@ impl Uploader {
     #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
     pub async fn upload_many(
         self: &Arc<Self>,
-        local_db: Option<crate::local_db::LocalNixDb>,
+        local_db: crate::local_db::LocalNixDb,
         local_store: harmonia_store_remote::ConnectionPool,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,

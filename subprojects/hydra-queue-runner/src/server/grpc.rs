@@ -534,30 +534,17 @@ impl RunnerService for Server {
         let state = self.state.clone();
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
-        // Prefer the SQLite database: closure walks via the daemon hold a
-        // pooled connection for the whole walk and starve under upload load.
-        let requisites: Vec<ProtoStorePath> = if let Some(local_db) = &state.local_db {
-            local_db
-                .query_closure(paths)
-                .await
-                .map_err(|e| {
-                    tracing::error!("failed to compute closure e={e}");
-                    tonic::Status::internal("failed to compute closure.")
-                })?
-                .into_iter()
-                .map(ProtoStorePath)
-                .collect()
-        } else {
-            daemon_client_utils::query_closure(&state.pool, &paths)
-                .await
-                .map_err(|e| {
-                    tracing::error!("failed to compute closure e={e}");
-                    tonic::Status::internal("failed to compute closure.")
-                })?
-                .into_iter()
-                .map(|vpi| ProtoStorePath(vpi.path))
-                .collect()
-        };
+        let requisites: Vec<ProtoStorePath> = state
+            .local_db
+            .query_closure(paths)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to compute closure e={e}");
+                tonic::Status::internal("failed to compute closure.")
+            })?
+            .into_iter()
+            .map(ProtoStorePath)
+            .collect();
 
         Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
             requisites,
@@ -571,16 +558,11 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path: bool = if let Some(local_db) = &state.local_db {
-            local_db
-                .is_valid_path(&path)
-                .await
-                .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?
-        } else {
-            daemon_client_utils::is_valid_path(&state.pool, &path)
-                .await
-                .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?
-        };
+        let has_path: bool = state
+            .local_db
+            .is_valid_path(&path)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
         Ok(tonic::Response::new(hydra_proto::HasPathResponse {
             has_path,
@@ -596,9 +578,13 @@ impl RunnerService for Server {
 
         let mut infos = hashbrown::HashMap::with_capacity(paths.len());
         for path in &paths {
-            let info = daemon_client_utils::query_path_info(&self.state.pool, path)
+            let info = self
+                .state
+                .local_db
+                .query_path_info(path)
                 .await
                 .map_err(|e| tonic::Status::internal(format!("query_path_info failed: {e}")))?
+                .map(|vpi| vpi.info)
                 .ok_or_else(|| tonic::Status::not_found(format!("path '{path}' is not valid")))?;
             infos.insert(path.clone(), info);
         }
