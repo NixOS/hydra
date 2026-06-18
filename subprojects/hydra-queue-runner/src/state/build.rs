@@ -503,7 +503,7 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += daemon_client_utils::compute_closure_size(store, &path).await;
+                closure_size += local_db.compute_closure_size(&path).await;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }
