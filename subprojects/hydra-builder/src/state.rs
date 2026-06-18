@@ -124,6 +124,10 @@ pub struct State {
     pub halt: AtomicBool,
     pub metrics: Arc<crate::metrics::Metrics>,
     upload_client: PresignedUploadClient,
+    /// Budget of NARs uploaded concurrently across all builds. Shared rather
+    /// than per-build because a single build rarely has enough new paths to
+    /// keep the link busy.
+    nar_upload_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
 #[derive(Debug)]
@@ -227,6 +231,9 @@ impl State {
             halt: false.into(),
             metrics: Arc::new(crate::metrics::Metrics::default()),
             upload_client: PresignedUploadClient::new(),
+            nar_upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
+                GLOBAL_NAR_UPLOAD_CONCURRENCY,
+            )),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -754,6 +761,7 @@ impl State {
                 opts,
                 build_id,
                 machine_id,
+                &self.nar_upload_semaphore,
             )
             .await
         } else {
@@ -1032,10 +1040,16 @@ async fn upload_nars_regular(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, connector), err)]
+/// NARs uploaded concurrently across all builds. Enough to hide ~200 ms S3
+/// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory
+/// and to stay within the local-nix-db connection pool each upload queries for
+/// path info.
+pub const GLOBAL_NAR_UPLOAD_CONCURRENCY: usize = 16;
+
+#[tracing::instrument(skip(client, connector, upload_semaphore), err)]
 #[allow(clippy::too_many_arguments)]
 async fn upload_nars_presigned(
-    mut client: BuilderClient,
+    client: BuilderClient,
     local_db: &LocalNixDb,
     upload_client: PresignedUploadClient,
     connector: daemon_client_utils::DaemonConnector,
@@ -1043,6 +1057,7 @@ async fn upload_nars_presigned(
     opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
     machine_id: &str,
+    upload_semaphore: &Arc<tokio::sync::Semaphore>,
 ) -> eyre::Result<()> {
     use futures::stream::StreamExt as _;
 
@@ -1113,18 +1128,33 @@ async fn upload_nars_presigned(
         ));
     }
 
-    for presigned_response in presigned_responses {
-        upload_single_nar_presigned(
-            local_db,
-            &StorePath::from_base_path(&presigned_response.store_path)
-                .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?,
-            build_id,
-            machine_id,
-            &presigned_response,
-            &mut client,
-            &upload_client,
-        )
-        .await?;
+    // Paths are independent and narinfo is written server-side per completion,
+    // so upload them concurrently.
+    let mut uploads = tokio_stream::iter(presigned_responses)
+        .map(|presigned_response| {
+            let client = client.clone();
+            let upload_client = upload_client.clone();
+            let upload_semaphore = upload_semaphore.clone();
+            async move {
+                let _permit = upload_semaphore.acquire().await?;
+                let store_path = StorePath::from_base_path(&presigned_response.store_path)
+                    .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?;
+                upload_single_nar_presigned(
+                    local_db,
+                    &store_path,
+                    build_id,
+                    machine_id,
+                    &presigned_response,
+                    &client,
+                    &upload_client,
+                )
+                .await
+            }
+        })
+        .buffer_unordered(GLOBAL_NAR_UPLOAD_CONCURRENCY);
+
+    while let Some(res) = uploads.next().await {
+        res?;
     }
 
     tracing::info!(
@@ -1178,25 +1208,11 @@ impl MorePartsSource for GrpcMoreParts {
     }
 }
 
-#[tracing::instrument(skip(local_db, nar_path, presigned_response), err)]
-async fn upload_single_nar_presigned(
-    local_db: &LocalNixDb,
-    nar_path: &StorePath,
-    build_id: &str,
-    machine_id: &str,
+/// Translate a queue-runner presigned response into the binary-cache upload
+/// request, returning the object key alongside it.
+fn presigned_request_from_response(
     presigned_response: &hydra_proto::PresignedNarResponse,
-    client: &mut BuilderClient,
-    upload_client: &PresignedUploadClient,
-) -> eyre::Result<()> {
-    // Presigned upload requires constructing NarInfo from path info.
-    let narinfo: binary_cache::NarInfo = {
-        let info = local_db
-            .query_path_info(nar_path)
-            .await?
-            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?
-            .info;
-        binary_cache::narinfo_simple(nar_path, info, Compression::None)
-    };
+) -> eyre::Result<(String, binary_cache::PresignedUploadResponse)> {
     let nar_upload = presigned_response
         .nar_upload
         .as_ref()
@@ -1219,7 +1235,7 @@ async fn upload_single_nar_presigned(
                 .collect(),
         });
 
-    let presigned_request = binary_cache::PresignedUploadResponse {
+    let request = binary_cache::PresignedUploadResponse {
         nar_url: presigned_response.nar_url.clone(),
         nar_upload: PresignedUpload::new(
             nar_upload.path.clone(),
@@ -1250,11 +1266,35 @@ async fn upload_single_nar_presigned(
             .collect(),
     };
 
+    Ok((nar_upload.path.clone(), request))
+}
+
+#[tracing::instrument(skip(local_db, nar_path, presigned_response), err)]
+async fn upload_single_nar_presigned(
+    local_db: &LocalNixDb,
+    nar_path: &StorePath,
+    build_id: &str,
+    machine_id: &str,
+    presigned_response: &hydra_proto::PresignedNarResponse,
+    client: &BuilderClient,
+    upload_client: &PresignedUploadClient,
+) -> eyre::Result<()> {
+    // Presigned upload requires constructing NarInfo from path info.
+    let narinfo: binary_cache::NarInfo = {
+        let info = local_db
+            .query_path_info(nar_path)
+            .await?
+            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?
+            .info;
+        binary_cache::narinfo_simple(nar_path, info, Compression::None)
+    };
+    let (object_key, presigned_request) = presigned_request_from_response(presigned_response)?;
+
     let more_parts = GrpcMoreParts {
         client: client.clone(),
         build_id: build_id.to_owned(),
         machine_id: machine_id.to_owned(),
-        object_key: nar_upload.path.clone(),
+        object_key,
     };
     let (updated_narinfo, completion) = upload_client
         .process_presigned_request(

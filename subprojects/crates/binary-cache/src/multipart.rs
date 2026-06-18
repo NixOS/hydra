@@ -22,12 +22,6 @@ use secrecy::ExposeSecret as _;
 use crate::CacheError;
 use crate::cfg::{S3ClientConfig, S3Scheme};
 
-/// NARs above this uncompressed size stream to S3 as multipart; smaller ones
-/// use a single presigned `PUT`. The single-`PUT` path buffers the whole
-/// compressed NAR in memory (plus a retry clone), so this bounds that buffer
-/// rather than S3's 5 GiB single-`PUT` limit.
-pub const MULTIPART_THRESHOLD: u64 = 256 * 1024 * 1024;
-
 const MIN_PART_SIZE: u64 = 10 * 1024 * 1024;
 const MAX_PART_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 /// S3 allows at most 10 000 parts. Aim for 9000 so an incompressible NAR that
