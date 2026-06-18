@@ -51,7 +51,9 @@ daemon-client-utils.workspace      = true
 harmonia-store-path-info.workspace = true
 hydra-proto                        = { workspace = true, features = [ "client" ] }
 hydra-tracing                      = { workspace = true, features = [ "tonic" ] }
+local-nix-db.workspace             = true
 nix-support.workspace              = true
+sqlx                               = { workspace = true, features = [ "sqlite" ] }
 store-path-utils.workspace         = true
 store-transfer.workspace           = true
 

@@ -61,13 +61,14 @@ harmonia-store-content-address.workspace = true
 harmonia-store-derivation.workspace      = true
 harmonia-store-nar-info.workspace        = true
 harmonia-store-path.workspace            = true
-sqlx = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
 harmonia-store-path-info.workspace       = true
 harmonia-store-remote.workspace          = true
 harmonia-utils-hash.workspace            = true
 hydra-proto                              = { workspace = true, features = [ "db", "server" ] }
 hydra-tracing                            = { workspace = true, features = [ "tonic" ] }
+local-nix-db.workspace                   = true
 nix-support.workspace                    = true
+sqlx                                     = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
 store-transfer.workspace                 = true
 
 [dev-dependencies]
