@@ -9,6 +9,9 @@ use crate::multipart::{
 };
 use crate::{CacheError, Compression, read_nar_stream, streaming_hash::HashingReader};
 
+/// Multipart part PUTs kept in flight per NAR; reads stay sequential.
+const PART_UPLOAD_CONCURRENCY: usize = 8;
+
 const RETRY_MIN_DELAY_SECS: u64 = 1;
 const RETRY_MAX_DELAY_SECS: u64 = 30;
 const RETRY_MAX_ATTEMPTS: usize = 3;
@@ -191,12 +194,15 @@ impl PresignedUploadClient {
         multipart: &PresignedMultipart,
         more_parts: &dyn MorePartsSource,
     ) -> Result<(PresignedUploadResult, MultipartCompletion), CacheError> {
+        use futures::stream::StreamExt as _;
         use tokio::io::AsyncReadExt as _;
 
         let part_size = usize::try_from(multipart.part_size).unwrap_or(usize::MAX);
         let mut urls: Vec<String> = multipart.parts.iter().map(|p| p.url.clone()).collect();
         let mut completed = Vec::new();
         let mut part_number: u32 = 1;
+
+        let mut inflight = futures::stream::FuturesUnordered::new();
 
         loop {
             let mut buf = bytes::BytesMut::with_capacity(part_size);
@@ -227,14 +233,35 @@ impl PresignedUploadClient {
                 urls.extend(extra.into_iter().map(|p| p.url));
             }
 
-            let etag = self.put_part(&urls[idx], buf.freeze()).await?;
-            completed.push(CompletedPart { part_number, etag });
+            let url = urls[idx].clone();
+            let data = buf.freeze();
+            let pn = part_number;
+            inflight.push(async move { self.put_part(&url, data).await.map(|etag| (pn, etag)) });
+
+            if inflight.len() >= PART_UPLOAD_CONCURRENCY
+                && let Some(res) = inflight.next().await
+            {
+                let (pn, etag) = res?;
+                completed.push(CompletedPart {
+                    part_number: pn,
+                    etag,
+                });
+            }
 
             if last {
                 break;
             }
             part_number += 1;
         }
+
+        while let Some(res) = inflight.next().await {
+            let (pn, etag) = res?;
+            completed.push(CompletedPart {
+                part_number: pn,
+                etag,
+            });
+        }
+        completed.sort_by_key(|p| p.part_number);
 
         let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
         let (file_hash, file_size) = reader.finalize()?;

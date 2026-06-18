@@ -40,8 +40,8 @@ pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Schem
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 pub use crate::multipart::{
-    CompletedPart, MORE_PARTS_BATCH, MULTIPART_THRESHOLD, MorePartsSource, MultipartCompletion,
-    MultipartPresigner, PresignedMultipart, PresignedPart, S3_MAX_PARTS, part_size_for_nar,
+    CompletedPart, MORE_PARTS_BATCH, MorePartsSource, MultipartCompletion, MultipartPresigner,
+    PresignedMultipart, PresignedPart, S3_MAX_PARTS, part_size_for_nar,
 };
 use crate::narinfo::NarInfoError;
 pub use crate::narinfo::{
@@ -864,7 +864,7 @@ impl S3BinaryCacheClient {
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
 
-        let multipart = self.create_multipart_if_large(&nar_url, nar_size).await?;
+        let multipart = self.create_multipart(&nar_url, nar_size).await?;
         let ls_upload = if self.cfg.write_nar_listing {
             let s3_file_path = format!("{}.ls", path.hash());
             Some(PresignedUpload {
@@ -943,16 +943,15 @@ impl S3BinaryCacheClient {
         })
     }
 
-    /// Initiate a multipart upload for NARs that might exceed S3's 5 GiB
-    /// single-`PUT` limit; `None` for smaller objects or without a presigner.
-    async fn create_multipart_if_large(
+    /// Initiate a multipart upload so the compressed NAR streams to S3
+    /// part-by-part instead of being buffered whole in memory. Returns `None`
+    /// only when no multipart presigner is configured, in which case the caller
+    /// falls back to a single buffered `PUT`.
+    async fn create_multipart(
         &self,
         nar_url: &str,
         nar_size: u64,
     ) -> Result<Option<PresignedMultipart>, CacheError> {
-        if nar_size <= MULTIPART_THRESHOLD {
-            return Ok(None);
-        }
         let Some(presigner) = &self.multipart else {
             return Ok(None);
         };
