@@ -56,20 +56,19 @@ pub use async_compression::Level as CompressionLevel;
 pub use harmonia_utils_hash::{self as harmonia_utils_hash, Hash};
 
 pub async fn path_to_narinfo(
-    store: &harmonia_store_remote::ConnectionPool,
+    local_db: &local_nix_db::LocalNixDb,
     path: &StorePath,
 ) -> Result<NarInfo, CacheError> {
-    let path_info = daemon_client_utils::query_path_info(store, path)
-        .await?
-        .ok_or_else(|| CacheError::PathNotFound {
-            path: path.to_string(),
-        })?;
-    let narinfo = narinfo_simple(path, path_info, Compression::None);
-    for r in &narinfo.info.info.references {
-        if daemon_client_utils::query_path_info(store, r)
+    let path_info =
+        local_db
+            .query_path_info(path)
             .await?
-            .is_none()
-        {
+            .ok_or_else(|| CacheError::PathNotFound {
+                path: path.to_string(),
+            })?;
+    let narinfo = narinfo_simple(path, path_info.info, Compression::None);
+    for r in &narinfo.info.info.references {
+        if !local_db.is_valid_path(r).await? {
             return Err(CacheError::ReferenceVerifyError(narinfo.path, r.to_owned()));
         }
     }
@@ -144,6 +143,8 @@ pub enum CacheError {
     NarInfoParseError(#[from] NarInfoError),
     #[error("daemon error: {0}")]
     DaemonError(#[from] harmonia_protocol::types::DaemonError),
+    #[error("local nix database error: {0}")]
+    LocalDb(#[from] local_nix_db::Error),
     #[error("cannot add '{0}' to the binary cache because the reference '{1}' is not valid")]
     ReferenceVerifyError(StorePath, StorePath),
     #[error("Hash error: {0}")]
@@ -963,10 +964,10 @@ impl S3BinaryCacheClient {
             })
     }
 
-    #[tracing::instrument(skip(self, store, narinfo), err)]
+    #[tracing::instrument(skip(self, connector, narinfo), err)]
     pub async fn upload_narinfo_after_presigned_upload(
         &self,
-        store: &harmonia_store_remote::ConnectionPool,
+        connector: &daemon_client_utils::DaemonConnector,
         narinfo: NarInfo,
     ) -> Result<String, CacheError> {
         if self.cfg.write_nar_listing {
@@ -982,9 +983,9 @@ impl S3BinaryCacheClient {
             .then_some(())
             .ok_or(CacheError::PathNotFound { path: nar_url })?;
 
-        let narinfo = clear_sigs_and_sign(narinfo, store.store_dir(), &self.signing_keys);
+        let narinfo = clear_sigs_and_sign(narinfo, connector.store_dir(), &self.signing_keys);
         // TODO: we also need to integarte realisation into this!
-        self.upload_narinfo(store.store_dir(), narinfo).await
+        self.upload_narinfo(connector.store_dir(), narinfo).await
     }
 }
 

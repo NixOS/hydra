@@ -8,11 +8,14 @@ async fn main() -> color_eyre::eyre::Result<()> {
 
     let nix_config =
         daemon_client_utils::parse_nix_remote().map_err(|e| color_eyre::eyre::eyre!(e))?;
-    let pool = harmonia_store_remote::ConnectionPool::new(
-        &nix_config.socket,
-        harmonia_store_remote::PoolConfig::default(),
+    let connector = daemon_client_utils::DaemonConnector::new(
+        nix_config.socket.clone(),
+        nix_config.store_dir.clone(),
     );
-    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(pool, Some(tx)));
+    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(
+        connector,
+        Some(tx),
+    ));
     fod.clone().start_traverse_loop();
     fod.to_traverse(&p);
     fod.trigger_traverse();

@@ -34,10 +34,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _tracing_guard = hydra_tracing::init()?;
     let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
-    let store = harmonia_store_remote::ConnectionPool::new(
-        &nix_config.socket,
-        harmonia_store_remote::PoolConfig::default(),
+    let connector = daemon_client_utils::DaemonConnector::new(
+        nix_config.socket.clone(),
+        nix_config.store_dir.clone(),
     );
+    let local_db = local_nix_db::LocalNixDb::open(nix_config.store_dir.clone()).await?;
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&write-debug-info=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -49,30 +50,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upload_client = PresignedUploadClient::new();
 
     let root: StorePath = "m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1".parse()?;
-    let paths_to_copy = daemon_client_utils::query_closure(&store, &[root]).await?;
+    let paths_to_copy = local_db.query_closure(vec![root]).await?;
 
     let mut stream = tokio_stream::iter(paths_to_copy)
-        .map(|vpi| {
+        .map(|p| {
             let client = client.clone();
             let upload_client = upload_client.clone();
-            let store = store.clone();
-            let p = vpi.path;
+            let connector = connector.clone();
+            let local_db = local_db.clone();
             async move {
-                let narinfo = path_to_narinfo(&store, &p).await?;
+                let narinfo = path_to_narinfo(&local_db, &p).await?;
 
                 let presigned_request = client
                     .generate_nar_upload_presigned_url(
                         &narinfo.path,
                         &narinfo.info.info.nar_hash,
                         narinfo.info.info.nar_size,
-                        binary_cache::get_debug_info_build_ids(store.store_dir().as_ref(), &p)
+                        binary_cache::get_debug_info_build_ids(local_db.store_dir().as_ref(), &p)
                             .await?,
                     )
                     .await?;
 
                 let (narinfo, _completion) = upload_client
                     .process_presigned_request(
-                        store.store_dir(),
+                        local_db.store_dir(),
                         narinfo,
                         presigned_request,
                         &NoMoreParts,
@@ -80,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await?;
 
                 client
-                    .upload_narinfo_after_presigned_upload(&store, narinfo)
+                    .upload_narinfo_after_presigned_upload(&connector, narinfo)
                     .await?;
                 Ok::<(), Box<dyn std::error::Error>>(())
             }

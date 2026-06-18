@@ -458,12 +458,12 @@ dependencies = [
  "harmonia-store-nar-info",
  "harmonia-store-path",
  "harmonia-store-path-info",
- "harmonia-store-remote",
  "harmonia-utils-hash",
  "harmonia-utils-io",
  "harmonia-utils-signature",
  "hashbrown 0.16.1",
  "hydra-tracing",
+ "local-nix-db",
  "moka",
  "object_store",
  "percent-encoding",
@@ -1014,11 +1014,9 @@ name = "daemon-client-utils"
 version = "0.1.0"
 dependencies = [
  "harmonia-protocol",
- "harmonia-store-derivation",
  "harmonia-store-path",
- "harmonia-store-path-info",
  "harmonia-store-remote",
- "petgraph",
+ "tokio",
  "url",
 ]
 
@@ -4296,11 +4294,11 @@ name = "store-transfer"
 version = "0.1.0"
 dependencies = [
  "async-compression",
+ "daemon-client-utils",
  "futures",
  "harmonia-protocol",
  "harmonia-store-path",
  "harmonia-store-path-info",
- "harmonia-store-remote",
  "hashbrown 0.16.1",
  "hydra-proto",
  "thiserror",

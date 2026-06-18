@@ -3,11 +3,6 @@ use binary_cache::S3BinaryCacheClient;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracing_guard = hydra_tracing::init()?;
-    let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
-    let _local = harmonia_store_remote::ConnectionPool::new(
-        &nix_config.socket,
-        harmonia_store_remote::PoolConfig::default(),
-    );
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",

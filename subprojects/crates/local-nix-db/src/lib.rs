@@ -1,23 +1,25 @@
 //! Read-only access to the local Nix store database.
 //!
-//! NOTE: harmonia's `harmonia-store-db` crate implements exactly this
-//! (`StoreDb::open_readonly` + `query_path_info`/`is_valid_path`/...) and
-//! would let us delete this hand-rolled SQL. It is `rusqlite`-based, though,
-//! and its `libsqlite3-sys` (`links = "sqlite3"`) conflicts with the
-//! `sqlx-sqlite` that `sqlx` pulls in for the Postgre-based `db` crate —
-//! cargo forbids two crates linking the same native library. Until the
-//! queue-runner's Postgres access stops dragging in `sqlx-sqlite`, we keep
-//! this sqlx implementation.
+//! Path-info and validity lookups are pure reads, but going through the
+//! nix-daemon makes them compete for pooled connections with NAR transfers
+//! that hold a connection for minutes. Query the `SQLite` database directly
+//! instead so reads never wait on the daemon.
 //!
-//! `HasPath` and `FetchRequisites` are pure reads, but going through the
-//! nix-daemon makes them compete for pooled daemon connections with NAR
-//! uploads, which hold a connection for minutes. Query the `SQLite` database
-//! directly instead so reads never wait on the daemon.
+//! NOTE: harmonia's `harmonia-store-db` would replace this hand-rolled SQL,
+//! but it is `rusqlite`-based and its `libsqlite3-sys` (`links = "sqlite3"`)
+//! conflicts with the `sqlx-sqlite` that `sqlx` pulls in for the Postgres
+//! `db` crate; cargo forbids two crates linking the same native library. We
+//! keep the sqlx implementation until the queue-runner's Postgres access
+//! stops dragging in `sqlx-sqlite`.
 
 use std::collections::BTreeSet;
 
 use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::{UnkeyedValidPathInfo, ValidPathInfo};
+
+/// Error type returned by all queries. Aliased so callers need not depend on
+/// the underlying SQLite layer directly.
+pub type Error = sqlx::Error;
 
 fn decode_err<E: std::error::Error + Send + Sync + 'static>(e: E) -> sqlx::Error {
     sqlx::Error::Decode(Box::new(e))
@@ -43,10 +45,7 @@ impl LocalNixDb {
         state_dir.join("db/db.sqlite")
     }
 
-    pub async fn open_at(
-        store_dir: StoreDir,
-        path: &std::path::Path,
-    ) -> Result<Self, sqlx::Error> {
+    pub async fn open_at(store_dir: StoreDir, path: &std::path::Path) -> Result<Self, sqlx::Error> {
         let opts = sqlx::sqlite::SqliteConnectOptions::new()
             .filename(path)
             .read_only(true)

@@ -118,7 +118,7 @@ impl Uploader {
     async fn upload_msg(
         &self,
         local_db: crate::local_db::LocalNixDb,
-        local_store: harmonia_store_remote::ConnectionPool,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
     ) {
@@ -136,7 +136,7 @@ impl Uploader {
     async fn upload_msg_inner(
         &self,
         local_db: crate::local_db::LocalNixDb,
-        local_store: harmonia_store_remote::ConnectionPool,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
     ) {
@@ -257,7 +257,7 @@ impl Uploader {
     pub async fn upload_once(
         &self,
         local_db: crate::local_db::LocalNixDb,
-        local_store: harmonia_store_remote::ConnectionPool,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
         let Some(msg) = self.queue.recv().await else {
@@ -283,7 +283,7 @@ impl Uploader {
     pub async fn upload_many(
         self: &Arc<Self>,
         local_db: crate::local_db::LocalNixDb,
-        local_store: harmonia_store_remote::ConnectionPool,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,
     ) {

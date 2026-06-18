@@ -5,7 +5,7 @@ use harmonia_store_path::StorePath;
 use hashbrown::{HashMap, HashSet};
 
 pub struct FodChecker {
-    pool: harmonia_store_remote::ConnectionPool,
+    connector: daemon_client_utils::DaemonConnector,
     ca_derivations: parking_lot::RwLock<HashMap<StorePath, Derivation>>,
     to_traverse: parking_lot::RwLock<HashSet<StorePath>>,
 
@@ -17,8 +17,8 @@ impl std::fmt::Debug for FodChecker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FodChecker")
             .field(
-                "pool",
-                &format_args!("<pool for {}>", self.pool.store_dir()),
+                "connector",
+                &format_args!("<daemon for {}>", self.connector.store_dir()),
             )
             .field("ca_derivations", &self.ca_derivations)
             .field("to_traverse", &self.to_traverse)
@@ -29,7 +29,7 @@ impl std::fmt::Debug for FodChecker {
 }
 
 async fn collect_ca_derivations(
-    store: &harmonia_store_remote::ConnectionPool,
+    store: &daemon_client_utils::DaemonConnector,
     drv: &StorePath,
     processed: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
 ) -> HashMap<StorePath, Derivation> {
@@ -90,11 +90,11 @@ async fn collect_ca_derivations(
 impl FodChecker {
     #[must_use]
     pub fn new(
-        pool: harmonia_store_remote::ConnectionPool,
+        connector: daemon_client_utils::DaemonConnector,
         traverse_done_notifier: Option<tokio::sync::mpsc::Sender<()>>,
     ) -> Self {
         Self {
-            pool,
+            connector,
             ca_derivations: parking_lot::RwLock::new(HashMap::with_capacity(1000)),
             to_traverse: parking_lot::RwLock::new(HashSet::new()),
 
@@ -119,7 +119,7 @@ impl FodChecker {
         tt.insert(drv.clone());
     }
 
-    async fn traverse(&self, store: &harmonia_store_remote::ConnectionPool) {
+    async fn traverse(&self, store: &daemon_client_utils::DaemonConnector) {
         use futures::StreamExt as _;
 
         let drvs = {
@@ -158,7 +158,7 @@ impl FodChecker {
                 () = self.notify_traverse.notified() => {},
                 () = tokio::time::sleep(tokio::time::Duration::from_mins(1)) => {},
             };
-            self.traverse(&self.pool).await;
+            self.traverse(&self.connector).await;
             if let Some(tx) = &self.traverse_done_notifier {
                 let _ = tx.send(()).await;
             }
@@ -204,19 +204,20 @@ mod tests {
     #[tokio::test]
     async fn test_traverse() {
         let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
-        let store = harmonia_store_remote::ConnectionPool::new(
-            &nix_config.socket,
-            harmonia_store_remote::PoolConfig::default(),
+        let connector = daemon_client_utils::DaemonConnector::new(
+            nix_config.socket.clone(),
+            nix_config.store_dir.clone(),
         );
         let hello_drv =
             StorePath::from_base_path("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv").unwrap();
-        daemon_client_utils::ensure_path(&store, &hello_drv)
+        let mut conn = connector.connect().await.unwrap();
+        daemon_client_utils::ensure_path(&mut conn, &hello_drv)
             .await
             .unwrap();
 
-        let fod = FodChecker::new(store.clone(), None);
+        let fod = FodChecker::new(connector.clone(), None);
         fod.to_traverse(&hello_drv);
-        fod.traverse(&fod.pool).await;
+        fod.traverse(&fod.connector).await;
         assert_eq!(fod.ca_derivations.read().len(), 59);
     }
 }

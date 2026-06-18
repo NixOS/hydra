@@ -249,7 +249,7 @@ pub enum RemoteStoreBackend {
 
 #[allow(missing_debug_implementations)]
 pub struct State {
-    pub pool: harmonia_store_remote::ConnectionPool,
+    pub connector: daemon_client_utils::DaemonConnector,
     /// Direct read-only access to the Nix `SQLite` database. Validity
     /// and path-info reads go here rather than through the daemon, so
     /// they neither contend with NAR transfers for pooled connections
@@ -309,7 +309,7 @@ impl State {
     fn real_path(&self, path: &StorePath) -> std::path::PathBuf {
         match &self.real_store_dir {
             Some(real) => real.join(path.to_string()),
-            None => std::path::PathBuf::from(self.pool.store_dir().display(path).to_string()),
+            None => std::path::PathBuf::from(self.connector.store_dir().display(path).to_string()),
         }
     }
 
@@ -329,7 +329,7 @@ impl State {
                 reason: "parsing derivation name",
             })?;
         harmonia_store_aterm::parse_derivation_aterm(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             content.as_bytes(),
             name,
         )
@@ -344,11 +344,8 @@ impl State {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
         let store_dir = nix_config.store_dir.clone();
-        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
-            &nix_config.socket,
-            store_dir.clone(),
-            harmonia_store_remote::PoolConfig::default(),
-        );
+        let connector =
+            daemon_client_utils::DaemonConnector::new(nix_config.socket.clone(), store_dir.clone());
 
         tracing::info!("LocalStore dir={store_dir}");
 
@@ -379,7 +376,7 @@ impl State {
         }
 
         let fod_checker = if config.get_enable_fod_checker() {
-            Some(Arc::new(FodChecker::new(pool.clone(), None)))
+            Some(Arc::new(FodChecker::new(connector.clone(), None)))
         } else {
             None
         };
@@ -389,7 +386,7 @@ impl State {
         let local_db = crate::local_db::LocalNixDb::open(store_dir.clone()).await?;
 
         Ok(Arc::new(Self {
-            pool,
+            connector,
             local_db,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             cli,
@@ -648,7 +645,7 @@ impl State {
 
             let step_nr = tx
                 .create_build_step(
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     Some(job.result.get_start_time_as_i32()?),
                     build_id,
                     step_info.step.get_drv_path(),
@@ -689,7 +686,7 @@ impl State {
             // Resolve `Built` input references to concrete store paths.
             let resolved_map = self.resolved_drv_map.read().clone();
             let mut basic_drv = StepInfo::try_resolve_force(
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 &self.db,
                 drv_ref,
                 &resolved_map,
@@ -715,7 +712,7 @@ impl State {
                     .clone()
                     .map_outputs(|_| harmonia_store_aterm::input_address::UnfilledOutput);
                 let filled = harmonia_store_aterm::input_address::fill_outputs(
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     unfilled,
                 )
                 .map_err(|_| ResolutionError::FillDeferredOutputs(drv.clone()))?;
@@ -737,10 +734,10 @@ impl State {
             // Write the resolved derivation to the store via daemon
             // protocol so we can compare its path.
             let resolved_path = {
-                let mut guard = self.pool.acquire().await?;
+                let mut conn = self.connector.connect().await?;
                 harmonia_protocol::daemon::write_derivation(
-                    guard.client(),
-                    self.pool.store_dir(),
+                    &mut conn,
+                    self.connector.store_dir(),
                     &basic_drv,
                     false,
                 )
@@ -765,7 +762,7 @@ impl State {
                 resolved_result.log_file.clone_from(&job.result.log_file);
                 finish_build_step(
                     &self.db,
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     build_id,
                     step_nr,
                     &resolved_result,
@@ -1139,7 +1136,7 @@ impl State {
         let mut db = self.db.get().await?;
         let drv = self.read_derivation(drv_path).await?;
         db.insert_debug_build(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform).map_err(StateError::InvalidPlatformUtf8)?,
@@ -1164,7 +1161,7 @@ impl State {
         {
             let mut conn = self.db.get().await?;
             for b in conn
-                .get_not_finished_builds(self.pool.store_dir())
+                .get_not_finished_builds(self.connector.store_dir())
                 .await?
                 .into_iter()
                 .filter(|b| b.id == build_id)
@@ -1207,7 +1204,10 @@ impl State {
 
         {
             let mut conn = self.db.get().await?;
-            for b in conn.get_not_finished_builds(self.pool.store_dir()).await? {
+            for b in conn
+                .get_not_finished_builds(self.connector.store_dir())
+                .await?
+            {
                 let jobset = self
                     .jobsets
                     .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
@@ -1402,7 +1402,7 @@ impl State {
             async move {
                 loop {
                     let local_db = self.local_db.clone();
-                    let local_store = self.pool.clone();
+                    let local_store = self.connector.clone();
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
                         r.iter()
@@ -1622,8 +1622,12 @@ impl State {
                     return Err(StateError::from(ResolutionError::OutputPathMismatch {
                         name: name.to_string(),
                         drv: drv_path.clone(),
-                        expected: self.pool.store_dir().display(expected_path).to_string(),
-                        actual: self.pool.store_dir().display(actual_path).to_string(),
+                        expected: self
+                            .connector
+                            .store_dir()
+                            .display(expected_path)
+                            .to_string(),
+                        actual: self.connector.store_dir().display(actual_path).to_string(),
                     }));
                 }
             }
@@ -1653,7 +1657,7 @@ impl State {
 
         finish_build_step(
             &self.db,
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             job.build_id,
             job.step_nr,
             &job.result,
@@ -1678,7 +1682,7 @@ impl State {
                 let paths: Vec<String> = output
                     .outputs
                     .values()
-                    .map(|p| self.pool.store_dir().display(p).to_string())
+                    .map(|p| self.connector.store_dir().display(p).to_string())
                     .collect();
                 for dest_uri in &nix_copy_uris {
                     let output = tokio::process::Command::new("nix")
@@ -1794,7 +1798,7 @@ impl State {
                     is_cached,
                     start_time,
                     stop_time,
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                 )
                 .await?;
                 self.metrics.nr_builds_done.inc();
@@ -1971,7 +1975,7 @@ impl State {
 
                 finish_build_step(
                     &self.db,
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     job.build_id,
                     job.step_nr,
                     &job.result,
@@ -2065,7 +2069,7 @@ impl State {
         if job.step_nr != 0 {
             finish_build_step(
                 &self.db,
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 job.build_id,
                 job.step_nr,
                 &job.result,
@@ -2101,7 +2105,7 @@ impl State {
                     }
 
                     tx.create_build_step(
-                        self.pool.store_dir(),
+                        self.connector.store_dir(),
                         None,
                         b.id,
                         step.get_drv_path(),
@@ -2155,7 +2159,8 @@ impl State {
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
                     for (_, path) in step.get_output_paths().unwrap_or_default() {
                         if let Some(path) = path {
-                            tx.insert_failed_paths(self.pool.store_dir(), &path).await?;
+                            tx.insert_failed_paths(self.connector.store_dir(), &path)
+                                .await?;
                         }
                     }
                 }
@@ -2230,7 +2235,7 @@ impl State {
         // Find the previous build step record, first by derivation path, then by output
         // path.
         let mut propagated_from = tx
-            .get_last_build_step_id(self.pool.store_dir(), step.get_drv_path())
+            .get_last_build_step_id(self.connector.store_dir(), step.get_drv_path())
             .await?
             .unwrap_or_default();
 
@@ -2241,11 +2246,11 @@ impl State {
             let outputs = step.get_output_paths().unwrap_or_default();
             for (name, path) in &outputs {
                 let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(self.pool.store_dir(), path)
+                    tx.get_last_build_step_id_for_output_path(self.connector.store_dir(), path)
                         .await
                 } else {
                     tx.get_last_build_step_id_for_output_with_drv(
-                        self.pool.store_dir(),
+                        self.connector.store_dir(),
                         step.get_drv_path(),
                         name.as_ref(),
                     )
@@ -2259,7 +2264,7 @@ impl State {
         }
 
         tx.create_build_step(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             None,
             build.id,
             step.get_drv_path(),
@@ -2323,7 +2328,7 @@ impl State {
             tracing::error!(
                 "aborting GC'ed build id={} path={}",
                 build.id,
-                self.pool.store_dir().display(&build.drv_path)
+                self.connector.store_dir().display(&build.drv_path)
             );
             if !build.get_finished_in_db() {
                 match self.db.get().await {
@@ -2532,7 +2537,7 @@ impl State {
             previous_failure,
         } = facts;
         let input_drvs = drv::input_drvs(&drv);
-        step.set_drv(&drv, self.pool.store_dir());
+        step.set_drv(&drv, self.connector.store_dir());
 
         // Recurse into the input derivations only when the step actually has
         // to be built; finished and previously-failed steps never get
@@ -2701,7 +2706,7 @@ impl State {
                 (
                     name.clone(),
                     output
-                        .path(self.pool.store_dir(), &drv.name, name)
+                        .path(self.connector.store_dir(), &drv.name, name)
                         .ok()
                         .flatten(),
                 )
@@ -2748,7 +2753,7 @@ impl State {
         if !unregistered_local_outputs.is_empty()
             && let Err(e) = crate::utils::make_local_step(
                 &self.db,
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 build.id,
                 drv_path,
                 &unregistered_local_outputs,
@@ -2807,7 +2812,7 @@ impl State {
         let previous_failure = match self.db.get().await {
             Ok(mut conn) => conn
                 .check_if_paths_failed(
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     &output_paths.values().flatten().cloned().collect::<Vec<_>>(),
                 )
                 .await
@@ -2836,7 +2841,7 @@ impl State {
                 crate::utils::substitute_output(
                     self.db.clone(),
                     &self.local_db,
-                    self.pool.clone(),
+                    self.connector.clone(),
                     o,
                     build.id,
                     drv_path,
@@ -2903,7 +2908,7 @@ impl State {
         let paths: Vec<StorePath> = output_paths.values().flatten().cloned().collect();
         let res = match self.db.get().await {
             Ok(mut conn) => conn
-                .query_succeeded_output_paths(self.pool.store_dir(), &paths)
+                .query_succeeded_output_paths(self.connector.store_dir(), &paths)
                 .await
                 .map(|v| v.into_iter().collect()),
             Err(e) => Err(e),
@@ -2956,7 +2961,7 @@ impl State {
     ) -> Result<BTreeMap<OutputName, StorePath>, db::Error> {
         let mut db = self.db.get().await?;
         let mut tx = db.begin_transaction().await?;
-        tx.find_build_step_outputs(self.pool.store_dir(), drv_path)
+        tx.find_build_step_outputs(self.connector.store_dir(), drv_path)
             .await
     }
 
@@ -2971,7 +2976,7 @@ impl State {
         };
 
         conn.check_if_paths_failed(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             &drv_outputs.values().flatten().cloned().collect::<Vec<_>>(),
         )
         .await
@@ -2993,7 +2998,7 @@ impl State {
                 true,
                 i32::try_from(now)?, // TODO
                 i32::try_from(now)?, // TODO
-                self.pool.store_dir(),
+                self.connector.store_dir(),
             )
             .await?;
             self.metrics.nr_builds_done.inc();
@@ -3020,7 +3025,7 @@ impl State {
                 (
                     name.clone(),
                     output
-                        .path(self.pool.store_dir(), &drv.name, name)
+                        .path(self.connector.store_dir(), &drv.name, name)
                         .ok()
                         .flatten(),
                 )
@@ -3033,7 +3038,7 @@ impl State {
                     continue;
                 };
                 let Some(db_build_output) = db
-                    .get_build_output_for_path(self.pool.store_dir(), out_path)
+                    .get_build_output_for_path(self.connector.store_dir(), out_path)
                     .await?
                 else {
                     continue;
@@ -3044,7 +3049,7 @@ impl State {
                 };
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id, self.pool.store_dir())
+                    .get_build_products_for_build_id(build_id, self.connector.store_dir())
                     .await?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
@@ -3056,10 +3061,10 @@ impl State {
             }
         }
 
-        let default_store: std::path::PathBuf = self.pool.store_dir().to_string().into();
+        let default_store: std::path::PathBuf = self.connector.store_dir().to_string().into();
         let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
         let build_output =
-            BuildOutput::new(&self.local_db, &self.pool, real_dir, output_paths).await?;
+            BuildOutput::new(&self.local_db, &self.connector, real_dir, output_paths).await?;
 
         if let Ok(platform) = std::str::from_utf8(&drv.platform) {
             #[allow(clippy::cast_precision_loss)]
@@ -3075,7 +3080,7 @@ impl State {
         let roots_dir = self.config.get_roots_dir();
         // Inline filesystem symlink for GC roots
         let link_path = roots_dir.join(store_path.to_string());
-        let store_path_full = format!("{}/{store_path}", self.pool.store_dir());
+        let store_path_full = format!("{}/{store_path}", self.connector.store_dir());
         fs_err::os::unix::fs::symlink(&store_path_full, &link_path)
     }
 

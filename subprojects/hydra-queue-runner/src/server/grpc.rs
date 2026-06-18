@@ -233,7 +233,7 @@ impl RunnerService for Server {
             }));
         }
 
-        let our_store_dir = self.state.pool.store_dir().to_string();
+        let our_store_dir = self.state.connector.store_dir().to_string();
         if req.store_dir != our_store_dir {
             return Err(tonic::Status::failed_precondition(format!(
                 "Store dir mismatch: builder has `{}`, server has `{}`",
@@ -418,13 +418,13 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<tonic::Streaming<hydra_proto::AddToStoreRequest>>,
     ) -> BuilderResult<hydra_proto::Empty> {
-        let mut guard = self
+        let mut conn = self
             .state
-            .pool
-            .acquire()
+            .connector
+            .connect()
             .await
             .map_err(|e| tonic::Status::internal(format!("daemon connection failed: {e}")))?;
-        store_transfer::import::import(&mut guard, req.into_inner())
+        store_transfer::import::import(&mut conn, req.into_inner())
             .await
             .map_err(|e| tonic::Status::internal(format!("import error: {e}")))?;
         Ok(tonic::Response::new(hydra_proto::Empty {}))
@@ -592,17 +592,16 @@ impl RunnerService for Server {
         let (tx, rx) = mpsc::unbounded_channel();
 
         tokio::spawn({
-            let pool = self.state.pool.clone();
+            let connector = self.state.connector.clone();
             async move {
-                let mut guard = match pool.acquire().await {
-                    Ok(g) => g,
+                let mut conn = match connector.connect().await {
+                    Ok(c) => c,
                     Err(e) => {
                         tracing::error!("export failed: daemon connection: {e}");
                         return;
                     }
                 };
-                if let Err(e) =
-                    store_transfer::export::export(&mut guard, &paths, &infos, &tx).await
+                if let Err(e) = store_transfer::export::export(&mut conn, &paths, &infos, &tx).await
                 {
                     tracing::error!("export failed: {e}");
                 }
@@ -824,10 +823,10 @@ impl RunnerService for Server {
             .try_into()
             .map_err(|e: hydra_proto::NarInfoConvertError| tonic::Status::invalid_argument(e.0))?;
 
-        if &narinfo.info.info.store_dir != self.state.pool.store_dir() {
+        if &narinfo.info.info.store_dir != self.state.connector.store_dir() {
             return Err(tonic::Status::invalid_argument(format!(
                 "store_dir mismatch: expected {}, got {}",
-                self.state.pool.store_dir(),
+                self.state.connector.store_dir(),
                 narinfo.info.info.store_dir
             )));
         }
@@ -881,7 +880,7 @@ impl RunnerService for Server {
         }
 
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(&self.state.pool, narinfo)
+            .upload_narinfo_after_presigned_upload(&self.state.connector, narinfo)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);
