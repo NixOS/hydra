@@ -77,6 +77,12 @@ async fn main() -> color_eyre::Result<()> {
             Ok(())
         }
         r = task => {
+            // The runner re-queues this builder's steps when the tunnel drops.
+            // Builds run in the nix daemon and outlive the tunnel, so abort
+            // them here too; otherwise the same drv keeps building untracked
+            // and can also be dispatched elsewhere.
+            tracing::info!("Queue-runner connection lost; aborting all active builds");
+            state.abort_all_active_builds();
             let _ = state.clear_gcroots().await;
             match r.map_err(BuilderError::from).flatten() {
                 Ok(()) => Ok(()),
