@@ -212,6 +212,27 @@ impl Connection {
         Ok(())
     }
 
+    /// Finalize a single still-busy buildstep as aborted. Used to reconcile a
+    /// specific orphaned step in the DB without touching any other step.
+    pub async fn clear_busy_step(
+        &mut self,
+        build_id: crate::models::BuildID,
+        step_nr: i32,
+        stop_time: i32,
+    ) -> crate::Result<()> {
+        sqlx::query!(
+            "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 \
+             WHERE build = $3 AND stepnr = $4 AND busy != 0;",
+            BuildStatus::Aborted as i32,
+            Some(stop_time),
+            build_id,
+            step_nr,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, step), err)]
     pub async fn update_build_step(&mut self, step: UpdateBuildStep) -> crate::Result<()> {
         sqlx::query!(
