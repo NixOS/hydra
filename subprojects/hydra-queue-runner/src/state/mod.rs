@@ -513,6 +513,19 @@ impl State {
                         "Failed to fail step machine_id={machine_id} drv={} e={e}",
                         job.path
                     );
+                    // fail_step did not finalize this step (e.g. the step was
+                    // re-dispatched to another machine and now belongs to it).
+                    // Reconcile this machine's own orphaned buildstep row so
+                    // the DB does not keep showing it busy until the next
+                    // queue-runner restart.
+                    if let Err(e) = self.abort_orphaned_build_step(job.build_id, job.step_nr).await
+                    {
+                        tracing::error!(
+                            "Failed to clear orphaned busy step build_id={} step_nr={} e={e}",
+                            job.build_id,
+                            job.step_nr,
+                        );
+                    }
                 }
             }
         }
@@ -528,6 +541,17 @@ impl State {
     pub async fn clear_busy(&self) -> Result<(), db::Error> {
         let mut db = self.db.get().await?;
         db.clear_busy(0).await?;
+        Ok(())
+    }
+
+    async fn abort_orphaned_build_step(
+        &self,
+        build_id: BuildID,
+        step_nr: i32,
+    ) -> Result<(), db::Error> {
+        let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+        let mut db = self.db.get().await?;
+        db.clear_busy_step(build_id, step_nr, stop_time).await?;
         Ok(())
     }
 }
