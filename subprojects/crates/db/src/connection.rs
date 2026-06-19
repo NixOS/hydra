@@ -1360,6 +1360,49 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn clear_busy_step_finalizes_only_the_named_step() {
+        async fn insert_busy(conn: &mut Connection, build: i32, stepnr: i32, drv: &StorePath) {
+            sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)")
+                .bind(build)
+                .bind(stepnr)
+                .bind(test_store_dir().display(drv).to_string())
+                .execute(&mut *conn.conn)
+                .await
+                .unwrap();
+        }
+
+        async fn busy_status(conn: &mut Connection, build: i32, stepnr: i32) -> (i32, Option<i32>) {
+            sqlx::query_as::<_, (i32, Option<i32>)>(
+                "SELECT busy, status FROM buildsteps WHERE build = $1 AND stepnr = $2",
+            )
+            .bind(build)
+            .bind(stepnr)
+            .fetch_one(&mut *conn.conn)
+            .await
+            .unwrap()
+        }
+
+        let (_pg, mut conn) = setup().await;
+        // Two busy steps of one build (a duplicate-dispatch leaves an old
+        // stepnr busy) plus a busy step of another build.
+        insert_busy(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 1, 2, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 2, 1, &sp("bar.drv")).await;
+
+        conn.clear_busy_step(1, 1, 12345).await.unwrap();
+
+        let (busy, status) = busy_status(&mut conn, 1, 1).await;
+        assert_eq!(busy, 0, "named step must be cleared");
+        assert_eq!(status, Some(BuildStatus::Aborted as i32));
+
+        let (busy, _) = busy_status(&mut conn, 1, 2).await;
+        assert_eq!(busy, 1, "sibling stepnr of same build must stay busy");
+
+        let (busy, _) = busy_status(&mut conn, 2, 1).await;
+        assert_eq!(busy, 1, "other build must stay busy");
+    }
+
+    #[tokio::test]
     async fn resolve_depth_1() {
         let (_pg, mut conn) = setup().await;
         insert_step(&mut conn, 1, 1, &sp("foo.drv")).await;
