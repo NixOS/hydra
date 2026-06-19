@@ -167,7 +167,12 @@ pub enum CacheError {
     PathNotFound { path: String },
     #[error("Configuration error: {message}")]
     ConfigurationError { message: String },
+    #[error("{0}")]
+    Other(String),
 }
+
+/// Boxed reader over a decompressed NAR stream from the cache.
+pub type NarReader = Box<dyn tokio::io::AsyncRead + Unpin + Send>;
 
 #[derive(Debug, Clone)]
 pub struct S3BinaryCacheClient {
@@ -758,6 +763,111 @@ impl S3BinaryCacheClient {
     #[tracing::instrument(skip(self), err)]
     pub async fn download_nar(&self, nar_url: &str) -> Result<Option<Bytes>, CacheError> {
         self.get_object(nar_url).await
+    }
+
+    /// Open a streaming, decompressed reader over a store path's NAR.
+    ///
+    /// Unlike [`Self::download_nar`], the compressed body is not buffered in
+    /// memory; it is streamed from object storage and decompressed on the fly.
+    /// This keeps memory bounded for large outputs, which matters when we only
+    /// need to read a handful of `nix-support/` files out of the NAR.
+    ///
+    /// Returns the narinfo alongside the reader so callers can use the
+    /// recorded NAR/closure sizes without re-reading the archive.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn open_nar_stream(
+        &self,
+        store_path: &StorePath,
+    ) -> Result<Option<(NarInfo, NarReader)>, CacheError> {
+        use futures::StreamExt as _;
+
+        let Some(narinfo) = self.download_narinfo(store_path).await? else {
+            return Ok(None);
+        };
+        let Some(url) = narinfo.info.url.clone() else {
+            return Ok(None);
+        };
+        let compression: Compression = narinfo
+            .info
+            .compression
+            .as_deref()
+            .unwrap_or("none")
+            .parse()
+            .map_err(|e: compression::InvalidCompression| {
+                CacheError::Other(format!("invalid narinfo compression: {e}"))
+            })?;
+
+        let get_result = match self.s3.get(&object_store::path::Path::from(url)).await {
+            Ok(v) => v,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(CacheError::ObjectStore(e)),
+        };
+        self.s3_stats.get.fetch_add(1, Ordering::Relaxed);
+
+        let byte_stream = get_result
+            .into_stream()
+            .map(|r| r.map_err(std::io::Error::other));
+        let reader = tokio_util::io::StreamReader::new(byte_stream);
+        let buffered = tokio::io::BufReader::new(reader);
+        let decoder = compression.get_decompression_fn()(buffered);
+        Ok(Some((narinfo, decoder)))
+    }
+
+    /// Download and parse the `.ls` NAR listing for an output, if present.
+    ///
+    /// The listing is a small JSON object `{"root": <FileTree>}`; it carries
+    /// the file tree with per-file sizes and types but no contents or hashes.
+    /// Its compression is whatever was used at upload time, so honour the
+    /// object's `Content-Encoding` and only fall back to the configured
+    /// `ls_compression` when the header is absent.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn download_listing(
+        &self,
+        store_path: &StorePath,
+    ) -> Result<Option<harmonia_file_core::FileTree<harmonia_file_nar::NarFileInfo>>, CacheError>
+    {
+        use futures::StreamExt as _;
+        use tokio::io::AsyncReadExt as _;
+
+        let key = format!("{}.ls", store_path.hash());
+        let get_result = match self.s3.get(&object_store::path::Path::from(key)).await {
+            Ok(v) => v,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(CacheError::ObjectStore(e)),
+        };
+        self.s3_stats.get.fetch_add(1, Ordering::Relaxed);
+
+        let encoding = get_result
+            .attributes
+            .get(&object_store::Attribute::ContentEncoding)
+            .map(|v| v.as_ref().to_owned());
+        let compression: Compression = match encoding.as_deref() {
+            Some("") | None => self.cfg.ls_compression,
+            Some(e) => e.parse().map_err(|e: compression::InvalidCompression| {
+                CacheError::Other(format!("invalid listing compression: {e}"))
+            })?,
+        };
+
+        let byte_stream = get_result
+            .into_stream()
+            .map(|r| r.map_err(std::io::Error::other));
+        let reader = tokio_util::io::StreamReader::new(byte_stream);
+        let buffered = tokio::io::BufReader::new(reader);
+        let mut decoder = compression.get_decompression_fn()(buffered);
+
+        let mut bytes = Vec::new();
+        decoder
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|e| CacheError::Other(format!("reading listing: {e}")))?;
+
+        #[derive(serde::Deserialize)]
+        struct Listing {
+            root: harmonia_file_core::FileTree<harmonia_file_nar::NarFileInfo>,
+        }
+        let listing: Listing = serde_json::from_slice(&bytes)
+            .map_err(|e| CacheError::Other(format!("parsing listing JSON: {e}")))?;
+        Ok(Some(listing.root))
     }
 
     #[tracing::instrument(skip(self), err)]

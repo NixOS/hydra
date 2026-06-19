@@ -55,6 +55,8 @@ tower-http               = { workspace = true, features = [ "trace" ] }
 binary-cache.workspace                   = true
 daemon-client-utils.workspace            = true
 db.workspace                             = true
+harmonia-file-core.workspace             = true
+harmonia-file-nar.workspace              = true
 harmonia-protocol.workspace              = true
 harmonia-store-aterm.workspace           = true
 harmonia-store-content-address.workspace = true
@@ -68,11 +70,14 @@ hydra-proto                              = { workspace = true, features = [ "db"
 hydra-tracing                            = { workspace = true, features = [ "tonic" ] }
 local-nix-db.workspace                   = true
 nix-support.workspace                    = true
+sha2.workspace                           = true
 sqlx                                     = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
+store-path-utils.workspace               = true
 store-transfer.workspace                 = true
 
 [dev-dependencies]
-tempfile = "3.23.0"
+harmonia-file-nar = { workspace = true, features = [ "test" ] }
+tempfile          = "3.23.0"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true

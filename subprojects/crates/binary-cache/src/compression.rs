@@ -1,9 +1,15 @@
 use async_compression::{
     Level,
-    tokio::bufread::{BrotliEncoder, BzEncoder, XzEncoder, ZstdEncoder},
+    tokio::bufread::{
+        BrotliDecoder, BrotliEncoder, BzDecoder, BzEncoder, XzDecoder, XzEncoder, ZstdDecoder,
+        ZstdEncoder,
+    },
 };
 
 pub(crate) type CompressorFn<C> =
+    Box<dyn FnOnce(C) -> Box<dyn tokio::io::AsyncRead + Unpin + Send> + Send>;
+
+pub(crate) type DecompressorFn<C> =
     Box<dyn FnOnce(C) -> Box<dyn tokio::io::AsyncRead + Unpin + Send> + Send>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -66,6 +72,21 @@ impl Compression {
             Self::Bzip2 => Box::new(move |s| Box::new(BzEncoder::with_quality(s, level))),
             Self::Brotli => Box::new(move |s| Box::new(BrotliEncoder::with_quality(s, level))),
             Self::Zstd => Box::new(move |s| Box::new(ZstdEncoder::with_quality(s, level))),
+        }
+    }
+
+    /// Wrap a compressed byte stream in the matching decoder, yielding the
+    /// plaintext NAR bytes. Used when reading NARs back out of the cache.
+    #[must_use]
+    pub fn get_decompression_fn<C: tokio::io::AsyncBufRead + Unpin + Send + 'static>(
+        self,
+    ) -> DecompressorFn<C> {
+        match self {
+            Self::None => Box::new(|c| Box::new(c)),
+            Self::Xz => Box::new(|s| Box::new(XzDecoder::new(s))),
+            Self::Bzip2 => Box::new(|s| Box::new(BzDecoder::new(s))),
+            Self::Brotli => Box::new(|s| Box::new(BrotliDecoder::new(s))),
+            Self::Zstd => Box::new(|s| Box::new(ZstdDecoder::new(s))),
         }
     }
 }
