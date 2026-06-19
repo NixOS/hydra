@@ -212,18 +212,20 @@ impl Connection {
         Ok(())
     }
 
-    /// Finalize a single still-busy buildstep as aborted. Used to reconcile a
-    /// specific orphaned step in the DB without touching any other step.
+    /// Finalize a single still-busy buildstep with the given status. Used to
+    /// reconcile a specific orphaned step in the DB without touching any other
+    /// step.
     pub async fn clear_busy_step(
         &mut self,
         build_id: crate::models::BuildID,
         step_nr: i32,
         stop_time: i32,
+        status: BuildStatus,
     ) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 \
              WHERE build = $3 AND stepnr = $4 AND busy != 0;",
-            BuildStatus::Aborted as i32,
+            status as i32,
             Some(stop_time),
             build_id,
             step_nr,
@@ -1389,7 +1391,9 @@ mod tests {
         insert_busy(&mut conn, 1, 2, &sp("foo.drv")).await;
         insert_busy(&mut conn, 2, 1, &sp("bar.drv")).await;
 
-        conn.clear_busy_step(1, 1, 12345).await.unwrap();
+        conn.clear_busy_step(1, 1, 12345, BuildStatus::Aborted)
+            .await
+            .unwrap();
 
         let (busy, status) = busy_status(&mut conn, 1, 1).await;
         assert_eq!(busy, 0, "named step must be cleared");
@@ -1723,11 +1727,14 @@ mod tests {
         }
     }
 
-    /// The advisory lock makes a concurrent insert for the same build wait
-    /// for the open transaction and then pick the next step number. Without
-    /// it the insert returns `None` (ON CONFLICT DO NOTHING).
+    /// Two transactions inserting a step for the same build compute the same
+    /// stepnr (MAX+1) while the first is still open. The second blocks on the
+    /// unique index and, once the first commits, resolves to `None` via
+    /// ON CONFLICT DO NOTHING. The caller retries; a fresh insert then picks
+    /// the next number. The hot dispatch path avoids this collision with an
+    /// in-process per-build lock in the queue runner.
     #[tokio::test]
-    async fn concurrent_step_inserts_for_same_build_are_serialized() {
+    async fn concurrent_step_inserts_for_same_build_conflict() {
         let (_pg, pool) = test_utils::TestPg::new().await;
         let sd = test_store_dir();
 
@@ -1752,10 +1759,24 @@ mod tests {
             step
         });
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-        assert!(!task_b.is_finished(), "concurrent insert should block");
+        assert!(
+            !task_b.is_finished(),
+            "concurrent insert should block on the unique index"
+        );
 
         tx_a.commit().await.unwrap();
 
-        assert_eq!(task_b.await.unwrap(), Some(2));
+        // The blocked insert conflicts once the first transaction commits.
+        assert_eq!(task_b.await.unwrap(), None);
+
+        // After the conflict the caller retries; a fresh insert sees the
+        // committed row and picks the next number.
+        let mut tx_c = conn_a.begin_transaction().await.unwrap();
+        let step_c = tx_c
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        tx_c.commit().await.unwrap();
+        assert_eq!(step_c, Some(2));
     }
 }
