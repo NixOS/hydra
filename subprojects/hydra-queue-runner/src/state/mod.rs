@@ -638,35 +638,11 @@ impl State {
         self.construct_log_file_path(drv)
             .await
             .clone_into(&mut job.result.log_file);
+        // A Busy buildstep row is only cleared once the job is attached to a
+        // machine (build_drv) and finalized via succeed_step/fail_step. The
+        // input resolution below can fail or be cancelled before that point,
+        // so the row is created later, once dispatch is certain.
         let mut db = self.db.get().await?;
-        let step_nr = {
-            let _step_lock = self.build_step_lock(build_id).lock().await;
-            let mut tx = db.begin_transaction().await?;
-
-            let step_nr = tx
-                .create_build_step(
-                    self.connector.store_dir(),
-                    Some(job.result.get_start_time_as_i32()?),
-                    build_id,
-                    step_info.step.get_drv_path(),
-                    step_info.step.get_system().as_deref(),
-                    machine.hostname.clone(),
-                    BuildStatus::Busy,
-                    None,
-                    None,
-                    step_info
-                        .step
-                        .get_output_paths()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .collect(),
-                )
-                .await?;
-
-            tx.commit().await?;
-            step_nr
-        };
-        job.step_nr = step_nr;
 
         // Resolve derivation inputs: replace `Built` input references with
         // concrete output store paths using `try_resolve_force`. For
@@ -753,23 +729,31 @@ impl State {
                     .write()
                     .insert(drv.clone(), resolved_path.clone());
 
-                // Finish original step as "resolved" in the DB and in-memory
+                // Record the original step directly as Resolved.
                 step_info.step.set_finished(true);
-                let mut resolved_result = RemoteBuild::new();
-                resolved_result.step_status = BuildStatus::Resolved;
-                resolved_result.set_start_time_now();
-                resolved_result.set_stop_time_now();
-                resolved_result.log_file.clone_from(&job.result.log_file);
-                finish_build_step(
-                    &self.db,
-                    self.connector.store_dir(),
-                    build_id,
-                    step_nr,
-                    &resolved_result,
-                    Some(&machine.hostname),
-                    None,
-                )
-                .await?;
+                {
+                    let _step_lock = self.build_step_lock(build_id).lock().await;
+                    let mut tx = db.begin_transaction().await?;
+                    tx.create_build_step(
+                        self.connector.store_dir(),
+                        Some(job.result.get_start_time_as_i32()?),
+                        build_id,
+                        step_info.step.get_drv_path(),
+                        step_info.step.get_system().as_deref(),
+                        machine.hostname.clone(),
+                        BuildStatus::Resolved,
+                        None,
+                        None,
+                        step_info
+                            .step
+                            .get_output_paths()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .collect(),
+                    )
+                    .await?;
+                    tx.commit().await?;
+                }
 
                 // Only mark the resolved step as a direct build if the
                 // unresolved step was the toplevel derivation of the build.
@@ -866,6 +850,35 @@ impl State {
 
         // Encode the force-resolved derivation as protobuf to send to the builder.
         let resolved_drv = hydra_proto::nix::store::derivation::v1::Basic::from(&basic_drv);
+
+        // Input resolution succeeded; create the Busy row now that the step
+        // will be dispatched and finalized by succeed_step/fail_step.
+        let step_nr = {
+            let _step_lock = self.build_step_lock(build_id).lock().await;
+            let mut tx = db.begin_transaction().await?;
+            let step_nr = tx
+                .create_build_step(
+                    self.connector.store_dir(),
+                    Some(job.result.get_start_time_as_i32()?),
+                    build_id,
+                    step_info.step.get_drv_path(),
+                    step_info.step.get_system().as_deref(),
+                    machine.hostname.clone(),
+                    BuildStatus::Busy,
+                    None,
+                    None,
+                    step_info
+                        .step
+                        .get_output_paths()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .collect(),
+                )
+                .await?;
+            tx.commit().await?;
+            step_nr
+        };
+        job.step_nr = step_nr;
 
         {
             let mut tx = db.begin_transaction().await?;
