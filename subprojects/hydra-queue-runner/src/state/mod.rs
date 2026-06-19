@@ -518,7 +518,9 @@ impl State {
                     // Reconcile this machine's own orphaned buildstep row so
                     // the DB does not keep showing it busy until the next
                     // queue-runner restart.
-                    if let Err(e) = self.abort_orphaned_build_step(job.build_id, job.step_nr).await
+                    if let Err(e) = self
+                        .abort_orphaned_build_step(job.build_id, job.step_nr)
+                        .await
                     {
                         tracing::error!(
                             "Failed to clear orphaned busy step build_id={} step_nr={} e={e}",
@@ -553,6 +555,28 @@ impl State {
         let mut db = self.db.get().await?;
         db.clear_busy_step(build_id, step_nr, stop_time).await?;
         Ok(())
+    }
+
+    /// A builder reported for a step it no longer owns. Drop its defunct job to
+    /// free the slot and finalize its duplicate buildstep row. The current
+    /// owner's step has a different stepnr and is left untouched.
+    async fn reconcile_stale_reporter(&self, machine_id: uuid::Uuid, drv_path: &StorePath) {
+        let Some(machine) = self.machines.get_machine_by_id(machine_id) else {
+            return;
+        };
+        let Some(stale) = machine.remove_job(drv_path) else {
+            return;
+        };
+        if let Err(e) = self
+            .abort_orphaned_build_step(stale.build_id, stale.step_nr)
+            .await
+        {
+            tracing::error!(
+                "Failed to clear duplicate busy step build_id={} step_nr={} e={e}",
+                stale.build_id,
+                stale.step_nr,
+            );
+        }
     }
 }
 
@@ -904,6 +928,9 @@ impl State {
         };
         job.step_nr = step_nr;
 
+        // Finalize the Busy row if dispatch fails below; otherwise it lingers
+        // busy until restart while the step is re-dispatched under a new stepnr.
+        let dispatch_result: Result<(), StateError> = async {
         {
             let mut tx = db.begin_transaction().await?;
             tx.notify_build_started(build_id).await?;
@@ -947,6 +974,17 @@ impl State {
                 resolved_drv,
             )
             .await?;
+        Ok(())
+        }
+        .await;
+        if let Err(e) = dispatch_result {
+            if let Err(e2) = self.abort_orphaned_build_step(build_id, step_nr).await {
+                tracing::error!(
+                    "Failed to clear busy step after dispatch failure build_id={build_id} step_nr={step_nr} e={e2}"
+                );
+            }
+            return Err(e);
+        }
         self.metrics.nr_steps_started.inc();
         self.metrics.nr_steps_building.add(1);
         Ok(RealiseStepResult::Valid(machine))
@@ -1650,6 +1688,7 @@ impl State {
         // left the drv running on two builders, a stale report from the other
         // one must not finalize the wrong step or yank the owner's job.
         if item.machine.id != machine_id {
+            self.reconcile_stale_reporter(machine_id, drv_path).await;
             self.queues
                 .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
                 .await;
@@ -1978,6 +2017,7 @@ impl State {
 
         // Only the current owner may fail the step; see succeed_step.
         if item.machine.id != machine_id {
+            self.reconcile_stale_reporter(machine_id, drv_path).await;
             self.queues
                 .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
                 .await;
