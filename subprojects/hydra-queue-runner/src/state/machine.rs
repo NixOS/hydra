@@ -853,6 +853,11 @@ impl Machine {
             .map(|v| v.internal_build_id)
     }
 
+    #[tracing::instrument(skip(self), fields(%drv))]
+    pub fn get_job(&self, drv: &StorePath) -> Option<Job> {
+        self.jobs.read().iter().find(|j| &j.path == drv).cloned()
+    }
+
     #[tracing::instrument(skip(self, job))]
     fn insert_job(&self, job: Job) {
         let mut jobs = self.jobs.write();
