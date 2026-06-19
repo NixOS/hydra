@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE build = $3 AND stepnr = $4 AND busy != 0;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9762d77d8c8402b8d03de0b8722ed6c8c26855a569dab01ce883be856581560c"
+}
