@@ -626,20 +626,31 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<PresignedUrlRequest>,
     ) -> BuilderResult<PresignedUrlResponse> {
-        let _state = self.state.clone();
+        let state = self.state.clone();
         let req = req.into_inner();
 
-        let _build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
+        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
             tracing::error!("Failed to parse build_id into uuid: {e}");
             tonic::Status::invalid_argument("build_id is not a valid uuid.")
         })?;
-        let _machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
+        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
             tracing::error!("Failed to parse machine_id into uuid: {e}");
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
+        // Only a builder that owns a running job for this build may mint an
+        // upload URL, so a stale or reclaimed-from builder cannot publish
+        // outputs for a step it no longer owns.
+        let machine = state
+            .machines
+            .get_machine_by_id(machine_id)
+            .ok_or_else(|| tonic::Status::not_found("Machine not found"))?;
+        machine
+            .get_job_drv_for_build_id(build_id)
+            .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
+
         let remote_store = {
-            let remote_stores = _state.remote_stores.read();
+            let remote_stores = state.remote_stores.read();
             remote_stores
                 .iter()
                 .find_map(|s| match s {
