@@ -551,9 +551,20 @@ impl State {
         build_id: BuildID,
         step_nr: i32,
     ) -> Result<(), db::Error> {
+        self.finalize_orphaned_build_step(build_id, step_nr, BuildStatus::Aborted)
+            .await
+    }
+
+    async fn finalize_orphaned_build_step(
+        &self,
+        build_id: BuildID,
+        step_nr: i32,
+        status: BuildStatus,
+    ) -> Result<(), db::Error> {
         let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
         let mut db = self.db.get().await?;
-        db.clear_busy_step(build_id, step_nr, stop_time).await?;
+        db.clear_busy_step(build_id, step_nr, stop_time, status)
+            .await?;
         Ok(())
     }
 
@@ -567,9 +578,15 @@ impl State {
     }
 
     /// A builder reported for a step it no longer owns. Drop its defunct job to
-    /// free the slot and finalize its duplicate buildstep row. The current
-    /// owner's step has a different stepnr and is left untouched.
-    async fn reconcile_stale_reporter(&self, machine_id: uuid::Uuid, drv_path: &StorePath) {
+    /// free the slot and finalize its duplicate buildstep row with the status
+    /// the builder actually reported. The current owner's step has a different
+    /// stepnr and is left untouched.
+    async fn reconcile_stale_reporter(
+        &self,
+        machine_id: uuid::Uuid,
+        drv_path: &StorePath,
+        reported: BuildStatus,
+    ) {
         let Some(machine) = self.machines.get_machine_by_id(machine_id) else {
             return;
         };
@@ -577,7 +594,7 @@ impl State {
             return;
         };
         if let Err(e) = self
-            .abort_orphaned_build_step(stale.build_id, stale.step_nr)
+            .finalize_orphaned_build_step(stale.build_id, stale.step_nr, reported)
             .await
         {
             tracing::error!(
@@ -1687,9 +1704,12 @@ impl State {
         output: BuildOutput,
     ) -> Result<(), StateError> {
         tracing::info!("marking job as done: drv_path={drv_path}");
+        // Keep the step owned until the DB row is finalized below, so it is not
+        // re-dispatched mid-finalize and a finish_build_step error cannot leave
+        // a half-removed, still-busy, re-dispatchable step.
         let item = self
             .queues
-            .remove_job_from_scheduled(drv_path)
+            .peek_scheduled(drv_path)
             .await
             .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
 
@@ -1697,9 +1717,7 @@ impl State {
         // left the drv running on two builders, a stale report from the other
         // one must not finalize the wrong step or yank the owner's job.
         if item.machine.id != machine_id {
-            self.reconcile_stale_reporter(machine_id, drv_path).await;
-            self.queues
-                .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
+            self.reconcile_stale_reporter(machine_id, drv_path, BuildStatus::Success)
                 .await;
             return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
                 scheduled: item.machine.id,
@@ -1737,16 +1755,9 @@ impl State {
             }
         }
 
-        tracing::debug!(
-            "removing job from machine: drv_path={drv_path} m={}",
-            item.machine.id
-        );
-        let mut job = item.machine.remove_job(drv_path).ok_or_else(|| {
+        let mut job = item.machine.get_job(drv_path).ok_or_else(|| {
             StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
         })?;
-        self.queues
-            .remove_job(&item.step_info, &item.build_queue)
-            .await;
 
         job.result.step_status = BuildStatus::Success;
         job.result.set_stop_time_now();
@@ -1769,6 +1780,14 @@ impl State {
             Some(&output.outputs),
         )
         .await?;
+
+        // DB row finalized; release ownership. The step stays finished, so the
+        // dispatch loop will not re-pick it.
+        item.machine.remove_job(drv_path);
+        self.queues.remove_job_from_scheduled(drv_path).await;
+        self.queues
+            .remove_job(&item.step_info, &item.build_queue)
+            .await;
 
         // Copy outputs to non-S3 stores via `nix copy`.
         {
@@ -2029,7 +2048,8 @@ impl State {
 
         // Only the current owner may fail the step; see succeed_step.
         if item.machine.id != machine_id {
-            self.reconcile_stale_reporter(machine_id, drv_path).await;
+            self.reconcile_stale_reporter(machine_id, drv_path, BuildStatus::Failed)
+                .await;
             return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
                 scheduled: item.machine.id,
                 reporting: machine_id,
