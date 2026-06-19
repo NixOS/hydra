@@ -486,7 +486,6 @@ impl BuildOutput {
         };
         let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
             connector.store_dir(),
-            real_store_dir,
             &fs,
             &resolved,
         ))
