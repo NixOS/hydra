@@ -261,6 +261,10 @@ impl InnerQueues {
         Some(item)
     }
 
+    fn peek_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
+        self.scheduled.read().get(drv).cloned()
+    }
+
     fn remove_job_by_path(&mut self, drv: &StorePath) {
         if let Some(j) = self.jobs.remove(drv) {
             j.step.clear_queued();
@@ -577,6 +581,12 @@ impl Queues {
     pub async fn remove_job_from_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
         let rq = self.inner.read().await;
         rq.remove_job_from_scheduled(drv)
+    }
+
+    /// Look up a scheduled step without releasing it, so it stays owned and
+    /// cannot be re-dispatched while the caller decides what to do with it.
+    pub async fn peek_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
+        self.inner.read().await.peek_scheduled(drv)
     }
 
     pub async fn remove_job_by_path(&self, drv: &StorePath) {

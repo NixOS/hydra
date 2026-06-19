@@ -557,6 +557,15 @@ impl State {
         Ok(())
     }
 
+    /// Release a step from its current owner: clear finished, drop the
+    /// machine's job and the scheduled entry. The DB row must already be
+    /// finalized by the caller.
+    async fn release_scheduled_step(&self, item: &queue::ScheduledItem, drv_path: &StorePath) {
+        item.step_info.step.set_finished(false);
+        item.machine.remove_job(drv_path);
+        self.queues.remove_job_from_scheduled(drv_path).await;
+    }
+
     /// A builder reported for a step it no longer owns. Drop its defunct job to
     /// free the slot and finalize its duplicate buildstep row. The current
     /// owner's step has a different stepnr and is left untouched.
@@ -2009,31 +2018,25 @@ impl State {
         error_msg: Option<String>,
     ) -> Result<(), StateError> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
+        // Keep the step owned until the DB row is finalized below, so it is not
+        // re-dispatched mid-fail and a finish_build_step error cannot leave a
+        // half-removed, still-busy, re-dispatchable step.
         let item = self
             .queues
-            .remove_job_from_scheduled(drv_path)
+            .peek_scheduled(drv_path)
             .await
             .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
 
         // Only the current owner may fail the step; see succeed_step.
         if item.machine.id != machine_id {
             self.reconcile_stale_reporter(machine_id, drv_path).await;
-            self.queues
-                .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
-                .await;
             return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
                 scheduled: item.machine.id,
                 reporting: machine_id,
             }));
         }
 
-        item.step_info.step.set_finished(false);
-
-        tracing::debug!(
-            "removing job from machine: drv_path={drv_path} m={}",
-            item.machine.id
-        );
-        let mut job = item.machine.remove_job(drv_path).ok_or_else(|| {
+        let mut job = item.machine.get_job(drv_path).ok_or_else(|| {
             StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
         })?;
 
@@ -2078,8 +2081,8 @@ impl State {
                     self.metrics.max_nr_retries.set(i64::from(tries));
                 }
 
-                item.step_info.set_already_scheduled(false);
-
+                // Finalize the DB row while still owned; on error nothing is
+                // mutated in-memory and the fail is retried later.
                 finish_build_step(
                     &self.db,
                     self.connector.store_dir(),
@@ -2090,12 +2093,17 @@ impl State {
                     None,
                 )
                 .await?;
+                // Release ownership; set_after above makes the dispatch loop
+                // skip it until the backoff elapses.
+                self.release_scheduled_step(&item, drv_path).await;
                 self.trigger_dispatch();
                 return Ok(());
             }
         }
 
-        // remove job from queues, aka actually fail the job
+        // Permanent failure: release ownership, then fail the job and its
+        // dependents. inner_fail_job finalizes the DB row.
+        self.release_scheduled_step(&item, drv_path).await;
         self.queues
             .remove_job(&item.step_info, &item.build_queue)
             .await;
