@@ -27,7 +27,7 @@
 use std::{collections::BTreeMap, os::unix::fs::MetadataExt as _, sync::LazyLock};
 
 use sha2::{Digest as _, Sha256};
-use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, BufReader};
+use tokio::io::{AsyncReadExt as _, BufReader};
 
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
@@ -103,6 +103,11 @@ pub trait FsOperations {
         &self,
         path: &RelativeStorePath,
     ) -> impl Future<Output = Option<harmonia_utils_hash::Sha256>>;
+
+    /// Read the full contents of a (small) regular file, e.g. one of the
+    /// `nix-support/*` metadata files. Returns `None` if the file is absent
+    /// or not readable.
+    fn read_file(&self, path: &RelativeStorePath) -> impl Future<Output = Option<Vec<u8>>>;
 }
 
 /// Real filesystem implementation of [`FsOperations`].
@@ -147,6 +152,11 @@ impl FsOperations for FilesystemOperations {
         let digest = hasher.finalize();
         harmonia_utils_hash::Sha256::from_slice(&digest).ok()
     }
+
+    async fn read_file(&self, path: &RelativeStorePath) -> Option<Vec<u8>> {
+        let real = self.resolve(path);
+        fs_err::tokio::read(&real).await.ok()
+    }
 }
 
 fn parse_release_name(content: &str) -> Option<String> {
@@ -173,11 +183,6 @@ fn parse_metric(line: &str) -> Option<(BuildMetricName, BuildMetric)> {
     };
 
     Some((fields[0].to_owned(), BuildMetric { unit, value }))
-}
-
-/// Resolve a store path to a filesystem path.
-fn real_path(store_dir: &std::path::Path, path: &StorePath) -> std::path::PathBuf {
-    store_dir.join(path.to_string())
 }
 
 async fn parse_build_product<F: FsOperations>(
@@ -267,50 +272,44 @@ impl NixSupport {
 /// `store_dir` is the logical store directory (e.g. `/nix/store`), used to
 /// parse paths found inside `hydra-build-products` files.
 ///
-/// `real_store_dir` is where the store objects actually live on the filesystem.
-///
-/// `fs` provides filesystem access for build product metadata and hashing
-/// (see [`FilesystemOperations`] for the real implementation).
+/// `fs` provides all file access (reading the `nix-support/*` files, build
+/// product metadata and hashing). [`FilesystemOperations`] reads from the
+/// real store; other implementations can read from a NAR stream instead.
 pub async fn parse_nix_support_for_output<F: FsOperations>(
     store_dir: &harmonia_store_path::StoreDir,
-    real_store_dir: &std::path::Path,
     fs: &F,
     output_name: &OutputName,
     output: &StorePath,
 ) -> std::io::Result<NixSupport> {
-    let output_full_path = real_path(real_store_dir, output);
+    let ns_file = |name: &str| RelativeStorePath {
+        base_path: output.clone(),
+        relative_path: format!("nix-support/{name}").into(),
+    };
 
     let mut metrics = BTreeMap::new();
-    let file_path = output_full_path.join("nix-support/hydra-metrics");
-    if let Ok(file) = fs_err::tokio::File::open(&file_path).await {
-        let reader = BufReader::new(file);
-        let mut lines = reader.lines();
-        while let Some(line) = lines.next_line().await? {
-            if let Some((name, m)) = parse_metric(&line) {
+    if let Some(contents) = fs.read_file(&ns_file("hydra-metrics")).await
+        && let Ok(text) = std::str::from_utf8(&contents)
+    {
+        for line in text.lines() {
+            if let Some((name, m)) = parse_metric(line) {
                 metrics.insert(name, m);
             }
         }
     }
 
-    let failed = fs_err::tokio::try_exists(output_full_path.join("nix-support/failed"))
-        .await
-        .unwrap_or_default();
+    let failed = fs.get_file_info(&ns_file("failed")).await.is_some();
 
-    let hydra_release_name = if let Ok(v) =
-        fs_err::tokio::read_to_string(output_full_path.join("nix-support/hydra-release-name")).await
-    {
-        parse_release_name(&v)
-    } else {
-        None
-    };
+    let hydra_release_name = fs
+        .read_file(&ns_file("hydra-release-name"))
+        .await
+        .and_then(|v| String::from_utf8(v).ok())
+        .and_then(|v| parse_release_name(&v));
 
     let mut products = Vec::new();
-    let products_path = output_full_path.join("nix-support/hydra-build-products");
-    if let Ok(file) = fs_err::tokio::File::open(&products_path).await {
-        let reader = BufReader::new(file);
-        let mut lines = reader.lines();
-        while let Some(line) = lines.next_line().await? {
-            if let Some(o) = Box::pin(parse_build_product(store_dir, fs, &line)).await {
+    if let Some(contents) = fs.read_file(&ns_file("hydra-build-products")).await {
+        let text = std::str::from_utf8(&contents).unwrap_or_default();
+        for line in text.lines() {
+            if let Some(o) = Box::pin(parse_build_product(store_dir, fs, line)).await {
                 products.push(o);
             }
         }
@@ -351,13 +350,12 @@ pub async fn parse_nix_support_for_output<F: FsOperations>(
 /// Parse `nix-support/` files from all outputs, returning per-output data.
 pub async fn parse_nix_support_from_outputs<F: FsOperations>(
     store_dir: &harmonia_store_path::StoreDir,
-    real_store_dir: &std::path::Path,
     fs: &F,
     derivation_outputs: &BTreeMap<OutputName, StorePath>,
 ) -> std::io::Result<BTreeMap<OutputName, NixSupport>> {
     let mut result = BTreeMap::new();
     for (name, path) in derivation_outputs {
-        let ns = parse_nix_support_for_output(store_dir, real_store_dir, fs, name, path).await?;
+        let ns = parse_nix_support_for_output(store_dir, fs, name, path).await?;
         result.insert(name.clone(), ns);
     }
     Ok(result)
@@ -387,6 +385,10 @@ mod tests {
 
         async fn hash_file(&self, _: &RelativeStorePath) -> Option<harmonia_utils_hash::Sha256> {
             self.file_hash
+        }
+
+        async fn read_file(&self, _: &RelativeStorePath) -> Option<Vec<u8>> {
+            None
         }
     }
 
