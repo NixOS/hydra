@@ -1598,6 +1598,12 @@ pub enum StepLookupError {
 
     #[error("job is missing in machine.jobs m={0}")]
     JobNotOnMachine(String),
+
+    #[error("step is owned by a different machine (scheduled={scheduled}, reporting={reporting})")]
+    StepOwnedByOtherMachine {
+        scheduled: uuid::Uuid,
+        reporting: uuid::Uuid,
+    },
 }
 
 impl State {
@@ -1615,6 +1621,19 @@ impl State {
             .remove_job_from_scheduled(drv_path)
             .await
             .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+
+        // Only the current owner may finalize the step. If a duplicate dispatch
+        // left the drv running on two builders, a stale report from the other
+        // one must not finalize the wrong step or yank the owner's job.
+        if item.machine.id != machine_id {
+            self.queues
+                .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
+                .await;
+            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
+                scheduled: item.machine.id,
+                reporting: machine_id,
+            }));
+        }
 
         item.step_info.step.set_finished(true);
 
@@ -1932,6 +1951,17 @@ impl State {
             .remove_job_from_scheduled(drv_path)
             .await
             .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+
+        // Only the current owner may fail the step; see succeed_step.
+        if item.machine.id != machine_id {
+            self.queues
+                .add_job_to_scheduled(&item.step_info, &item.build_queue, item.machine.clone())
+                .await;
+            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
+                scheduled: item.machine.id,
+                reporting: machine_id,
+            }));
+        }
 
         item.step_info.step.set_finished(false);
 
