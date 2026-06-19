@@ -568,13 +568,41 @@ impl State {
         Ok(())
     }
 
-    /// Release a step from its current owner: clear finished, drop the
-    /// machine's job and the scheduled entry. The DB row must already be
-    /// finalized by the caller.
-    async fn release_scheduled_step(&self, item: &queue::ScheduledItem, drv_path: &StorePath) {
-        item.step_info.step.set_finished(false);
-        item.machine.remove_job(drv_path);
-        self.queues.remove_job_from_scheduled(drv_path).await;
+    /// Resolve the scheduled step a builder is reporting on, rejecting any
+    /// reporter that is not its current owner. The returned `StepGuard`
+    /// reconciles the busy row if dropped before the caller finalizes and
+    /// disarms it.
+    async fn claim_owned_step(
+        &self,
+        machine_id: uuid::Uuid,
+        drv_path: &StorePath,
+        reported: BuildStatus,
+    ) -> Result<(StepGuard, queue::ScheduledItem, machine::Job), StateError> {
+        let item = self
+            .queues
+            .peek_scheduled(drv_path)
+            .await
+            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+        if item.machine.id != machine_id {
+            self.reconcile_stale_reporter(machine_id, drv_path, reported)
+                .await;
+            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
+                scheduled: item.machine.id,
+                reporting: machine_id,
+            }));
+        }
+        let job = item.machine.get_job(drv_path).ok_or_else(|| {
+            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
+        })?;
+        let guard = StepGuard {
+            db: self.db.clone(),
+            queues: self.queues.clone(),
+            drv: drv_path.clone(),
+            build_id: job.build_id,
+            step_nr: job.step_nr,
+            armed: true,
+        };
+        Ok((guard, item, job))
     }
 
     /// A builder reported for a step it no longer owns. Drop its defunct job to
@@ -603,6 +631,59 @@ impl State {
                 stale.step_nr,
             );
         }
+    }
+}
+
+/// Liveness guard for the step a builder is reporting on. Dropped while armed,
+/// it reconciles the orphaned busy row and releases the scheduled slot, so an
+/// early return, `?`, or panic before finalize cannot leave the step busy
+/// until the next queue-runner restart. The caller disarms it once the row is
+/// finalized and the slot released.
+struct StepGuard {
+    db: db::Database,
+    queues: Queues,
+    drv: StorePath,
+    build_id: BuildID,
+    step_nr: i32,
+    armed: bool,
+}
+
+impl StepGuard {
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for StepGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let db = self.db.clone();
+        let queues = self.queues.clone();
+        let build_id = self.build_id;
+        let step_nr = self.step_nr;
+        let drv = self.drv.clone();
+        tokio::spawn(async move {
+            tracing::warn!(
+                "step guard dropped while armed; reconciling build_id={build_id} step_nr={step_nr} drv={drv}"
+            );
+            let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+            match db.get().await {
+                Ok(mut conn) => {
+                    if let Err(e) = conn
+                        .clear_busy_step(build_id, step_nr, stop_time, BuildStatus::Aborted)
+                        .await
+                    {
+                        tracing::error!(
+                            "step claim drop: clear_busy_step build_id={build_id} step_nr={step_nr} e={e}"
+                        );
+                    }
+                }
+                Err(e) => tracing::error!("step claim drop: db.get build_id={build_id} e={e}"),
+            }
+            queues.remove_job_from_scheduled(&drv).await;
+        });
     }
 }
 
@@ -1704,26 +1785,11 @@ impl State {
         output: BuildOutput,
     ) -> Result<(), StateError> {
         tracing::info!("marking job as done: drv_path={drv_path}");
-        // Keep the step owned until the DB row is finalized below, so it is not
-        // re-dispatched mid-finalize and a finish_build_step error cannot leave
-        // a half-removed, still-busy, re-dispatchable step.
-        let item = self
-            .queues
-            .peek_scheduled(drv_path)
-            .await
-            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
-
-        // Only the current owner may finalize the step. If a duplicate dispatch
-        // left the drv running on two builders, a stale report from the other
-        // one must not finalize the wrong step or yank the owner's job.
-        if item.machine.id != machine_id {
-            self.reconcile_stale_reporter(machine_id, drv_path, BuildStatus::Success)
-                .await;
-            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
-                scheduled: item.machine.id,
-                reporting: machine_id,
-            }));
-        }
+        // Peek (not remove) so the step cannot be re-dispatched mid-finalize;
+        // the guard reconciles the row if an early return precedes disarm.
+        let (mut guard, item, mut job) = self
+            .claim_owned_step(machine_id, drv_path, BuildStatus::Success)
+            .await?;
 
         item.step_info.step.set_finished(true);
 
@@ -1755,10 +1821,6 @@ impl State {
             }
         }
 
-        let mut job = item.machine.get_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
-
         job.result.step_status = BuildStatus::Success;
         job.result.set_stop_time_now();
         job.result.set_overhead(output.timings.get_overhead())?;
@@ -1781,13 +1843,14 @@ impl State {
         )
         .await?;
 
-        // DB row finalized; release ownership. The step stays finished, so the
-        // dispatch loop will not re-pick it.
+        // Row finalized; release ownership and disarm. The step stays finished,
+        // so the dispatch loop will not re-pick it.
         item.machine.remove_job(drv_path);
         self.queues.remove_job_from_scheduled(drv_path).await;
         self.queues
             .remove_job(&item.step_info, &item.build_queue)
             .await;
+        guard.disarm();
 
         // Copy outputs to non-S3 stores via `nix copy`.
         {
@@ -2037,28 +2100,11 @@ impl State {
         error_msg: Option<String>,
     ) -> Result<(), StateError> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
-        // Keep the step owned until the DB row is finalized below, so it is not
-        // re-dispatched mid-fail and a finish_build_step error cannot leave a
-        // half-removed, still-busy, re-dispatchable step.
-        let item = self
-            .queues
-            .peek_scheduled(drv_path)
-            .await
-            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
-
-        // Only the current owner may fail the step; see succeed_step.
-        if item.machine.id != machine_id {
-            self.reconcile_stale_reporter(machine_id, drv_path, BuildStatus::Failed)
-                .await;
-            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
-                scheduled: item.machine.id,
-                reporting: machine_id,
-            }));
-        }
-
-        let mut job = item.machine.get_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
+        // Peek (not remove) so the step cannot be re-dispatched mid-fail; the
+        // guard reconciles the row if an early return precedes disarm.
+        let (mut guard, item, mut job) = self
+            .claim_owned_step(machine_id, drv_path, BuildStatus::Failed)
+            .await?;
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
@@ -2078,31 +2124,21 @@ impl State {
         let (max_retries, retry_interval, retry_backoff) = self.config.get_retry();
 
         if job.result.can_retry {
-            item.step_info
-                .step
-                .atomic_state
-                .tries
-                .fetch_add(1, Ordering::Relaxed);
-            let tries = item
-                .step_info
-                .step
-                .atomic_state
-                .tries
-                .load(Ordering::Relaxed);
+            let step = &item.step_info.step;
+            step.atomic_state.tries.fetch_add(1, Ordering::Relaxed);
+            let tries = step.atomic_state.tries.load(Ordering::Relaxed);
             if tries < max_retries {
                 self.metrics.nr_retries.inc();
                 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
                 let delta = (retry_interval * retry_backoff.powf((tries - 1) as f32)) as i64;
                 tracing::info!("will retry '{drv_path}' after {delta}s");
-                item.step_info
-                    .step
-                    .set_after(jiff::Timestamp::now() + jiff::SignedDuration::from_secs(delta));
+                step.set_after(jiff::Timestamp::now() + jiff::SignedDuration::from_secs(delta));
                 if i64::from(tries) > self.metrics.max_nr_retries.get() {
                     self.metrics.max_nr_retries.set(i64::from(tries));
                 }
 
-                // Finalize the DB row while still owned; on error nothing is
-                // mutated in-memory and the fail is retried later.
+                // Finalize the row while still owned; set_after above makes the
+                // dispatch loop skip it until the backoff elapses.
                 finish_build_step(
                     &self.db,
                     self.connector.store_dir(),
@@ -2113,28 +2149,33 @@ impl State {
                     None,
                 )
                 .await?;
-                // Release ownership; set_after above makes the dispatch loop
-                // skip it until the backoff elapses.
-                self.release_scheduled_step(&item, drv_path).await;
+                step.set_finished(false);
+                item.machine.remove_job(drv_path);
+                self.queues.remove_job_from_scheduled(drv_path).await;
+                guard.disarm();
                 self.trigger_dispatch();
                 return Ok(());
             }
         }
 
         // Permanent failure: release ownership, then fail the job and its
-        // dependents. inner_fail_job finalizes the DB row.
-        self.release_scheduled_step(&item, drv_path).await;
+        // dependents. inner_fail_job finalizes the row, so disarm only once it
+        // succeeds; otherwise the guard reconciles the still-busy row.
+        item.step_info.step.set_finished(false);
+        item.machine.remove_job(drv_path);
+        self.queues.remove_job_from_scheduled(drv_path).await;
         self.queues
             .remove_job(&item.step_info, &item.build_queue)
             .await;
 
-        self.inner_fail_job(
-            drv_path,
-            Some(item.machine),
-            job,
-            item.step_info.step.clone(),
-        )
-        .await
+        let step = item.step_info.step.clone();
+        let result = self
+            .inner_fail_job(drv_path, Some(item.machine), job, step)
+            .await;
+        if result.is_ok() {
+            guard.disarm();
+        }
+        result
     }
 }
 
