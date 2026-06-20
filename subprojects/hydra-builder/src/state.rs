@@ -92,7 +92,6 @@ pub struct Config {
     pub cpu_psi_threshold: f32,
     pub mem_psi_threshold: f32,
     pub io_psi_threshold: Option<f32>,
-    pub gcroots: std::path::PathBuf,
     pub systems: Vec<String>,
     pub supported_features: Vec<String>,
     pub mandatory_features: Vec<String>,
@@ -131,31 +130,9 @@ pub struct State {
     nar_upload_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
-#[derive(Debug)]
-struct Gcroot {
-    root: std::path::PathBuf,
-}
-
-impl Gcroot {
-    pub(crate) fn new(path: std::path::PathBuf) -> std::io::Result<Self> {
-        fs_err::create_dir_all(&path)?;
-        Ok(Self { root: path })
-    }
-}
-
-impl std::fmt::Display for Gcroot {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.root.display())
-    }
-}
-
-impl Drop for Gcroot {
-    fn drop(&mut self) {
-        if self.root.exists() {
-            let _ = fs_err::remove_dir_all(&self.root);
-        }
-    }
-}
+/// A daemon connection whose temporary roots keep a build's paths alive for
+/// the lifetime of one build. The roots are released when it is dropped.
+type TempRoots = Arc<tokio::sync::Mutex<daemon_client_utils::DaemonConn>>;
 
 impl State {
     #[tracing::instrument(err)]
@@ -164,17 +141,6 @@ impl State {
             crate::nix_config::NixConfig::load().map_err(BuilderError::LoadNixConfig)?;
         let nix_remote =
             daemon_client_utils::parse_nix_remote().map_err(BuilderError::ParseNixStore)?;
-
-        let logname =
-            std::env::var("LOGNAME").map_err(|_| BuilderError::MissingEnvVar("LOGNAME"))?;
-        let gcroots = nix_remote
-            .state_dir
-            .join("gcroots/per-user")
-            .join(logname)
-            .join("hydra-roots/builder");
-        fs_err::tokio::create_dir_all(&gcroots)
-            .await
-            .map_err(BuilderError::CreateGcroots)?;
 
         let connector = daemon_client_utils::DaemonConnector::new(
             nix_remote.socket.clone(),
@@ -203,7 +169,6 @@ impl State {
                 cpu_psi_threshold: cli.cpu_psi_threshold,
                 mem_psi_threshold: cli.mem_psi_threshold,
                 io_psi_threshold: cli.io_psi_threshold,
-                gcroots,
                 systems: cli.systems.as_ref().map_or_else(
                     || {
                         let mut out = Vec::with_capacity(8);
@@ -531,10 +496,16 @@ impl State {
             .0;
 
         let before_import = Instant::now();
-        let gcroot_prefix = uuid::Uuid::new_v4().to_string();
-        let gcroot = self
-            .get_gcroot(&gcroot_prefix)
-            .map_err(|e| JobFailure::Preparing(e.into()))?;
+        // One daemon connection holds temp roots on every input (and output)
+        // for the whole build, pinning their closures race-free against a
+        // concurrent garbage collection; the roots release when this function
+        // returns and the connection drops.
+        let roots: TempRoots = Arc::new(tokio::sync::Mutex::new(
+            self.connector
+                .connect()
+                .await
+                .map_err(|e| JobFailure::Preparing(e.into()))?,
+        ));
 
         let mut client = self.client.clone();
         let _ = client // we ignore the error here, as this step status has no prio
@@ -571,7 +542,7 @@ impl State {
             &self.local_db,
             self.connector.clone(),
             self.metrics.clone(),
-            &gcroot,
+            &roots,
             &drv,
             requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
@@ -610,7 +581,8 @@ impl State {
             .collect();
 
         for o in outputs.values() {
-            add_gc_root(&gcroot.root, self.connector.store_dir(), o);
+            // Pin outputs so they survive until they are uploaded.
+            pin_path(&roots, o).await;
         }
 
         timings.build_elapsed = before_build.elapsed();
@@ -692,11 +664,6 @@ impl State {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
-    fn get_gcroot(&self, prefix: &str) -> std::io::Result<Gcroot> {
-        Gcroot::new(self.config.gcroots.join(prefix))
-    }
-
     #[tracing::instrument(skip(self))]
     fn publish_builds_to_sd_notify(&self) {
         let active = {
@@ -715,13 +682,6 @@ impl State {
             }),
             sd_notify::NotifyState::Ready,
         ]);
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn clear_gcroots(&self) -> std::io::Result<()> {
-        fs_err::tokio::remove_dir_all(&self.config.gcroots).await?;
-        fs_err::tokio::create_dir_all(&self.config.gcroots).await?;
-        Ok(())
     }
 
     pub fn enable_halt(&self) {
@@ -763,32 +723,39 @@ impl State {
     }
 }
 
-#[tracing::instrument(skip(local_db, connector), fields(%gcroot, %path))]
+/// Pin `path` and its closure with a temp root on the shared build connection.
+/// Returns false if it could not be rooted (e.g. raced by a collection), so the
+/// caller re-fetches it. Temp roots are taken under the daemon's GC lock, so
+/// unlike a gcroot symlink they cannot race a concurrent collection.
+async fn pin_path(roots: &TempRoots, path: &StorePath) -> bool {
+    roots.lock().await.add_temp_root(path).await.is_ok()
+}
+
+#[tracing::instrument(skip(local_db, roots), fields(%path))]
 async fn is_path_missing(
     local_db: &LocalNixDb,
-    connector: &daemon_client_utils::DaemonConnector,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     path: StorePath,
 ) -> eyre::Result<Option<StorePath>> {
-    if local_db.is_valid_path(&path).await? {
-        add_gc_root(&gcroot.root, connector.store_dir(), &path);
+    // Take the temp root *before* checking validity.
+    // `add_temp_root` succeeds even for an invalid (already-collected) path
+    if  pin_path(roots, &path).await && local_db.is_valid_path(&path).await? {
         Ok(None)
     } else {
         Ok(Some(path))
     }
 }
 
-/// Keep only paths not yet present in the local store.
+/// Keep only paths not present locally (or that could not be pinned).
 async fn filter_missing(
     local_db: &LocalNixDb,
-    connector: &daemon_client_utils::DaemonConnector,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     paths: Vec<StorePath>,
     concurrency: usize,
 ) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-        is_path_missing(local_db, connector, gcroot, p)
+        is_path_missing(local_db, roots, p)
     })
     .buffered(concurrency)
     .collect::<Vec<_>>()
@@ -796,20 +763,6 @@ async fn filter_missing(
     .into_iter()
     .collect::<eyre::Result<Vec<_>>>()
     .map(|v| v.into_iter().flatten().collect())
-}
-
-/// Create a GC root symlink for a store path.
-///
-/// The symlink target uses the logical store dir, which may dangle
-/// outside a chroot but is correct inside it.
-fn add_gc_root(
-    gcroot_dir: &std::path::Path,
-    store_dir: &harmonia_store_path::StoreDir,
-    path: &StorePath,
-) {
-    let link = gcroot_dir.join(path.to_string());
-    let target = store_dir.display(path).to_string();
-    let _ = fs_err::os::unix::fs::symlink(target, &link);
 }
 
 /// Render a build failure for the journal and the queue runner: `{:#}` gives
@@ -900,20 +853,20 @@ async fn substitute_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, local_db, connector, metrics), fields(%gcroot), err)]
+#[tracing::instrument(skip(client, local_db, connector, metrics), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
     local_db: &LocalNixDb,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     paths: Vec<StorePath>,
     filter: bool,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
     let paths = if filter {
-        filter_missing(local_db, &connector, gcroot, paths, 10).await?
+        filter_missing(local_db, roots, paths, 10).await?
     } else {
         paths
     };
@@ -921,7 +874,7 @@ async fn import_paths(
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&connector, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = filter_missing(local_db, &connector, gcroot, paths, 10).await?;
+        let paths = filter_missing(local_db, roots, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -951,11 +904,9 @@ async fn import_paths(
     let mut conn = connector.connect().await?;
     let imported = store_transfer::import::import(&mut conn, stream).await?;
 
-    // Create GC roots while still holding the connection — the
-    // imported paths are temp-rooted on this connection and can't
-    // be GC'd until we release it.
+    // Pin the freshly imported paths race-free.
     for p in &imported {
-        add_gc_root(&gcroot.root, connector.store_dir(), p);
+        pin_path(roots, p).await;
     }
     drop(conn);
 
@@ -964,27 +915,20 @@ async fn import_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, connector, metrics, requisites), fields(%gcroot, %drv), err)]
+#[tracing::instrument(skip(client, connector, metrics, requisites), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
     local_db: &LocalNixDb,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     drv: &StorePath,
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
-    let requisites = filter_missing(
-        local_db,
-        &connector,
-        gcroot,
-        requisites.into_iter().collect(),
-        50,
-    )
-    .await?;
+    let requisites = filter_missing(local_db, roots, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -995,7 +939,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             local_db,
             connector.clone(),
             metrics.clone(),
-            gcroot,
+            roots,
             srcs.to_vec(),
             true,
             use_substitutes,
@@ -1009,7 +953,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             local_db,
             connector.clone(),
             metrics.clone(),
-            gcroot,
+            roots,
             drvs.to_vec(),
             true,
             false, // never use substitute for drvs
