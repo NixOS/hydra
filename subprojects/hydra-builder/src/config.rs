@@ -40,6 +40,11 @@ pub struct Cli {
     #[clap(long, default_value_t = 4)]
     pub max_jobs: u32,
 
+    /// Number of cores to make available to each build (`NIX_BUILD_CORES`).
+    /// 0 means use all available cores on the machine.
+    #[clap(long, default_value_t = 0)]
+    pub build_cores: u32,
+
     /// build dir available storage percentage Threshold
     #[clap(long, default_value_t = 10.)]
     pub build_dir_avail_threshold: f32,
