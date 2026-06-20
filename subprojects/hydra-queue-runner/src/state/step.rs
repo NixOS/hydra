@@ -124,6 +124,31 @@ pub(crate) struct StepDrvInfo {
     has_ca_floating: bool,
 }
 
+/// Extract `requiredSystemFeatures`, handling `__structuredAttrs` derivations.
+///
+/// Such derivations carry the attribute only inside the `__json` blob (parsed
+/// into `structured_attrs`) with no flat env var, so reading the env alone
+/// mis-schedules them onto machines lacking the feature (e.g. `big-parallel`).
+fn required_features(drv: &Derivation) -> Vec<String> {
+    if let Some(structured) = &drv.structured_attrs {
+        let Some(serde_json::Value::Array(features)) =
+            structured.attrs.get("requiredSystemFeatures")
+        else {
+            return Vec::new();
+        };
+        return features
+            .iter()
+            .filter_map(|v| v.as_str().map(ToOwned::to_owned))
+            .collect();
+    }
+
+    drv.env
+        .get(b"requiredSystemFeatures".as_slice())
+        .and_then(|v| std::str::from_utf8(v).ok())
+        .map(|v| v.split_whitespace().map(ToOwned::to_owned).collect())
+        .unwrap_or_default()
+}
+
 impl StepDrvInfo {
     /// # Panics
     ///
@@ -145,17 +170,7 @@ impl StepDrvInfo {
                     )
                 })
                 .collect(),
-            required_features: drv
-                .env
-                .get(b"requiredSystemFeatures".as_slice())
-                .and_then(|v| std::str::from_utf8(v).ok())
-                .map(|v| {
-                    v.split(' ')
-                        .filter(|s| !s.is_empty())
-                        .map(ToOwned::to_owned)
-                        .collect()
-                })
-                .unwrap_or_default(),
+            required_features: required_features(drv),
             has_ca_floating: drv.outputs.values().any(|o| {
                 matches!(
                     o,
@@ -799,6 +814,44 @@ mod tests {
 
     fn drv(name: &str) -> StorePath {
         StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
+    }
+
+    fn empty_derivation() -> Derivation {
+        Derivation {
+            name: "test".parse().unwrap(),
+            outputs: BTreeMap::new(),
+            inputs: std::collections::BTreeSet::new(),
+            platform: bytes::Bytes::from_static(b"x86_64-linux"),
+            builder: bytes::Bytes::from_static(b"/bin/sh"),
+            args: Vec::new(),
+            env: BTreeMap::new(),
+            structured_attrs: None,
+        }
+    }
+
+    #[test]
+    fn required_features_from_flat_env() {
+        let mut drv = empty_derivation();
+        drv.env.insert(
+            bytes::Bytes::from_static(b"requiredSystemFeatures"),
+            bytes::Bytes::from_static(b"big-parallel kvm"),
+        );
+        assert_eq!(required_features(&drv), vec!["big-parallel", "kvm"]);
+    }
+
+    #[test]
+    fn required_features_from_structured_attrs() {
+        // __structuredAttrs derivations carry requiredSystemFeatures only in
+        // the JSON blob, with no flat env var. Reading the flat var alone
+        // would mis-schedule them (e.g. kernel builds losing big-parallel).
+        let mut drv = empty_derivation();
+        let attrs = serde_json::json!({
+            "requiredSystemFeatures": ["big-parallel"],
+        });
+        drv.structured_attrs = Some(harmonia_store_derivation::derivation::StructuredAttrs {
+            attrs: attrs.as_object().unwrap().clone(),
+        });
+        assert_eq!(required_features(&drv), vec!["big-parallel"]);
     }
 
     #[test]
