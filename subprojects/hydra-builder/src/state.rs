@@ -85,6 +85,7 @@ pub struct Config {
     pub ping_interval: u64,
     pub speed_factor: f32,
     pub max_jobs: u32,
+    pub build_cores: u32,
     pub build_dir_avail_threshold: f32,
     pub store_avail_threshold: f32,
     pub load1_threshold: f32,
@@ -195,6 +196,7 @@ impl State {
                 ping_interval: cli.ping_interval,
                 speed_factor: cli.speed_factor,
                 max_jobs: cli.max_jobs,
+                build_cores: cli.build_cores,
                 build_dir_avail_threshold: cli.build_dir_avail_threshold,
                 store_avail_threshold: cli.store_avail_threshold,
                 load1_threshold: cli.load1_threshold,
@@ -590,27 +592,13 @@ impl State {
             .await;
         let before_build = Instant::now();
 
-        let options = {
-            let mut options = harmonia_protocol::types::ClientOptions::default();
-            options.max_silent_time = i64::from(m.max_silent_time);
-            options.other_settings.insert(
-                "max-log-size".to_string(),
-                m.max_log_size.to_string().into(),
-            );
-            options
-                .other_settings
-                .insert("timeout".to_string(), m.build_timeout.to_string().into());
-            if m.presigned_url_opts.is_some() {
-                // With presigned uploads, inputs are substituted from a binary
-                // cache that other builders write to continuously; a cached
-                // negative narinfo lookup makes the daemon fail substitution
-                // of a just-uploaded input during the build.
-                options
-                    .other_settings
-                    .insert("narinfo-cache-negative-ttl".to_string(), "0".into());
-            }
-            options
-        };
+        let options = build_client_options(
+            self.config.build_cores,
+            m.max_silent_time,
+            m.max_log_size,
+            m.build_timeout,
+            m.presigned_url_opts.is_some(),
+        );
 
         let success = self
             .request_build(&self.connector, &drv, &basic_drv, options)
@@ -1405,4 +1393,32 @@ async fn new_success_build_result_info(
         output_infos: result_infos,
         error_msg: None,
     })
+}
+
+fn build_client_options(
+    build_cores: u32,
+    max_silent_time: i32,
+    max_log_size: u64,
+    build_timeout: i32,
+    presigned: bool,
+) -> harmonia_protocol::types::ClientOptions {
+    let mut options = harmonia_protocol::types::ClientOptions::default();
+    options.max_silent_time = i64::from(max_silent_time);
+    options.build_cores = build_cores;
+    options
+        .other_settings
+        .insert("max-log-size".to_string(), max_log_size.to_string().into());
+    options
+        .other_settings
+        .insert("timeout".to_string(), build_timeout.to_string().into());
+    if presigned {
+        // With presigned uploads, inputs are substituted from a binary cache
+        // that other builders write to continuously; a cached negative narinfo
+        // lookup makes the daemon fail substitution of a just-uploaded input
+        // during the build.
+        options
+            .other_settings
+            .insert("narinfo-cache-negative-ttl".to_string(), "0".into());
+    }
+    options
 }
