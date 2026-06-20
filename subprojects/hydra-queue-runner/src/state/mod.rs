@@ -1239,7 +1239,7 @@ impl State {
 
             {
                 let new_runnable = new_runnable.read();
-                tracing::info!(
+                tracing::debug!(
                     "got {} new runnable steps from {} new builds",
                     new_runnable.len(),
                     nr_added.load(Ordering::Relaxed)
@@ -2494,7 +2494,7 @@ impl State {
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
     ) -> Result<(), StateError> {
         self.metrics.queue_build_loads.inc();
-        tracing::info!("loading build {} ({})", build.id, build.full_job_name());
+        tracing::debug!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
         {
             let mut new_builds_by_id = new_builds_by_id.write();
@@ -2603,7 +2603,7 @@ impl State {
             build.set_toplevel_step(step.clone());
             build.propagate_priorities();
 
-            tracing::info!(
+            tracing::debug!(
                 "added build {} (top-level step {}, {} new steps)",
                 build.id,
                 step.get_drv_path(),
