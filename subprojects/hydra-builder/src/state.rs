@@ -335,8 +335,8 @@ impl State {
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
-                                "Build of {drv} was cancelled, not reporting Error: {:?}",
-                                eyre::Report::new(e)
+                                "Build of {drv} was cancelled, not reporting error: {}",
+                                format_failure(e)
                             );
                             return;
                         }
@@ -344,7 +344,7 @@ impl State {
                         let result_state = BuildResultState::from(&e) as i32;
                         // Report the reason so it reaches the queue runner, not
                         // just this builder's journal.
-                        let error_msg = format!("{:?}", eyre::Report::new(e));
+                        let error_msg = format_failure(e);
 
                         tracing::error!("Build of {drv} failed with: {error_msg}");
                         self_.remove_build(build_id);
@@ -812,6 +812,60 @@ fn add_gc_root(
     let link = gcroot_dir.join(path.to_string());
     let target = store_dir.display(path).to_string();
     let _ = fs_err::os::unix::fs::symlink(target, &link);
+}
+
+/// Render a build failure for the journal and the queue runner: `{:#}` gives
+/// the eyre cause chain without the `{:?}` backtrace, and `strip_ansi` drops
+/// the colour codes the nix daemon bakes into build error messages.
+fn format_failure(e: JobFailure) -> String {
+    strip_ansi(&format!("{:#}", eyre::Report::new(e)))
+}
+
+/// Remove the escape sequences nix emits in log and error output, matching the
+/// forms handled by nix's `filterANSIEscapes`: CSI (`ESC [ ... final`), OSC
+/// (`ESC ] ... ST|BEL`, e.g. hyperlinks) and other two-byte `ESC` sequences,
+/// plus stray carriage returns and bells.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => match chars.peek() {
+                // CSI: parameter/intermediate bytes then a final byte (0x40-0x7e).
+                Some('[') => {
+                    chars.next();
+                    for c in chars.by_ref() {
+                        if ('\u{40}'..='\u{7e}').contains(&c) {
+                            break;
+                        }
+                    }
+                }
+                // OSC: runs until ST (`ESC \`) or BEL.
+                Some(']') => {
+                    chars.next();
+                    while let Some(c) = chars.next() {
+                        if c == '\u{07}' {
+                            break;
+                        }
+                        if c == '\u{1b}' {
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                    }
+                }
+                // Other two-byte escape (e.g. `ESC c`): drop the following byte.
+                Some(_) => {
+                    chars.next();
+                }
+                None => {}
+            },
+            '\u{07}' | '\r' => {}
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 async fn substitute_paths(
@@ -1421,4 +1475,31 @@ fn build_client_options(
             .insert("narinfo-cache-negative-ttl".to_string(), "0".into());
     }
     options
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_ansi;
+
+    #[test]
+    fn strip_ansi_removes_csi_sequences() {
+        let input = "build failed: Cannot build '\u{1b}[35;1m/nix/store/x.drv\u{1b}[0m'. \
+             Reason: \u{1b}[31;1m1 dependency failed\u{1b}[0m.";
+        assert_eq!(
+            strip_ansi(input),
+            "build failed: Cannot build '/nix/store/x.drv'. Reason: 1 dependency failed."
+        );
+    }
+
+    #[test]
+    fn strip_ansi_leaves_plain_text_untouched() {
+        assert_eq!(strip_ansi("no escapes here"), "no escapes here");
+    }
+
+    #[test]
+    fn strip_ansi_removes_osc_hyperlinks() {
+        // gcc-style terminal hyperlink: OSC 8 ;; URI BEL <text> OSC 8 ;; BEL
+        let input = "see \u{1b}]8;;https://example.com\u{07}the docs\u{1b}]8;;\u{07} now";
+        assert_eq!(strip_ansi(input), "see the docs now");
+    }
 }
