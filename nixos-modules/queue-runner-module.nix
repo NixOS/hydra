@@ -347,6 +347,9 @@ in
         Type = "notify";
         Restart = "always";
         RestartSec = "5s";
+        # The runner holds a gRPC stream per builder plus DB pool and HTTP
+        # connections; the default 1024 soft limit is easily exhausted.
+        LimitNOFILE = 65536;
 
         ExecStart = lib.escapeShellArgs (
           [
