@@ -38,9 +38,18 @@ impl Compression {
         "application/x-nix-nar"
     }
 
+    /// `Content-Encoding` for fixed-name objects (`.ls`, `.narinfo`, logs) whose
+    /// name does not encode the compression. NARs must not use this; their
+    /// compression is in the `.nar.<ext>` URL and narinfo `Compression:` field.
     #[must_use]
     pub const fn content_encoding(self) -> &'static str {
-        ""
+        match self {
+            Self::None => "",
+            Self::Xz => "xz",
+            Self::Bzip2 => "bzip2",
+            Self::Brotli => "br",
+            Self::Zstd => "zstd",
+        }
     }
 
     #[must_use]

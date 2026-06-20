@@ -662,11 +662,12 @@ impl S3BinaryCacheClient {
         );
         let compressed_stream = compressor(stream);
         let (mut hashing_reader, _) = streaming_hash::HashingReader::new(compressed_stream);
+        // No Content-Encoding: NAR compression lives in the URL and narinfo.
         self.upload_file(
             &nar_url,
             &mut hashing_reader,
             compression.content_type(),
-            compression.content_encoding(),
+            "",
         )
         .await?;
 
@@ -1070,7 +1071,8 @@ impl S3BinaryCacheClient {
                 .create(
                     nar_url,
                     self.cfg.compression.content_type(),
-                    self.cfg.compression.content_encoding(),
+                    // No Content-Encoding: NAR compression lives in the URL + narinfo.
+                    "",
                     nar_size,
                     self.cfg.presigned_url_expiry,
                 )
