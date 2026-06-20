@@ -2,12 +2,6 @@ use color_eyre::eyre;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BuilderError {
-    #[error("environment variable {0} not set")]
-    MissingEnvVar(&'static str),
-
-    #[error("creating gcroots directory")]
-    CreateGcroots(#[source] std::io::Error),
-
     #[error("hostname is not valid UTF-8: {0:?}")]
     Hostname(std::ffi::OsString),
 
