@@ -1120,11 +1120,15 @@ async fn upload_nars_presigned(
         .request_presigned_urls(build_id, machine_id, nars)
         .await?;
 
-    if presigned_responses.len() != paths_to_upload.len() {
+    // The server only mints upload URLs for paths missing from the remote
+    // cache, so it returns a subset: closure paths already present are
+    // skipped instead of being re-uploaded on every build. More responses
+    // than requested would be a protocol bug.
+    if presigned_responses.len() > paths_to_upload.len() {
         return Err(eyre::eyre!(
-            "Mismatch between requested NARs ({}) and presigned URLs ({})",
+            "Server returned more presigned URLs ({}) than requested NARs ({})",
+            presigned_responses.len(),
             paths_to_upload.len(),
-            presigned_responses.len()
         ));
     }
 

@@ -660,10 +660,28 @@ impl RunnerService for Server {
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
+        let requests = req
+            .request
+            .into_iter()
+            .map(|r| StorePath::from_base_path(&r.store_path).map(|p| (p, r)))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
+
+        // Only mint upload URLs for paths missing from the remote cache.
+        // Presigning the whole closure makes the builder re-compress and
+        // re-PUT already-cached deps (glibc, gcc, …) on every build while it
+        // holds its build slot, which collapses throughput.
+        let missing: hashbrown::HashSet<StorePath> = remote_store
+            .query_missing_paths(requests.iter().map(|(p, _)| p.clone()).collect())
+            .await
+            .into_iter()
+            .collect();
+
         let mut responses = Vec::new();
-        for presigned_request in req.request {
-            let store_path = StorePath::from_base_path(&presigned_request.store_path)
-                .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
+        for (store_path, presigned_request) in requests {
+            if !missing.contains(&store_path) {
+                continue;
+            }
 
             let proto_hash = presigned_request
                 .nar_hash
