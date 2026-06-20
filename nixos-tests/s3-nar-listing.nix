@@ -35,18 +35,48 @@ let
   # strings by writeText.  Inside the expression, builtins.storePath
   # re-introduces the string context so that the evaluator on the VM
   # knows the derivation depends on them and the sandbox gets access.
+  # Shared so the `trivial` derivation referenced by `trivial2` below has the
+  # exact same drv hash, putting it into trivial2's closure.
+  trivialExpr = ''
+    builtins.derivation {
+      name = "trivial";
+      system = "${system}";
+      builder = "''${builtins.storePath "${pkgs.bash}"}/bin/bash";
+      PATH = "''${builtins.storePath "${pkgs.coreutils}"}/bin";
+      allowSubstitutes = false;
+      preferLocalBuild = true;
+      args = [
+        "-c"
+        "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
+      ];
+    }
+  '';
+
   jobFile = pkgs.writeText "default.nix" ''
     {
-      trivial = builtins.derivation {
-        name = "trivial";
+      trivial = ${trivialExpr};
+    }
+  '';
+
+  # A second job that references `trivial` (writing its path into the output
+  # creates a runtime reference), so `trivial` ends up in trivial2's closure.
+  # When building trivial2 the queue runner must skip re-uploading the
+  # already-cached `trivial` NAR.
+  jobFile2 = pkgs.writeText "default2.nix" ''
+    let
+      trivial = ${trivialExpr};
+    in {
+      trivial2 = builtins.derivation {
+        name = "trivial2";
         system = "${system}";
         builder = "''${builtins.storePath "${pkgs.bash}"}/bin/bash";
         PATH = "''${builtins.storePath "${pkgs.coreutils}"}/bin";
+        inref = trivial;
         allowSubstitutes = false;
         preferLocalBuild = true;
         args = [
           "-c"
-          "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
+          "mkdir -p $out; cp $inref/greeting $out/greeting; echo $inref > $out/ref; exit 0"
         ];
       };
     }
@@ -311,6 +341,70 @@ in
         f"Expected:\n{json.dumps(expected, indent=2)}\n"
         f"Actual:\n{json.dumps(actual, indent=2)}"
     )
+
+    ${lib.optionalString presigned ''
+      # Regression: a closure path already in the cache must not be re-uploaded
+      # by a later build. trivial2 references trivial, so trivial is in its
+      # closure; building trivial2 must NOT re-PUT trivial's NAR.
+      def s3_curl(args):
+          return (
+              f"curl -sf http://s3:${toString garagePort}/hydra-cache/{args}"
+              f" --aws-sigv4 'aws:amz:garage:s3' -u '{key_id}:{key_secret}'"
+          )
+
+      def last_modified(nar_url):
+          headers = server.succeed(s3_curl(nar_url) + " -I")
+          for line in headers.splitlines():
+              if line.lower().startswith("last-modified:"):
+                  return line.split(":", 1)[1].strip()
+          raise Exception(f"no Last-Modified for {nar_url}:\n{headers}")
+
+      narinfo = server.succeed(s3_curl(f"{store_hash}.narinfo"))
+      trivial_nar = next(
+          l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith("URL:")
+      )
+      before_lm = last_modified(trivial_nar)
+
+      # Build trivial2 in its own jobset. Use a fresh source dir: the queue
+      # runner imports the path input to the store once, so reusing
+      # /run/jobset would hide the new expression.
+      server.succeed(
+          "mkdir -p /run/jobset2 && cp ${jobFile2} /run/jobset2/default.nix && "
+          "chmod -R 755 /run/jobset2 && chown -R hydra /run/jobset2"
+      )
+      mycurl("PUT", "/jobset/test/trivial2", {
+          "description": "Trivial2",
+          "checkinterval": "0",
+          "enabled": "1",
+          "visible": "1",
+          "keepnr": "1",
+          "type": 0,
+          "nixexprinput": "src",
+          "nixexprpath": "default.nix",
+          "inputs": {"src": {"value": "/run/jobset2", "type": "path"}},
+      })
+      mycurl("POST", "/api/push?jobsets=test:trivial2&force=1")
+
+      server.wait_until_succeeds(
+          'curl -sf ' + URL + '/build/2 -H "Accept: application/json"'
+          ' | jq -e ".finished == 1"',
+          timeout=120,
+      )
+      build2 = json.loads(
+          server.succeed('curl -sf ' + URL + '/build/2 -H "Accept: application/json"')
+      )
+      assert build2.get("buildstatus") == 0, f"trivial2 build failed: {build2}"
+
+      out2_hash = build2["buildoutputs"]["out"]["path"].split("/")[-1][:32]
+      # Wait until trivial2's own NAR has been uploaded, i.e. the upload pass ran.
+      server.wait_until_succeeds(s3_curl(f"{out2_hash}.narinfo"), timeout=60)
+
+      after_lm = last_modified(trivial_nar)
+      assert before_lm == after_lm, (
+          "trivial NAR was re-uploaded while building trivial2 "
+          f"(Last-Modified {before_lm!r} -> {after_lm!r})"
+      )
+    ''}
 
     builder.shutdown()
     server.shutdown()
