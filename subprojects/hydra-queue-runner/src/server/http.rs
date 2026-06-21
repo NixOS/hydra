@@ -224,7 +224,7 @@ mod handler {
                 stores
                     .iter()
                     .filter_map(|s| match s {
-                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        crate::state::RemoteStoreBackend::S3(s) => Some((**s).clone()),
                         crate::state::RemoteStoreBackend::NixCopy(_) => None,
                     })
                     .collect()
