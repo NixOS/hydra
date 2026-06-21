@@ -336,7 +336,7 @@ impl State {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
                                 "Build of {drv} was cancelled, not reporting error: {}",
-                                format_failure(e)
+                                format_failure(&e)
                             );
                             return;
                         }
@@ -344,7 +344,7 @@ impl State {
                         let result_state = BuildResultState::from(&e) as i32;
                         // Report the reason so it reaches the queue runner, not
                         // just this builder's journal.
-                        let error_msg = format_failure(e);
+                        let error_msg = format_failure(&e);
 
                         tracing::error!("Build of {drv} failed with: {error_msg}");
                         self_.remove_build(build_id);
@@ -458,25 +458,27 @@ impl State {
                     basic_drv,
                     harmonia_protocol::daemon_wire::types2::BuildMode::Normal,
                 ));
+            let send_line = |bytes: &[u8]| {
+                let mut line = Vec::with_capacity(bytes.len() + 1);
+                line.extend_from_slice(bytes);
+                line.push(b'\n');
+                let _ = log_tx.send(line.into());
+            };
             while let Some(msg) = result_log.as_mut().next().await {
+                use harmonia_protocol::log::{Field, LogMessage, ResultType};
                 match msg {
-                    harmonia_protocol::log::LogMessage::Message(m) => {
-                        let mut line = Vec::from(m.text);
-                        line.push(b'\n');
-                        let _ = log_tx.send(line.into());
+                    LogMessage::Message(m) => {
+                        send_line(&m.text);
                     }
-                    harmonia_protocol::log::LogMessage::Result(r)
+                    LogMessage::Result(r)
                         if matches!(
                             r.result_type,
-                            harmonia_protocol::log::ResultType::BuildLogLine
-                                | harmonia_protocol::log::ResultType::PostBuildLogLine
+                            ResultType::BuildLogLine | ResultType::PostBuildLogLine
                         ) =>
                     {
                         for field in &r.fields {
-                            if let harmonia_protocol::log::Field::String(bytes) = field {
-                                let mut line = Vec::from(bytes.as_ref());
-                                line.push(b'\n');
-                                let _ = log_tx.send(line.into());
+                            if let Field::String(bytes) = field {
+                                send_line(bytes);
                             }
                         }
                     }
@@ -503,11 +505,7 @@ impl State {
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
-                let report = eyre::eyre!(
-                    "build failed: {:?}: {}",
-                    f.status,
-                    str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8")
-                );
+                let report = eyre::eyre!("{}", build_failure_message(&f));
                 // Preserve the daemon's failure status where the database
                 // distinguishes it; everything else is a plain build failure.
                 return Err(match f.status {
@@ -816,9 +814,34 @@ fn add_gc_root(
 
 /// Render a build failure for the journal and the queue runner: `{:#}` gives
 /// the eyre cause chain without the `{:?}` backtrace, and `strip_ansi` drops
-/// the colour codes the nix daemon bakes into build error messages.
-fn format_failure(e: JobFailure) -> String {
-    strip_ansi(&format!("{:#}", eyre::Report::new(e)))
+/// the colour codes the nix daemon bakes into build error messages. The
+/// category is recorded separately as a `BuildResultState`, so we render the
+/// inner cause chain only, omitting the redundant `JobFailure` label.
+fn format_failure(e: &JobFailure) -> String {
+    let report = match e {
+        JobFailure::Build(r)
+        | JobFailure::TimedOut(r)
+        | JobFailure::LogLimit(r)
+        | JobFailure::OutputLimit(r)
+        | JobFailure::Preparing(r)
+        | JobFailure::Import(r)
+        | JobFailure::Upload(r)
+        | JobFailure::PostProcessing(r) => r,
+    };
+    strip_ansi(&format!("{report:#}"))
+}
+
+/// Build the failure message for a derivation: the daemon's own message, or the
+/// bare status when it is empty.
+fn build_failure_message(
+    f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure,
+) -> String {
+    let error_msg = str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8");
+    if error_msg.trim().is_empty() {
+        format!("build failed: {:?}", f.status)
+    } else {
+        error_msg.to_string()
+    }
 }
 
 /// Remove the escape sequences nix emits in log and error output, matching the
