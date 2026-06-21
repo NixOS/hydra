@@ -19,7 +19,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 use bytes::Bytes;
-use moka::future::Cache;
 use object_store::{ObjectStore as _, ObjectStoreExt as _, signer::Signer as _};
 use secrecy::ExposeSecret;
 use smallvec::SmallVec;
@@ -33,6 +32,7 @@ mod compression;
 mod debug_info;
 mod multipart;
 mod narinfo;
+mod presence_cache;
 mod presigned;
 mod streaming_hash;
 
@@ -180,7 +180,9 @@ pub struct S3BinaryCacheClient {
     pub cfg: Arc<S3CacheConfig>,
     s3_stats: Arc<AtomicS3Stats>,
     signing_keys: SmallVec<[secrecy::SecretString; 4]>,
-    narinfo_cache: Cache<StorePath, NarInfo, foldhash::fast::RandomState>,
+    /// Persistent positive presence cache; survives restarts to avoid
+    /// re-HEADing heavily-shared inputs.
+    presence_cache: presence_cache::PresenceCache,
     /// Per-path single-flight locks: collapse concurrent uploads of one path.
     /// Entries live exactly as long as a lock is held (Weak, self-cleaning).
     upload_locks: Arc<
@@ -316,6 +318,15 @@ impl S3BinaryCacheClient {
             ));
         }
 
+        let path =
+            cfg.presence_cache_path
+                .as_ref()
+                .ok_or_else(|| CacheError::ConfigurationError {
+                    message: "presence_cache_path is required".to_string(),
+                })?;
+        let presence_cache =
+            presence_cache::PresenceCache::open(path, cfg.presence_cache_ttl).await?;
+
         Ok(Self {
             s3: Self::construct_client(&cfg.client_config)?,
             multipart: MultipartPresigner::from_config(&cfg.client_config)
@@ -323,17 +334,10 @@ impl S3BinaryCacheClient {
                     tracing::warn!("multipart presigning disabled: {e}");
                 })
                 .ok(),
+            presence_cache,
             cfg: cfg.into(),
             s3_stats: Arc::new(AtomicS3Stats::default()),
             signing_keys,
-            narinfo_cache: Cache::builder()
-                .initial_capacity(1000)
-                .max_capacity(65536)
-                // Bound staleness: the object can change out-of-band (GC,
-                // restore/repair), so a cached "present" must not be trusted
-                // forever.
-                .time_to_live(std::time::Duration::from_mins(5))
-                .build_with_hasher(foldhash::fast::RandomState::default()),
             upload_locks: Arc::default(),
         })
     }
@@ -685,7 +689,9 @@ impl S3BinaryCacheClient {
         // not here during path copy.
 
         self.upload_narinfo(store_dir, narinfo.clone()).await?;
-        self.narinfo_cache.insert(vpi.path.clone(), narinfo).await;
+        self.presence_cache
+            .record_present(&vpi.path.hash().to_string())
+            .await;
 
         Ok(())
     }
@@ -743,17 +749,14 @@ impl S3BinaryCacheClient {
         &self,
         store_path: &StorePath,
     ) -> Result<Option<NarInfo>, CacheError> {
-        if let Some(narinfo) = self.narinfo_cache.get(store_path).await {
-            return Ok(Some(narinfo));
-        }
         match self
             .get_object(&format!("{}.narinfo", store_path.hash()))
             .await?
         {
             Some(v) => {
                 let narinfo = parse_narinfo(&v)?;
-                self.narinfo_cache
-                    .insert(store_path.to_owned(), narinfo.clone())
+                self.presence_cache
+                    .record_present(&store_path.hash().to_string())
                     .await;
                 Ok(Some(narinfo))
             }
@@ -873,11 +876,15 @@ impl S3BinaryCacheClient {
 
     #[tracing::instrument(skip(self), err)]
     pub async fn has_narinfo(&self, store_path: &StorePath) -> Result<bool, CacheError> {
-        if self.narinfo_cache.contains_key(store_path) {
+        let hash = store_path.hash().to_string();
+        if self.presence_cache.is_present(&hash).await {
             return Ok(true);
         }
-        self.head_object(&format!("{}.narinfo", store_path.hash()))
-            .await
+        let present = self.head_object(&format!("{hash}.narinfo")).await?;
+        if present {
+            self.presence_cache.record_present(&hash).await;
+        }
+        Ok(present)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -1151,7 +1158,9 @@ impl S3BinaryCacheClient {
         let key = self
             .upload_narinfo(connector.store_dir(), narinfo.clone())
             .await?;
-        self.narinfo_cache.insert(path, narinfo).await;
+        self.presence_cache
+            .record_present(&path.hash().to_string())
+            .await;
         Ok(key)
     }
 }
