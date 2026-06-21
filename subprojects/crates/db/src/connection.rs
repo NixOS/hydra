@@ -169,37 +169,6 @@ impl Connection {
         )
     }
 
-    /// Return the subset of `paths` that were produced by a previously
-    /// succeeded build step. Hydra uploads every successful step to the
-    /// binary cache, so these paths can be treated as present remotely
-    /// without per-output narinfo requests.
-    #[tracing::instrument(skip(self, store_dir, paths), err)]
-    pub async fn query_succeeded_output_paths(
-        &mut self,
-        store_dir: &StoreDir,
-        paths: &[StorePath],
-    ) -> crate::Result<Vec<StorePath>> {
-        if paths.is_empty() {
-            return Ok(Vec::new());
-        }
-        let path_strs: Vec<String> = paths
-            .iter()
-            .map(|p| store_dir.display(p).to_string())
-            .collect();
-        let rows: Vec<(String,)> = sqlx::query_as(
-            r"SELECT DISTINCT o.path
-              FROM buildstepoutputs o
-              JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
-              WHERE o.path = ANY($1) AND s.status = 0",
-        )
-        .bind(&path_strs)
-        .fetch_all(&mut *self.conn)
-        .await?;
-        rows.into_iter()
-            .map(|(p,)| Ok(store_dir.parse(&p)?))
-            .collect()
-    }
-
     #[tracing::instrument(skip(self), err)]
     pub async fn clear_busy(&mut self, stop_time: i32) -> crate::Result<()> {
         sqlx::query!(

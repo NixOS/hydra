@@ -24,11 +24,9 @@ aws-sigv4.workspace = true
 aws-smithy-runtime-api.workspace = true
 backon.workspace = true
 configparser.workspace = true
-foldhash.workspace = true
 fs-err = { workspace = true, features = [ "tokio" ] }
 futures.workspace = true
 hashbrown.workspace = true
-moka.workspace = true
 object_store = { workspace = true, features = [ "aws" ] }
 parking_lot.workspace = true
 reqwest.workspace = true
@@ -37,6 +35,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 smallvec.workspace = true
+sqlx = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
 tokio = { workspace = true, features = [ "full" ] }
 tokio-stream = { workspace = true, features = [ "io-util" ] }
 tokio-util = { workspace = true, features = [ "io", "io-util" ] }

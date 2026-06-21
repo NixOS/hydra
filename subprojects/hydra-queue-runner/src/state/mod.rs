@@ -128,6 +128,7 @@ use harmonia_store_derivation::derivation::DerivationOutput;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
+use sha2::{Digest as _, Sha256};
 
 use crate::config::{App, Cli};
 use crate::state::build::get_mark_build_sccuess_data;
@@ -243,9 +244,16 @@ struct ProcessedBuild {
 
 #[allow(missing_debug_implementations)]
 pub enum RemoteStoreBackend {
-    S3(binary_cache::S3BinaryCacheClient),
+    S3(Box<binary_cache::S3BinaryCacheClient>),
     /// A nix store reachable via `nix copy --to <uri>`.
     NixCopy(String),
+}
+
+/// Presence-cache filename derived from the store URI, so reordering the
+/// store list cannot alias one store's cache onto another.
+fn presence_cache_file(uri: &str) -> String {
+    let digest = Sha256::digest(uri.as_bytes());
+    format!("narinfo-presence-{:x}.db", digest)
 }
 
 #[allow(missing_debug_implementations)]
@@ -365,12 +373,17 @@ impl State {
             Err(e) => tracing::error!("Failed to create hydra log_dir={log_dir:?} e={e}"),
         }
 
+        let presence_cache_dir = config.get_hydra_data_dir().join("queue-runner");
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
             if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
-                remote_stores.push(RemoteStoreBackend::S3(
+                let cfg = cfg.with_presence_cache(
+                    Some(presence_cache_dir.join(presence_cache_file(&uri))),
+                    None,
+                );
+                remote_stores.push(RemoteStoreBackend::S3(Box::new(
                     binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                ));
+                )));
             } else {
                 remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
             }
@@ -432,13 +445,18 @@ impl State {
         let curr_step_sort_fn = self.config.get_step_sort_fn();
         let curr_remote_stores = self.config.get_remote_store_addrs();
         let curr_enable_fod_checker = self.config.get_enable_fod_checker();
+        let presence_cache_dir = self.config.get_hydra_data_dir().join("queue-runner");
         let mut new_remote_stores = vec![];
         if curr_remote_stores != new_config.remote_store_addr {
             for uri in &new_config.remote_store_addr {
                 if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
-                    new_remote_stores.push(RemoteStoreBackend::S3(
+                    let cfg = cfg.with_presence_cache(
+                        Some(presence_cache_dir.join(presence_cache_file(uri))),
+                        None,
+                    );
+                    new_remote_stores.push(RemoteStoreBackend::S3(Box::new(
                         binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                    ));
+                    )));
                 } else {
                     new_remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
                 }
@@ -1590,7 +1608,7 @@ impl State {
                         let r = self.remote_stores.read();
                         r.iter()
                             .filter_map(|s| match s {
-                                RemoteStoreBackend::S3(s) => Some(s.clone()),
+                                RemoteStoreBackend::S3(s) => Some((**s).clone()),
                                 RemoteStoreBackend::NixCopy(_) => None,
                             })
                             .collect()
@@ -1941,7 +1959,7 @@ impl State {
                     let r = self.remote_stores.read();
                     r.iter()
                         .filter_map(|s| match s {
-                            RemoteStoreBackend::S3(s) => Some(s.clone()),
+                            RemoteStoreBackend::S3(s) => Some((**s).clone()),
                             RemoteStoreBackend::NixCopy(_) => None,
                         })
                         .collect()
@@ -3074,28 +3092,6 @@ impl State {
         Ok(self.local_db.is_valid_path(path).await?)
     }
 
-    /// Output paths that a previously succeeded build step produced. These
-    /// were uploaded to the binary cache, so no narinfo lookup is needed for
-    /// them.
-    #[tracing::instrument(skip(self, output_paths))]
-    async fn query_succeeded_outputs(
-        &self,
-        output_paths: &BTreeMap<OutputName, Option<StorePath>>,
-    ) -> HashSet<StorePath> {
-        let paths: Vec<StorePath> = output_paths.values().flatten().cloned().collect();
-        let res = match self.db.get().await {
-            Ok(mut conn) => conn
-                .query_succeeded_output_paths(self.connector.store_dir(), &paths)
-                .await
-                .map(|v| v.into_iter().collect()),
-            Err(e) => Err(e),
-        };
-        res.unwrap_or_else(|e| {
-            tracing::warn!("Could not query succeeded outputs, continuing: {e}");
-            HashSet::new()
-        })
-    }
-
     /// The first configured S3 remote store, if any. Several scheduling
     /// paths only need a single S3 store to decide whether outputs already
     /// live in the binary cache.
@@ -3103,30 +3099,27 @@ impl State {
     fn first_s3_remote_store(&self) -> Option<binary_cache::S3BinaryCacheClient> {
         let r = self.remote_stores.read();
         r.iter().find_map(|s| match s {
-            RemoteStoreBackend::S3(s) => Some(s.clone()),
+            RemoteStoreBackend::S3(s) => Some((**s).clone()),
             RemoteStoreBackend::NixCopy(_) => None,
         })
     }
 
-    /// Database-first version of
-    /// [`binary_cache::S3BinaryCacheClient::query_missing_remote_outputs`].
-    /// Returns `None` when no S3 store is configured.
+    /// Returns the subset of `output_paths` missing from the binary cache, or
+    /// `None` when no S3 store is configured.
     ///
-    /// Outputs of previously succeeded build steps were uploaded to the
-    /// binary cache, so they can be treated as present without a narinfo
-    /// request. Always go through this rather than calling the remote store
-    /// directly, so the database short-circuit is never skipped.
+    /// A narinfo lookup is issued for every output. We deliberately do not
+    /// trust the database's record of previously succeeded build steps: the
+    /// cache can garbage-collect a path that Hydra built earlier, and treating
+    /// such a path as present dispatches dependents whose inputs are then
+    /// unfetchable, failing them with a bare `DependencyFailed`.
     async fn query_missing_remote_outputs(
         &self,
         output_paths: BTreeMap<OutputName, Option<StorePath>>,
     ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
         let remote_store = self.first_s3_remote_store()?;
-        let db_known = self.query_succeeded_outputs(&output_paths).await;
-        let mut unknown_outputs = output_paths;
-        unknown_outputs.retain(|_, path| path.as_ref().is_none_or(|p| !db_known.contains(p)));
         Some(
             remote_store
-                .query_missing_remote_outputs(unknown_outputs)
+                .query_missing_remote_outputs(output_paths)
                 .await,
         )
     }
