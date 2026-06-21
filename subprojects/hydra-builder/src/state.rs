@@ -833,9 +833,7 @@ fn format_failure(e: &JobFailure) -> String {
 
 /// Build the failure message for a derivation: the daemon's own message, or the
 /// bare status when it is empty.
-fn build_failure_message(
-    f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure,
-) -> String {
+fn build_failure_message(f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure) -> String {
     let error_msg = str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8");
     if error_msg.trim().is_empty() {
         format!("build failed: {:?}", f.status)
@@ -1433,7 +1431,6 @@ async fn new_success_build_result_info(
     };
     let per_output_nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
         connector.store_dir(),
-        &real_store_dir.to_path_buf(),
         &fs,
         &outputs,
     ))

@@ -95,7 +95,7 @@ async fn main() -> color_eyre::Result<()> {
         }));
     }
 
-    let state = State::new().await?;
+    let state = Box::pin(State::new()).await?;
 
     let lockfile_path = state.config.get_lockfile();
     let _lock = lock_file::LockFile::acquire(&lockfile_path)
