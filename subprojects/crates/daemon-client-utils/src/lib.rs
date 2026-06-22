@@ -213,71 +213,95 @@ impl DaemonStoreReader {
         self.connector.store_dir()
     }
 
+    /// Open a connection callers can reuse across several queries to avoid a
+    /// handshake per query (see the free `query_*` functions below).
+    pub async fn connect(&self) -> Result<DaemonConn, DaemonError> {
+        self.connector.connect().await
+    }
+
     pub async fn is_valid_path(&self, path: &StorePath) -> Result<bool, DaemonError> {
-        let mut conn = self.connector.connect().await?;
-        conn.is_valid_path(path).await
+        self.connect().await?.is_valid_path(path).await
     }
 
     pub async fn query_path_info(
         &self,
         path: &StorePath,
     ) -> Result<Option<ValidPathInfo>, DaemonError> {
-        let mut conn = self.connector.connect().await?;
-        Ok(conn.query_path_info(path).await?.map(|info| ValidPathInfo {
-            path: path.clone(),
-            info,
-        }))
+        query_path_info(&mut self.connect().await?, path).await
     }
 
-    /// Closure of `roots` with full path info, dependencies before dependents.
-    /// Invalid roots are skipped.
     pub async fn query_closure_infos(
         &self,
         roots: Vec<StorePath>,
     ) -> Result<Vec<ValidPathInfo>, DaemonError> {
-        enum Frame {
-            Enter(StorePath),
-            Exit(StorePath),
-        }
-        let mut conn = self.connector.connect().await?;
-        let mut seen: BTreeSet<StorePath> = BTreeSet::new();
-        let mut pending: HashMap<StorePath, _> = HashMap::new();
-        let mut sorted = Vec::new();
-        // Iterative post-order DFS: dependencies emitted before dependents.
-        let mut stack: Vec<Frame> = roots.into_iter().map(Frame::Enter).collect();
-        while let Some(frame) = stack.pop() {
-            match frame {
-                Frame::Enter(p) => {
-                    if !seen.insert(p.clone()) {
-                        continue;
-                    }
-                    let Some(info) = conn.query_path_info(&p).await? else {
-                        continue;
-                    };
-                    stack.push(Frame::Exit(p.clone()));
-                    for r in &info.references {
-                        if *r != p && !seen.contains(r) {
-                            stack.push(Frame::Enter(r.clone()));
-                        }
-                    }
-                    pending.insert(p, info);
-                }
-                Frame::Exit(p) => {
-                    if let Some(info) = pending.remove(&p) {
-                        sorted.push(ValidPathInfo { path: p, info });
-                    }
-                }
-            }
-        }
-        Ok(sorted)
+        query_closure_infos(&mut self.connect().await?, roots).await
     }
 
     pub async fn compute_closure_size(&self, path: &StorePath) -> u64 {
-        self.query_closure_infos(vec![path.clone()])
-            .await
-            .map(|infos| infos.iter().map(|i| i.info.nar_size).sum())
-            .unwrap_or(0)
+        let Ok(mut conn) = self.connect().await else {
+            return 0;
+        };
+        compute_closure_size(&mut conn, path).await
     }
+}
+
+pub async fn query_path_info(
+    conn: &mut DaemonConn,
+    path: &StorePath,
+) -> Result<Option<ValidPathInfo>, DaemonError> {
+    Ok(conn.query_path_info(path).await?.map(|info| ValidPathInfo {
+        path: path.clone(),
+        info,
+    }))
+}
+
+/// Closure of `roots` with full path info, dependencies before dependents.
+/// Invalid roots are skipped.
+pub async fn query_closure_infos(
+    conn: &mut DaemonConn,
+    roots: Vec<StorePath>,
+) -> Result<Vec<ValidPathInfo>, DaemonError> {
+    enum Frame {
+        Enter(StorePath),
+        Exit(StorePath),
+    }
+    let mut seen: BTreeSet<StorePath> = BTreeSet::new();
+    let mut pending: HashMap<StorePath, _> = HashMap::new();
+    let mut sorted = Vec::new();
+    // Iterative post-order DFS: dependencies emitted before dependents.
+    let mut stack: Vec<Frame> = roots.into_iter().map(Frame::Enter).collect();
+    while let Some(frame) = stack.pop() {
+        match frame {
+            Frame::Enter(p) => {
+                if !seen.insert(p.clone()) {
+                    continue;
+                }
+                let Some(info) = conn.query_path_info(&p).await? else {
+                    continue;
+                };
+                stack.push(Frame::Exit(p.clone()));
+                for r in &info.references {
+                    if *r != p && !seen.contains(r) {
+                        stack.push(Frame::Enter(r.clone()));
+                    }
+                }
+                pending.insert(p, info);
+            }
+            Frame::Exit(p) => {
+                if let Some(info) = pending.remove(&p) {
+                    sorted.push(ValidPathInfo { path: p, info });
+                }
+            }
+        }
+    }
+    Ok(sorted)
+}
+
+pub async fn compute_closure_size(conn: &mut DaemonConn, path: &StorePath) -> u64 {
+    query_closure_infos(conn, vec![path.clone()])
+        .await
+        .map(|infos| infos.iter().map(|i| i.info.nar_size).sum())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
