@@ -208,7 +208,7 @@ sub machines :Local Args(0) {
         "from BuildSteps s " .
         "join Builds b on s.build = b.id " .
         "join Jobsets jobsets on jobsets.id = b.jobset_id " .
-        "where busy != 0 order by machine, stepnr",
+        "where busy != 0 order by machine, s.starttime asc",
         { Slice => {} });
     $c->stash->{template} = 'machine-status.tt';
     $c->stash->{human_bytes} = sub {
