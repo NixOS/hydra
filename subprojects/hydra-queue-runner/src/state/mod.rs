@@ -103,6 +103,7 @@ impl From<DrvLookupError> for StateError {
 }
 
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
+use harmonia_protocol::types::DaemonStore as _;
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
@@ -2695,9 +2696,14 @@ impl State {
                 // floating outputs have None paths until built.
                 let all_resolved = output_paths.values().all(Option::is_some);
                 let all_valid = if all_resolved {
+                    let mut conn = self.store.connect().await.ok();
                     let mut valid = true;
                     for path in output_paths.values().flatten() {
-                        if !self.is_valid_path(path).await.unwrap_or(false) {
+                        let path_valid = match conn.as_mut() {
+                            Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
+                            None => false,
+                        };
+                        if !path_valid {
                             valid = false;
                             break;
                         }
@@ -2910,11 +2916,16 @@ impl State {
         // Outputs with None paths (CA floating) are always missing —
         // their path is unknown until the derivation is built.
         let missing_local_outputs: BTreeMap<OutputName, Option<StorePath>> = {
+            let mut conn = self.store.connect().await.ok();
             let mut missing = BTreeMap::new();
             for (name, path) in &output_paths {
                 match path {
                     Some(path) => {
-                        if !self.is_valid_path(path).await.unwrap_or(false) {
+                        let valid = match conn.as_mut() {
+                            Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
+                            None => false,
+                        };
+                        if !valid {
                             missing.insert(name.clone(), Some(path.clone()));
                         }
                     }
