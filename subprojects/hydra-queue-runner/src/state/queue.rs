@@ -381,11 +381,14 @@ impl JobConstraint {
         machines: &crate::state::Machines,
         free_fn: crate::config::MachineFreeFn,
     ) -> Option<(Arc<crate::state::Machine>, Arc<StepInfo>)> {
-        let step_features = self.job.step.get_required_features();
+        let info = self.job.step.drv_info();
+        let step_features = info
+            .as_ref()
+            .map_or(&[][..], |i| i.required_features.as_slice());
         let merged_features = if self.queue_features.is_empty() {
-            step_features
+            step_features.to_vec()
         } else {
-            [step_features.as_slice(), self.queue_features.as_slice()].concat()
+            [step_features, self.queue_features.as_slice()].concat()
         };
         if let Some(machine) =
             machines.get_machine_for_system(&self.system, &merged_features, Some(free_fn))

@@ -120,7 +120,7 @@ pub(super) type PendingRunnable = Arc<parking_lot::Mutex<Vec<Weak<Step>>>>;
 pub(crate) struct StepDrvInfo {
     system: String,
     output_paths: BTreeMap<OutputName, Option<StorePath>>,
-    required_features: Vec<String>,
+    pub(crate) required_features: Vec<String>,
     has_ca_floating: bool,
 }
 
@@ -333,11 +333,8 @@ impl Step {
     }
 
     // TODO: properly parse derivation options instead of reading env vars directly
-    pub fn get_required_features(&self) -> Vec<String> {
-        self.drv_info
-            .load_full()
-            .map(|i| i.required_features.clone())
-            .unwrap_or_default()
+    pub(crate) fn drv_info(&self) -> Option<Arc<StepDrvInfo>> {
+        self.drv_info.load_full()
     }
 
     #[tracing::instrument(skip(self, builds, steps))]
