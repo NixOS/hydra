@@ -740,7 +740,7 @@ impl State {
             return Ok(RealiseStepResult::None);
         };
         let drv = step_info.step.get_drv_path();
-        let default_max_log_size: u64 = 64 << 20; // 64 MiB
+        let default_max_log_size = self.config.max_log_size();
         // hydra-eval-jobs defaults for builds without meta.maxSilent/meta.timeout.
         let default_max_silent_time = self.config.max_silent_time();
         let default_build_timeout = self.config.build_timeout();
