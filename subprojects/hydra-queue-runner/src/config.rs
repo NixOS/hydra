@@ -186,6 +186,10 @@ const fn default_enable_fod_checker() -> bool {
     false
 }
 
+const fn default_max_silent_time() -> i32 {
+    3600
+}
+
 #[derive(Debug, Default, serde::Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum MachineSortFn {
     SpeedFactorOnly,
@@ -283,6 +287,11 @@ struct AppConfig {
     #[serde(default)]
     max_output_size: u64,
 
+    // Default maximum silent time in seconds for builds without
+    // meta.maxSilent. Also used as a floor for dependency-only steps.
+    #[serde(default = "default_max_silent_time")]
+    max_silent_time: i32,
+
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -315,6 +324,7 @@ pub struct PreparedApp {
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
     pub max_output_size: u64,
+    pub max_silent_time: i32,
     pub forced_substituters: Vec<String>,
 }
 
@@ -412,6 +422,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
             max_output_size: val.max_output_size,
+            max_silent_time: val.max_silent_time,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -514,6 +525,12 @@ impl App {
     pub fn max_output_size(&self) -> u64 {
         let inner = self.inner.load();
         inner.max_output_size
+    }
+
+    #[must_use]
+    pub fn max_silent_time(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.max_silent_time
     }
 
     #[must_use]

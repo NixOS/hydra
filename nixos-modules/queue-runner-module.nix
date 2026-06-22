@@ -151,6 +151,11 @@ in
               type = lib.types.ints.unsigned;
               default = 0;
             };
+            maxSilentTime = lib.mkOption {
+              description = "Default maximum silent time in seconds for builds without meta.maxSilent. Also used as a floor for dependency-only steps.";
+              type = lib.types.ints.unsigned;
+              default = 3600;
+            };
           };
         };
         default = { };
