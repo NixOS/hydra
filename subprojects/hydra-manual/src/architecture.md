@@ -62,7 +62,6 @@ Solid arrows are normal dependencies; dashed arrows are dev (test-only) dependen
 ```mermaid
 graph BT
     binary-cache --> daemon-client-utils
-    binary-cache --> local-nix-db
     nix-support --> store-path-utils
     db --> nix-support
     hydra-proto --> nix-support

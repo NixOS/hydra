@@ -16,7 +16,6 @@
 
 pub mod config;
 pub mod io;
-pub use local_nix_db as local_db;
 pub mod lock_file;
 pub mod server;
 pub mod state;

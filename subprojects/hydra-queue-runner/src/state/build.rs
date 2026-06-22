@@ -403,9 +403,6 @@ pub enum BuildOutputError {
     #[error("nix daemon error")]
     Daemon(#[from] harmonia_store_remote::DaemonError),
 
-    #[error("local nix database error")]
-    LocalNixDb(#[from] sqlx::Error),
-
     #[error("reading build output")]
     Io(#[from] std::io::Error),
 }
@@ -464,9 +461,9 @@ impl BuildOutput {
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(local_db, connector, real_store_dir, outputs), err)]
+    #[tracing::instrument(skip(store, connector, real_store_dir, outputs), err)]
     pub async fn new(
-        local_db: &crate::local_db::LocalNixDb,
+        store: &daemon_client_utils::DaemonStoreReader,
         connector: &daemon_client_utils::DaemonConnector,
         real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
@@ -475,9 +472,11 @@ impl BuildOutput {
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
+        // Reuse one daemon connection across both query loops below.
+        let mut conn = store.connect().await?;
         let mut pathinfos = BTreeMap::new();
         for path in resolved.values() {
-            if let Some(info) = local_db.query_path_info(path).await? {
+            if let Some(info) = daemon_client_utils::query_path_info(&mut conn, path).await? {
                 pathinfos.insert(path.clone(), info.info);
             }
         }
@@ -502,7 +501,7 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += local_db.compute_closure_size(&path).await;
+                closure_size += daemon_client_utils::compute_closure_size(&mut conn, &path).await;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }

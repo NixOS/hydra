@@ -68,10 +68,8 @@ harmonia-store-remote.workspace          = true
 harmonia-utils-hash.workspace            = true
 hydra-proto                              = { workspace = true, features = [ "db", "server" ] }
 hydra-tracing                            = { workspace = true, features = [ "tonic" ] }
-local-nix-db.workspace                   = true
 nix-support.workspace                    = true
 sha2.workspace                           = true
-sqlx                                     = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
 store-path-utils.workspace               = true
 store-transfer.workspace                 = true
 

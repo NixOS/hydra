@@ -535,15 +535,15 @@ impl RunnerService for Server {
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
         let requisites: Vec<ProtoStorePath> = state
-            .local_db
-            .query_closure(paths)
+            .store
+            .query_closure_infos(paths)
             .await
             .map_err(|e| {
                 tracing::error!("failed to compute closure e={e}");
                 tonic::Status::internal("failed to compute closure.")
             })?
             .into_iter()
-            .map(ProtoStorePath)
+            .map(|vpi| ProtoStorePath(vpi.path))
             .collect();
 
         Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
@@ -559,7 +559,7 @@ impl RunnerService for Server {
         let path = req.into_inner().0;
         let state = self.state.clone();
         let has_path: bool = state
-            .local_db
+            .store
             .is_valid_path(&path)
             .await
             .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
@@ -576,12 +576,16 @@ impl RunnerService for Server {
     ) -> BuilderResult<Self::FetchPathsStream> {
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
+        // Reuse one daemon connection for the whole path-info loop.
+        let mut conn = self
+            .state
+            .store
+            .connect()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connection: {e}")))?;
         let mut infos = hashbrown::HashMap::with_capacity(paths.len());
         for path in &paths {
-            let info = self
-                .state
-                .local_db
-                .query_path_info(path)
+            let info = daemon_client_utils::query_path_info(&mut conn, path)
                 .await
                 .map_err(|e| tonic::Status::internal(format!("query_path_info failed: {e}")))?
                 .map(|vpi| vpi.info)
