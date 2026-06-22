@@ -156,6 +156,11 @@ in
               type = lib.types.ints.unsigned;
               default = 3600;
             };
+            buildTimeout = lib.mkOption {
+              description = "Default build timeout in seconds for builds without meta.timeout. Also used as a floor for dependency-only steps.";
+              type = lib.types.ints.unsigned;
+              default = 36000;
+            };
           };
         };
         default = { };
