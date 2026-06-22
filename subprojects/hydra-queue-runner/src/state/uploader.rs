@@ -114,15 +114,15 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     async fn upload_msg(
         &self,
-        local_db: crate::local_db::LocalNixDb,
+        store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
     ) {
-        self.upload_msg_inner(local_db, local_store, remote_stores, &msg)
+        self.upload_msg_inner(store, local_store, remote_stores, &msg)
             .await;
         if let Some(drv) = &msg.notify_drv {
             // Reported even when the upload failed: the gated step then
@@ -132,10 +132,10 @@ impl Uploader {
         }
     }
 
-    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     async fn upload_msg_inner(
         &self,
-        local_db: crate::local_db::LocalNixDb,
+        store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
@@ -144,7 +144,7 @@ impl Uploader {
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
-        let closure = match local_db.query_closure_infos(msg.store_paths.to_vec()).await {
+        let closure = match store.query_closure_infos(msg.store_paths.to_vec()).await {
             Ok(c) => c,
             Err(e) => {
                 tracing::error!("Failed to query requisites: {e}");
@@ -253,10 +253,10 @@ impl Uploader {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     pub async fn upload_once(
         &self,
-        local_db: crate::local_db::LocalNixDb,
+        store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
@@ -269,7 +269,7 @@ impl Uploader {
             current_tasks.push(msg.clone());
         }
 
-        self.upload_msg(local_db, local_store, remote_stores, msg)
+        self.upload_msg(store, local_store, remote_stores, msg)
             .await;
 
         {
@@ -279,10 +279,10 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_db, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     pub async fn upload_many(
         self: &Arc<Self>,
-        local_db: crate::local_db::LocalNixDb,
+        store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,
@@ -303,11 +303,11 @@ impl Uploader {
         let mut jobs = tokio::task::JoinSet::new();
         for msg in messages {
             let this = self.clone();
-            let local_db = local_db.clone();
+            let store = store.clone();
             let local_store = local_store.clone();
             let remote_stores = remote_stores.clone();
             jobs.spawn(async move {
-                this.upload_msg(local_db, local_store, remote_stores, msg)
+                this.upload_msg(store, local_store, remote_stores, msg)
                     .await;
             });
         }

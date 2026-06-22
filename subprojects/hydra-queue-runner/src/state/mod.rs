@@ -57,9 +57,6 @@ pub enum StateError {
     #[error("failed to construct log path string")]
     LogPathNotUtf8,
 
-    #[error("local nix database error")]
-    LocalNixDb(#[from] sqlx::Error),
-
     #[error("reading derivation `{drv}`: {reason}")]
     ReadDerivation {
         drv: StorePath,
@@ -253,17 +250,14 @@ pub enum RemoteStoreBackend {
 /// store list cannot alias one store's cache onto another.
 fn presence_cache_file(uri: &str) -> String {
     let digest = Sha256::digest(uri.as_bytes());
-    format!("narinfo-presence-{:x}.db", digest)
+    format!("narinfo-presence-{digest:x}.db")
 }
 
 #[allow(missing_debug_implementations)]
 pub struct State {
     pub connector: daemon_client_utils::DaemonConnector,
-    /// Direct read-only access to the Nix `SQLite` database. Validity
-    /// and path-info reads go here rather than through the daemon, so
-    /// they neither contend with NAR transfers for pooled connections
-    /// nor risk reading a connection a cancelled transfer left desynced.
-    pub local_db: crate::local_db::LocalNixDb,
+    /// Reads store validity and path info through the nix-daemon.
+    pub store: daemon_client_utils::DaemonStoreReader,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
@@ -397,11 +391,11 @@ impl State {
 
         let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let local_db = crate::local_db::LocalNixDb::open(store_dir.clone()).await?;
+        let store = daemon_client_utils::DaemonStoreReader::new(connector.clone());
 
         Ok(Arc::new(Self {
             connector,
-            local_db,
+            store,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             cli,
             db,
@@ -1602,7 +1596,7 @@ impl State {
         let task = tokio::task::spawn({
             async move {
                 loop {
-                    let local_db = self.local_db.clone();
+                    let store = self.store.clone();
                     let local_store = self.connector.clone();
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
@@ -1616,11 +1610,11 @@ impl State {
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
                         self.uploader
-                            .upload_once(local_db, local_store, s3_stores)
+                            .upload_once(store, local_store, s3_stores)
                             .await;
                     } else {
                         self.uploader
-                            .upload_many(local_db, local_store, s3_stores, limit)
+                            .upload_many(store, local_store, s3_stores, limit)
                             .await;
                     }
                 }
@@ -2857,8 +2851,7 @@ impl State {
                 return CreateStepResult::Valid(step);
             }
             // Builders import inputs from the queue runner's local
-            // store: local validity is enough, the upload only fills
-            // the cache.
+            // Local validity is enough; the upload only fills the cache.
         }
         finished_drvs.write().insert(drv_path.clone());
         complete_step(&step);
@@ -2978,8 +2971,8 @@ impl State {
                         pending_upload = Some(missing_paths);
                     } else {
                         // Builders import inputs from the queue runner's local
-                        // store: local validity is enough, the upload only
-                        // fills the cache.
+                        // Local validity is enough; the upload only fills
+                        // the cache.
                         let log_file = self.construct_log_file_path(drv_path).await;
                         self.uploader
                             .schedule_upload(
@@ -3035,7 +3028,7 @@ impl State {
                 self.metrics.nr_substitutes_started.inc();
                 crate::utils::substitute_output(
                     self.db.clone(),
-                    &self.local_db,
+                    &self.store,
                     self.connector.clone(),
                     o,
                     build.id,
@@ -3089,7 +3082,7 @@ impl State {
     /// of the nix-daemon, so queue ingestion does not compete with NAR
     /// uploads for daemon connections.
     async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
-        Ok(self.local_db.is_valid_path(path).await?)
+        Ok(self.store.is_valid_path(path).await?)
     }
 
     /// The first configured S3 remote store, if any. Several scheduling
@@ -3247,7 +3240,7 @@ impl State {
         } else {
             let default_store: std::path::PathBuf = self.connector.store_dir().to_string().into();
             let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
-            BuildOutput::new(&self.local_db, &self.connector, real_dir, output_paths).await?
+            BuildOutput::new(&self.store, &self.connector, real_dir, output_paths).await?
         };
 
         if let Ok(platform) = std::str::from_utf8(&drv.platform) {

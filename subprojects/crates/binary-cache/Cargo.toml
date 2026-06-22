@@ -51,7 +51,6 @@ harmonia-store-path-info.workspace  = true
 harmonia-utils-hash.workspace       = true
 harmonia-utils-io.workspace         = true
 harmonia-utils-signature.workspace  = true
-local-nix-db.workspace              = true
 percent-encoding.workspace          = true
 
 [dev-dependencies]

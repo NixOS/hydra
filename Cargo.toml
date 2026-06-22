@@ -116,7 +116,6 @@ daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
 db                  = { path = "subprojects/crates/db" }
 hydra-proto         = { path = "subprojects/crates/proto" }
 hydra-tracing       = { path = "subprojects/crates/tracing" }
-local-nix-db        = { path = "subprojects/crates/local-nix-db" }
 nix-support         = { path = "subprojects/crates/nix-support" }
 store-path-utils    = { path = "subprojects/crates/store-path-utils" }
 store-transfer      = { path = "subprojects/crates/store-transfer" }

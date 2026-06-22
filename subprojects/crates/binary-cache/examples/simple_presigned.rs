@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         nix_config.socket.clone(),
         nix_config.store_dir.clone(),
     );
-    let local_db = local_nix_db::LocalNixDb::open(nix_config.store_dir.clone()).await?;
+    let store = daemon_client_utils::DaemonStoreReader::new(connector.clone());
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&write-debug-info=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -50,30 +50,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let upload_client = PresignedUploadClient::new();
 
     let root: StorePath = "m1r53pnnm6hnjwyjmxska24y8amvlpjp-hello-2.12.1".parse()?;
-    let paths_to_copy = local_db.query_closure(vec![root]).await?;
+    let paths_to_copy: Vec<_> = store
+        .query_closure_infos(vec![root])
+        .await?
+        .into_iter()
+        .map(|i| i.path)
+        .collect();
 
     let mut stream = tokio_stream::iter(paths_to_copy)
         .map(|p| {
             let client = client.clone();
             let upload_client = upload_client.clone();
             let connector = connector.clone();
-            let local_db = local_db.clone();
+            let store = store.clone();
             async move {
-                let narinfo = path_to_narinfo(&local_db, &p).await?;
+                let narinfo = path_to_narinfo(&store, &p).await?;
 
                 let presigned_request = client
                     .generate_nar_upload_presigned_url(
                         &narinfo.path,
                         &narinfo.info.info.nar_hash,
                         narinfo.info.info.nar_size,
-                        binary_cache::get_debug_info_build_ids(local_db.store_dir().as_ref(), &p)
+                        binary_cache::get_debug_info_build_ids(store.store_dir().as_ref(), &p)
                             .await?,
                     )
                     .await?;
 
                 let (narinfo, _completion) = upload_client
                     .process_presigned_request(
-                        local_db.store_dir(),
+                        store.store_dir(),
                         narinfo,
                         presigned_request,
                         &NoMoreParts,
