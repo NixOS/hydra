@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 #[derive(Debug, Clone)]
 pub(crate) struct PresenceCache {
@@ -33,9 +33,14 @@ impl PresenceCache {
                 .await
                 .map_err(sqlx::Error::Io)?;
         }
+        // It is only a cache, so trade durability for far fewer fsyncs: WAL
+        // plus synchronous=NORMAL avoids a sync per write, which on ZFS is a
+        // ZIL commit and dominated ingestion time.
         let opts = SqliteConnectOptions::new()
             .filename(path)
             .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
             .busy_timeout(Duration::from_secs(30));
         let pool = SqlitePoolOptions::new()
             .max_connections(4)
