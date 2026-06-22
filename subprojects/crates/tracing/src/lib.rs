@@ -95,6 +95,9 @@ pub fn init() -> Result<TracingGuard, TracingInitError> {
     );
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
+        // Output goes to journald, not a terminal: skip ANSI styling so log
+        // lines do not carry escape codes and the formatter does no coloring.
+        .with_ansi(false)
         .compact();
     let subscriber = tracing_subscriber::Registry::default()
         .with(log_env_filter)
