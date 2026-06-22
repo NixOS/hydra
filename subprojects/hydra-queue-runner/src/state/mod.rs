@@ -103,7 +103,6 @@ impl From<DrvLookupError> for StateError {
 }
 
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
-use harmonia_protocol::types::DaemonStore as _;
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
@@ -136,6 +135,9 @@ use crate::utils::finish_build_step;
 
 pub type System = String;
 const MAX_CONCURRENT_BUILD_INJECTION: usize = 50;
+/// Cap on daemon connections held for store-validity reads during one
+/// ingestion pass. Bounds the connect/fork load the pass puts on the daemon.
+const MAX_DAEMON_READ_CONNS: usize = 16;
 const BUILD_STEP_LOCK_SHARDS: usize = 1024;
 
 enum CreateStepResult {
@@ -146,7 +148,6 @@ enum CreateStepResult {
 
 /// Pass-wide state threaded through build and step creation during one queue
 /// ingestion pass.
-#[derive(Default)]
 struct InjectCtx {
     /// Derivations already decided finished in this pass
     finished_drvs: parking_lot::RwLock<HashSet<StorePath>>,
@@ -154,6 +155,21 @@ struct InjectCtx {
     new_builds_by_id: parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>,
     /// Builds indexed by the derivation they build
     new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
+    /// Bounded daemon connections shared by this pass's store-validity reads.
+    pool: Arc<daemon_client_utils::DaemonConnPool>,
+}
+
+impl InjectCtx {
+    /// A context for a single step created outside the bulk ingestion pass
+    /// (e.g. a resolved derivation), with empty build maps.
+    fn oneshot(pool: Arc<daemon_client_utils::DaemonConnPool>) -> Arc<Self> {
+        Arc::new(Self {
+            finished_drvs: parking_lot::RwLock::default(),
+            new_builds_by_id: parking_lot::RwLock::default(),
+            new_builds_by_path: HashMap::new(),
+            pool,
+        })
+    }
 }
 
 /// Output availability as discovered by [`State::prefetch_step_facts`].
@@ -966,7 +982,7 @@ impl State {
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
-                        Arc::default(),
+                        InjectCtx::oneshot(self.read_pool()),
                     )
                     .await
                 {
@@ -1198,6 +1214,7 @@ impl State {
             finished_drvs: parking_lot::RwLock::new(HashSet::new()),
             new_builds_by_id: parking_lot::RwLock::new(new_builds_by_id),
             new_builds_by_path,
+            pool: self.read_pool(),
         });
 
         let mut futures = futures::stream::FuturesUnordered::new();
@@ -2062,7 +2079,7 @@ impl State {
                         Some((dependent_step.clone(), relation)),
                         Arc::default(),
                         new_runnable.clone(),
-                        Arc::default(),
+                        InjectCtx::oneshot(self.read_pool()),
                     )
                     .await
                 {
@@ -2554,7 +2571,13 @@ impl State {
         nr_added.fetch_add(1, Ordering::Relaxed);
         ctx.new_builds_by_id.write().remove(&build.id);
 
-        if !self.is_valid_path(&build.drv_path).await? {
+        if !ctx
+            .pool
+            .acquire()
+            .await?
+            .is_valid_path(&build.drv_path)
+            .await?
+        {
             self.abort_gced_build(&build).await;
             return Ok(());
         }
@@ -2674,7 +2697,7 @@ impl State {
                 // floating outputs have None paths until built.
                 let all_resolved = output_paths.values().all(Option::is_some);
                 let all_valid = if all_resolved {
-                    let mut conn = self.store.connect().await.ok();
+                    let mut conn = ctx.pool.acquire().await.ok();
                     let mut valid = true;
                     for path in output_paths.values().flatten() {
                         let path_valid = match conn.as_mut() {
@@ -2701,7 +2724,7 @@ impl State {
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
-        let Some(facts) = self.prefetch_step_facts(&build, &drv_path).await else {
+        let Some(facts) = self.prefetch_step_facts(&build, &drv_path, &ctx.pool).await else {
             return CreateStepResult::None;
         };
         let StepFacts {
@@ -2846,11 +2869,12 @@ impl State {
     /// output validity, try substitutes and look up cached failures. Must
     /// not mutate the step graph; that happens in [`attach_step`].
     #[allow(clippy::too_many_lines)]
-    #[tracing::instrument(skip(self, build), fields(build_id = build.id, %drv_path))]
+    #[tracing::instrument(skip(self, build, pool), fields(build_id = build.id, %drv_path))]
     async fn prefetch_step_facts(
         &self,
         build: &Arc<Build>,
         drv_path: &StorePath,
+        pool: &Arc<daemon_client_utils::DaemonConnPool>,
     ) -> Option<StepFacts> {
         let Some(drv) = self.read_derivation(drv_path).await.ok() else {
             tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
@@ -2877,7 +2901,7 @@ impl State {
             })
             .collect();
         let missing_local_outputs = self
-            .missing_local_outputs(build, drv_path, &output_paths)
+            .missing_local_outputs(build, drv_path, &output_paths, pool)
             .await;
 
         // Handle paths that aren't in the remote store (for pushing).
@@ -2989,6 +3013,7 @@ impl State {
         build: &Arc<Build>,
         drv_path: &StorePath,
         output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+        pool: &Arc<daemon_client_utils::DaemonConnPool>,
     ) -> BTreeMap<OutputName, Option<StorePath>> {
         let known_outputs = self
             .query_known_drv_outputs(drv_path)
@@ -2997,7 +3022,7 @@ impl State {
                 tracing::warn!("Could not query known outputs, continuing: {e}");
                 BTreeMap::new()
             });
-        let mut conn = self.store.connect().await.ok();
+        let mut conn = pool.acquire().await.ok();
         let mut missing = BTreeMap::new();
         for (name, path) in output_paths {
             match path {
@@ -3083,8 +3108,10 @@ impl State {
         substituted == missing_outputs_len
     }
 
-    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
-        Ok(self.store.is_valid_path(path).await?)
+    /// A daemon connection pool scoped to one ingestion pass, bounding the
+    /// connect load that pass's store-validity reads put on the daemon.
+    fn read_pool(&self) -> Arc<daemon_client_utils::DaemonConnPool> {
+        daemon_client_utils::DaemonConnPool::new(self.store.clone(), MAX_DAEMON_READ_CONNS)
     }
 
     /// Lock guarding build step inserts for a build, sharded by build id.
@@ -3092,7 +3119,6 @@ impl State {
         let idx = usize::try_from(build_id.unsigned_abs()).unwrap_or_default();
         &self.build_step_locks[idx % BUILD_STEP_LOCK_SHARDS]
     }
-
 
     /// The first configured S3 remote store, if any. Several scheduling
     /// paths only need a single S3 store to decide whether outputs already

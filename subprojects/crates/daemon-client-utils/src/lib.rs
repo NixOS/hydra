@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use harmonia_protocol::types::{DaemonError, DaemonStore};
 use harmonia_store_path::{StoreDir, StorePath};
@@ -242,6 +243,83 @@ impl DaemonStoreReader {
             return 0;
         };
         compute_closure_size(&mut conn, path).await
+    }
+}
+
+/// A bounded, reusable set of daemon connections for a burst of read-only
+/// queries. It caps live connections at `max` and hands them back for reuse,
+/// so a fan-out of validity checks costs at most `max` handshakes rather than
+/// one per query. Drop the pool when the burst ends to close the connections;
+/// nothing stays open between bursts.
+pub struct DaemonConnPool {
+    reader: DaemonStoreReader,
+    idle: Mutex<Vec<DaemonConn>>,
+    sem: Arc<tokio::sync::Semaphore>,
+}
+
+impl DaemonConnPool {
+    pub fn new(reader: DaemonStoreReader, max: usize) -> Arc<Self> {
+        Arc::new(Self {
+            reader,
+            idle: Mutex::new(Vec::new()),
+            sem: Arc::new(tokio::sync::Semaphore::new(max)),
+        })
+    }
+
+    /// Lease a connection, reusing an idle one or opening a new one up to the
+    /// pool's cap. Blocks once `max` connections are in use.
+    pub async fn acquire(self: &Arc<Self>) -> Result<PooledConn, DaemonError> {
+        let permit = self
+            .sem
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("daemon pool semaphore is never closed");
+        let reused = self.idle.lock().unwrap().pop();
+        let conn = match reused {
+            Some(conn) => conn,
+            None => self.reader.connect().await?,
+        };
+        Ok(PooledConn {
+            conn: Some(conn),
+            broken: false,
+            pool: self.clone(),
+            _permit: permit,
+        })
+    }
+}
+
+/// A connection leased from a [`DaemonConnPool`], returned to the pool on drop
+/// unless it was marked broken by a failed query.
+pub struct PooledConn {
+    conn: Option<DaemonConn>,
+    broken: bool,
+    pool: Arc<DaemonConnPool>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl PooledConn {
+    /// Check path validity. A daemon error can leave the connection desynced,
+    /// so on error it is dropped instead of returned to the pool.
+    pub async fn is_valid_path(&mut self, path: &StorePath) -> Result<bool, DaemonError> {
+        let conn = self.conn.as_mut().expect("leased connection already taken");
+        match conn.is_valid_path(path).await {
+            Ok(valid) => Ok(valid),
+            Err(e) => {
+                self.broken = true;
+                Err(e)
+            }
+        }
+    }
+}
+
+impl Drop for PooledConn {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take()
+            && !self.broken
+        {
+            self.pool.idle.lock().unwrap().push(conn);
+        }
     }
 }
 
