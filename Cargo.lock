@@ -986,6 +986,7 @@ version = "0.1.0"
 dependencies = [
  "harmonia-protocol",
  "harmonia-store-path",
+ "harmonia-store-path-info",
  "harmonia-store-remote",
  "tokio",
  "url",
@@ -1940,7 +1941,6 @@ dependencies = [
  "hydra-proto",
  "hydra-tracing",
  "hyper-util",
- "local-nix-db",
  "nix",
  "nix-support",
  "parking_lot",
@@ -1949,7 +1949,6 @@ dependencies = [
  "sd-notify",
  "serde",
  "serde_json",
- "sqlx",
  "store-path-utils",
  "store-transfer",
  "sysinfo",
