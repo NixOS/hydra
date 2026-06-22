@@ -190,6 +190,9 @@ const fn default_max_silent_time() -> i32 {
     3600
 }
 
+const fn default_build_timeout() -> i32 {
+    36000
+}
 #[derive(Debug, Default, serde::Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum MachineSortFn {
     SpeedFactorOnly,
@@ -292,6 +295,10 @@ struct AppConfig {
     #[serde(default = "default_max_silent_time")]
     max_silent_time: i32,
 
+    // Default build timeout in seconds for builds without meta.timeout.
+    // Also used as a floor for dependency-only steps.
+    #[serde(default = "default_build_timeout")]
+    build_timeout: i32,
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -325,6 +332,7 @@ pub struct PreparedApp {
     pub use_presigned_uploads: bool,
     pub max_output_size: u64,
     pub max_silent_time: i32,
+    pub build_timeout: i32,
     pub forced_substituters: Vec<String>,
 }
 
@@ -423,6 +431,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             use_presigned_uploads: val.use_presigned_uploads,
             max_output_size: val.max_output_size,
             max_silent_time: val.max_silent_time,
+            build_timeout: val.build_timeout,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -533,6 +542,11 @@ impl App {
         inner.max_silent_time
     }
 
+    #[must_use]
+    pub fn build_timeout(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.build_timeout
+    }
     #[must_use]
     pub fn get_dispatch_trigger_timer(&self) -> Option<tokio::time::Duration> {
         let inner = self.inner.load();

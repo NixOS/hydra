@@ -743,7 +743,7 @@ impl State {
         let default_max_log_size: u64 = 64 << 20; // 64 MiB
         // hydra-eval-jobs defaults for builds without meta.maxSilent/meta.timeout.
         let default_max_silent_time = self.config.max_silent_time();
-        const DEFAULT_BUILD_TIMEOUT: i32 = 36000;
+        let default_build_timeout = self.config.build_timeout();
         let mut max_silent_time: i32;
         let mut build_timeout: i32;
 
@@ -787,7 +787,7 @@ impl State {
             // building its dependency closure on an empty binary cache.
             if !dependents.iter().any(|b| &b.drv_path == drv) {
                 max_silent_time = max_silent_time.max(default_max_silent_time);
-                build_timeout = build_timeout.max(DEFAULT_BUILD_TIMEOUT);
+                build_timeout = build_timeout.max(default_build_timeout);
             }
             build.clone()
         };
