@@ -388,7 +388,11 @@ impl Machines {
         let Some(system) = s.get_system() else {
             return false;
         };
-        self.get_machine_for_system(&system, &s.get_required_features(), None)
+        let info = s.drv_info();
+        let required_features = info
+            .as_ref()
+            .map_or(&[][..], |i| i.required_features.as_slice());
+        self.get_machine_for_system(&system, required_features, None)
             .is_some()
     }
 
