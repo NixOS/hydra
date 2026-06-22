@@ -17,6 +17,7 @@ use crate::types::BuildTimings;
 use binary_cache::{
     CacheError, Compression, MorePartsSource, PresignedPart, PresignedUpload, PresignedUploadClient,
 };
+use daemon_client_utils::DaemonStoreReader;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
@@ -24,7 +25,6 @@ use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
     PingMessage, StepStatus, StepUpdate,
 };
-use local_nix_db::LocalNixDb;
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure")]
@@ -113,11 +113,9 @@ pub struct State {
     pub config: Config,
     pub max_concurrent_downloads: AtomicU32,
     pub connector: daemon_client_utils::DaemonConnector,
-    /// Read-only handle to the local Nix store `SQLite` database. Validity
-    /// and path-info reads go here rather than through the daemon, so they
-    /// neither contend with NAR transfers for pooled connections nor risk
-    /// reading a connection a cancelled transfer left desynced.
-    pub local_db: LocalNixDb,
+    /// Reads store validity and path info through the nix-daemon, which sees
+    /// paths a build just registered.
+    pub store: DaemonStoreReader,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
     pub client: BuilderClient,
@@ -147,10 +145,7 @@ impl State {
             nix_remote.store_dir.clone(),
         );
 
-        let db_path = nix_remote.state_dir.join("db/db.sqlite");
-        let local_db = LocalNixDb::open_at(nix_remote.store_dir.clone(), &db_path)
-            .await
-            .map_err(|e| BuilderError::OpenLocalNixDb(db_path, e))?;
+        let store = DaemonStoreReader::new(connector.clone());
 
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
@@ -192,7 +187,7 @@ impl State {
                 real_store_dir: nix_remote.real_store_dir(),
             },
             connector,
-            local_db,
+            store,
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
@@ -539,7 +534,7 @@ impl State {
 
         import_requisites(
             &mut client,
-            &self.local_db,
+            &self.store,
             self.connector.clone(),
             self.metrics.clone(),
             &roots,
@@ -594,7 +589,7 @@ impl State {
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
             let info = self
-                .local_db
+                .store
                 .query_path_info(path)
                 .await
                 .wrap_err("query_path_info failed")
@@ -646,7 +641,7 @@ impl State {
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
-            &self.local_db,
+            &self.store,
             self.connector.clone(),
             machine_id,
             &drv,
@@ -700,7 +695,7 @@ impl State {
         if let Some(opts) = presigned_url_opts {
             upload_nars_presigned(
                 self.client.clone(),
-                &self.local_db,
+                &self.store,
                 self.upload_client.clone(),
                 connector,
                 &nars,
@@ -713,7 +708,7 @@ impl State {
         } else {
             upload_nars_regular(
                 self.client.clone(),
-                &self.local_db,
+                &self.store,
                 connector,
                 self.metrics.clone(),
                 nars,
@@ -731,13 +726,13 @@ async fn pin_path(roots: &TempRoots, path: &StorePath) -> bool {
     roots.lock().await.add_temp_root(path).await.is_ok()
 }
 
-#[tracing::instrument(skip(local_db, roots), fields(%path))]
+#[tracing::instrument(skip(store, roots), fields(%path))]
 async fn is_path_missing(
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     roots: &TempRoots,
     path: StorePath,
 ) -> eyre::Result<Option<StorePath>> {
-    if local_db.is_valid_path(&path).await? && pin_path(roots, &path).await {
+    if store.is_valid_path(&path).await? && pin_path(roots, &path).await {
         Ok(None)
     } else {
         Ok(Some(path))
@@ -746,14 +741,14 @@ async fn is_path_missing(
 
 /// Keep only paths not present locally (or that could not be pinned).
 async fn filter_missing(
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     roots: &TempRoots,
     paths: Vec<StorePath>,
     concurrency: usize,
 ) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-        is_path_missing(local_db, roots, p)
+        is_path_missing(store, roots, p)
     })
     .buffered(concurrency)
     .collect::<Vec<_>>()
@@ -851,11 +846,11 @@ async fn substitute_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, local_db, connector, metrics), err)]
+#[tracing::instrument(skip(client, store, connector, metrics), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     roots: &TempRoots,
@@ -864,7 +859,7 @@ async fn import_paths(
     use_substitutes: bool,
 ) -> eyre::Result<()> {
     let paths = if filter {
-        filter_missing(local_db, roots, paths, 10).await?
+        filter_missing(store, roots, paths, 10).await?
     } else {
         paths
     };
@@ -872,7 +867,7 @@ async fn import_paths(
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&connector, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = filter_missing(local_db, roots, paths, 10).await?;
+        let paths = filter_missing(store, roots, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -913,11 +908,11 @@ async fn import_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, connector, metrics, requisites), fields(%drv), err)]
+#[tracing::instrument(skip(client, store, connector, metrics, requisites), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     roots: &TempRoots,
@@ -926,7 +921,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
-    let requisites = filter_missing(local_db, roots, requisites.into_iter().collect(), 50).await?;
+    let requisites = filter_missing(store, roots, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -934,7 +929,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            local_db,
+            store,
             connector.clone(),
             metrics.clone(),
             roots,
@@ -948,7 +943,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            local_db,
+            store,
             connector.clone(),
             metrics.clone(),
             roots,
@@ -962,17 +957,17 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, local_db, connector, metrics), err)]
+#[tracing::instrument(skip(client, store, connector, metrics), err)]
 async fn upload_nars_regular(
     mut client: BuilderClient,
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> eyre::Result<()> {
     // query_closure_infos returns ValidPathInfos in dependency order with
     // path infos already populated, so we don't need to re-query.
-    let closure = local_db
+    let closure = store
         .query_closure_infos(nars)
         .await
         .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
@@ -1046,16 +1041,14 @@ async fn upload_nars_regular(
 }
 
 /// NARs uploaded concurrently across all builds. Enough to hide ~200 ms S3
-/// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory
-/// and to stay within the local-nix-db connection pool each upload queries for
-/// path info.
+/// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory.
 pub const GLOBAL_NAR_UPLOAD_CONCURRENCY: usize = 16;
 
-#[tracing::instrument(skip(client, connector, upload_semaphore), err)]
+#[tracing::instrument(skip(client, store, connector, upload_semaphore), err)]
 #[allow(clippy::too_many_arguments)]
 async fn upload_nars_presigned(
     client: BuilderClient,
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     upload_client: PresignedUploadClient,
     connector: daemon_client_utils::DaemonConnector,
     output_paths: &[StorePath],
@@ -1071,7 +1064,7 @@ async fn upload_nars_presigned(
 
     // query_closure_infos returns path infos in dependency order, so no
     // need to re-query.
-    let closure = local_db.query_closure_infos(output_paths.to_vec()).await?;
+    let closure = store.query_closure_infos(output_paths.to_vec()).await?;
 
     let path_info_map: HashMap<_, _> = closure
         .iter()
@@ -1149,7 +1142,7 @@ async fn upload_nars_presigned(
                 let store_path = StorePath::from_base_path(&presigned_response.store_path)
                     .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?;
                 upload_single_nar_presigned(
-                    local_db,
+                    store,
                     &store_path,
                     build_id,
                     machine_id,
@@ -1278,9 +1271,9 @@ fn presigned_request_from_response(
     Ok((nar_upload.path.clone(), request))
 }
 
-#[tracing::instrument(skip(local_db, nar_path, presigned_response), err)]
+#[tracing::instrument(skip(store, nar_path, presigned_response), err)]
 async fn upload_single_nar_presigned(
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     nar_path: &StorePath,
     build_id: &str,
     machine_id: &str,
@@ -1290,7 +1283,7 @@ async fn upload_single_nar_presigned(
 ) -> eyre::Result<()> {
     // Presigned upload requires constructing NarInfo from path info.
     let narinfo: binary_cache::NarInfo = {
-        let info = local_db
+        let info = store
             .query_path_info(nar_path)
             .await?
             .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?
@@ -1306,12 +1299,7 @@ async fn upload_single_nar_presigned(
         object_key,
     };
     let (updated_narinfo, completion) = upload_client
-        .process_presigned_request(
-            local_db.store_dir(),
-            narinfo,
-            presigned_request,
-            &more_parts,
-        )
+        .process_presigned_request(store.store_dir(), narinfo, presigned_request, &more_parts)
         .await?;
 
     tracing::debug!(
@@ -1348,10 +1336,10 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(local_db, connector, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(store, connector, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
 #[allow(clippy::too_many_arguments)]
 async fn new_success_build_result_info(
-    local_db: &LocalNixDb,
+    store: &DaemonStoreReader,
     connector: daemon_client_utils::DaemonConnector,
     machine_id: uuid::Uuid,
     drv: &StorePath,
@@ -1388,7 +1376,7 @@ async fn new_success_build_result_info(
             name.to_string(),
             OutputInfo {
                 path: Some(ProtoStorePath::from(vpi.path.clone())),
-                closure_size: local_db.compute_closure_size(&vpi.path).await,
+                closure_size: store.compute_closure_size(&vpi.path).await,
                 nar_size: vpi.info.nar_size,
                 nar_hash: {
                     let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
