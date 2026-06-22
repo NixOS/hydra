@@ -193,6 +193,11 @@ const fn default_max_silent_time() -> i32 {
 const fn default_build_timeout() -> i32 {
     36000
 }
+
+const fn default_max_log_size() -> u64 {
+    64 << 20 // 64 MiB
+}
+
 #[derive(Debug, Default, serde::Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum MachineSortFn {
     SpeedFactorOnly,
@@ -299,6 +304,12 @@ struct AppConfig {
     // Also used as a floor for dependency-only steps.
     #[serde(default = "default_build_timeout")]
     build_timeout: i32,
+
+    // Maximum build log size in bytes before a build fails with
+    // LogLimitExceeded.
+    #[serde(default = "default_max_log_size")]
+    max_log_size: u64,
+
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -333,6 +344,7 @@ pub struct PreparedApp {
     pub max_output_size: u64,
     pub max_silent_time: i32,
     pub build_timeout: i32,
+    pub max_log_size: u64,
     pub forced_substituters: Vec<String>,
 }
 
@@ -432,6 +444,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             max_output_size: val.max_output_size,
             max_silent_time: val.max_silent_time,
             build_timeout: val.build_timeout,
+            max_log_size: val.max_log_size,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -547,6 +560,13 @@ impl App {
         let inner = self.inner.load();
         inner.build_timeout
     }
+
+    #[must_use]
+    pub fn max_log_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_log_size
+    }
+
     #[must_use]
     pub fn get_dispatch_trigger_timer(&self) -> Option<tokio::time::Duration> {
         let inner = self.inner.load();
