@@ -161,6 +161,11 @@ in
               type = lib.types.ints.unsigned;
               default = 36000;
             };
+            maxLogSize = lib.mkOption {
+              description = "Maximum build log size in bytes before a build fails with LogLimitExceeded.";
+              type = lib.types.ints.unsigned;
+              default = 64 * 1024 * 1024;
+            };
           };
         };
         default = { };
