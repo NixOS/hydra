@@ -144,6 +144,18 @@ enum CreateStepResult {
     PreviousFailure(Arc<Step>),
 }
 
+/// Pass-wide state threaded through build and step creation during one queue
+/// ingestion pass.
+#[derive(Default)]
+struct InjectCtx {
+    /// Derivations already decided finished in this pass
+    finished_drvs: parking_lot::RwLock<HashSet<StorePath>>,
+    /// Builds still to be injected, by id
+    new_builds_by_id: parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>,
+    /// Builds indexed by the derivation they build
+    new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
+}
+
 /// Output availability as discovered by [`State::prefetch_step_facts`].
 #[derive(Debug)]
 enum OutputAvailability {
@@ -954,7 +966,7 @@ impl State {
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
-                        Arc::new(parking_lot::RwLock::new(HashSet::new())),
+                        Arc::default(),
                     )
                     .await
                 {
@@ -1143,15 +1155,13 @@ impl State {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    #[tracing::instrument(skip(self, new_builds_by_id, new_builds_by_path, finished_drvs), err)]
+    #[tracing::instrument(skip(self, ctx), err)]
     async fn process_single_build(
         &self,
         id: BuildID,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
+        ctx: Arc<InjectCtx>,
     ) -> Result<Option<ProcessedBuild>, StateError> {
-        let Some(build) = new_builds_by_id.read().get(&id).cloned() else {
+        let Some(build) = ctx.new_builds_by_id.read().get(&id).cloned() else {
             return Ok(None);
         };
 
@@ -1159,15 +1169,8 @@ impl State {
         let nr_added: Arc<AtomicI64> = Arc::new(0.into());
         let now = Instant::now();
 
-        self.create_build(
-            build,
-            nr_added.clone(),
-            new_builds_by_id,
-            new_builds_by_path,
-            finished_drvs,
-            new_runnable.clone(),
-        )
-        .await?;
+        self.create_build(build, nr_added.clone(), new_runnable.clone(), ctx)
+            .await?;
 
         // we should never run into this issue
         #[allow(clippy::cast_possible_truncation)]
@@ -1185,27 +1188,24 @@ impl State {
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
+        new_builds_by_id: HashMap<BuildID, Arc<Build>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
     ) -> Result<bool, StateError> {
         use futures::stream::StreamExt as _;
 
-        let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
-        let new_builds_by_path = Arc::new(new_builds_by_path);
         let starttime = jiff::Timestamp::now();
+        let ctx = Arc::new(InjectCtx {
+            finished_drvs: parking_lot::RwLock::new(HashSet::new()),
+            new_builds_by_id: parking_lot::RwLock::new(new_builds_by_id),
+            new_builds_by_path,
+        });
 
         let mut futures = futures::stream::FuturesUnordered::new();
         let mut ids_iter = new_ids.into_iter();
 
         for _ in 0..MAX_CONCURRENT_BUILD_INJECTION {
             if let Some(id) = ids_iter.next() {
-                futures.push(Box::pin(Self::process_single_build(
-                    self,
-                    id,
-                    new_builds_by_id.clone(),
-                    new_builds_by_path.clone(),
-                    finished_drvs.clone(),
-                )));
+                futures.push(Box::pin(Self::process_single_build(self, id, ctx.clone())));
             }
         }
 
@@ -1229,13 +1229,7 @@ impl State {
             // Refill for every completed future, also those that resolved to
             // None, otherwise the in-flight set shrinks until the run ends.
             if !early_exit && let Some(id) = ids_iter.next() {
-                futures.push(Box::pin(Self::process_single_build(
-                    self,
-                    id,
-                    new_builds_by_id.clone(),
-                    new_builds_by_path.clone(),
-                    finished_drvs.clone(),
-                )));
+                futures.push(Box::pin(Self::process_single_build(self, id, ctx.clone())));
             }
 
             let Some(ProcessedBuild {
@@ -1383,7 +1377,6 @@ impl State {
             return Ok(());
         }
 
-        let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
         let _early_exit =
             Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
                 .await?;
@@ -1421,7 +1414,6 @@ impl State {
         tracing::debug!("new_builds_by_id: {new_builds_by_id:?}");
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
-        let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
         let early_exit =
             Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
                 .await?;
@@ -2069,8 +2061,8 @@ impl State {
                         None,
                         Some((dependent_step.clone(), relation)),
                         Arc::default(),
-                        Arc::default(),
                         new_runnable.clone(),
+                        Arc::default(),
                     )
                     .await
                 {
@@ -2487,56 +2479,83 @@ impl State {
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
-    #[tracing::instrument(skip(
-        self,
-        build,
-        nr_added,
-        new_builds_by_id,
-        new_builds_by_path,
-        finished_drvs,
-        new_runnable
-    ), fields(build_id=build.id))]
+    /// Mark a build whose derivation is no longer in the store as aborted.
+    async fn abort_gced_build(&self, build: &Arc<Build>) {
+        tracing::error!(
+            "aborting GC'ed build id={} path={}",
+            build.id,
+            self.connector.store_dir().display(&build.drv_path)
+        );
+        if !build.get_finished_in_db() {
+            match self.db.get().await {
+                Ok(mut conn) => {
+                    if let Err(e) = conn.abort_build(build.id).await {
+                        tracing::error!("Failed to abort the build={} e={}", build.id, e);
+                    }
+                }
+                Err(e) => tracing::error!(
+                    "Failed to get a database connection to abort the build={} e={}",
+                    build.id,
+                    e
+                ),
+            }
+        }
+        build.set_finished_in_db(true);
+        self.metrics.nr_builds_done.inc();
+    }
+
+    /// Inject the builds whose top-level derivation is a step just created, so
+    /// their own steps and dependencies get wired into the graph.
+    async fn inject_dependency_builds(
+        &self,
+        new_steps: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        nr_added: &Arc<AtomicI64>,
+        new_runnable: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: &Arc<InjectCtx>,
+    ) -> Result<(), StateError> {
+        use futures::stream::StreamExt as _;
+
+        let builds = {
+            let new_steps = new_steps.read();
+            new_steps
+                .iter()
+                .filter_map(|r| Some(ctx.new_builds_by_path.get(r.get_drv_path())?.clone()))
+                .flatten()
+                .collect::<Vec<_>>()
+        };
+        let mut stream = futures::StreamExt::map(tokio_stream::iter(builds), |b| {
+            let nr_added = nr_added.clone();
+            let new_runnable = new_runnable.clone();
+            let ctx = ctx.clone();
+            async move {
+                let Some(j) = ctx.new_builds_by_id.read().get(&b).cloned() else {
+                    return Ok(());
+                };
+                Box::pin(self.create_build(j, nr_added, new_runnable, ctx)).await
+            }
+        })
+        .buffered(10);
+        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+            result?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, build, nr_added, new_runnable, ctx), fields(build_id=build.id))]
     async fn create_build(
         &self,
         build: Arc<Build>,
         nr_added: Arc<AtomicI64>,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: Arc<InjectCtx>,
     ) -> Result<(), StateError> {
         self.metrics.queue_build_loads.inc();
         tracing::debug!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
-        {
-            let mut new_builds_by_id = new_builds_by_id.write();
-            new_builds_by_id.remove(&build.id);
-        }
+        ctx.new_builds_by_id.write().remove(&build.id);
 
         if !self.is_valid_path(&build.drv_path).await? {
-            tracing::error!(
-                "aborting GC'ed build id={} path={}",
-                build.id,
-                self.connector.store_dir().display(&build.drv_path)
-            );
-            if !build.get_finished_in_db() {
-                match self.db.get().await {
-                    Ok(mut conn) => {
-                        if let Err(e) = conn.abort_build(build.id).await {
-                            tracing::error!("Failed to abort the build={} e={}", build.id, e);
-                        }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
-                }
-            }
-
-            build.set_finished_in_db(true);
-            self.metrics.nr_builds_done.inc();
+            self.abort_gced_build(&build).await;
             return Ok(());
         }
 
@@ -2544,14 +2563,13 @@ impl State {
         let new_steps = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
         let step = match self
             .create_step(
-                // conn,
                 build.clone(),
                 build.drv_path.clone(),
                 Some(build.clone()),
                 None,
-                finished_drvs.clone(),
                 new_steps.clone(),
                 new_runnable.clone(),
+                ctx.clone(),
             )
             .await
         {
@@ -2565,48 +2583,8 @@ impl State {
             }
         };
 
-        {
-            use futures::stream::StreamExt as _;
-
-            let builds = {
-                let new_steps = new_steps.read();
-                new_steps
-                    .iter()
-                    .filter_map(|r| Some(new_builds_by_path.get(r.get_drv_path())?.clone()))
-                    .flatten()
-                    .collect::<Vec<_>>()
-            };
-            let mut stream = futures::StreamExt::map(tokio_stream::iter(builds), |b| {
-                let nr_added = nr_added.clone();
-                let new_builds_by_id = new_builds_by_id.clone();
-                let new_builds_by_path = new_builds_by_path.clone();
-                let finished_drvs = finished_drvs.clone();
-                let new_runnable = new_runnable.clone();
-                async move {
-                    let j = {
-                        if let Some(j) = new_builds_by_id.read().get(&b) {
-                            j.clone()
-                        } else {
-                            return Ok(());
-                        }
-                    };
-
-                    Box::pin(self.create_build(
-                        j,
-                        nr_added,
-                        new_builds_by_id,
-                        new_builds_by_path,
-                        finished_drvs,
-                        new_runnable,
-                    ))
-                    .await
-                }
-            })
-            .buffered(10);
-            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
-                result?;
-            }
-        }
+        self.inject_dependency_builds(&new_steps, &nr_added, &new_runnable, &ctx)
+            .await?;
 
         if let Some(step) = step {
             if !build.get_finished_in_db() {
@@ -2638,9 +2616,9 @@ impl State {
         build,
         referring_build,
         referring_step,
-        finished_drvs,
         new_steps,
-        new_runnable
+        new_runnable,
+        ctx
     ), fields(build_id=build.id, %drv_path))]
     async fn create_step(
         &self,
@@ -2648,14 +2626,14 @@ impl State {
         drv_path: StorePath,
         referring_build: Option<Arc<Build>>,
         referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: Arc<InjectCtx>,
     ) -> CreateStepResult {
         use futures::stream::StreamExt as _;
 
         {
-            let finished_drvs = finished_drvs.read();
+            let finished_drvs = ctx.finished_drvs.read();
             if finished_drvs.contains(&drv_path) {
                 return CreateStepResult::None;
             }
@@ -2714,7 +2692,7 @@ impl State {
                 };
                 if all_valid {
                     return self
-                        .revalidate_locally_valid_step(step, &drv_path, &finished_drvs)
+                        .revalidate_locally_valid_step(step, &drv_path, &ctx.finished_drvs)
                         .await;
                 }
             }
@@ -2747,9 +2725,9 @@ impl State {
                 |(input_path, relation)| {
                     let build = build.clone();
                     let step = step2.clone();
-                    let finished_drvs = finished_drvs.clone();
                     let new_steps = new_steps.clone();
                     let new_runnable = new_runnable.clone();
+                    let ctx = ctx.clone();
 
                     async move {
                         Box::pin(self.create_step(
@@ -2757,9 +2735,9 @@ impl State {
                             input_path,
                             None,
                             Some((step, relation)),
-                            finished_drvs,
                             new_steps,
                             new_runnable,
+                            ctx,
                         ))
                         .await
                     }
@@ -2796,7 +2774,7 @@ impl State {
                 if let Some(fod_checker) = &self.fod_checker {
                     fod_checker.to_traverse(&drv_path);
                 }
-                finished_drvs.write().insert(drv_path.clone());
+                ctx.finished_drvs.write().insert(drv_path.clone());
                 CreateStepResult::None
             }
             AttachOutcome::PendingUpload(paths) => {
@@ -2882,15 +2860,7 @@ impl State {
             fod_checker.add_ca_drv_parsed(drv_path, &drv);
         }
 
-        if let Ok(system_type) = std::str::from_utf8(&drv.platform) {
-            #[allow(clippy::cast_precision_loss)]
-            self.metrics.observe_build_input_drvs(
-                harmonia_store_derivation::derivation::DerivationInputs::from(&drv.inputs)
-                    .drvs
-                    .len() as f64,
-                system_type,
-            );
-        }
+        self.observe_input_drvs(&drv);
 
         let use_substitutes = self.config.get_use_substitutes();
         let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
@@ -2906,61 +2876,9 @@ impl State {
                 )
             })
             .collect();
-        let known_outputs = self
-            .query_known_drv_outputs(drv_path)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("Could not query known outputs, continuing: {e}");
-                BTreeMap::new()
-            });
-        // Outputs with None paths (CA floating) are always missing —
-        // their path is unknown until the derivation is built.
-        let missing_local_outputs: BTreeMap<OutputName, Option<StorePath>> = {
-            let mut conn = self.store.connect().await.ok();
-            let mut missing = BTreeMap::new();
-            for (name, path) in &output_paths {
-                match path {
-                    Some(path) => {
-                        let valid = match conn.as_mut() {
-                            Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
-                            None => false,
-                        };
-                        if !valid {
-                            missing.insert(name.clone(), Some(path.clone()));
-                        }
-                    }
-                    None => {
-                        // CA floating: output path unknown, definitely missing
-                        missing.insert(name.clone(), None);
-                    }
-                }
-            }
-            missing
-        };
-        // Handle paths that aren't in the database (for resolution)
-        // existing_local_outputs = output_paths - missing_local_outputs
-        // unregistered_local_outputs = existing_local_outputs - known_outputs
-        let unregistered_local_outputs = output_paths
-            .iter()
-            .filter(|(name, path)| {
-                path.is_some()
-                    && !missing_local_outputs.contains_key(name)
-                    && !known_outputs.contains_key(name)
-            })
-            .map(|(name, path)| (name.clone(), path.clone()))
-            .collect::<BTreeMap<_, _>>();
-        if !unregistered_local_outputs.is_empty()
-            && let Err(e) = crate::utils::make_local_step(
-                &self.db,
-                self.connector.store_dir(),
-                build.id,
-                drv_path,
-                &unregistered_local_outputs,
-            )
-            .await
-        {
-            tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
-        }
+        let missing_local_outputs = self
+            .missing_local_outputs(build, drv_path, &output_paths)
+            .await;
 
         // Handle paths that aren't in the remote store (for pushing).
         let mut pending_upload: Option<Vec<StorePath>> = None;
@@ -3028,42 +2946,8 @@ impl State {
 
         tracing::debug!("missing outputs: {missing_outputs:?}");
         let finished = if !missing_outputs.is_empty() && use_substitutes {
-            use futures::stream::StreamExt as _;
-
-            // Substitution falls back to the binary cache for paths the
-            // local store is missing.
-            let remote_store = self.first_s3_remote_store();
-            let mut substituted = 0;
-            let missing_outputs_len = missing_outputs.len();
-            let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
-                self.metrics.nr_substitutes_started.inc();
-                crate::utils::substitute_output(
-                    self.db.clone(),
-                    &self.store,
-                    self.connector.clone(),
-                    o,
-                    build.id,
-                    drv_path,
-                    remote_store.as_ref(),
-                )
-            })
-            .buffer_unordered(10);
-            while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
-                match v {
-                    Ok(v) if v => {
-                        self.metrics.nr_substitutes_succeeded.inc();
-                        substituted += 1;
-                    }
-                    Ok(_) => {
-                        self.metrics.nr_substitutes_failed.inc();
-                    }
-                    Err(e) => {
-                        self.metrics.nr_substitutes_failed.inc();
-                        tracing::warn!("Failed to substitute path: {e}");
-                    }
-                }
-            }
-            substituted == missing_outputs_len
+            self.substitute_missing_outputs(build, drv_path, missing_outputs)
+                .await
         } else {
             // CA floating outputs have None paths — they must be built.
             missing_outputs.is_empty()
@@ -3083,18 +2967,132 @@ impl State {
         })
     }
 
+    /// Record the number of input derivations of `drv`, labelled by platform.
+    fn observe_input_drvs(&self, drv: &Derivation) {
+        if let Ok(system_type) = std::str::from_utf8(&drv.platform) {
+            #[allow(clippy::cast_precision_loss)]
+            self.metrics.observe_build_input_drvs(
+                harmonia_store_derivation::derivation::DerivationInputs::from(&drv.inputs)
+                    .drvs
+                    .len() as f64,
+                system_type,
+            );
+        }
+    }
+
+    /// Outputs of `drv_path` that are not valid in the local store, keyed by
+    /// output name. CA floating outputs (unknown path) always count as
+    /// missing. As a side effect, outputs that are valid but unknown to the
+    /// database get registered as local build steps.
+    async fn missing_local_outputs(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+        output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+    ) -> BTreeMap<OutputName, Option<StorePath>> {
+        let known_outputs = self
+            .query_known_drv_outputs(drv_path)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("Could not query known outputs, continuing: {e}");
+                BTreeMap::new()
+            });
+        let mut conn = self.store.connect().await.ok();
+        let mut missing = BTreeMap::new();
+        for (name, path) in output_paths {
+            match path {
+                Some(path) => {
+                    let valid = match conn.as_mut() {
+                        Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
+                        None => false,
+                    };
+                    if !valid {
+                        missing.insert(name.clone(), Some(path.clone()));
+                    }
+                }
+                None => {
+                    missing.insert(name.clone(), None);
+                }
+            }
+        }
+
+        // Register outputs that are valid locally but not yet in the database.
+        let unregistered = output_paths
+            .iter()
+            .filter(|(name, path)| {
+                path.is_some() && !missing.contains_key(name) && !known_outputs.contains_key(name)
+            })
+            .map(|(name, path)| (name.clone(), path.clone()))
+            .collect::<BTreeMap<_, _>>();
+        if !unregistered.is_empty()
+            && let Err(e) = crate::utils::make_local_step(
+                &self.db,
+                self.connector.store_dir(),
+                build.id,
+                drv_path,
+                &unregistered,
+            )
+            .await
+        {
+            tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
+        }
+        missing
+    }
+
+    /// Try to fetch the still-missing outputs from the binary cache. Returns
+    /// whether every missing output was substituted.
+    async fn substitute_missing_outputs(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+        missing_outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> bool {
+        use futures::stream::StreamExt as _;
+
+        let remote_store = self.first_s3_remote_store();
+        let mut substituted = 0;
+        let missing_outputs_len = missing_outputs.len();
+        let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
+            self.metrics.nr_substitutes_started.inc();
+            crate::utils::substitute_output(
+                self.db.clone(),
+                &self.store,
+                self.connector.clone(),
+                o,
+                build.id,
+                drv_path,
+                remote_store.as_ref(),
+            )
+        })
+        .buffer_unordered(10);
+        while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
+            match v {
+                Ok(true) => {
+                    self.metrics.nr_substitutes_succeeded.inc();
+                    substituted += 1;
+                }
+                Ok(false) => {
+                    self.metrics.nr_substitutes_failed.inc();
+                }
+                Err(e) => {
+                    self.metrics.nr_substitutes_failed.inc();
+                    tracing::warn!("Failed to substitute path: {e}");
+                }
+            }
+        }
+        substituted == missing_outputs_len
+    }
+
+    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
+        Ok(self.store.is_valid_path(path).await?)
+    }
+
     /// Lock guarding build step inserts for a build, sharded by build id.
     fn build_step_lock(&self, build_id: BuildID) -> &tokio::sync::Mutex<()> {
         let idx = usize::try_from(build_id.unsigned_abs()).unwrap_or_default();
         &self.build_step_locks[idx % BUILD_STEP_LOCK_SHARDS]
     }
 
-    /// Check local store validity through the Nix `SQLite` database instead
-    /// of the nix-daemon, so queue ingestion does not compete with NAR
-    /// uploads for daemon connections.
-    async fn is_valid_path(&self, path: &StorePath) -> Result<bool, StateError> {
-        Ok(self.store.is_valid_path(path).await?)
-    }
 
     /// The first configured S3 remote store, if any. Several scheduling
     /// paths only need a single S3 store to decide whether outputs already
