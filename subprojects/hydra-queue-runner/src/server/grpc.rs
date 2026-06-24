@@ -880,6 +880,15 @@ impl RunnerService for Server {
         let url = narinfo.info.url.clone();
         let size = narinfo.info.download_size;
 
+        // The content-addressed nar/<hash> object is written at most once
+        // (If-None-Match). The narinfo is always written, but it must describe
+        // the stored object: when the NAR was already present, its bytes are a
+        // different (equally valid) compression than this upload's, so the
+        // narinfo writer recomputes FileHash/FileSize from the object. For a
+        // single PUT the builder reports this; for multipart the conditional
+        // Complete here decides it.
+        let mut nar_already_present = req.nar_already_present;
+
         // Multipart NAR objects only exist on S3 once finalised; do it here,
         // before upload_narinfo_after_presigned_upload HEAD-checks the object.
         if let Some(mp) = req.multipart {
@@ -891,37 +900,44 @@ impl RunnerService for Server {
                     etag: p.etag,
                 })
                 .collect();
-            if let Err(e) = remote_store
+            match remote_store
                 .complete_multipart_upload(&mp.object_key, &mp.upload_id, parts)
                 .await
             {
-                // CompleteMultipartUpload is not idempotent. A transient failure
-                // (e.g. a 503) may still have completed the object server-side,
-                // and a retryable failure leaves the upload valid. Do NOT abort:
-                // aborting frees the uploadId, so every builder retry then sees
-                // 404 NoSuchUpload and the NAR can never be finalised. If the
-                // object is already present the completion succeeded; otherwise
-                // return a retryable error and let the builder retry the
-                // completion with the same (still-live) uploadId.
-                if remote_store
-                    .head_object(&mp.object_key)
-                    .await
-                    .unwrap_or(false)
-                {
-                    tracing::warn!(
-                        "complete_multipart_upload for {store_path} reported {e}, but the object is present; treating as complete"
-                    );
-                } else {
-                    tracing::error!("Failed to complete multipart upload for {store_path}: {e}");
-                    return Err(tonic::Status::internal(
-                        "Failed to complete multipart upload",
-                    ));
+                Ok(binary_cache::WriteOutcome::Created) => {}
+                Ok(binary_cache::WriteOutcome::AlreadyExists) => {
+                    nar_already_present = true;
+                }
+                // CompleteMultipartUpload is not idempotent and must not be
+                // aborted: aborting frees the uploadId, so a builder retry would
+                // see 404 NoSuchUpload and never finalise. If the object is
+                // present the completion effectively succeeded (treat as
+                // already-present); otherwise return a retryable error so the
+                // builder retries with the same (still-live) uploadId.
+                Err(e) => {
+                    if remote_store
+                        .head_object(&mp.object_key)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        tracing::warn!(
+                            "complete_multipart_upload for {store_path} reported {e}, but the object is present; treating as already complete"
+                        );
+                        nar_already_present = true;
+                    } else {
+                        tracing::error!(
+                            "Failed to complete multipart upload for {store_path}: {e}"
+                        );
+                        return Err(tonic::Status::internal(
+                            "Failed to complete multipart upload",
+                        ));
+                    }
                 }
             }
         }
 
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(narinfo)
+            .upload_narinfo_after_presigned_upload(narinfo, nar_already_present)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);
