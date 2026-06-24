@@ -156,21 +156,38 @@ impl Uploader {
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
     ) -> Result<(), UploaderError> {
-        // Upload log file
-        (|| async {
-            let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
-            let reader = Box::new(tokio::io::BufReader::new(file));
-            remote_store
-                .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
+        // Steps that did not run here (substituted paths, builds finished
+        // before a restart) have no log file. A missing log must not block
+        // the NAR upload.
+        match fs_err::tokio::metadata(msg.log_local_path.as_path()).await {
+            Ok(_) => {
+                (|| async {
+                    let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
+                    let reader = Box::new(tokio::io::BufReader::new(file));
+                    remote_store
+                        .upsert_file_stream(
+                            &msg.log_remote_path,
+                            reader,
+                            "text/plain; charset=utf-8",
+                        )
+                        .await?;
+                    Ok::<(), UploaderError>(())
+                })
+                .retry(
+                    ExponentialBuilder::default()
+                        .with_max_delay(std::time::Duration::from_secs(30))
+                        .with_max_times(3),
+                )
                 .await?;
-            Ok::<(), UploaderError>(())
-        })
-        .retry(
-            ExponentialBuilder::default()
-                .with_max_delay(std::time::Duration::from_secs(30))
-                .with_max_times(3),
-        )
-        .await?;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::warn!(
+                    "no build log at {}, skipping log upload",
+                    msg.log_local_path.display()
+                );
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         // Copy NARs
         let missing_paths: hashbrown::HashSet<StorePath> = remote_store
