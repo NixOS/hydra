@@ -23,4 +23,4 @@
 
 <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
 
-<script type="module" src="[% c.uri_for("/static/js/ansi_up.js") %]"></script>
+<script type="text/javascript" src="[% c.uri_for("/static/js/ansi_up.js") %]"></script>
