@@ -1,3 +1,4 @@
+use harmonia_store_path::StoreDir;
 use hashbrown::HashMap;
 use smallvec::SmallVec;
 
@@ -10,6 +11,10 @@ const MAX_PRESIGNED_URL_EXPIRY_SECS: u64 = 24 * 60 * 60;
 #[allow(clippy::struct_excessive_bools)]
 pub struct S3CacheConfig {
     pub client_config: S3ClientConfig,
+
+    /// Store directory the cache's narinfos refer to, from the `store` query
+    /// parameter of the nix S3 URL (defaults to the standard `/nix/store`).
+    pub store_dir: StoreDir,
 
     pub compression: Compression,
     pub write_nar_listing: bool,
@@ -32,6 +37,7 @@ impl S3CacheConfig {
     pub fn new(client_config: S3ClientConfig) -> Self {
         Self {
             client_config,
+            store_dir: StoreDir::default(),
             compression: Compression::Xz,
             write_nar_listing: false,
             write_debug_info: false,
@@ -139,6 +145,14 @@ impl S3CacheConfig {
         self
     }
 
+    #[must_use]
+    pub fn with_store_dir(mut self, store_dir: Option<StoreDir>) -> Self {
+        if let Some(store_dir) = store_dir {
+            self.store_dir = store_dir;
+        }
+        self
+    }
+
     pub fn with_presigned_url_expiry(
         mut self,
         expiry_secs: Option<u64>,
@@ -173,6 +187,8 @@ pub enum UrlParseError {
     UriParseError(#[from] url::ParseError),
     #[error("Int parse error: {0}")]
     IntParseError(#[from] std::num::ParseIntError),
+    #[error("Invalid store directory: {0}")]
+    StoreDir(String),
     #[error(transparent)]
     S3Scheme(#[from] InvalidS3Scheme),
     #[error(transparent)]
@@ -211,6 +227,13 @@ impl std::str::FromStr for S3CacheConfig {
             .with_profile(query.get("profile").map(String::as_str));
 
         Self::new(cfg)
+            .with_store_dir(
+                query
+                    .get("store")
+                    .map(|x| x.parse::<StoreDir>())
+                    .transpose()
+                    .map_err(|e| UrlParseError::StoreDir(e.to_string()))?,
+            )
             .with_compression(
                 query
                     .get("compression")
@@ -447,7 +470,7 @@ mod tests {
 
     use super::{
         Compression, ConfigReadError, S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme,
-        UrlParseError, parse_aws_credentials_file,
+        StoreDir, UrlParseError, parse_aws_credentials_file,
     };
     use std::str::FromStr as _;
 
@@ -808,6 +831,17 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.client_config.scheme, S3Scheme::HTTPS);
         assert!(config.client_config.endpoint.is_none());
         assert!(config.client_config.profile.is_none());
+    }
+
+    #[test]
+    fn test_s3_cache_config_from_str_store_dir() {
+        // Defaults to the standard store directory when `store` is absent.
+        let config = S3CacheConfig::from_str("s3://my-bucket").unwrap();
+        assert_eq!(config.store_dir, StoreDir::default());
+
+        // The `store` query param overrides it, matching nix S3 store URLs.
+        let config = S3CacheConfig::from_str("s3://my-bucket?store=/custom/store").unwrap();
+        assert_eq!(config.store_dir.to_string(), "/custom/store");
     }
 
     #[test]

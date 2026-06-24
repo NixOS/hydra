@@ -751,6 +751,11 @@ impl RunnerService for Server {
             )));
         }
 
+        // The cache signs and formats narinfos with its own configured store
+        // dir; for those signatures to match the uploaded paths it must agree
+        // with the local store (the narinfo was just checked against it above).
+        debug_assert_eq!(&remote_store.cfg.store_dir, self.state.pool.store_dir());
+
         let store_path = narinfo.path.clone();
 
         // Override compression from server config
@@ -760,7 +765,7 @@ impl RunnerService for Server {
         let size = narinfo.info.download_size;
 
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(&self.state.pool, narinfo)
+            .upload_narinfo_after_presigned_upload(narinfo)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);
