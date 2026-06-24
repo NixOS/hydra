@@ -125,12 +125,12 @@ impl PresignedUploadClient {
         mut narinfo: crate::NarInfo,
         req: PresignedUploadResponse,
         more_parts: &dyn MorePartsSource,
-    ) -> Result<(crate::NarInfo, Option<MultipartCompletion>), CacheError> {
+    ) -> Result<(crate::NarInfo, Option<MultipartCompletion>, bool), CacheError> {
         narinfo.info.url = Some(req.nar_url.clone());
         narinfo.info.compression = Some(req.nar_upload.compression.as_str().to_owned());
 
         if let Some(ls_upload) = req.ls_upload {
-            let _ = self.upload_ls(store_dir, &narinfo.path, &ls_upload).await?;
+            self.upload_ls(store_dir, &narinfo.path, &ls_upload).await?;
         }
 
         if !req.debug_info_upload.is_empty() {
@@ -147,13 +147,13 @@ impl PresignedUploadClient {
             .await?;
         }
 
-        let (upload_res, completion) = self
+        let (upload_res, completion, nar_already_present) = self
             .upload_nar(store_dir, &narinfo.path, &req.nar_upload, more_parts)
             .await?;
         narinfo.info.download_hash = Some(upload_res.file_hash);
         narinfo.info.download_size = Some(upload_res.file_size);
 
-        Ok((narinfo, completion))
+        Ok((narinfo, completion, nar_already_present))
     }
 
     #[tracing::instrument(skip(self, store_dir, store_path, more_parts), err)]
@@ -163,7 +163,7 @@ impl PresignedUploadClient {
         store_path: &StorePath,
         upload: &PresignedUpload,
         more_parts: &dyn MorePartsSource,
-    ) -> Result<(PresignedUploadResult, Option<MultipartCompletion>), CacheError> {
+    ) -> Result<(PresignedUploadResult, Option<MultipartCompletion>, bool), CacheError> {
         let start = std::time::Instant::now();
 
         let stream = read_nar_stream(store_dir, store_path);
@@ -174,13 +174,17 @@ impl PresignedUploadClient {
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
         if let Some(multipart) = &upload.multipart {
+            // Multipart objects are finalised server-side; whether the NAR was
+            // already present is decided there by the conditional Complete.
             let (res, completion) = self
                 .upload_nar_multipart(hashing_reader, start, multipart, more_parts)
                 .await?;
-            Ok((res, Some(completion)))
+            Ok((res, Some(completion), false))
         } else {
-            let res = self.upload_any(upload, hashing_reader, start, None).await?;
-            Ok((res, None))
+            let (res, already_present) = self
+                .upload_any(upload, hashing_reader, start, None, true)
+                .await?;
+            Ok((res, None, already_present))
         }
     }
 
@@ -345,8 +349,16 @@ impl PresignedUploadClient {
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
-        self.upload_any(upload, hashing_reader, start, Some("application/json"))
-            .await
+        let (res, _) = self
+            .upload_any(
+                upload,
+                hashing_reader,
+                start,
+                Some("application/json"),
+                false,
+            )
+            .await?;
+        Ok(res)
     }
 
     #[tracing::instrument(skip(self, content), err)]
@@ -364,10 +376,22 @@ impl PresignedUploadClient {
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
-        self.upload_any(upload, hashing_reader, start, Some("application/json"))
-            .await
+        let (res, _) = self
+            .upload_any(
+                upload,
+                hashing_reader,
+                start,
+                Some("application/json"),
+                false,
+            )
+            .await?;
+        Ok(res)
     }
 
+    /// Upload a single presigned PUT. When `conditional`, the request carries
+    /// `If-None-Match: *` so a content-addressed object is written at most once;
+    /// a 412 is reported back as `already_present` instead of an error so the
+    /// caller can avoid describing bytes a different upload already stored.
     #[tracing::instrument(skip(self, start, reader), err)]
     async fn upload_any(
         &self,
@@ -375,11 +399,12 @@ impl PresignedUploadClient {
         mut reader: HashingReader<Box<dyn tokio::io::AsyncRead + Send + Unpin>>,
         start: std::time::Instant,
         content_type: Option<&str>,
-    ) -> Result<PresignedUploadResult, CacheError> {
+        conditional: bool,
+    ) -> Result<(PresignedUploadResult, bool), CacheError> {
         // Clippy has a false positive and suggests using blocks,
         // but that would not allow processing errors from the ? operator to add context
         #[allow(clippy::redundant_closure_call)]
-        async move || -> Result<PresignedUploadResult, CacheError> {
+        async move || -> Result<(PresignedUploadResult, bool), CacheError> {
             use tokio::io::AsyncReadExt as _;
 
             let mut request = self.client.put(&upload.url);
@@ -391,22 +416,28 @@ impl PresignedUploadClient {
             if !upload.compression.content_encoding().is_empty() {
                 request = request.header("Content-Encoding", upload.compression.content_encoding());
             }
+            if conditional {
+                request = request.header("If-None-Match", "*");
+            }
 
             // TODO: We need multipart signed urls to fix this!
             //       object_store currently doesnt have support for this.
             let mut buffer = Vec::new();
             reader.read_to_end(&mut buffer).await?;
 
-            let _response = (|| async {
-                Ok::<_, CacheError>(
-                    request
-                        .try_clone()
-                        .ok_or_else(|| CacheError::RequestCloneError)?
-                        .body(buffer.clone())
-                        .send()
-                        .await?
-                        .error_for_status()?,
-                )
+            let response = (|| async {
+                let resp = request
+                    .try_clone()
+                    .ok_or_else(|| CacheError::RequestCloneError)?
+                    .body(buffer.clone())
+                    .send()
+                    .await?;
+                // A conditional write that loses the race is terminal, not a
+                // transient error, so return it without retrying.
+                if resp.status() == reqwest::StatusCode::PRECONDITION_FAILED {
+                    return Ok::<_, CacheError>(resp);
+                }
+                Ok(resp.error_for_status()?)
             })
             .retry(
                 &backon::ExponentialBuilder::default()
@@ -415,6 +446,7 @@ impl PresignedUploadClient {
                     .with_max_times(RETRY_MAX_ATTEMPTS),
             )
             .await?;
+            let already_present = response.status() == reqwest::StatusCode::PRECONDITION_FAILED;
 
             let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
 
@@ -435,10 +467,13 @@ impl PresignedUploadClient {
                 .fetch_add(elapsed, Ordering::Relaxed);
             self.metrics.put.fetch_add(1, Ordering::Relaxed);
 
-            Ok(PresignedUploadResult {
-                file_hash,
-                file_size: file_size as u64,
-            })
+            Ok((
+                PresignedUploadResult {
+                    file_hash,
+                    file_size: file_size as u64,
+                },
+                already_present,
+            ))
         }()
         .await
         .map_err(|source| CacheError::Upload {

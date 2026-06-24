@@ -41,7 +41,7 @@ pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 pub use crate::multipart::{
     CompletedPart, MORE_PARTS_BATCH, MorePartsSource, MultipartCompletion, MultipartPresigner,
-    PresignedMultipart, PresignedPart, S3_MAX_PARTS, part_size_for_nar,
+    PresignedMultipart, PresignedPart, S3_MAX_PARTS, WriteOutcome, part_size_for_nar,
 };
 use crate::narinfo::NarInfoError;
 pub use crate::narinfo::{
@@ -363,6 +363,47 @@ impl S3BinaryCacheClient {
             Err(object_store::Error::NotFound { .. }) => Ok(false),
             Err(e) => Err(CacheError::ObjectStore(e)),
         }
+    }
+
+    /// Size of a stored object, or `None` if absent.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn head_object_size(&self, key: &str) -> Result<Option<u64>, CacheError> {
+        let res = self.s3.head(&object_store::path::Path::from(key)).await;
+        self.s3_stats.head.fetch_add(1, Ordering::Relaxed);
+        match res {
+            Ok(meta) => Ok(Some(meta.size)),
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(e) => Err(CacheError::ObjectStore(e)),
+        }
+    }
+
+    /// Stream a stored object and return the sha256 and length of its bytes as
+    /// stored (its `FileHash`/`FileSize`), or `None` if absent. Needed to
+    /// describe a NAR a different upload wrote: the `FileHash` cannot come from
+    /// a HEAD because the S3 `ETag` is an md5/multipart digest, not a sha256.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn object_file_hash(&self, key: &str) -> Result<Option<(Hash, u64)>, CacheError> {
+        use futures::StreamExt as _;
+        use sha2::Digest as _;
+
+        let get = match self.s3.get(&object_store::path::Path::from(key)).await {
+            Ok(v) => v,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(e) => return Err(CacheError::ObjectStore(e)),
+        };
+        self.s3_stats.get.fetch_add(1, Ordering::Relaxed);
+        let mut hasher = sha2::Sha256::new();
+        let mut size: u64 = 0;
+        let mut stream = get.into_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(CacheError::ObjectStore)?;
+            size = size.saturating_add(u64::try_from(chunk.len()).unwrap_or(u64::MAX));
+            hasher.update(&chunk);
+        }
+        let file_hash =
+            Hash::from_slice(harmonia_utils_hash::Algorithm::SHA256, &hasher.finalize())
+                .map_err(|e| CacheError::Signing(format!("invalid file hash: {e}")))?;
+        Ok(Some((file_hash, size)))
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -1110,7 +1151,7 @@ impl S3BinaryCacheClient {
         key: &str,
         upload_id: &str,
         parts: Vec<CompletedPart>,
-    ) -> Result<(), CacheError> {
+    ) -> Result<WriteOutcome, CacheError> {
         self.require_multipart()?
             .complete(key, upload_id, parts)
             .await
@@ -1128,14 +1169,16 @@ impl S3BinaryCacheClient {
     pub async fn upload_narinfo_after_presigned_upload(
         &self,
         connector: &daemon_client_utils::DaemonConnector,
-        narinfo: NarInfo,
+        mut narinfo: NarInfo,
+        nar_already_present: bool,
     ) -> Result<String, CacheError> {
         // Same single-flight + skip-if-present as copy_path: concurrent builder
         // reports for one output path must not each rewrite the narinfo.
         let lock = self.upload_lock(&narinfo.path);
         let _guard = lock.lock().await;
+        let narinfo_key = format!("{}.narinfo", narinfo.path.hash());
         if self.has_narinfo(&narinfo.path).await? {
-            return Ok(format!("{}.narinfo", narinfo.path.hash()));
+            return Ok(narinfo_key);
         }
 
         if self.cfg.write_nar_listing {
@@ -1146,10 +1189,24 @@ impl S3BinaryCacheClient {
                 .ok_or(CacheError::PathNotFound { path: ls_path })?;
         }
         let nar_url = narinfo.info.url.clone().unwrap_or_default();
-        self.head_object(&nar_url)
-            .await?
-            .then_some(())
-            .ok_or(CacheError::PathNotFound { path: nar_url })?;
+        let missing = || CacheError::PathNotFound {
+            path: nar_url.clone(),
+        };
+
+        // FileHash/FileSize must describe the stored object, not this upload's
+        // (possibly discarded) compression. The NAR is write-once: when it was
+        // already present another upload's compression is stored, so recompute
+        // its hash; otherwise our reported FileHash is correct and we only
+        // confirm the size.
+        let file_size = if nar_already_present {
+            let (file_hash, file_size) =
+                self.object_file_hash(&nar_url).await?.ok_or_else(missing)?;
+            narinfo.info.download_hash = Some(file_hash);
+            file_size
+        } else {
+            self.head_object_size(&nar_url).await?.ok_or_else(missing)?
+        };
+        narinfo.info.download_size = Some(file_size);
 
         let narinfo = clear_sigs_and_sign(narinfo, connector.store_dir(), &self.signing_keys);
         // TODO: we also need to integrate realisation into this!
