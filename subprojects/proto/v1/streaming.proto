@@ -304,4 +304,9 @@ message PresignedUploadComplete {
   nix.store.v1.NarInfo nar_info = 13;
   // Present when the NAR was uploaded via multipart; the server finalises it.
   optional MultipartCompletion multipart = 14;
+  // Set when a single-PUT NAR upload found the object already present (the
+  // conditional If-None-Match PUT returned 412). The server then takes the
+  // narinfo's FileHash/FileSize from the stored object rather than from this
+  // upload's (discarded) compression.
+  bool nar_already_present = 15;
 }

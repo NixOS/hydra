@@ -65,6 +65,16 @@ pub struct CompletedPart {
     pub etag: String,
 }
 
+/// Whether finalising a write-once object actually wrote it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteOutcome {
+    /// This request wrote the object.
+    Created,
+    /// The object already existed (the conditional write returned 412); a
+    /// different upload's compression is what is stored.
+    AlreadyExists,
+}
+
 /// What the builder reports back so the server can finalise the upload.
 #[derive(Debug, Clone)]
 pub struct MultipartCompletion {
@@ -264,28 +274,38 @@ impl MultipartPresigner {
             .collect()
     }
 
-    /// Finalise the upload from the builder-reported part `ETag`s.
+    /// Finalise the upload from the builder-reported part `ETag`s, sent with
+    /// `If-None-Match: *` so `nar/<hash>` is write-once and never overwritten
+    /// with a different compression (which would diverge from Fastly's cached
+    /// copy). A 412 means another upload already stored a valid compression, so
+    /// it counts as success: the object decompresses to the same `NarHash`.
     #[tracing::instrument(skip(self, parts), err)]
     pub async fn complete(
         &self,
         key: &str,
         upload_id: &str,
         mut parts: Vec<CompletedPart>,
-    ) -> Result<(), CacheError> {
+    ) -> Result<WriteOutcome, CacheError> {
         parts.sort_by_key(|p| p.part_number);
         let body = complete_multipart_xml(&parts);
 
         let url = self.signed_object_request("POST", key, upload_id)?;
-        self.http_client
+        let response = self
+            .http_client
             .post(&url)
             .header("Content-Type", "application/xml")
+            .header("If-None-Match", "*")
             .body(body)
             .send()
             .await
-            .map_err(|e| presign_err(key, e))?
+            .map_err(|e| presign_err(key, e))?;
+        if response.status() == reqwest::StatusCode::PRECONDITION_FAILED {
+            return Ok(WriteOutcome::AlreadyExists);
+        }
+        response
             .error_for_status()
             .map_err(|e| presign_err(key, e))?;
-        Ok(())
+        Ok(WriteOutcome::Created)
     }
 
     fn signed_object_request(

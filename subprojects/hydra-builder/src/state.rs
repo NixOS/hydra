@@ -1298,7 +1298,7 @@ async fn upload_single_nar_presigned(
         machine_id: machine_id.to_owned(),
         object_key,
     };
-    let (updated_narinfo, completion) = upload_client
+    let (updated_narinfo, completion, nar_already_present) = upload_client
         .process_presigned_request(store.store_dir(), narinfo, presigned_request, &more_parts)
         .await?;
 
@@ -1326,6 +1326,7 @@ async fn upload_single_nar_presigned(
                     })
                     .collect(),
             }),
+            nar_already_present,
         };
 
         client
