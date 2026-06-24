@@ -165,9 +165,9 @@ impl Server {
                 .map_request(hydra_tracing::propagate::accept_trace),
         );
 
-        if state.cli.mtls_enabled() {
+        if state.mtls.enabled() {
             tracing::info!("Using mtls");
-            let (client_ca_cert, server_identity) = state.cli.get_mtls().await?;
+            let (client_ca_cert, server_identity) = state.mtls.get().await?;
 
             let tls = tonic::transport::ServerTlsConfig::new()
                 .identity(server_identity)
