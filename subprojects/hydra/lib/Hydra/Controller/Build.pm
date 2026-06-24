@@ -184,6 +184,13 @@ sub showLog {
         $c->stash->{log_uri} = $log_uri . "?tail=$lines";
         $c->stash->{tail} = $lines;
         $c->stash->{template} = 'log.tt';
+
+        if ((!$c->stash->{build}->finished || ($c->stash->{step} && $c->stash->{step}->busy != 0)) && $c->config->{'ws_endpoint'}) {
+            $c->stash->{live} = 1;
+        }
+        if (my $ws = $c->config->{'ws_endpoint'}) {
+            $c->stash->{ws_endpoint} = $ws;
+        }
     }
 
     else {

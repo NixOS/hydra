@@ -4,6 +4,7 @@
 
   rustPlatform,
 
+  nixComponents,
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
@@ -11,7 +12,7 @@
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "hydra-queue-runner";
+  pname = "hydra-ws";
   inherit version;
 
   src = lib.fileset.toSource {
@@ -21,9 +22,8 @@ rustPlatform.buildRustPackage {
       ../../Cargo.lock
       ../../.cargo
       ../../.sqlx
-      ../../subprojects/hydra-queue-runner/Cargo.toml
-      ../../subprojects/hydra-queue-runner/src
-      ../../subprojects/hydra-queue-runner/examples
+      ../../subprojects/hydra-ws/Cargo.toml
+      ../../subprojects/hydra-ws/src
       ../../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../../subprojects/hydra/sql/hydra.sql
@@ -36,17 +36,17 @@ rustPlatform.buildRustPackage {
     outputHashes = import ../../packaging/cargo-output-hashes.nix;
   };
 
-  # The source fileset above intentionally excludes hydra-builder, ...,
+  # The source fileset above intentionally excludes hydra-queue-runner, ...,
   # so drop it from the workspace members to keep cargo from trying to
   # load its (absent) manifest.
   postPatch = ''
     sed -i \
       -e 's|"subprojects/hydra-builder",||' \
-      -e 's|"subprojects/hydra-ws",||' \
+      -e 's|"subprojects/hydra-queue-runner",||' \
       Cargo.toml
   '';
 
-  buildAndTestSubdir = "subprojects/hydra-queue-runner";
+  buildAndTestSubdir = "subprojects/hydra-ws";
   buildFeatures = lib.optional withOtel "otel";
 
   nativeBuildInputs = [
@@ -55,6 +55,7 @@ rustPlatform.buildRustPackage {
   ];
 
   buildInputs = [
+    nixComponents.nix-main
     protobuf
     rust-jemalloc-sys
   ];
@@ -62,5 +63,5 @@ rustPlatform.buildRustPackage {
   # FIXME: get these passing in a prod build
   doCheck = false;
 
-  meta.description = "Hydra queue runner (Rust)";
+  meta.description = "Hydra ws server (Rust)";
 }
