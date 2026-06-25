@@ -18,6 +18,7 @@ use binary_cache::{
     CacheError, Compression, MorePartsSource, PresignedPart, PresignedUpload, PresignedUploadClient,
 };
 use daemon_client_utils::DaemonStoreReader;
+use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
@@ -385,6 +386,7 @@ impl State {
     async fn request_build(
         &self,
         connector: &daemon_client_utils::DaemonConnector,
+        roots: &TempRoots,
         drv: &StorePath,
         basic_drv: &harmonia_store_derivation::derivation::BasicDerivation,
         options: harmonia_protocol::types::ClientOptions,
@@ -448,6 +450,15 @@ impl State {
             drop(log_tx);
             result_log.await.wrap_err("build_derivation failed")?
         };
+
+        // The daemon roots the outputs via this connection; dropping it
+        // releases them. Pin them onto the persistent roots connection first,
+        // or a GC in the gap collects the outputs and the upload fails.
+        if let BuildResultInner::Success(s) = &build_result.inner {
+            for realisation in s.built_outputs.values() {
+                pin_path(roots, &realisation.out_path).await;
+            }
+        }
         drop(conn);
 
         // Wait for the log stream to finish.  The build_log RPC
@@ -461,7 +472,6 @@ impl State {
         }
 
         // Check for build failure.
-        use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
@@ -565,7 +575,7 @@ impl State {
         );
 
         let success = self
-            .request_build(&self.connector, &drv, &basic_drv, options)
+            .request_build(&self.connector, &roots, &drv, &basic_drv, options)
             .await?;
 
         // Extract output paths from the build result.
@@ -574,11 +584,6 @@ impl State {
             .into_iter()
             .map(|(name, realisation)| (name, realisation.out_path))
             .collect();
-
-        for o in outputs.values() {
-            // Pin outputs so they survive until they are uploaded.
-            pin_path(&roots, o).await;
-        }
 
         timings.build_elapsed = before_build.elapsed();
         tracing::info!("Finished building {drv}");
