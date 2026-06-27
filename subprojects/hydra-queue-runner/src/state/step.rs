@@ -217,6 +217,32 @@ impl Hash for Step {
     }
 }
 
+/// Hashes and compares an `Arc<Step>` by allocation address instead of the
+/// expensive `StorePath` content hash. Holding the `Arc` pins the address so
+/// it cannot be reused by a step allocated later.
+#[derive(Clone)]
+pub struct ByPtr(pub Arc<Step>);
+
+impl std::fmt::Debug for ByPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ByPtr").field(&Arc::as_ptr(&self.0)).finish()
+    }
+}
+
+impl PartialEq for ByPtr {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for ByPtr {}
+
+impl Hash for ByPtr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (Arc::as_ptr(&self.0) as usize).hash(state);
+    }
+}
+
 impl Step {
     #[must_use]
     pub fn new(drv_path: StorePath, pending_runnable: PendingRunnable) -> Arc<Self> {
@@ -564,12 +590,14 @@ impl Step {
         direct
     }
 
-    pub fn get_all_deps_not_queued(&self, queued: &HashSet<Arc<Self>>) -> Vec<Arc<Self>> {
+    /// Returns dependencies not yet visited during a propagation walk, keyed
+    /// by [`ByPtr`] to avoid hashing the full `StorePath` on every edge.
+    pub fn get_all_deps_not_queued(&self, visited: &HashSet<ByPtr>) -> Vec<Arc<Self>> {
         let state = self.state.read();
         state
             .deps
             .iter()
-            .filter(|dep| !queued.contains(*dep))
+            .filter(|dep| !visited.contains(&ByPtr(Arc::clone(dep))))
             .map(Clone::clone)
             .collect()
     }
@@ -909,5 +937,23 @@ mod tests {
 
         drop(step);
         assert_eq!(steps.len(), 0);
+    }
+
+    #[test]
+    fn byptr_uses_identity_not_content() {
+        // Distinct allocations with identical drv_path: equal under Step's
+        // content Hash/Eq, but distinct under ByPtr.
+        let a = Step::new(drv("same"), PendingRunnable::default());
+        let b = Step::new(drv("same"), PendingRunnable::default());
+        assert_eq!(a, b, "content equality precondition");
+        assert!(!Arc::ptr_eq(&a, &b));
+
+        let mut set = HashSet::new();
+        assert!(set.insert(ByPtr(a.clone())));
+        assert!(!set.insert(ByPtr(a.clone())));
+        assert!(set.contains(&ByPtr(a.clone())));
+        assert!(set.insert(ByPtr(b.clone())));
+        assert!(!set.contains(&ByPtr(Step::new(drv("same"), PendingRunnable::default()))));
+        assert_eq!(set.len(), 2);
     }
 }
