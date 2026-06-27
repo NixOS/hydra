@@ -9,7 +9,7 @@ order of descending finish time.</p>
   <thead>
     <tr>
       <th></th>
-      <th>What</th>
+      <th>Step</th>
       <th>Job</th>
       <th>Build</th>
       <th>Step</th>
