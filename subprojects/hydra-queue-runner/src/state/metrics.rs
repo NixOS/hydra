@@ -62,6 +62,8 @@ pub struct PromMetrics {
     pub disabled_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_disabled
     pub avg_runnable_time_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_avg_runnable_time
     pub wait_time_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_wait_time
+    pub finished_per_machine_type: prometheus::IntCounterVec, // hydraqueuerunner_machine_type_finished
+    pub unfinished_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_unfinished
 
     // Per-machine metrics
     pub machine_current_jobs: prometheus::IntGaugeVec, // hydraqueuerunner_machine_current_jobs
@@ -344,6 +346,20 @@ impl PromMetrics {
             prometheus::Opts::new(
                 "hydraqueuerunner_machine_type_wait_time",
                 "Wait time for build steps per machine type",
+            ),
+            &["machine_type"],
+        )?;
+        let finished_per_machine_type = prometheus::IntCounterVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_type_finished",
+                "Number of completed build steps per machine type",
+            ),
+            &["machine_type"],
+        )?;
+        let unfinished_per_machine_type = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_type_unfinished",
+                "Number of unfinished build steps per machine type",
             ),
             &["machine_type"],
         )?;
@@ -683,6 +699,8 @@ impl PromMetrics {
         r.register(Box::new(disabled_per_machine_type.clone()))?;
         r.register(Box::new(avg_runnable_time_per_machine_type.clone()))?;
         r.register(Box::new(wait_time_per_machine_type.clone()))?;
+        r.register(Box::new(finished_per_machine_type.clone()))?;
+        r.register(Box::new(unfinished_per_machine_type.clone()))?;
         r.register(Box::new(machine_current_jobs.clone()))?;
         r.register(Box::new(machine_steps_done.clone()))?;
         r.register(Box::new(machine_total_step_time_ms.clone()))?;
@@ -794,6 +812,8 @@ impl PromMetrics {
             disabled_per_machine_type,
             avg_runnable_time_per_machine_type,
             wait_time_per_machine_type,
+            finished_per_machine_type,
+            unfinished_per_machine_type,
             machine_current_jobs,
             machine_steps_done,
             machine_total_step_time_ms,
@@ -912,6 +932,7 @@ impl PromMetrics {
         self.disabled_per_machine_type.reset();
         self.avg_runnable_time_per_machine_type.reset();
         self.wait_time_per_machine_type.reset();
+        self.unfinished_per_machine_type.reset();
         for (t, s) in state.queues.get_stats_per_queue().await {
             if let Ok(v) = i64::try_from(s.total_runnable) {
                 self.runnable_per_machine_type
@@ -940,6 +961,14 @@ impl PromMetrics {
             }
             if let Ok(v) = i64::try_from(s.wait_time) {
                 self.wait_time_per_machine_type
+                    .with_label_values(&[&t])
+                    .set(v);
+            }
+        }
+
+        for (t, count) in state.steps.get_unfinished_per_system() {
+            if let Ok(v) = i64::try_from(count) {
+                self.unfinished_per_machine_type
                     .with_label_values(&[&t])
                     .set(v);
             }
@@ -1163,20 +1192,40 @@ impl PromMetrics {
             .observe(wait_seconds);
     }
 
-    pub fn track_build_success(&self, timings: super::build::BuildTimings, total_step_time: u64) {
+    pub fn track_build_success(
+        &self,
+        timings: super::build::BuildTimings,
+        total_step_time: u64,
+        machine_type: Option<&str>,
+    ) {
         self.nr_builds_succeeded.inc();
         self.nr_steps_done.inc();
         self.nr_steps_building.sub(1);
+        if let Some(machine_type) = machine_type {
+            self.finished_per_machine_type
+                .with_label_values(&[machine_type])
+                .inc();
+        }
         self.add_to_total_step_import_time_ms(timings.import_elapsed.as_millis());
         self.add_to_total_step_build_time_ms(timings.build_elapsed.as_millis());
         self.add_to_total_step_upload_time_ms(timings.upload_elapsed.as_millis());
         self.add_to_total_step_time_ms(total_step_time);
     }
 
-    pub fn track_build_failure(&self, timings: super::build::BuildTimings, total_step_time: u64) {
+    pub fn track_build_failure(
+        &self,
+        timings: super::build::BuildTimings,
+        total_step_time: u64,
+        machine_type: Option<&str>,
+    ) {
         self.nr_steps_done.inc();
         self.nr_steps_building.sub(1);
         self.nr_builds_failed.inc();
+        if let Some(machine_type) = machine_type {
+            self.finished_per_machine_type
+                .with_label_values(&[machine_type])
+                .inc();
+        }
         self.add_to_total_step_import_time_ms(timings.import_elapsed.as_millis());
         self.add_to_total_step_build_time_ms(timings.build_elapsed.as_millis());
         self.add_to_total_step_upload_time_ms(timings.upload_elapsed.as_millis());

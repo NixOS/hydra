@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 
 use hashbrown::{HashMap, HashSet};
 
-use super::{Build, Jobset};
+use super::{Build, Jobset, System};
 use db::models::BuildID;
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_derivation::derived_path::OutputName;
@@ -518,6 +518,21 @@ impl Steps {
             .filter_map(|(_, s)| s.upgrade().map(|v| v.get_runnable()))
             .filter(|v| *v)
             .count()
+    }
+
+    #[must_use]
+    pub fn get_unfinished_per_system(&self) -> HashMap<System, u64> {
+        let mut steps = self.inner.write();
+        steps.retain(|_, s| s.upgrade().is_some());
+        let mut counts: HashMap<System, u64> = HashMap::new();
+        for system in steps
+            .values()
+            .filter_map(Weak::upgrade)
+            .filter_map(|s| s.get_system())
+        {
+            *counts.entry(system).or_default() += 1;
+        }
+        counts
     }
 
     #[must_use]
