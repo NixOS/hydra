@@ -147,7 +147,7 @@ impl Build {
             );
             step.add_jobset(self.jobset.clone());
             for dep in step.get_all_deps_not_queued(&queued) {
-                queued.insert(dep.clone());
+                queued.insert(super::step::ByPtr(dep.clone()));
                 todo.push_back(dep);
             }
         }
@@ -614,6 +614,49 @@ impl Builds {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn propagate_priorities_visits_shared_diamond_dep() {
+        use crate::state::step::Steps;
+
+        fn drv(name: &str) -> StorePath {
+            StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+                .unwrap()
+        }
+
+        // Diamond: bottom is reachable from two parents, so the walk hits it
+        // twice and must still apply the priority.
+        let steps = Steps::new();
+        let (top, _) = steps.create(&drv("top"), None, None);
+        let (left, _) = steps.create(&drv("left"), None, None);
+        let (right, _) = steps.create(&drv("right"), None, None);
+        let (bottom, _) = steps.create(&drv("bottom"), None, None);
+        let (bottom_again, is_new) = steps.create(&drv("bottom"), None, None);
+        assert!(!is_new, "bottom must be the same shared allocation");
+        assert!(Arc::ptr_eq(&bottom, &bottom_again));
+
+        top.add_dep(left.clone());
+        top.add_dep(right.clone());
+        left.add_dep(bottom.clone());
+        right.add_dep(bottom.clone());
+
+        let build = Build::new_debug(&drv("top"));
+        build.set_toplevel_step(top.clone());
+        build.propagate_priorities();
+
+        let prio = build.global_priority.load(Ordering::Relaxed);
+        assert!(prio > 0);
+        for step in [&top, &left, &right, &bottom] {
+            assert_eq!(
+                step.atomic_state
+                    .highest_global_priority
+                    .load(Ordering::Relaxed),
+                prio,
+                "step {} not propagated",
+                step.get_drv_path()
+            );
+        }
+    }
 
     #[test]
     fn transient_completed_failures_are_recorded_as_aborted() {
