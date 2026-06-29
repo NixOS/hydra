@@ -112,11 +112,13 @@ pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::os::unix::ffi::OsStrExt as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
 
 use futures::TryStreamExt as _;
+use harmonia_store_remote::DaemonStore as _;
 use hashbrown::{HashMap, HashSet};
 use secrecy::ExposeSecret as _;
 
@@ -1875,6 +1877,17 @@ impl State {
             .await;
         guard.disarm();
 
+        // Without presigned uploads, builders import outputs from the queue
+        // runner's local store, so pin them with GC roots until consumed.
+        // Best-effort: a failed root must not fail the build.
+        if !self.config.use_presigned_uploads() {
+            for out_path in output.outputs.values() {
+                if let Err(e) = self.add_root(out_path).await {
+                    tracing::warn!("failed to create GC root for {out_path}: {e}");
+                }
+            }
+        }
+
         // Copy outputs to non-S3 stores via `nix copy`.
         {
             let nix_copy_uris: Vec<String> = {
@@ -3287,13 +3300,19 @@ impl State {
         Ok(build_output)
     }
 
-    #[allow(unused)]
-    fn add_root(&self, store_path: &StorePath) -> std::io::Result<()> {
-        let roots_dir = self.config.get_roots_dir();
-        // Inline filesystem symlink for GC roots
-        let link_path = roots_dir.join(store_path.to_string());
-        let store_path_full = format!("{}/{store_path}", self.connector.store_dir());
-        fs_err::os::unix::fs::symlink(&store_path_full, &link_path)
+    /// Create a persistent, GC-safe root for `store_path` via the daemon's
+    /// addPermRoot: it pins the path with a temp root (synchronising with a
+    /// running GC over the socket), writes the symlink atomically and
+    /// registers it as an indirect root, all under the daemon's GC lock.
+    async fn add_root(&self, store_path: &StorePath) -> Result<(), StateError> {
+        let link_path = self.config.get_roots_dir().join(store_path.to_string());
+        let gc_root = bytes::Bytes::copy_from_slice(link_path.as_os_str().as_bytes());
+        self.connector
+            .connect()
+            .await?
+            .add_perm_root(store_path, &gc_root)
+            .await?;
+        Ok(())
     }
 
     async fn abort_unsupported(&self) {
