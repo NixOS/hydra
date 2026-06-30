@@ -59,7 +59,7 @@ opentelemetry = "0.31.0"
 opentelemetry-http = "0.31.0"
 opentelemetry-otlp = "0.31.0"
 opentelemetry-semantic-conventions = "0.31.0"
-opentelemetry_sdk = "0.31.0"
+opentelemetry_sdk = "0.32.1"
 parking_lot = "0.12.4"
 petgraph = { version = "0.8", default-features = false, features = [ "graphmap", "std" ] }
 pkg-config = "0.3"
