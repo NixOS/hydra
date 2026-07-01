@@ -485,43 +485,33 @@ impl RunnerService for Server {
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
-        tokio::spawn({
-            async move {
-                if req.result_state() == hydra_proto::BuildResultState::Success {
-                    let build_output = match crate::state::BuildOutput::from_grpc(req) {
-                        Ok(output) => output,
-                        Err(e) => {
-                            tracing::error!("Failed to parse build output: {e}");
-                            return;
-                        }
-                    };
-                    if let Err(e) = state
-                        .succeed_step_by_uuid(build_id, machine_id, build_output)
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to mark step with build_id={build_id} as done: {e}"
-                        );
-                    }
-                } else if let Err(e) = state
-                    .fail_step_by_uuid(
-                        build_id,
-                        machine_id,
-                        req.result_state().into(),
-                        crate::state::BuildTimings::new(
-                            req.import_time_ms,
-                            req.build_time_ms,
-                            req.upload_time_ms,
-                        ),
-                        req.error_msg.clone(),
-                    )
-                    .await
-                {
-                    tracing::error!("Failed to fail step with build_id={build_id}: {e}");
-                }
-            }
-            .in_current_span()
-        });
+        // Finalize inline and propagate failure: remove_job must run to free
+        // the machine slot, so a failed finalize has to reach the builder
+        // (which retries complete_build) rather than being swallowed.
+        if req.result_state() == hydra_proto::BuildResultState::Success {
+            let build_output = crate::state::BuildOutput::from_grpc(req).map_err(|e| {
+                tonic::Status::invalid_argument(format!("invalid build output: {e}"))
+            })?;
+            state
+                .succeed_step_by_uuid(build_id, machine_id, build_output)
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        } else {
+            state
+                .fail_step_by_uuid(
+                    build_id,
+                    machine_id,
+                    req.result_state().into(),
+                    crate::state::BuildTimings::new(
+                        req.import_time_ms,
+                        req.build_time_ms,
+                        req.upload_time_ms,
+                    ),
+                    req.error_msg.clone(),
+                )
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        }
 
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
