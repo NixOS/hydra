@@ -321,6 +321,13 @@ pub struct State {
     /// stepnr allocation only needs in-process serialization.
     build_step_locks: [tokio::sync::Mutex<()>; BUILD_STEP_LOCK_SHARDS],
 
+    /// Caps concurrent queue-ingestion prefetches. `create_step` recurses with
+    /// per-level `buffered` concurrency, so a deep graph fans out into many more
+    /// in-flight prefetches than any single level, each acquiring a DB
+    /// connection. Bounding them below the pool size keeps connections free for
+    /// the critical path.
+    ingest_prefetch_sem: Arc<tokio::sync::Semaphore>,
+
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
     pub uploader: Arc<uploader::Uploader>,
@@ -387,11 +394,11 @@ impl State {
 
         let config = App::init(&cli.config_path)?;
         let log_dir = config.get_hydra_log_dir();
-        let db = db::Database::new(
-            config.get_db_url().expose_secret(),
-            config.get_max_db_connections(),
-        )
-        .await?;
+        let max_db_connections = config.get_max_db_connections();
+        let db = db::Database::new(config.get_db_url().expose_secret(), max_db_connections).await?;
+        let ingest_prefetch_sem = Arc::new(tokio::sync::Semaphore::new(
+            (max_db_connections as usize / 4).max(4),
+        ));
 
         match fs_err::tokio::create_dir_all(&log_dir).await {
             Ok(()) => tracing::info!("successfully created hydra log_dir={log_dir:?}"),
@@ -440,6 +447,7 @@ impl State {
             fod_checker,
             started_at: jiff::Timestamp::now(),
             build_step_locks: std::array::from_fn(|_| tokio::sync::Mutex::new(())),
+            ingest_prefetch_sem,
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
             uploader: Arc::new(
@@ -2889,6 +2897,10 @@ impl State {
         drv_path: &StorePath,
         pool: &Arc<daemon_client_utils::DaemonConnPool>,
     ) -> Option<StepFacts> {
+        // Bound ingestion DB load. Released before create_step recurses, so it
+        // cannot deadlock. acquire() only fails on a closed semaphore.
+        let _permit = self.ingest_prefetch_sem.acquire().await.ok()?;
+
         let Some(drv) = self.read_derivation(drv_path).await.ok() else {
             tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
             return None;
