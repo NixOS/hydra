@@ -1587,7 +1587,7 @@ impl State {
                     } else {
                         self.notify_dispatch.notified().await;
                     }
-                    tracing::info!("starting dispatch");
+                    tracing::debug!("starting dispatch");
 
                     #[allow(clippy::cast_possible_truncation)]
                     self.metrics
@@ -2834,7 +2834,7 @@ impl State {
         match outcome {
             AttachOutcome::PreviousFailure => CreateStepResult::PreviousFailure(step),
             AttachOutcome::Finished => {
-                tracing::info!(
+                tracing::debug!(
                     "create_step: {drv_path} already finished (outputs in store), skipping"
                 );
                 if let Some(fod_checker) = &self.fod_checker {
