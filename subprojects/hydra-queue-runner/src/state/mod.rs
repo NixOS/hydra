@@ -102,6 +102,12 @@ impl From<DrvLookupError> for StateError {
     }
 }
 
+impl db::RetryableError for StateError {
+    fn is_retryable_serialization_failure(&self) -> bool {
+        matches!(self, Self::Db(e) if e.is_retryable_serialization_failure())
+    }
+}
+
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
@@ -2017,24 +2023,28 @@ impl State {
         }
 
         {
-            let mut db = self.db.get().await?;
-            let mut tx = db.begin_transaction().await?;
             let start_time = job.result.get_start_time_as_i32()?;
             let stop_time = job.result.get_stop_time_as_i32()?;
-            for b in &direct {
-                let is_cached = job.build_id != b.id || job.result.is_cached;
-                tx.mark_succeeded_build(
-                    get_mark_build_sccuess_data(b, &output),
-                    is_cached,
-                    start_time,
-                    stop_time,
-                    self.connector.store_dir(),
-                )
-                .await?;
+            crate::utils::with_serialization_retry("succeed_step", || async {
+                let mut db = self.db.get().await?;
+                let mut tx = db.begin_transaction().await?;
+                for b in &direct {
+                    let is_cached = job.build_id != b.id || job.result.is_cached;
+                    tx.mark_succeeded_build(
+                        get_mark_build_sccuess_data(b, &output),
+                        is_cached,
+                        start_time,
+                        stop_time,
+                        self.connector.store_dir(),
+                    )
+                    .await?;
+                }
+                Ok(tx.commit().await?)
+            })
+            .await?;
+            for _ in &direct {
                 self.metrics.nr_builds_done.inc();
             }
-
-            tx.commit().await?;
         }
 
         // Remove the direct dependencies from 'builds'. This will cause them to be
@@ -2310,7 +2320,8 @@ impl State {
             // Create failed build steps for every build that depends on this, except when this
             // step is cached and is the top-level of that build (since then it's redundant with
             // the build's isCachedBuild field).
-            {
+            let marked_failed = crate::utils::with_serialization_retry("fail_step", || async {
+                let mut marked_failed = 0usize;
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
                 for b in &indirect {
@@ -2372,7 +2383,7 @@ impl State {
                         job.result.step_status == BuildStatus::CachedFailure,
                     )
                     .await?;
-                    self.metrics.nr_builds_done.inc();
+                    marked_failed += 1;
                 }
 
                 // Remember failed paths in the database so that they won't be built again.
@@ -2386,6 +2397,11 @@ impl State {
                 }
 
                 tx.commit().await?;
+                Ok(marked_failed)
+            })
+            .await?;
+            for _ in 0..marked_failed {
+                self.metrics.nr_builds_done.inc();
             }
 
             step_finished = true;
@@ -2449,68 +2465,71 @@ impl State {
         }
 
         // if !build.finished_in_db
-        let mut conn = self.db.get().await?;
-        let mut tx = conn.begin_transaction().await?;
+        crate::utils::with_serialization_retry("handle_previous_failure", || async {
+            let mut conn = self.db.get().await?;
+            let mut tx = conn.begin_transaction().await?;
 
-        // Find the previous build step record, first by derivation path, then by output
-        // path.
-        let mut propagated_from = tx
-            .get_last_build_step_id(self.connector.store_dir(), step.get_drv_path())
-            .await?
-            .unwrap_or_default();
+            // Find the previous build step record, first by derivation path, then by output
+            // path.
+            let mut propagated_from = tx
+                .get_last_build_step_id(self.connector.store_dir(), step.get_drv_path())
+                .await?
+                .unwrap_or_default();
 
-        if propagated_from == 0 {
-            // we can access step.drv here because the value is always set if
-            // PreviousFailure is returned, so this should never yield None
+            if propagated_from == 0 {
+                // we can access step.drv here because the value is always set if
+                // PreviousFailure is returned, so this should never yield None
 
-            let outputs = step.get_output_paths().unwrap_or_default();
-            for (name, path) in &outputs {
-                let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(self.connector.store_dir(), path)
+                let outputs = step.get_output_paths().unwrap_or_default();
+                for (name, path) in &outputs {
+                    let res = if let Some(path) = path {
+                        tx.get_last_build_step_id_for_output_path(self.connector.store_dir(), path)
+                            .await
+                    } else {
+                        tx.get_last_build_step_id_for_output_with_drv(
+                            self.connector.store_dir(),
+                            step.get_drv_path(),
+                            name.as_ref(),
+                        )
                         .await
-                } else {
-                    tx.get_last_build_step_id_for_output_with_drv(
-                        self.connector.store_dir(),
-                        step.get_drv_path(),
-                        name.as_ref(),
-                    )
-                    .await
-                };
-                if let Ok(Some(res)) = res {
-                    propagated_from = res;
-                    break;
+                    };
+                    if let Ok(Some(res)) = res {
+                        propagated_from = res;
+                        break;
+                    }
                 }
             }
-        }
 
-        tx.create_build_step(
-            self.connector.store_dir(),
-            None,
-            build.id,
-            step.get_drv_path(),
-            step.get_system().as_deref(),
-            String::new(),
-            BuildStatus::CachedFailure,
-            None,
-            Some(propagated_from),
-            step.get_output_paths()
-                .unwrap_or_default()
-                .into_iter()
-                .collect(),
-        )
-        .await?;
-        tx.update_build_after_previous_failure(
-            build.id,
-            if step.get_drv_path() == &build.drv_path {
-                BuildStatus::Failed
-            } else {
-                BuildStatus::DepFailed
-            },
-        )
-        .await?;
+            tx.create_build_step(
+                self.connector.store_dir(),
+                None,
+                build.id,
+                step.get_drv_path(),
+                step.get_system().as_deref(),
+                String::new(),
+                BuildStatus::CachedFailure,
+                None,
+                Some(propagated_from),
+                step.get_output_paths()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            )
+            .await?;
+            tx.update_build_after_previous_failure(
+                build.id,
+                if step.get_drv_path() == &build.drv_path {
+                    BuildStatus::Failed
+                } else {
+                    BuildStatus::DepFailed
+                },
+            )
+            .await?;
 
-        let _ = tx.notify_build_finished(build.id, &[]).await;
-        tx.commit().await?;
+            let _ = tx.notify_build_finished(build.id, &[]).await;
+            Ok(tx.commit().await?)
+        })
+        .await?;
 
         build.set_finished_in_db(true);
         self.metrics.nr_builds_done.inc();
@@ -3211,23 +3230,26 @@ impl State {
         let res = self.get_build_output_cached(&build.drv_path).await?;
 
         {
-            let mut db = self.db.get().await?;
-            let mut tx = db.begin_transaction().await?;
-
             tracing::info!("marking build {} as succeeded (cached)", build.id);
-            let now = jiff::Timestamp::now().as_second();
-            tx.mark_succeeded_build(
-                get_mark_build_sccuess_data(&build, &res),
-                true,
-                i32::try_from(now)?, // TODO
-                i32::try_from(now)?, // TODO
-                self.connector.store_dir(),
-            )
+            let now = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
+            crate::utils::with_serialization_retry("handle_cached_build", || async {
+                let mut db = self.db.get().await?;
+                let mut tx = db.begin_transaction().await?;
+
+                tx.mark_succeeded_build(
+                    get_mark_build_sccuess_data(&build, &res),
+                    true,
+                    now,
+                    now,
+                    self.connector.store_dir(),
+                )
+                .await?;
+
+                tx.notify_build_finished(build.id, &[]).await?;
+                Ok(tx.commit().await?)
+            })
             .await?;
             self.metrics.nr_builds_done.inc();
-
-            tx.notify_build_finished(build.id, &[]).await?;
-            tx.commit().await?;
         }
         build.set_finished_in_db(true);
 

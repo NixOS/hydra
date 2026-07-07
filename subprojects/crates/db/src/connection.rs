@@ -1275,6 +1275,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use crate::RetryableError as _;
 
     fn test_store_dir() -> StoreDir {
         StoreDir::new("/nix/store").unwrap()
@@ -1747,5 +1748,52 @@ mod tests {
             .unwrap();
         tx_c.commit().await.unwrap();
         assert_eq!(step_c, Some(2));
+    }
+
+    /// A real Postgres deadlock (40P01) is classified as retryable.
+    #[tokio::test]
+    async fn deadlock_is_retryable_serialization_failure() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+
+        let mut setup = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql(
+            "CREATE TABLE deadlock_test (id int PRIMARY KEY, v int);
+             INSERT INTO deadlock_test VALUES (1, 0), (2, 0);",
+        )
+        .execute(&mut *setup.conn)
+        .await
+        .unwrap();
+
+        let mut conn_a = Connection::new(pool.acquire().await.unwrap());
+        let mut conn_b = Connection::new(pool.acquire().await.unwrap());
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 1")
+            .execute(&mut *tx_a.tx)
+            .await
+            .unwrap();
+
+        let mut tx_b = conn_b.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 2")
+            .execute(&mut *tx_b.tx)
+            .await
+            .unwrap();
+
+        // Each transaction now reaches for the row the other holds, closing the
+        // cycle; Postgres aborts one of them with a deadlock error.
+        let (res_a, res_b) = tokio::join!(
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 2").execute(&mut *tx_a.tx),
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 1").execute(&mut *tx_b.tx),
+        );
+
+        let victim = match (res_a, res_b) {
+            (Err(e), Ok(_)) | (Ok(_), Err(e)) => crate::Error::from(e),
+            (Err(_), Err(_)) => panic!("both transactions failed"),
+            (Ok(_), Ok(_)) => panic!("expected a deadlock"),
+        };
+        assert!(
+            victim.is_retryable_serialization_failure(),
+            "deadlock error should be retryable: {victim:?}"
+        );
     }
 }
