@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT s.startTime, s.stopTime FROM buildsteps s join builds b on build = id\n            WHERE\n              s.startTime IS NOT NULL AND\n              s.stopTime > (EXTRACT(epoch FROM NOW())::bigint - $1) AND\n              jobset_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "starttime",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "stoptime",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "a2f7836751e3866d3a1f6c7c8bad421b1be703a867f868a5b5aacb1c758ab0cf"
+}

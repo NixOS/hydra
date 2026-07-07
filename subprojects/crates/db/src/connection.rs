@@ -116,17 +116,16 @@ impl Connection {
         jobset_id: i32,
         scheduling_window: i64,
     ) -> crate::Result<Vec<BuildSteps>> {
-        #[allow(clippy::cast_precision_loss)]
         Ok(sqlx::query_as!(
             BuildSteps,
             r#"
             SELECT s.startTime, s.stopTime FROM buildsteps s join builds b on build = id
             WHERE
               s.startTime IS NOT NULL AND
-              to_timestamp(s.stopTime) > (NOW() - (interval '1 second' * $1)) AND
+              s.stopTime > (EXTRACT(epoch FROM NOW())::bigint - $1) AND
               jobset_id = $2
             "#,
-            Some((scheduling_window * 10) as f64),
+            scheduling_window,
             jobset_id,
         )
         .fetch_all(&mut *self.conn)
