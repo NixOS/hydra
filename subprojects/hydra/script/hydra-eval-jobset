@@ -493,14 +493,13 @@ sub checkBuild {
                   name => $firstOutputName, %$pathOrDrvConstraint },
                 { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
-                #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
-                # Same output path but a different drv means a fixed-output input
-                # changed recipe; rebuild from the new closure instead of the old one.
-                $prevBuild->update({ drvpath => $drvPath, finished => 0, buildstatus => undef })
-                    if $prevBuild->drvpath ne $drvPath;
-                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
+                # Same output path but a different drv: repoint and rebuild.
+                # Applied after the evaluation transaction (applyDrvPathRepoints)
+                # to avoid holding Builds row locks for the whole evaluation.
+                my $repoint = $prevBuild->drvpath ne $drvPath;
+                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath, repoint => $repoint };
 
-                if ($prevBuild->finished) {
+                if ($prevBuild->finished && !$repoint) {
                     $db->storage->dbh->do("notify cached_build_finished, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
                 } else {
                     $db->storage->dbh->do("notify cached_build_queued, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
@@ -687,6 +686,30 @@ sub syncCurrentBuilds {
             and not exists (select 1 from jobsetevalmembers m where m.eval = ? and m.build = b.id)
           order by b.id limit ?)
     }, $jobset->get_column('id'), $evalId, $batch);
+}
+
+# Repoint existing builds at their new derivation in a short id-ordered
+# transaction outside the evaluation transaction, so it can't hold Builds row
+# locks for the whole evaluation and deadlock the queue runner.
+sub applyDrvPathRepoints {
+    my ($buildMap) = @_;
+    my @ids = sort { $a <=> $b } grep { $buildMap->{$_}->{repoint} } keys %$buildMap;
+    return unless @ids;
+
+    my $builds = $db->resultset('Builds');
+    for (my $attempt = 1; ; $attempt++) {
+        eval {
+            $db->txn_do(sub {
+                for my $id (@ids) {
+                    $builds->search({ id => $id })->update(
+                        { drvpath => $buildMap->{$id}->{drvPath}, finished => 0, buildstatus => undef });
+                }
+            });
+        };
+        last unless $@;
+        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+        sleep 1;
+    }
 }
 
 sub checkJobsetWrapped {
@@ -967,9 +990,8 @@ sub checkJobsetWrapped {
         $ev->update({ evaltime => abs(int($evalStop - $evalStart)) });
     };
 
-    # The transaction contends with the queue runner, which updates Builds
-    # rows of the same jobset as builds finish; when Postgres aborts it to
-    # break a lock cycle, retry instead of losing the evaluation.
+    # Retry rather than lose the evaluation if Postgres aborts the transaction
+    # to break a lock cycle with the queue runner.
     for (my $attempt = 1; ; $attempt++) {
         eval { $db->txn_do($evalTxn); };
         last unless $@;
@@ -981,6 +1003,7 @@ sub checkJobsetWrapped {
         sleep $attempt;
     }
 
+    applyDrvPathRepoints(\%buildMap);
     syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
 
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
