@@ -475,7 +475,7 @@ impl State {
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
-                let report = eyre::eyre!("{}", build_failure_message(&f));
+                let report = eyre::eyre!("{}", build_failure_message(drv, &f));
                 // Preserve the daemon's failure status where the database
                 // distinguishes it; everything else is a plain build failure.
                 return Err(match f.status {
@@ -784,14 +784,32 @@ fn format_failure(e: &JobFailure) -> String {
     strip_ansi(&format!("{report:#}"))
 }
 
-/// Build the failure message for a derivation: the daemon's own message, or the
-/// bare status when it is empty.
-fn build_failure_message(f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure) -> String {
-    let error_msg = str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8");
-    if error_msg.trim().is_empty() {
-        format!("build failed: {:?}", f.status)
-    } else {
-        error_msg.to_string()
+/// The daemon's `error_msg` embeds the last N build-log lines, which Hydra
+/// already stores and links separately. Synthesize a one-liner from the status
+/// to keep the step's errormsg short.
+fn build_failure_message(
+    drv: &StorePath,
+    f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure,
+) -> String {
+    format!(
+        "Build of '{drv}' failed: {} (see log)",
+        failure_reason(f.status)
+    )
+}
+
+fn failure_reason(status: FailureStatus) -> &'static str {
+    match status {
+        FailureStatus::PermanentFailure => "permanent failure",
+        FailureStatus::InputRejected => "input rejected",
+        FailureStatus::OutputRejected => "output rejected",
+        FailureStatus::TransientFailure => "transient failure",
+        FailureStatus::CachedFailure => "cached failure",
+        FailureStatus::TimedOut => "timed out",
+        FailureStatus::MiscFailure => "builder failed",
+        FailureStatus::DependencyFailed => "a dependency failed",
+        FailureStatus::LogLimitExceeded => "log limit exceeded",
+        FailureStatus::NotDeterministic => "build is not deterministic",
+        FailureStatus::NoSubstituters => "no substituters available",
     }
 }
 
