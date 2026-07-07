@@ -2017,7 +2017,9 @@ impl State {
             }
         }
 
-        let direct = item.step_info.step.get_direct_builds();
+        let mut direct = item.step_info.step.get_direct_builds();
+        // Lock build rows in id order so concurrent completions can't deadlock.
+        direct.sort_by_key(|b| b.id);
         if direct.is_empty() {
             self.steps.remove(item.step_info.step.get_drv_path());
         }
@@ -2312,7 +2314,8 @@ impl State {
         let mut dependent_ids = Vec::new();
         let mut step_finished = false;
         loop {
-            let indirect = self.get_all_indirect_builds(&step);
+            let mut indirect: Vec<_> = self.get_all_indirect_builds(&step).into_iter().collect();
+            indirect.sort_by_key(|b| b.id);
             if indirect.is_empty() && step_finished {
                 break;
             }
