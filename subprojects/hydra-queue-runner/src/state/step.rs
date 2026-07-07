@@ -446,7 +446,7 @@ impl Step {
 
         // only ever mark as runnable once
         if !self.runnable.load(Ordering::SeqCst) {
-            tracing::info!("step '{}' is now runnable", self.get_drv_path());
+            tracing::debug!("step '{}' is now runnable", self.get_drv_path());
 
             self.runnable.store(true, Ordering::SeqCst);
             self.pending_runnable.lock().push(self.me.clone());
