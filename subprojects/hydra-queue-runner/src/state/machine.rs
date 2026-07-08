@@ -760,27 +760,6 @@ impl Machine {
 
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
-        let now = jiff::Timestamp::now().as_second();
-        let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
-        let jobs_in_last_30s_count = self.stats.jobs_in_last_30s_count.load(Ordering::Relaxed);
-
-        // ensure that we dont submit more than 4 jobs in 30s
-        if now <= (jobs_in_last_30s_start + 30)
-            && jobs_in_last_30s_count >= 4
-            // ensure that we havent already finished some of them, because then its fine again
-            && self.stats.get_current_jobs() >= 4
-        {
-            return false;
-        } else if now > (jobs_in_last_30s_start + 30) {
-            // reset count
-            self.stats
-                .jobs_in_last_30s_start
-                .store(0, Ordering::Relaxed);
-            self.stats
-                .jobs_in_last_30s_count
-                .store(0, Ordering::Relaxed);
-        }
-
         if self.stats.get_build_dir_free_percent() < self.build_dir_avail_threshold {
             return false;
         }
