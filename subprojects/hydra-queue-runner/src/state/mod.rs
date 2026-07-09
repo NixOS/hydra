@@ -786,7 +786,7 @@ impl State {
         };
         let drv = step_info.step.get_drv_path();
         let default_max_log_size = self.config.max_log_size();
-        // hydra-eval-jobs defaults for builds without meta.maxSilent/meta.timeout.
+        // Defaults for builds without meta.maxSilent/meta.timeout.
         let default_max_silent_time = self.config.max_silent_time();
         let default_build_timeout = self.config.build_timeout();
         let mut max_silent_time: i32;
@@ -819,11 +819,17 @@ impl State {
 
             // We want the biggest timeout otherwise we could build a step like llvm with a timeout
             // of 180 because a nixostest with a timeout got scheduled and needs this step
-            let biggest_max_silent_time = dependents.iter().map(|x| x.max_silent_time).max();
-            let biggest_build_timeout = dependents.iter().map(|x| x.timeout).max();
+            let biggest_max_silent_time = dependents
+                .iter()
+                .map(|x| x.max_silent_time.unwrap_or(default_max_silent_time))
+                .max();
+            let biggest_build_timeout = dependents
+                .iter()
+                .map(|x| x.timeout.unwrap_or(default_build_timeout))
+                .max();
 
-            max_silent_time = biggest_max_silent_time.unwrap_or(build.max_silent_time);
-            build_timeout = biggest_build_timeout.unwrap_or(build.timeout);
+            max_silent_time = biggest_max_silent_time.unwrap_or(default_max_silent_time);
+            build_timeout = biggest_build_timeout.unwrap_or(default_build_timeout);
 
             // A build's meta.timeout describes its own derivation. When this
             // step is only a dependency of other builds (none has it as its

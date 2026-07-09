@@ -36,6 +36,12 @@ let
         meta.maxSilent = 5;
       };
 
+      # No meta.maxSilent: the queue-runner's maxSilentTime default (5s) applies.
+      silent_default_kills = mkJob {
+        name = "silent-default-kills";
+        script = "sleep 600; echo unreachable > $out";
+      };
+
       # Silent for 15s; maxSilent = 600 must win over the 5s queue-runner default.
       silent_survives = mkJob {
         name = "silent-survives";
@@ -148,6 +154,7 @@ in
     # 0 = success, 7 = timed out, 10 = log limit, 11 = output size limit
     expected = {
         "silent_kills": 7,
+        "silent_default_kills": 7,
         "timeout_kills": 7,
         "log_limit": 10,
         "output_limit": 11,
