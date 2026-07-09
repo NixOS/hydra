@@ -554,8 +554,8 @@ sub checkBuild {
             , license => getMetaConcatStrings($buildInfo->{meta}->{license}, "shortName")
             , homepage => getMeta($buildInfo->{meta}->{homepage}, undef)
             , maintainers => getMetaConcatStrings($buildInfo->{meta}->{maintainers}, "email")
-            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, 7200)
-            , timeout => getMeta($buildInfo->{meta}->{timeout}, 36000)
+            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, undef)
+            , timeout => getMeta($buildInfo->{meta}->{timeout}, undef)
             , nixname => $buildInfo->{name}
             , drvpath => $drvPath
             , system => $buildInfo->{system}
