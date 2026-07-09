@@ -14,6 +14,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![recursion_limit = "256"]
 
+pub mod cli;
 pub mod config;
 pub mod io;
 pub mod lock_file;
@@ -25,6 +26,7 @@ use std::future::Future;
 
 use color_eyre::eyre::{self, WrapErr as _};
 
+use cli::{BindSocket, Cli};
 use state::State;
 
 type GrpcServer =
@@ -34,15 +36,15 @@ type GrpcServer =
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-fn start_task_loops(state: &std::sync::Arc<State>) -> Vec<tokio::task::AbortHandle> {
+fn start_task_loops(state: &std::sync::Arc<State>, cli: &Cli) -> Vec<tokio::task::AbortHandle> {
     tracing::info!("QueueRunner starting task loops");
 
     let mut service_list = vec![
-        spawn_config_reloader(state.clone(), state.config.clone(), &state.cli.config_path),
+        spawn_config_reloader(state.clone(), state.config.clone(), &cli.config_path),
         state.clone().start_dispatch_loop(),
         state.clone().start_uploader_queue(),
     ];
-    if !state.cli.disable_queue_monitor_loop {
+    if !cli.disable_queue_monitor_loop {
         service_list.push(state.clone().start_queue_monitor_loop());
     }
 
@@ -93,7 +95,9 @@ async fn main() -> color_eyre::Result<()> {
         }));
     }
 
-    let state = State::new().await?;
+    let cli = Cli::new();
+    let config = config::App::init(&cli.config_path)?;
+    let state = State::new(cli.mtls(), config).await?;
 
     let lockfile_path = state.config.get_lockfile();
     let _lock = lock_file::LockFile::acquire(&lockfile_path)
@@ -101,14 +105,14 @@ async fn main() -> color_eyre::Result<()> {
 
     state.clear_busy().await?; // clear busy once before starting the queue-runner
 
-    if !state.cli.mtls_configured_correctly() {
+    if !state.mtls.configured_correctly() {
         tracing::error!(
             "mtls configured inproperly, please pass all options: server_cert_path, server_key_path and client_ca_cert_path!"
         );
         return Err(eyre::eyre!("Configuration issue"));
     }
 
-    let task_abort_handles = start_task_loops(&state);
+    let task_abort_handles = start_task_loops(&state, &cli);
 
     // Resolve listeners for both servers. When using socket activation
     // (ListenFd), we use LISTEN_FDNAMES to map names to fd indices.
@@ -119,9 +123,9 @@ async fn main() -> color_eyre::Result<()> {
         .map(String::from)
         .collect();
 
-    let http_listener = match &state.cli.rest_bind {
-        config::BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
-        config::BindSocket::ListenFd => {
+    let http_listener = match &cli.rest_bind {
+        BindSocket::Tcp(s) => tokio::net::TcpListener::bind(s).await?,
+        BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "rest").unwrap_or(0);
             let std_listener = listenfd
                 .take_tcp_listener(idx)?
@@ -129,14 +133,14 @@ async fn main() -> color_eyre::Result<()> {
             std_listener.set_nonblocking(true)?;
             tokio::net::TcpListener::from_std(std_listener)?
         }
-        config::BindSocket::Unix(_) => {
+        BindSocket::Unix(_) => {
             return Err(eyre::eyre!("HTTP server does not support Unix sockets"));
         }
     };
     let http_addr = http_listener.local_addr()?;
 
-    let (srv1, grpc_info): (GrpcServer, String) = match &state.cli.grpc_bind {
-        config::BindSocket::Tcp(s) => {
+    let (srv1, grpc_info): (GrpcServer, String) = match &cli.grpc_bind {
+        BindSocket::Tcp(s) => {
             let listener = tokio::net::TcpListener::bind(s).await?;
             let addr = listener.local_addr()?;
             let info = addr.to_string();
@@ -145,7 +149,7 @@ async fn main() -> color_eyre::Result<()> {
                 info,
             )
         }
-        config::BindSocket::ListenFd => {
+        BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
             let std_listener = listenfd
                 .take_tcp_listener(idx)?
@@ -159,7 +163,7 @@ async fn main() -> color_eyre::Result<()> {
                 info,
             )
         }
-        config::BindSocket::Unix(p) => {
+        BindSocket::Unix(p) => {
             let listener = tokio::net::UnixListener::bind(p)?;
             let info = format!("unix:{}", p.display());
             (

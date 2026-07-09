@@ -20,7 +20,7 @@ toml.workspace        = true
 
 atomic_float.workspace = true
 backon.workspace       = true
-clap                   = { workspace = true, features = [ "derive", "env" ] }
+clap                   = { workspace = true, features = [ "derive" ] }
 color-eyre.workspace   = true
 fs-err                 = { workspace = true, features = [ "tokio" ] }
 thiserror.workspace    = true
