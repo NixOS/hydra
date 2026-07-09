@@ -18,6 +18,8 @@ in
 
   gitea = forEachSystem (system: import ./gitea.nix { inherit system nixpkgs common; });
 
+  limits = forEachSystem (system: import ./limits.nix { inherit system nixpkgs common; });
+
   s3-nar-listing = forEachSystem (
     system: import ./s3-nar-listing.nix { inherit system nixpkgs common; }
   );
