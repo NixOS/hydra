@@ -1435,9 +1435,10 @@ fn build_client_options(
     let mut options = harmonia_protocol::types::ClientOptions::default();
     options.max_silent_time = i64::from(max_silent_time);
     options.build_cores = build_cores;
-    options
-        .other_settings
-        .insert("max-log-size".to_string(), max_log_size.to_string().into());
+    options.other_settings.insert(
+        "max-build-log-size".to_string(),
+        max_log_size.to_string().into(),
+    );
     options
         .other_settings
         .insert("timeout".to_string(), build_timeout.to_string().into());
