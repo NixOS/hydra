@@ -35,6 +35,7 @@ url.workspace          = true
 
 serde.workspace      = true
 serde_json.workspace = true
+toml.workspace       = true
 
 harmonia-protocol.workspace         = true
 harmonia-store-derivation.workspace = true

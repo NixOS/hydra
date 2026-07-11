@@ -7,6 +7,8 @@
 let
   cfg = config.services.hydra-queue-builder-dev;
   user = config.users.users.hydra-queue-builder;
+
+  format = pkgs.formats.toml { };
 in
 {
   options = {
@@ -18,85 +20,93 @@ in
         type = lib.types.singleLineStr;
       };
 
-      pingInterval = lib.mkOption {
-        description = "Interval in which pings are send to the runner";
-        type = lib.types.ints.positive;
-        default = 10;
-      };
+      settings = lib.mkOption {
+        description = "Builder settings written to the TOML config file";
+        type = lib.types.submodule {
+          options = {
+            pingInterval = lib.mkOption {
+              description = "Interval in which pings are send to the runner";
+              type = lib.types.ints.positive;
+              default = 10;
+            };
 
-      speedFactor = lib.mkOption {
-        description = "Additional Speed factor for this machine";
-        type = lib.types.oneOf [
-          lib.types.ints.positive
-          lib.types.float
-        ];
-        default = 1;
-      };
+            speedFactor = lib.mkOption {
+              description = "Additional Speed factor for this machine";
+              type = lib.types.oneOf [
+                lib.types.ints.positive
+                lib.types.float
+              ];
+              default = 1;
+            };
 
-      maxJobs = lib.mkOption {
-        description = "Maximum allowed of jobs. This only is used if the queue runner uses this metrics for determining free machines.";
-        type = lib.types.ints.positive;
-        default = 4;
-      };
+            maxJobs = lib.mkOption {
+              description = "Maximum allowed of jobs. This only is used if the queue runner uses this metrics for determining free machines.";
+              type = lib.types.ints.positive;
+              default = 4;
+            };
 
-      buildDirAvailThreshold = lib.mkOption {
-        description = "Threshold in percent for nix build dir before jobs are no longer scheduled on the machine";
-        type = lib.types.float;
-        default = 10.0;
-      };
+            buildDirAvailThreshold = lib.mkOption {
+              description = "Threshold in percent for nix build dir before jobs are no longer scheduled on the machine";
+              type = lib.types.float;
+              default = 10.0;
+            };
 
-      storeAvailThreshold = lib.mkOption {
-        description = "Threshold in percent for /nix/store before jobs are no longer scheduled on the machine";
-        type = lib.types.float;
-        default = 10.0;
-      };
+            storeAvailThreshold = lib.mkOption {
+              description = "Threshold in percent for /nix/store before jobs are no longer scheduled on the machine";
+              type = lib.types.float;
+              default = 10.0;
+            };
 
-      load1Threshold = lib.mkOption {
-        description = "Maximum Load1 threshold before we stop scheduling jobs on that node. Only used if PSI is not available.";
-        type = lib.types.float;
-        default = 8.0;
-      };
+            load1Threshold = lib.mkOption {
+              description = "Maximum Load1 threshold before we stop scheduling jobs on that node. Only used if PSI is not available.";
+              type = lib.types.float;
+              default = 8.0;
+            };
 
-      cpuPsiThreshold = lib.mkOption {
-        description = "Maximum CPU PSI in the last 10s before we stop scheduling jobs on that node";
-        type = lib.types.float;
-        default = 75.0;
-      };
+            cpuPsiThreshold = lib.mkOption {
+              description = "Maximum CPU PSI in the last 10s before we stop scheduling jobs on that node";
+              type = lib.types.float;
+              default = 75.0;
+            };
 
-      memPsiThreshold = lib.mkOption {
-        description = "Maximum Memory PSI in the last 10s before we stop scheduling jobs on that node";
-        type = lib.types.float;
-        default = 80.0;
-      };
+            memPsiThreshold = lib.mkOption {
+              description = "Maximum Memory PSI in the last 10s before we stop scheduling jobs on that node";
+              type = lib.types.float;
+              default = 80.0;
+            };
 
-      ioPsiThreshold = lib.mkOption {
-        description = "Maximum IO PSI in the last 10s before we stop scheduling jobs on that node. If null then this pressure check is disabled.";
-        type = lib.types.nullOr lib.types.float;
-        default = null;
-      };
+            ioPsiThreshold = lib.mkOption {
+              description = "Maximum IO PSI in the last 10s before we stop scheduling jobs on that node. If null then this pressure check is disabled.";
+              type = lib.types.nullOr lib.types.float;
+              default = null;
+            };
 
-      systems = lib.mkOption {
-        description = "List of supported systems. If none are passed, system and extra-platforms are read from nix.";
-        type = lib.types.listOf lib.types.singleLineStr;
-        default = [ ];
-      };
+            systems = lib.mkOption {
+              description = "List of supported systems. If null, system and extra-platforms are read from nix; an empty list means none.";
+              type = lib.types.nullOr (lib.types.listOf lib.types.singleLineStr);
+              default = null;
+            };
 
-      supportedFeatures = lib.mkOption {
-        description = "Pass supported features to the builder. If none are passed, system features will be used.";
-        type = lib.types.listOf lib.types.singleLineStr;
-        default = [ ];
-      };
+            supportedFeatures = lib.mkOption {
+              description = "Supported features for the builder. If null, system features are read from nix; an empty list means none.";
+              type = lib.types.nullOr (lib.types.listOf lib.types.singleLineStr);
+              default = null;
+            };
 
-      mandatoryFeatures = lib.mkOption {
-        description = "Pass mandatory features to the builder.";
-        type = lib.types.listOf lib.types.singleLineStr;
-        default = [ ];
-      };
+            mandatoryFeatures = lib.mkOption {
+              description = "Mandatory features for the builder.";
+              type = lib.types.listOf lib.types.singleLineStr;
+              default = [ ];
+            };
 
-      useSubstitutes = lib.mkOption {
-        description = "Use substitution for paths";
-        type = lib.types.bool;
-        default = true;
+            useSubstitutes = lib.mkOption {
+              description = "Use substitution for paths";
+              type = lib.types.bool;
+              default = true;
+            };
+          };
+        };
+        default = { };
       };
 
       authorizationFile = lib.mkOption {
@@ -154,41 +164,8 @@ in
               "${cfg.package}/bin/hydra-builder"
               "--gateway-endpoint"
               cfg.queueRunnerAddr
-              "--ping-interval"
-              cfg.pingInterval
-              "--speed-factor"
-              cfg.speedFactor
-              "--max-jobs"
-              cfg.maxJobs
-              "--build-dir-avail-threshold"
-              cfg.buildDirAvailThreshold
-              "--store-avail-threshold"
-              cfg.storeAvailThreshold
-              "--load1-threshold"
-              cfg.load1Threshold
-              "--cpu-psi-threshold"
-              cfg.cpuPsiThreshold
-              "--mem-psi-threshold"
-              cfg.memPsiThreshold
-            ]
-            ++ lib.optionals (cfg.ioPsiThreshold != null) [
-              "--io-psi-threshold"
-              cfg.ioPsiThreshold
-            ]
-            ++ (builtins.concatMap (v: [
-              "--systems"
-              v
-            ]) cfg.systems)
-            ++ (builtins.concatMap (v: [
-              "--supported-features"
-              v
-            ]) cfg.supportedFeatures)
-            ++ (builtins.concatMap (v: [
-              "--mandatory-features"
-              v
-            ]) cfg.mandatoryFeatures)
-            ++ lib.optionals (cfg.useSubstitutes != null) [
-              "--use-substitutes"
+              "--config-path"
+              "/etc/hydra/builder.toml"
             ]
             ++ lib.optionals (cfg.authorizationFile != null) [
               "--authorization-file"
@@ -227,6 +204,11 @@ in
         WorkingDirectory = user.home;
       };
     };
+
+    environment.etc."hydra/builder.toml".source = format.generate "builder.toml" (
+      lib.filterAttrsRecursive (_: v: v != null) cfg.settings
+    );
+
     users = {
       users.hydra-queue-builder = {
         uid = lib.mkDefault 535;
