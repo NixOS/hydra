@@ -1,13 +1,52 @@
 //! Utilities for working with the Nix daemon beyond what the
 //! harmonia libraries provide.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use harmonia_protocol::types::{DaemonError, DaemonStore};
 use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::ValidPathInfo;
-use harmonia_store_remote::ConnectionPool;
+use harmonia_store_remote::{DaemonClient, DaemonClientBuilder};
+use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
+
+/// A live, handshaked connection to the Nix daemon over a unix socket.
+pub type DaemonConn = DaemonClient<OwnedReadHalf, OwnedWriteHalf>;
+
+/// Opens a fresh daemon connection per operation; intentionally not pooled.
+///
+/// The remaining daemon operations are all long-lived streaming ones (build,
+/// import, export, substitute), so the handshake cost is negligible. A pooled
+/// connection abandoned mid-stream (e.g. a cancelled gRPC transfer) stays
+/// desynced and corrupts whoever gets it next; a fresh connection just closes
+/// its socket on drop and cannot poison anything.
+#[derive(Clone)]
+pub struct DaemonConnector {
+    socket: PathBuf,
+    store_dir: StoreDir,
+}
+
+impl DaemonConnector {
+    pub fn new(socket: impl Into<PathBuf>, store_dir: StoreDir) -> Self {
+        Self {
+            socket: socket.into(),
+            store_dir,
+        }
+    }
+
+    pub fn store_dir(&self) -> &StoreDir {
+        &self.store_dir
+    }
+
+    /// Open and handshake a new daemon connection.
+    pub async fn connect(&self) -> Result<DaemonConn, DaemonError> {
+        DaemonClientBuilder::new()
+            .set_store_dir(&self.store_dir)
+            .connect_unix(&self.socket)
+            .await
+    }
+}
 
 /// Parsed nix daemon store connection settings.
 ///
@@ -154,105 +193,193 @@ fn parse_nix_remote_from(
     })
 }
 
-/// Walk store path references transitively, collecting all path infos
-/// in the closure. No particular ordering is guaranteed.
-async fn walk_closure(
-    pool: &ConnectionPool,
-    roots: &[StorePath],
-) -> Result<HashMap<StorePath, harmonia_store_path_info::UnkeyedValidPathInfo>, DaemonError> {
-    let mut infos = HashMap::new();
-    let mut queue: Vec<StorePath> = roots.to_vec();
-    let mut visited = HashSet::new();
-    while let Some(p) = queue.pop() {
-        if !visited.insert(p.clone()) {
-            continue;
-        }
-        let mut guard = pool.acquire().await?;
-        let info = guard
-            .client()
-            .query_path_info(&p)
-            .await?
-            .ok_or_else(|| DaemonError::custom(format!("path '{p}' is not valid")))?;
-        for r in &info.references {
-            if !visited.contains(r) {
-                queue.push(r.clone());
-            }
-        }
-        infos.insert(p, info);
-    }
-    Ok(infos)
-}
-
-/// Walk store path references transitively to compute the closure.
-///
-/// Returns `ValidPathInfo`s topologically sorted (dependencies before
-/// dependents) via `petgraph`. This ordering is required by
-/// `add_to_store_nar`, which validates that all references already
-/// exist before accepting a path.
-pub async fn query_closure(
-    pool: &ConnectionPool,
-    roots: &[StorePath],
-) -> Result<Vec<ValidPathInfo>, DaemonError> {
-    use petgraph::graphmap::DiGraphMap;
-
-    let infos = walk_closure(pool, roots).await?;
-
-    // Topological sort so dependencies come before dependents.
-    let mut graph = DiGraphMap::<&StorePath, ()>::new();
-    for p in infos.keys() {
-        graph.add_node(p);
-    }
-    for (p, info) in &infos {
-        for r in &info.references {
-            if r != p && infos.contains_key(r) {
-                graph.add_edge(p, r, ());
-            }
-        }
-    }
-
-    // petgraph toposort returns dependents before dependencies, so
-    // reverse to get dependencies first.
-    let sorted =
-        petgraph::algo::toposort(&graph, None).expect("store reference graph should be acyclic");
-    Ok(sorted
-        .into_iter()
-        .rev()
-        .filter_map(|p| {
-            Some(ValidPathInfo {
-                path: p.clone(),
-                info: infos.get(p)?.clone(),
-            })
-        })
-        .collect())
-}
-
-/// Compute the total NAR size of a path's closure.
-pub async fn compute_closure_size(pool: &ConnectionPool, path: &StorePath) -> u64 {
-    walk_closure(pool, std::slice::from_ref(path))
-        .await
-        .map(|infos| infos.values().map(|info| info.nar_size).sum())
-        .unwrap_or(0)
-}
-
-/// Check whether a store path is valid.
-pub async fn is_valid_path(pool: &ConnectionPool, path: &StorePath) -> Result<bool, DaemonError> {
-    let mut guard = pool.acquire().await?;
-    guard.client().is_valid_path(path).await
-}
-
-/// Query path info, returning `None` if the path is not valid.
-pub async fn query_path_info(
-    pool: &ConnectionPool,
-    path: &StorePath,
-) -> Result<Option<harmonia_store_path_info::UnkeyedValidPathInfo>, DaemonError> {
-    let mut guard = pool.acquire().await?;
-    guard.client().query_path_info(path).await
-}
-
 /// Ensure a path is present in the store (via substitution).
-pub async fn ensure_path(pool: &ConnectionPool, path: &StorePath) -> Result<(), DaemonError> {
-    let mut guard = pool.acquire().await?;
-    guard.client().ensure_path(path).await
+pub async fn ensure_path(conn: &mut DaemonConn, path: &StorePath) -> Result<(), DaemonError> {
+    conn.ensure_path(path).await
+}
+
+/// Reads store metadata through the nix-daemon. Needs no access to the store
+/// database files and reflects registrations still in its uncheckpointed WAL.
+#[derive(Clone)]
+pub struct DaemonStoreReader {
+    connector: DaemonConnector,
+}
+
+impl DaemonStoreReader {
+    pub fn new(connector: DaemonConnector) -> Self {
+        Self { connector }
+    }
+
+    pub fn store_dir(&self) -> &StoreDir {
+        self.connector.store_dir()
+    }
+
+    /// Open a connection callers can reuse across several queries to avoid a
+    /// handshake per query (see the free `query_*` functions below).
+    pub async fn connect(&self) -> Result<DaemonConn, DaemonError> {
+        self.connector.connect().await
+    }
+
+    pub async fn is_valid_path(&self, path: &StorePath) -> Result<bool, DaemonError> {
+        self.connect().await?.is_valid_path(path).await
+    }
+
+    pub async fn query_path_info(
+        &self,
+        path: &StorePath,
+    ) -> Result<Option<ValidPathInfo>, DaemonError> {
+        query_path_info(&mut self.connect().await?, path).await
+    }
+
+    pub async fn query_closure_infos(
+        &self,
+        roots: Vec<StorePath>,
+    ) -> Result<Vec<ValidPathInfo>, DaemonError> {
+        query_closure_infos(&mut self.connect().await?, roots).await
+    }
+
+    pub async fn compute_closure_size(&self, path: &StorePath) -> u64 {
+        let Ok(mut conn) = self.connect().await else {
+            return 0;
+        };
+        compute_closure_size(&mut conn, path).await
+    }
+}
+
+/// A bounded, reusable set of daemon connections for a burst of read-only
+/// queries. It caps live connections at `max` and hands them back for reuse,
+/// so a fan-out of validity checks costs at most `max` handshakes rather than
+/// one per query. Drop the pool when the burst ends to close the connections;
+/// nothing stays open between bursts.
+pub struct DaemonConnPool {
+    reader: DaemonStoreReader,
+    idle: Mutex<Vec<DaemonConn>>,
+    sem: Arc<tokio::sync::Semaphore>,
+}
+
+impl DaemonConnPool {
+    pub fn new(reader: DaemonStoreReader, max: usize) -> Arc<Self> {
+        Arc::new(Self {
+            reader,
+            idle: Mutex::new(Vec::new()),
+            sem: Arc::new(tokio::sync::Semaphore::new(max)),
+        })
+    }
+
+    /// Lease a connection, reusing an idle one or opening a new one up to the
+    /// pool's cap. Blocks once `max` connections are in use.
+    pub async fn acquire(self: &Arc<Self>) -> Result<PooledConn, DaemonError> {
+        let permit = self
+            .sem
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("daemon pool semaphore is never closed");
+        let reused = self.idle.lock().unwrap().pop();
+        let conn = match reused {
+            Some(conn) => conn,
+            None => self.reader.connect().await?,
+        };
+        Ok(PooledConn {
+            conn: Some(conn),
+            broken: false,
+            pool: self.clone(),
+            _permit: permit,
+        })
+    }
+}
+
+/// A connection leased from a [`DaemonConnPool`], returned to the pool on drop
+/// unless it was marked broken by a failed query.
+pub struct PooledConn {
+    conn: Option<DaemonConn>,
+    broken: bool,
+    pool: Arc<DaemonConnPool>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+}
+
+impl PooledConn {
+    /// Check path validity. A daemon error can leave the connection desynced,
+    /// so on error it is dropped instead of returned to the pool.
+    pub async fn is_valid_path(&mut self, path: &StorePath) -> Result<bool, DaemonError> {
+        let conn = self.conn.as_mut().expect("leased connection already taken");
+        match conn.is_valid_path(path).await {
+            Ok(valid) => Ok(valid),
+            Err(e) => {
+                self.broken = true;
+                Err(e)
+            }
+        }
+    }
+}
+
+impl Drop for PooledConn {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take()
+            && !self.broken
+        {
+            self.pool.idle.lock().unwrap().push(conn);
+        }
+    }
+}
+
+pub async fn query_path_info(
+    conn: &mut DaemonConn,
+    path: &StorePath,
+) -> Result<Option<ValidPathInfo>, DaemonError> {
+    Ok(conn.query_path_info(path).await?.map(|info| ValidPathInfo {
+        path: path.clone(),
+        info,
+    }))
+}
+
+/// Closure of `roots` with full path info, dependencies before dependents.
+/// Invalid roots are skipped.
+pub async fn query_closure_infos(
+    conn: &mut DaemonConn,
+    roots: Vec<StorePath>,
+) -> Result<Vec<ValidPathInfo>, DaemonError> {
+    enum Frame {
+        Enter(StorePath),
+        Exit(StorePath),
+    }
+    let mut seen: BTreeSet<StorePath> = BTreeSet::new();
+    let mut pending: HashMap<StorePath, _> = HashMap::new();
+    let mut sorted = Vec::new();
+    // Iterative post-order DFS: dependencies emitted before dependents.
+    let mut stack: Vec<Frame> = roots.into_iter().map(Frame::Enter).collect();
+    while let Some(frame) = stack.pop() {
+        match frame {
+            Frame::Enter(p) => {
+                if !seen.insert(p.clone()) {
+                    continue;
+                }
+                let Some(info) = conn.query_path_info(&p).await? else {
+                    continue;
+                };
+                stack.push(Frame::Exit(p.clone()));
+                for r in &info.references {
+                    if *r != p && !seen.contains(r) {
+                        stack.push(Frame::Enter(r.clone()));
+                    }
+                }
+                pending.insert(p, info);
+            }
+            Frame::Exit(p) => {
+                if let Some(info) = pending.remove(&p) {
+                    sorted.push(ValidPathInfo { path: p, info });
+                }
+            }
+        }
+    }
+    Ok(sorted)
+}
+
+pub async fn compute_closure_size(conn: &mut DaemonConn, path: &StorePath) -> u64 {
+    query_closure_infos(conn, vec![path.clone()])
+        .await
+        .map(|infos| infos.iter().map(|i| i.info.nar_size).sum())
+        .unwrap_or(0)
 }
 
 #[cfg(test)]

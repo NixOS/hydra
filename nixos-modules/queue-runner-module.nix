@@ -58,6 +58,7 @@ in
               type = lib.types.enum [
                 "Legacy"
                 "WithRdeps"
+                "WithCriticalPath"
               ];
               default = "WithRdeps";
             };
@@ -144,6 +145,26 @@ in
               description = "Force a list of substituters per builder. Builder will no longer be accepted if they don't have `useSubstitutes` with the substituters listed here.";
               type = lib.types.listOf lib.types.singleLineStr;
               default = [ ];
+            };
+            maxOutputSize = lib.mkOption {
+              description = "Per-output NAR size limit in bytes. Builds whose output exceeds this fail with NarSizeLimitExceeded. 0 disables the check.";
+              type = lib.types.ints.unsigned;
+              default = 0;
+            };
+            maxSilentTime = lib.mkOption {
+              description = "Default maximum silent time in seconds for builds without meta.maxSilent. Also used as a floor for dependency-only steps.";
+              type = lib.types.ints.unsigned;
+              default = 3600;
+            };
+            buildTimeout = lib.mkOption {
+              description = "Default build timeout in seconds for builds without meta.timeout. Also used as a floor for dependency-only steps.";
+              type = lib.types.ints.unsigned;
+              default = 36000;
+            };
+            maxLogSize = lib.mkOption {
+              description = "Maximum build log size in bytes before a build fails with LogLimitExceeded.";
+              type = lib.types.ints.unsigned;
+              default = 64 * 1024 * 1024;
             };
           };
         };
@@ -232,9 +253,66 @@ in
         '';
       };
 
+      otel = lib.mkOption {
+        description = "OpenTelemetry (OTLP) tracing options.";
+        default = { };
+        type = lib.types.submodule {
+          options = {
+            enable = lib.mkEnableOption ''
+              OpenTelemetry tracing. Builds the queue runner with the `otel`
+              cargo feature and exports spans via OTLP/gRPC, configured
+              through the standard `OTEL_*` environment variables
+            '';
+
+            endpoint = lib.mkOption {
+              description = "OTLP collector endpoint (`OTEL_EXPORTER_OTLP_ENDPOINT`). The exporter uses gRPC, so point at the gRPC port (typically 4317).";
+              type = lib.types.nullOr lib.types.singleLineStr;
+              default = null;
+              example = "http://127.0.0.1:4317";
+            };
+
+            protocol = lib.mkOption {
+              description = "OTLP protocol (`OTEL_EXPORTER_OTLP_PROTOCOL`).";
+              type = lib.types.nullOr (
+                lib.types.enum [
+                  "grpc"
+                  "http/protobuf"
+                  "http/json"
+                ]
+              );
+              default = null;
+            };
+
+            headers = lib.mkOption {
+              description = "Headers sent to the collector (`OTEL_EXPORTER_OTLP_HEADERS`). Ends up in the world-readable systemd unit, so do not put secrets here.";
+              type = lib.types.nullOr lib.types.singleLineStr;
+              default = null;
+              example = "authorization=Bearer token";
+            };
+
+            serviceName = lib.mkOption {
+              description = "Service name reported to the collector (`OTEL_SERVICE_NAME`). Defaults to the binary name (`hydra-queue-runner`).";
+              type = lib.types.nullOr lib.types.singleLineStr;
+              default = null;
+            };
+
+            extraEnv = lib.mkOption {
+              description = "Additional `OTEL_*` environment variables not exposed as dedicated options.";
+              type = lib.types.attrsOf lib.types.singleLineStr;
+              default = { };
+              example = {
+                OTEL_TRACES_SAMPLER = "parentbased_traceidratio";
+                OTEL_TRACES_SAMPLER_ARG = "0.1";
+              };
+            };
+          };
+        };
+      };
+
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ./. { };
+        default = pkgs.callPackage ./. { withOtel = cfg.otel.enable; };
+        defaultText = lib.literalExpression "pkgs.callPackage ./. { withOtel = cfg.otel.enable; }";
       };
     };
   };
@@ -269,12 +347,24 @@ in
       }
       // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
         AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
-      };
+      }
+      // lib.optionalAttrs cfg.otel.enable (
+        lib.filterAttrs (_: v: v != null) {
+          OTEL_EXPORTER_OTLP_ENDPOINT = cfg.otel.endpoint;
+          OTEL_EXPORTER_OTLP_PROTOCOL = cfg.otel.protocol;
+          OTEL_EXPORTER_OTLP_HEADERS = cfg.otel.headers;
+          OTEL_SERVICE_NAME = cfg.otel.serviceName;
+        }
+        // cfg.otel.extraEnv
+      );
 
       serviceConfig = {
         Type = "notify";
         Restart = "always";
         RestartSec = "5s";
+        # The runner holds a gRPC stream per builder plus DB pool and HTTP
+        # connections; the default 1024 soft limit is easily exhausted.
+        LimitNOFILE = 65536;
 
         ExecStart = lib.escapeShellArgs (
           [

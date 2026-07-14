@@ -9,6 +9,29 @@ use harmonia_store_path::{StoreDir, StorePath};
 use super::Step;
 use super::drv::flatten_chain;
 
+/// Resolve an input-addressed derivation output from the `.drv` file on
+/// disk. The build-history lookup in the database can miss outputs that
+/// never got a successful build step row, e.g. paths that were already
+/// valid when the step was created or whose step was aborted by a
+/// restart after the build finished. For input-addressed derivations the
+/// output path is fixed by the derivation itself, so the file is
+/// authoritative.
+fn resolve_from_drv_file(
+    store_dir: &StoreDir,
+    drv_path: &StorePath,
+    output_name: &OutputName,
+) -> Option<StorePath> {
+    let path = std::path::PathBuf::from(store_dir.display(drv_path).to_string());
+    let content = fs_err::read(path).ok()?;
+    let name = drv_path.name().strip_suffix(".drv")?.parse().ok()?;
+    let drv = harmonia_store_aterm::parse_derivation_aterm(store_dir, &content, name).ok()?;
+    let output = drv.outputs.get(output_name)?;
+    output
+        .path(store_dir, &drv.name, output_name)
+        .ok()
+        .flatten()
+}
+
 #[derive(Debug)]
 pub struct StepInfo {
     pub step: Arc<Step>,
@@ -100,7 +123,8 @@ impl StepInfo {
                                     .unwrap_or_else(|e| {
                                         tracing::warn!("resolve_drv_output failed: {e}");
                                         None
-                                    });
+                                    })
+                                    .or_else(|| resolve_from_drv_file(store_dir, &key.0, &key.1));
                                 memo.insert(key, r.clone());
                                 r
                             };
@@ -185,6 +209,41 @@ impl StepInfo {
         .reverse()
     }
 
+    pub(super) fn compare_with_critical_path(&self, other: &Self) -> std::cmp::Ordering {
+        #[allow(irrefutable_let_patterns)]
+        (if let c1 = self
+            .get_highest_global_priority()
+            .cmp(&other.get_highest_global_priority())
+            && c1 != std::cmp::Ordering::Equal
+        {
+            c1
+        } else if let c2 = other
+            .get_lowest_share_used()
+            .total_cmp(&self.get_lowest_share_used())
+            && c2 != std::cmp::Ordering::Equal
+        {
+            c2
+        } else if let c3 = self
+            .step
+            .atomic_state
+            .cp_length
+            .load(Ordering::Relaxed)
+            .cmp(&other.step.atomic_state.cp_length.load(Ordering::Relaxed))
+            && c3 != std::cmp::Ordering::Equal
+        {
+            c3
+        } else if let c4 = self
+            .get_highest_local_priority()
+            .cmp(&other.get_highest_local_priority())
+            && c4 != std::cmp::Ordering::Equal
+        {
+            c4
+        } else {
+            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
+        })
+        .reverse()
+    }
+
     pub(super) fn compare_with_rdeps(&self, other: &Self) -> std::cmp::Ordering {
         #[allow(irrefutable_let_patterns)]
         (if let c1 = self
@@ -237,6 +296,7 @@ mod tests {
     ) -> StepInfo {
         let step = Step::new(
             StorePath::from_base_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv").unwrap(),
+            Arc::default(),
         );
 
         step.atomic_state

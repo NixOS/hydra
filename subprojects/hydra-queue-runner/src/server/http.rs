@@ -97,7 +97,16 @@ impl Server {
         let server_span = tracing::span!(tracing::Level::TRACE, "http_server", %addr);
 
         loop {
-            let (stream, _) = listener.accept().await?;
+            // Never propagate an accept error: it drops the listener and wedges
+            // every endpoint. Back off (lets fds free under EMFILE) and retry.
+            let (stream, _) = match listener.accept().await {
+                Ok(conn) => conn,
+                Err(err) => {
+                    tracing::error!("HTTP accept error, continuing: {err}");
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
             let io = hyper_util::rt::TokioIo::new(stream);
 
             let state = state.clone();
@@ -215,7 +224,7 @@ mod handler {
                 stores
                     .iter()
                     .filter_map(|s| match s {
-                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                        crate::state::RemoteStoreBackend::S3(s) => Some((**s).clone()),
                         crate::state::RemoteStoreBackend::NixCopy(_) => None,
                     })
                     .collect()

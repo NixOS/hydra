@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Instant;
 
-use backon::RetryableWithContext as _;
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::TryFutureExt as _;
 use harmonia_protocol::daemon_wire::types2::BuildResultSuccess;
@@ -13,7 +14,11 @@ use hashbrown::HashMap;
 use crate::error::BuilderError;
 use crate::grpc::BuilderClient;
 use crate::types::BuildTimings;
-use binary_cache::{Compression, PresignedUpload, PresignedUploadClient};
+use binary_cache::{
+    CacheError, Compression, MorePartsSource, PresignedPart, PresignedUpload, PresignedUploadClient,
+};
+use daemon_client_utils::DaemonStoreReader;
+use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
 use hydra_proto::ProtoStorePath;
@@ -21,20 +26,16 @@ use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
     PingMessage, StepStatus, StepUpdate,
 };
-const RETRY_MIN_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(3);
-const RETRY_MAX_DELAY: tokio::time::Duration = tokio::time::Duration::from_secs(90);
-
-fn retry_strategy() -> backon::ExponentialBuilder {
-    backon::ExponentialBuilder::default()
-        .with_jitter()
-        .with_min_delay(RETRY_MIN_DELAY)
-        .with_max_delay(RETRY_MAX_DELAY)
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum JobFailure {
     #[error("Build failure")]
     Build(#[source] eyre::Report),
+    #[error("Build timed out")]
+    TimedOut(#[source] eyre::Report),
+    #[error("Build log limit exceeded")]
+    LogLimit(#[source] eyre::Report),
+    #[error("Output size limit exceeded")]
+    OutputLimit(#[source] eyre::Report),
     #[error("Preparing failure")]
     Preparing(#[source] eyre::Report),
     #[error("Import failure")]
@@ -45,10 +46,19 @@ pub enum JobFailure {
     PostProcessing(#[source] eyre::Report),
 }
 
+impl From<eyre::Report> for JobFailure {
+    fn from(e: eyre::Report) -> Self {
+        Self::Build(e)
+    }
+}
+
 impl From<&JobFailure> for BuildResultState {
     fn from(item: &JobFailure) -> Self {
         match item {
             JobFailure::Build(_) => Self::BuildFailure,
+            JobFailure::TimedOut(_) => Self::TimedOutFailure,
+            JobFailure::LogLimit(_) => Self::LogLimitFailure,
+            JobFailure::OutputLimit(_) => Self::NarSizeLimitFailure,
             JobFailure::Preparing(_) => Self::PreparingFailure,
             JobFailure::Import(_) => Self::ImportFailure,
             JobFailure::Upload(_) => Self::UploadFailure,
@@ -76,13 +86,13 @@ pub struct Config {
     pub ping_interval: u64,
     pub speed_factor: f32,
     pub max_jobs: u32,
+    pub build_cores: u32,
     pub build_dir_avail_threshold: f32,
     pub store_avail_threshold: f32,
     pub load1_threshold: f32,
     pub cpu_psi_threshold: f32,
     pub mem_psi_threshold: f32,
     pub io_psi_threshold: Option<f32>,
-    pub gcroots: std::path::PathBuf,
     pub systems: Vec<String>,
     pub supported_features: Vec<String>,
     pub mandatory_features: Vec<String>,
@@ -103,40 +113,25 @@ pub struct State {
     pub hostname: String,
     pub config: Config,
     pub max_concurrent_downloads: AtomicU32,
-    pub pool: harmonia_store_remote::ConnectionPool,
+    pub connector: daemon_client_utils::DaemonConnector,
+    /// Reads store validity and path info through the nix-daemon, which sees
+    /// paths a build just registered.
+    pub store: DaemonStoreReader,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
     pub client: BuilderClient,
     pub halt: AtomicBool,
     pub metrics: Arc<crate::metrics::Metrics>,
     upload_client: PresignedUploadClient,
+    /// Budget of NARs uploaded concurrently across all builds. Shared rather
+    /// than per-build because a single build rarely has enough new paths to
+    /// keep the link busy.
+    nar_upload_semaphore: Arc<tokio::sync::Semaphore>,
 }
 
-#[derive(Debug)]
-struct Gcroot {
-    root: std::path::PathBuf,
-}
-
-impl Gcroot {
-    pub(crate) fn new(path: std::path::PathBuf) -> std::io::Result<Self> {
-        fs_err::create_dir_all(&path)?;
-        Ok(Self { root: path })
-    }
-}
-
-impl std::fmt::Display for Gcroot {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.root.display())
-    }
-}
-
-impl Drop for Gcroot {
-    fn drop(&mut self) {
-        if self.root.exists() {
-            let _ = fs_err::remove_dir_all(&self.root);
-        }
-    }
-}
+/// A daemon connection whose temporary roots keep a build's paths alive for
+/// the lifetime of one build. The roots are released when it is dropped.
+type TempRoots = Arc<tokio::sync::Mutex<daemon_client_utils::DaemonConn>>;
 
 impl State {
     #[tracing::instrument(err)]
@@ -146,22 +141,12 @@ impl State {
         let nix_remote =
             daemon_client_utils::parse_nix_remote().map_err(BuilderError::ParseNixStore)?;
 
-        let logname =
-            std::env::var("LOGNAME").map_err(|_| BuilderError::MissingEnvVar("LOGNAME"))?;
-        let gcroots = nix_remote
-            .state_dir
-            .join("gcroots/per-user")
-            .join(logname)
-            .join("hydra-roots/builder");
-        fs_err::tokio::create_dir_all(&gcroots)
-            .await
-            .map_err(BuilderError::CreateGcroots)?;
-
-        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
-            &nix_remote.socket,
+        let connector = daemon_client_utils::DaemonConnector::new(
+            nix_remote.socket.clone(),
             nix_remote.store_dir.clone(),
-            harmonia_store_remote::PoolConfig::default(),
         );
+
+        let store = DaemonStoreReader::new(connector.clone());
 
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
@@ -173,13 +158,13 @@ impl State {
                 ping_interval: cli.ping_interval,
                 speed_factor: cli.speed_factor,
                 max_jobs: cli.max_jobs,
+                build_cores: cli.build_cores,
                 build_dir_avail_threshold: cli.build_dir_avail_threshold,
                 store_avail_threshold: cli.store_avail_threshold,
                 load1_threshold: cli.load1_threshold,
                 cpu_psi_threshold: cli.cpu_psi_threshold,
                 mem_psi_threshold: cli.mem_psi_threshold,
                 io_psi_threshold: cli.io_psi_threshold,
-                gcroots,
                 systems: cli.systems.as_ref().map_or_else(
                     || {
                         let mut out = Vec::with_capacity(8);
@@ -202,12 +187,16 @@ impl State {
                 store_dir: nix_remote.store_dir.clone(),
                 real_store_dir: nix_remote.real_store_dir(),
             },
-            pool,
+            connector,
+            store,
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
             metrics: Arc::new(crate::metrics::Metrics::default()),
             upload_client: PresignedUploadClient::new(),
+            nar_upload_semaphore: Arc::new(tokio::sync::Semaphore::new(
+                GLOBAL_NAR_UPLOAD_CONCURRENCY,
+            )),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -307,15 +296,18 @@ impl State {
                     Err(e) => {
                         if was_cancelled.load(Ordering::SeqCst) {
                             tracing::error!(
-                                "Build of {drv} was cancelled, not reporting Error: {:?}",
-                                eyre::Report::new(e)
+                                "Build of {drv} was cancelled, not reporting error: {}",
+                                format_failure(&e)
                             );
                             return;
                         }
 
                         let result_state = BuildResultState::from(&e) as i32;
+                        // Report the reason so it reaches the queue runner, not
+                        // just this builder's journal.
+                        let error_msg = format_failure(&e);
 
-                        tracing::error!("Build of {drv} failed with: {:?}", eyre::Report::new(e));
+                        tracing::error!("Build of {drv} failed with: {error_msg}");
                         self_.remove_build(build_id);
                         let failed_build = BuildResultInfo {
                             build_id: build_id.to_string(),
@@ -328,21 +320,10 @@ impl State {
                                 .unwrap_or_default(),
                             result_state,
                             output_infos: std::collections::HashMap::new(),
+                            error_msg: Some(error_msg),
                         };
 
-                        if let (_, Err(e)) = (|tuple: (BuilderClient, BuildResultInfo)| async {
-                            let (mut client, body) = tuple;
-                            let res = client.complete_build(body.clone()).await;
-                            ((client, body), res)
-                        })
-                        .retry(retry_strategy())
-                        .sleep(tokio::time::sleep)
-                        .context((self_.client.clone(), failed_build))
-                        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-                            tracing::error!("Failed to submit build failure info: err={err}, retrying in={dur:?}");
-                        })
-                        .await
-                        {
+                        if let Err(e) = self_.client.complete_build(failed_build).await {
                             tracing::error!("Failed to submit build failure info: {e}");
                         }
                     }
@@ -401,18 +382,20 @@ impl State {
         active.clear();
     }
 
-    #[tracing::instrument(skip(self, pool, basic_drv))]
+    #[tracing::instrument(skip(self, connector, basic_drv))]
     async fn request_build(
         &self,
-        pool: &harmonia_store_remote::ConnectionPool,
+        connector: &daemon_client_utils::DaemonConnector,
+        roots: &TempRoots,
         drv: &StorePath,
         basic_drv: &harmonia_store_derivation::derivation::BasicDerivation,
-        max_log_size: u64,
-        max_silent_time: i32,
-        build_timeout: i32,
-    ) -> eyre::Result<BuildResultSuccess> {
+        options: harmonia_protocol::types::ClientOptions,
+    ) -> Result<BuildResultSuccess, JobFailure> {
         // Build the pre-resolved BasicDerivation; logs stream to the queue-runner.
-        let mut guard = pool.acquire().await.wrap_err("daemon connection failed")?;
+        let mut conn = connector
+            .connect()
+            .await
+            .wrap_err("daemon connection failed")?;
 
         let (log_tx, log_rx) = tokio::sync::mpsc::unbounded_channel::<bytes::Bytes>();
         let log_stream = crate::utils::compressed_log_stream(drv, log_rx);
@@ -424,46 +407,40 @@ impl State {
         let build_result = {
             use futures::stream::StreamExt as _;
 
-            {
-                let mut options = harmonia_protocol::types::ClientOptions::default();
-                options.max_silent_time = i64::from(max_silent_time);
-                options
-                    .other_settings
-                    .insert("max-log-size".to_string(), max_log_size.to_string().into());
-                options
-                    .other_settings
-                    .insert("timeout".to_string(), build_timeout.to_string().into());
-                // build_derivation does not take options; they must be
-                // set per-client with a separate call.
-                guard.client().set_options(&options).await?;
-            }
+            // build_derivation does not take options; they must be
+            // set per-client with a separate call.
+            conn.set_options(&options)
+                .await
+                .map_err(|e| JobFailure::Build(e.into()))?;
 
             let mut result_log =
                 std::pin::pin!(harmonia_protocol::types::DaemonStore::build_derivation(
-                    guard.client(),
+                    &mut conn,
                     drv,
                     basic_drv,
                     harmonia_protocol::daemon_wire::types2::BuildMode::Normal,
                 ));
+            let send_line = |bytes: &[u8]| {
+                let mut line = Vec::with_capacity(bytes.len() + 1);
+                line.extend_from_slice(bytes);
+                line.push(b'\n');
+                let _ = log_tx.send(line.into());
+            };
             while let Some(msg) = result_log.as_mut().next().await {
+                use harmonia_protocol::log::{Field, LogMessage, ResultType};
                 match msg {
-                    harmonia_protocol::log::LogMessage::Message(m) => {
-                        let mut line = Vec::from(m.text);
-                        line.push(b'\n');
-                        let _ = log_tx.send(line.into());
+                    LogMessage::Message(m) => {
+                        send_line(&m.text);
                     }
-                    harmonia_protocol::log::LogMessage::Result(r)
+                    LogMessage::Result(r)
                         if matches!(
                             r.result_type,
-                            harmonia_protocol::log::ResultType::BuildLogLine
-                                | harmonia_protocol::log::ResultType::PostBuildLogLine
+                            ResultType::BuildLogLine | ResultType::PostBuildLogLine
                         ) =>
                     {
                         for field in &r.fields {
-                            if let harmonia_protocol::log::Field::String(bytes) = field {
-                                let mut line = Vec::from(bytes.as_ref());
-                                line.push(b'\n');
-                                let _ = log_tx.send(line.into());
+                            if let Field::String(bytes) = field {
+                                send_line(bytes);
                             }
                         }
                     }
@@ -473,7 +450,16 @@ impl State {
             drop(log_tx);
             result_log.await.wrap_err("build_derivation failed")?
         };
-        drop(guard);
+
+        // The daemon roots the outputs via this connection; dropping it
+        // releases them. Pin them onto the persistent roots connection first,
+        // or a GC in the gap collects the outputs and the upload fails.
+        if let BuildResultInner::Success(s) = &build_result.inner {
+            for realisation in s.built_outputs.values() {
+                pin_path(roots, &realisation.out_path).await;
+            }
+        }
+        drop(conn);
 
         // Wait for the log stream to finish.  The build_log RPC
         // streams to the queue-runner and only resolves once the
@@ -486,15 +472,17 @@ impl State {
         }
 
         // Check for build failure.
-        use harmonia_protocol::daemon_wire::types2::BuildResultInner;
         Ok(match build_result.inner {
             BuildResultInner::Success(s) => s,
             BuildResultInner::Failure(f) => {
-                return Err(eyre::eyre!(
-                    "build failed: {:?}: {}",
-                    f.status,
-                    str::from_utf8(&f.error_msg).unwrap_or("Invalid UTF-8")
-                ));
+                let report = eyre::eyre!("{}", build_failure_message(drv, &f));
+                // Preserve the daemon's failure status where the database
+                // distinguishes it; everything else is a plain build failure.
+                return Err(match f.status {
+                    FailureStatus::TimedOut => JobFailure::TimedOut(report),
+                    FailureStatus::LogLimitExceeded => JobFailure::LogLimit(report),
+                    _ => JobFailure::Build(report),
+                });
             }
         })
     }
@@ -513,10 +501,16 @@ impl State {
             .0;
 
         let before_import = Instant::now();
-        let gcroot_prefix = uuid::Uuid::new_v4().to_string();
-        let gcroot = self
-            .get_gcroot(&gcroot_prefix)
-            .map_err(|e| JobFailure::Preparing(e.into()))?;
+        // One daemon connection holds temp roots on every input (and output)
+        // for the whole build, pinning their closures race-free against a
+        // concurrent garbage collection; the roots release when this function
+        // returns and the connection drops.
+        let roots: TempRoots = Arc::new(tokio::sync::Mutex::new(
+            self.connector
+                .connect()
+                .await
+                .map_err(|e| JobFailure::Preparing(e.into()))?,
+        ));
 
         let mut client = self.client.clone();
         let _ = client // we ignore the error here, as this step status has no prio
@@ -550,9 +544,10 @@ impl State {
 
         import_requisites(
             &mut client,
-            self.pool.clone(),
+            &self.store,
+            self.connector.clone(),
             self.metrics.clone(),
-            &gcroot,
+            &roots,
             &drv,
             requisites.into_iter().map(|s| s.0),
             usize::try_from(self.max_concurrent_downloads.load(Ordering::Relaxed)).unwrap_or(5),
@@ -571,17 +566,17 @@ impl State {
             .await;
         let before_build = Instant::now();
 
+        let options = build_client_options(
+            self.config.build_cores,
+            m.max_silent_time,
+            m.max_log_size,
+            m.build_timeout,
+            m.presigned_url_opts.is_some(),
+        );
+
         let success = self
-            .request_build(
-                &self.pool,
-                &drv,
-                &basic_drv,
-                m.max_log_size,
-                m.max_silent_time,
-                m.build_timeout,
-            )
-            .await
-            .map_err(JobFailure::Build)?;
+            .request_build(&self.connector, &roots, &drv, &basic_drv, options)
+            .await?;
 
         // Extract output paths from the build result.
         let outputs: BTreeMap<OutputName, StorePath> = success
@@ -589,10 +584,6 @@ impl State {
             .into_iter()
             .map(|(name, realisation)| (name, realisation.out_path))
             .collect();
-
-        for o in outputs.values() {
-            add_gc_root(&gcroot.root, self.pool.store_dir(), o);
-        }
 
         timings.build_elapsed = before_build.elapsed();
         tracing::info!("Finished building {drv}");
@@ -602,20 +593,29 @@ impl State {
         // successful build.
         let mut output_infos = BTreeMap::new();
         for (name, path) in &outputs {
-            let info = daemon_client_utils::query_path_info(&self.pool, path)
+            let info = self
+                .store
+                .query_path_info(path)
                 .await
                 .wrap_err("query_path_info failed")
                 .map_err(JobFailure::PostProcessing)?
                 .ok_or_else(|| {
                     JobFailure::PostProcessing(eyre::eyre!("missing path info for output `{name}`"))
                 })?;
-            output_infos.insert(
-                name.clone(),
-                harmonia_store_path_info::ValidPathInfo {
-                    path: path.clone(),
-                    info,
-                },
-            );
+            output_infos.insert(name.clone(), info);
+        }
+
+        // Enforce the per-output NAR size limit before uploading anything.
+        if m.max_output_size > 0 {
+            for (name, vpi) in &output_infos {
+                if vpi.info.nar_size > m.max_output_size {
+                    return Err(JobFailure::OutputLimit(eyre::eyre!(
+                        "output `{name}` NAR size {} exceeds limit {}",
+                        vpi.info.nar_size,
+                        m.max_output_size,
+                    )));
+                }
+            }
         }
 
         let _ = client // we ignore the error here, as this step status has no prio
@@ -628,7 +628,7 @@ impl State {
 
         let before_upload = Instant::now();
         self.upload_nars(
-            self.pool.clone(),
+            self.connector.clone(),
             outputs.values().cloned().collect::<Vec<_>>(),
             &m.build_id,
             &machine_id.to_string(),
@@ -646,7 +646,8 @@ impl State {
             })
             .await;
         let build_results = Box::pin(new_success_build_result_info(
-            self.pool.clone(),
+            &self.store,
+            self.connector.clone(),
             machine_id,
             &drv,
             &output_infos,
@@ -656,31 +657,11 @@ impl State {
         .await
         .map_err(JobFailure::PostProcessing)?;
 
-        // This part is stupid, if writing doesnt work, we try to write a failure, maybe that works.
-        // We retry to ensure that this almost never happens.
-        (|tuple: (BuilderClient, BuildResultInfo)| async {
-            let (mut client, body) = tuple;
-            let res = client.complete_build(body.clone()).await;
-            ((client, body), res)
-        })
-        .retry(retry_strategy())
-        .sleep(tokio::time::sleep)
-        .context((client.clone(), build_results))
-        .notify(|err: &tonic::Status, dur: core::time::Duration| {
-            tracing::error!("Failed to submit build success info: err={err}, retrying in={dur:?}");
-        })
-        .await
-        .1
-        .map_err(|e| {
+        client.complete_build(build_results).await.map_err(|e| {
             tracing::error!("Failed to submit build success info. Will fail build: err={e}");
             JobFailure::PostProcessing(e.into())
         })?;
         Ok(())
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    fn get_gcroot(&self, prefix: &str) -> std::io::Result<Gcroot> {
-        Gcroot::new(self.config.gcroots.join(prefix))
     }
 
     #[tracing::instrument(skip(self))]
@@ -703,21 +684,14 @@ impl State {
         ]);
     }
 
-    #[tracing::instrument(skip(self), err)]
-    pub async fn clear_gcroots(&self) -> std::io::Result<()> {
-        fs_err::tokio::remove_dir_all(&self.config.gcroots).await?;
-        fs_err::tokio::create_dir_all(&self.config.gcroots).await?;
-        Ok(())
-    }
-
     pub fn enable_halt(&self) {
         self.halt.store(true, Ordering::SeqCst);
     }
 
-    #[tracing::instrument(skip(self, pool, nars), err)]
+    #[tracing::instrument(skip(self, connector, nars), err)]
     async fn upload_nars(
         &self,
-        pool: harmonia_store_remote::ConnectionPool,
+        connector: daemon_client_utils::DaemonConnector,
         nars: Vec<StorePath>,
         build_id: &str,
         machine_id: &str,
@@ -726,44 +700,62 @@ impl State {
         if let Some(opts) = presigned_url_opts {
             upload_nars_presigned(
                 self.client.clone(),
+                &self.store,
                 self.upload_client.clone(),
-                pool,
+                connector,
                 &nars,
                 opts,
                 build_id,
                 machine_id,
+                &self.nar_upload_semaphore,
             )
             .await
         } else {
-            upload_nars_regular(self.client.clone(), pool, self.metrics.clone(), nars).await
+            upload_nars_regular(
+                self.client.clone(),
+                &self.store,
+                connector,
+                self.metrics.clone(),
+                nars,
+            )
+            .await
         }
     }
 }
 
-#[tracing::instrument(skip(pool), fields(%gcroot, %path))]
+/// Pin `path` and its closure with a temp root on the shared build connection.
+/// Returns false if it could not be rooted (e.g. raced by a collection), so the
+/// caller re-fetches it. Temp roots are taken under the daemon's GC lock, so
+/// unlike a gcroot symlink they cannot race a concurrent collection.
+async fn pin_path(roots: &TempRoots, path: &StorePath) -> bool {
+    roots.lock().await.add_temp_root(path).await.is_ok()
+}
+
+#[tracing::instrument(skip(store, roots), fields(%path))]
 async fn is_path_missing(
-    pool: &harmonia_store_remote::ConnectionPool,
-    gcroot: &Gcroot,
+    store: &DaemonStoreReader,
+    roots: &TempRoots,
     path: StorePath,
 ) -> eyre::Result<Option<StorePath>> {
-    if daemon_client_utils::is_valid_path(pool, &path).await? {
-        add_gc_root(&gcroot.root, pool.store_dir(), &path);
+    // Take the temp root *before* checking validity.
+    // `add_temp_root` succeeds even for an invalid (already-collected) path
+    if pin_path(roots, &path).await && store.is_valid_path(&path).await? {
         Ok(None)
     } else {
         Ok(Some(path))
     }
 }
 
-/// Keep only paths not yet present in the local store.
+/// Keep only paths not present locally (or that could not be pinned).
 async fn filter_missing(
-    pool: &harmonia_store_remote::ConnectionPool,
-    gcroot: &Gcroot,
+    store: &DaemonStoreReader,
+    roots: &TempRoots,
     paths: Vec<StorePath>,
     concurrency: usize,
 ) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-        is_path_missing(pool, gcroot, p)
+        is_path_missing(store, roots, p)
     })
     .buffered(concurrency)
     .collect::<Vec<_>>()
@@ -773,50 +765,134 @@ async fn filter_missing(
     .map(|v| v.into_iter().flatten().collect())
 }
 
-/// Create a GC root symlink for a store path.
-///
-/// The symlink target uses the logical store dir, which may dangle
-/// outside a chroot but is correct inside it.
-fn add_gc_root(
-    gcroot_dir: &std::path::Path,
-    store_dir: &harmonia_store_path::StoreDir,
-    path: &StorePath,
-) {
-    let link = gcroot_dir.join(path.to_string());
-    let target = store_dir.display(path).to_string();
-    let _ = fs_err::os::unix::fs::symlink(target, &link);
+/// Render a build failure for the journal and the queue runner: `{:#}` gives
+/// the eyre cause chain without the `{:?}` backtrace, and `strip_ansi` drops
+/// the colour codes the nix daemon bakes into build error messages. The
+/// category is recorded separately as a `BuildResultState`, so we render the
+/// inner cause chain only, omitting the redundant `JobFailure` label.
+fn format_failure(e: &JobFailure) -> String {
+    let report = match e {
+        JobFailure::Build(r)
+        | JobFailure::TimedOut(r)
+        | JobFailure::LogLimit(r)
+        | JobFailure::OutputLimit(r)
+        | JobFailure::Preparing(r)
+        | JobFailure::Import(r)
+        | JobFailure::Upload(r)
+        | JobFailure::PostProcessing(r) => r,
+    };
+    strip_ansi(&format!("{report:#}"))
+}
+
+/// The daemon's `error_msg` embeds the last N build-log lines, which Hydra
+/// already stores and links separately. Synthesize a one-liner from the status
+/// to keep the step's errormsg short.
+fn build_failure_message(
+    drv: &StorePath,
+    f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure,
+) -> String {
+    format!(
+        "Build of '{drv}' failed: {} (see log)",
+        failure_reason(f.status)
+    )
+}
+
+fn failure_reason(status: FailureStatus) -> &'static str {
+    match status {
+        FailureStatus::PermanentFailure => "permanent failure",
+        FailureStatus::InputRejected => "input rejected",
+        FailureStatus::OutputRejected => "output rejected",
+        FailureStatus::TransientFailure => "transient failure",
+        FailureStatus::CachedFailure => "cached failure",
+        FailureStatus::TimedOut => "timed out",
+        FailureStatus::MiscFailure => "builder failed",
+        FailureStatus::DependencyFailed => "a dependency failed",
+        FailureStatus::LogLimitExceeded => "log limit exceeded",
+        FailureStatus::NotDeterministic => "build is not deterministic",
+        FailureStatus::NoSubstituters => "no substituters available",
+    }
+}
+
+/// Remove the escape sequences nix emits in log and error output, matching the
+/// forms handled by nix's `filterANSIEscapes`: CSI (`ESC [ ... final`), OSC
+/// (`ESC ] ... ST|BEL`, e.g. hyperlinks) and other two-byte `ESC` sequences,
+/// plus stray carriage returns and bells.
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => match chars.peek() {
+                // CSI: parameter/intermediate bytes then a final byte (0x40-0x7e).
+                Some('[') => {
+                    chars.next();
+                    for c in chars.by_ref() {
+                        if ('\u{40}'..='\u{7e}').contains(&c) {
+                            break;
+                        }
+                    }
+                }
+                // OSC: runs until ST (`ESC \`) or BEL.
+                Some(']') => {
+                    chars.next();
+                    while let Some(c) = chars.next() {
+                        if c == '\u{07}' {
+                            break;
+                        }
+                        if c == '\u{1b}' {
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                    }
+                }
+                // Other two-byte escape (e.g. `ESC c`): drop the following byte.
+                Some(_) => {
+                    chars.next();
+                }
+                None => {}
+            },
+            '\u{07}' | '\r' => {}
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 async fn substitute_paths(
-    pool: &harmonia_store_remote::ConnectionPool,
+    connector: &daemon_client_utils::DaemonConnector,
     paths: &[StorePath],
 ) -> eyre::Result<()> {
+    let mut conn = connector.connect().await?;
     for p in paths {
-        daemon_client_utils::ensure_path(pool, p).await?;
+        daemon_client_utils::ensure_path(&mut conn, p).await?;
     }
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool, metrics), fields(%gcroot), err)]
+#[tracing::instrument(skip(client, store, connector, metrics), err)]
+#[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
-    pool: harmonia_store_remote::ConnectionPool,
+    store: &DaemonStoreReader,
+    connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     paths: Vec<StorePath>,
     filter: bool,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
     let paths = if filter {
-        filter_missing(&pool, gcroot, paths, 10).await?
+        filter_missing(store, roots, paths, 10).await?
     } else {
         paths
     };
     let paths = if use_substitutes {
         metrics.add_substituting_path(paths.len() as u64);
-        let _ = substitute_paths(&pool, &paths).await;
+        let _ = substitute_paths(&connector, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = filter_missing(&pool, gcroot, paths, 10).await?;
+        let paths = filter_missing(store, roots, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -843,35 +919,34 @@ async fn import_paths(
         .await?
         .into_inner();
 
-    let mut guard = pool.acquire().await?;
-    let imported = store_transfer::import::import(&mut guard, stream).await?;
+    let mut conn = connector.connect().await?;
+    let imported = store_transfer::import::import(&mut conn, stream).await?;
 
-    // Create GC roots while still holding the connection — the
-    // imported paths are temp-rooted on this connection and can't
-    // be GC'd until we release it.
+    // Pin the freshly imported paths race-free.
     for p in &imported {
-        add_gc_root(&gcroot.root, pool.store_dir(), p);
+        pin_path(roots, p).await;
     }
-    drop(guard);
+    drop(conn);
 
     metrics.sub_downloading_path(num_paths);
     tracing::debug!("Finished importing {} paths", imported.len());
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool, metrics, requisites), fields(%gcroot, %drv), err)]
+#[tracing::instrument(skip(client, store, connector, metrics, requisites), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
-    pool: harmonia_store_remote::ConnectionPool,
+    store: &DaemonStoreReader,
+    connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
-    gcroot: &Gcroot,
+    roots: &TempRoots,
     drv: &StorePath,
     requisites: T,
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
-    let requisites = filter_missing(&pool, gcroot, requisites.into_iter().collect(), 50).await?;
+    let requisites = filter_missing(store, roots, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -879,9 +954,10 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            pool.clone(),
+            store,
+            connector.clone(),
             metrics.clone(),
-            gcroot,
+            roots,
             srcs.to_vec(),
             true,
             use_substitutes,
@@ -892,9 +968,10 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            pool.clone(),
+            store,
+            connector.clone(),
             metrics.clone(),
-            gcroot,
+            roots,
             drvs.to_vec(),
             true,
             false, // never use substitute for drvs
@@ -905,17 +982,18 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool, metrics), err)]
+#[tracing::instrument(skip(client, store, connector, metrics), err)]
 async fn upload_nars_regular(
     mut client: BuilderClient,
-    pool: harmonia_store_remote::ConnectionPool,
+    store: &DaemonStoreReader,
+    connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> eyre::Result<()> {
-    // Compute full closure by walking references via daemon protocol.
-    // query_closure returns ValidPathInfos in dependency order with
+    // query_closure_infos returns ValidPathInfos in dependency order with
     // path infos already populated, so we don't need to re-query.
-    let closure = daemon_client_utils::query_closure(&pool, &nars)
+    let closure = store
+        .query_closure_infos(nars)
         .await
         .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
 
@@ -961,10 +1039,10 @@ async fn upload_nars_regular(
         .map(|vpi| (vpi.path, vpi.info))
         .collect();
 
-    let export_pool = pool.clone();
+    let export_connector = connector.clone();
     let sender = tokio::spawn(async move {
-        let mut guard = export_pool.acquire().await?;
-        store_transfer::export::export(&mut guard, &nars, &infos, &tx).await
+        let mut conn = export_connector.connect().await?;
+        store_transfer::export::export(&mut conn, &nars, &infos, &tx).await
     });
 
     let upload = client
@@ -987,24 +1065,31 @@ async fn upload_nars_regular(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, pool), err)]
+/// NARs uploaded concurrently across all builds. Enough to hide ~200 ms S3
+/// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory.
+pub const GLOBAL_NAR_UPLOAD_CONCURRENCY: usize = 16;
+
+#[tracing::instrument(skip(client, store, connector, upload_semaphore), err)]
+#[allow(clippy::too_many_arguments)]
 async fn upload_nars_presigned(
-    mut client: BuilderClient,
+    client: BuilderClient,
+    store: &DaemonStoreReader,
     upload_client: PresignedUploadClient,
-    pool: harmonia_store_remote::ConnectionPool,
+    connector: daemon_client_utils::DaemonConnector,
     output_paths: &[StorePath],
     opts: hydra_proto::PresignedUploadOpts,
     build_id: &str,
     machine_id: &str,
+    upload_semaphore: &Arc<tokio::sync::Semaphore>,
 ) -> eyre::Result<()> {
     use futures::stream::StreamExt as _;
 
     tracing::info!("Start uploading paths using presigned urls");
     let before_upload = Instant::now();
 
-    // Compute full closure by walking references. Returns path infos
-    // in dependency order, so no need to re-query.
-    let closure = daemon_client_utils::query_closure(&pool, output_paths).await?;
+    // query_closure_infos returns path infos in dependency order, so no
+    // need to re-query.
+    let closure = store.query_closure_infos(output_paths.to_vec()).await?;
 
     let path_info_map: HashMap<_, _> = closure
         .iter()
@@ -1017,7 +1102,7 @@ async fn upload_nars_presigned(
     let debug_store_dir: std::path::PathBuf = nix_config
         .as_ref()
         .and_then(daemon_client_utils::NixDaemonStoreConfig::real_store_dir)
-        .unwrap_or_else(|| pool.store_dir().to_string().into());
+        .unwrap_or_else(|| connector.store_dir().to_string().into());
 
     let mut nars = Vec::with_capacity(paths_to_upload.len());
     let mut stream = tokio_stream::iter(paths_to_upload.clone())
@@ -1030,10 +1115,12 @@ async fn upload_nars_presigned(
                 } else {
                     Vec::new()
                 };
-                let Some(narhash) = path_infos.get(&path).map(|i| i.nar_hash) else {
+                let Some((narhash, nar_size)) =
+                    path_infos.get(&path).map(|i| (i.nar_hash, i.nar_size))
+                else {
                     return Ok(None);
                 };
-                Ok::<_, eyre::Report>(Some((path, narhash, debug_info_ids)))
+                Ok::<_, eyre::Report>(Some((path, narhash, nar_size, debug_info_ids)))
             }
         })
         .buffered(10);
@@ -1056,26 +1143,45 @@ async fn upload_nars_presigned(
         .request_presigned_urls(build_id, machine_id, nars)
         .await?;
 
-    if presigned_responses.len() != paths_to_upload.len() {
+    // The server only mints upload URLs for paths missing from the remote
+    // cache, so it returns a subset: closure paths already present are
+    // skipped instead of being re-uploaded on every build. More responses
+    // than requested would be a protocol bug.
+    if presigned_responses.len() > paths_to_upload.len() {
         return Err(eyre::eyre!(
-            "Mismatch between requested NARs ({}) and presigned URLs ({})",
+            "Server returned more presigned URLs ({}) than requested NARs ({})",
+            presigned_responses.len(),
             paths_to_upload.len(),
-            presigned_responses.len()
         ));
     }
 
-    for presigned_response in presigned_responses {
-        upload_single_nar_presigned(
-            &pool,
-            &StorePath::from_base_path(&presigned_response.store_path)
-                .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?,
-            build_id,
-            machine_id,
-            &presigned_response,
-            &mut client,
-            &upload_client,
-        )
-        .await?;
+    // Paths are independent and narinfo is written server-side per completion,
+    // so upload them concurrently.
+    let mut uploads = tokio_stream::iter(presigned_responses)
+        .map(|presigned_response| {
+            let client = client.clone();
+            let upload_client = upload_client.clone();
+            let upload_semaphore = upload_semaphore.clone();
+            async move {
+                let _permit = upload_semaphore.acquire().await?;
+                let store_path = StorePath::from_base_path(&presigned_response.store_path)
+                    .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?;
+                upload_single_nar_presigned(
+                    store,
+                    &store_path,
+                    build_id,
+                    machine_id,
+                    &presigned_response,
+                    &client,
+                    &upload_client,
+                )
+                .await
+            }
+        })
+        .buffer_unordered(GLOBAL_NAR_UPLOAD_CONCURRENCY);
+
+    while let Some(res) = uploads.next().await {
+        res?;
     }
 
     tracing::info!(
@@ -1085,36 +1191,86 @@ async fn upload_nars_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(pool, nar_path, presigned_response), err)]
-async fn upload_single_nar_presigned(
-    pool: &harmonia_store_remote::ConnectionPool,
-    nar_path: &StorePath,
-    build_id: &str,
-    machine_id: &str,
+/// Supplies more presigned part URLs over gRPC when a multipart upload exhausts
+/// its initial estimate (compressed size is unknown when the server presigns).
+struct GrpcMoreParts {
+    client: BuilderClient,
+    build_id: String,
+    machine_id: String,
+    object_key: String,
+}
+
+impl MorePartsSource for GrpcMoreParts {
+    fn more_parts<'a>(
+        &'a self,
+        upload_id: &'a str,
+        start_part: u32,
+        count: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<PresignedPart>, CacheError>> + Send + 'a>> {
+        Box::pin(async move {
+            let req = hydra_proto::MultipartPartsRequest {
+                build_id: self.build_id.clone(),
+                machine_id: self.machine_id.clone(),
+                object_key: self.object_key.clone(),
+                upload_id: upload_id.to_owned(),
+                start_part_number: start_part,
+                num_parts: count,
+            };
+            let parts = self
+                .client
+                .request_multipart_parts(req)
+                .await
+                .map_err(|e| CacheError::PresignedUrlError {
+                    path: self.object_key.clone(),
+                    reason: e.to_string(),
+                })?;
+            Ok(parts
+                .into_iter()
+                .map(|p| PresignedPart {
+                    part_number: p.part_number,
+                    url: p.url,
+                })
+                .collect())
+        })
+    }
+}
+
+/// Translate a queue-runner presigned response into the binary-cache upload
+/// request, returning the object key alongside it.
+fn presigned_request_from_response(
     presigned_response: &hydra_proto::PresignedNarResponse,
-    client: &mut BuilderClient,
-    upload_client: &PresignedUploadClient,
-) -> eyre::Result<()> {
-    // Presigned upload requires constructing NarInfo from daemon path info.
-    let narinfo: binary_cache::NarInfo = {
-        let info = daemon_client_utils::query_path_info(pool, nar_path)
-            .await?
-            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?;
-        binary_cache::narinfo_simple(nar_path, info, Compression::None)
-    };
+) -> eyre::Result<(String, binary_cache::PresignedUploadResponse)> {
     let nar_upload = presigned_response
         .nar_upload
         .as_ref()
         .ok_or_else(|| eyre::eyre!("nar_upload information is missing"))?;
 
-    let presigned_request = binary_cache::PresignedUploadResponse {
+    let multipart = nar_upload
+        .multipart
+        .as_ref()
+        .map(|mp| binary_cache::PresignedMultipart {
+            key: nar_upload.path.clone(),
+            upload_id: mp.upload_id.clone(),
+            part_size: mp.part_size,
+            parts: mp
+                .parts
+                .iter()
+                .map(|p| PresignedPart {
+                    part_number: p.part_number,
+                    url: p.url.clone(),
+                })
+                .collect(),
+        });
+
+    let request = binary_cache::PresignedUploadResponse {
         nar_url: presigned_response.nar_url.clone(),
         nar_upload: PresignedUpload::new(
             nar_upload.path.clone(),
             nar_upload.url.clone(),
             nar_upload.compression.parse().unwrap_or(Compression::None),
             nar_upload.compression_level,
-        ),
+        )
+        .with_multipart(multipart),
         ls_upload: presigned_response.ls_upload.as_ref().map(|ls| {
             PresignedUpload::new(
                 ls.path.clone(),
@@ -1137,8 +1293,38 @@ async fn upload_single_nar_presigned(
             .collect(),
     };
 
-    let updated_narinfo = upload_client
-        .process_presigned_request(pool, narinfo, presigned_request)
+    Ok((nar_upload.path.clone(), request))
+}
+
+#[tracing::instrument(skip(store, nar_path, presigned_response), err)]
+async fn upload_single_nar_presigned(
+    store: &DaemonStoreReader,
+    nar_path: &StorePath,
+    build_id: &str,
+    machine_id: &str,
+    presigned_response: &hydra_proto::PresignedNarResponse,
+    client: &BuilderClient,
+    upload_client: &PresignedUploadClient,
+) -> eyre::Result<()> {
+    // Presigned upload requires constructing NarInfo from path info.
+    let narinfo: binary_cache::NarInfo = {
+        let info = store
+            .query_path_info(nar_path)
+            .await?
+            .ok_or_else(|| eyre::eyre!("path not found: {nar_path}"))?
+            .info;
+        binary_cache::narinfo_simple(nar_path, info, Compression::None)
+    };
+    let (object_key, presigned_request) = presigned_request_from_response(presigned_response)?;
+
+    let more_parts = GrpcMoreParts {
+        client: client.clone(),
+        build_id: build_id.to_owned(),
+        machine_id: machine_id.to_owned(),
+        object_key,
+    };
+    let (updated_narinfo, completion, nar_already_present) = upload_client
+        .process_presigned_request(store.store_dir(), narinfo, presigned_request, &more_parts)
         .await?;
 
     tracing::debug!(
@@ -1153,6 +1339,19 @@ async fn upload_single_nar_presigned(
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
             nar_info: Some((&updated_narinfo).into()),
+            multipart: completion.map(|c| hydra_proto::MultipartCompletion {
+                object_key: c.key,
+                upload_id: c.upload_id,
+                parts: c
+                    .parts
+                    .into_iter()
+                    .map(|p| hydra_proto::MultipartCompletedPart {
+                        part_number: p.part_number,
+                        etag: p.etag,
+                    })
+                    .collect(),
+            }),
+            nar_already_present,
         };
 
         client
@@ -1163,9 +1362,11 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(pool, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(store, connector, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[allow(clippy::too_many_arguments)]
 async fn new_success_build_result_info(
-    pool: harmonia_store_remote::ConnectionPool,
+    store: &DaemonStoreReader,
+    connector: daemon_client_utils::DaemonConnector,
     machine_id: uuid::Uuid,
     drv: &StorePath,
     output_infos: &BTreeMap<OutputName, harmonia_store_path_info::ValidPathInfo>,
@@ -1179,14 +1380,13 @@ async fn new_success_build_result_info(
     let real_store_dir = daemon_client_utils::parse_nix_remote()
         .ok()
         .and_then(|c| c.real_store_dir())
-        .unwrap_or_else(|| pool.store_dir().to_string().into());
+        .unwrap_or_else(|| connector.store_dir().to_string().into());
     let real_store_path = &real_store_dir;
     let fs = nix_support::FilesystemOperations {
         real_store_dir: real_store_path.to_owned(),
     };
     let per_output_nix_support = Box::pin(nix_support::parse_nix_support_from_outputs(
-        pool.store_dir(),
-        real_store_path,
+        connector.store_dir(),
         &fs,
         &outputs,
     ))
@@ -1202,7 +1402,7 @@ async fn new_success_build_result_info(
             name.to_string(),
             OutputInfo {
                 path: Some(ProtoStorePath::from(vpi.path.clone())),
-                closure_size: daemon_client_utils::compute_closure_size(&pool, &vpi.path).await,
+                closure_size: store.compute_closure_size(&vpi.path).await,
                 nar_size: vpi.info.nar_size,
                 nar_hash: {
                     let h: harmonia_utils_hash::Hash = vpi.info.nar_hash.into();
@@ -1221,5 +1421,62 @@ async fn new_success_build_result_info(
         upload_time_ms: u64::try_from(timings.upload_elapsed.as_millis())?,
         result_state: BuildResultState::Success as i32,
         output_infos: result_infos,
+        error_msg: None,
     })
+}
+
+fn build_client_options(
+    build_cores: u32,
+    max_silent_time: i32,
+    max_log_size: u64,
+    build_timeout: i32,
+    presigned: bool,
+) -> harmonia_protocol::types::ClientOptions {
+    let mut options = harmonia_protocol::types::ClientOptions::default();
+    options.max_silent_time = i64::from(max_silent_time);
+    options.build_cores = build_cores;
+    options.other_settings.insert(
+        "max-build-log-size".to_string(),
+        max_log_size.to_string().into(),
+    );
+    options
+        .other_settings
+        .insert("timeout".to_string(), build_timeout.to_string().into());
+    if presigned {
+        // With presigned uploads, inputs are substituted from a binary cache
+        // that other builders write to continuously; a cached negative narinfo
+        // lookup makes the daemon fail substitution of a just-uploaded input
+        // during the build.
+        options
+            .other_settings
+            .insert("narinfo-cache-negative-ttl".to_string(), "0".into());
+    }
+    options
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_ansi;
+
+    #[test]
+    fn strip_ansi_removes_csi_sequences() {
+        let input = "build failed: Cannot build '\u{1b}[35;1m/nix/store/x.drv\u{1b}[0m'. \
+             Reason: \u{1b}[31;1m1 dependency failed\u{1b}[0m.";
+        assert_eq!(
+            strip_ansi(input),
+            "build failed: Cannot build '/nix/store/x.drv'. Reason: 1 dependency failed."
+        );
+    }
+
+    #[test]
+    fn strip_ansi_leaves_plain_text_untouched() {
+        assert_eq!(strip_ansi("no escapes here"), "no escapes here");
+    }
+
+    #[test]
+    fn strip_ansi_removes_osc_hyperlinks() {
+        // gcc-style terminal hyperlink: OSC 8 ;; URI BEL <text> OSC 8 ;; BEL
+        let input = "see \u{1b}]8;;https://example.com\u{07}the docs\u{1b}]8;;\u{07} now";
+        assert_eq!(strip_ansi(input), "see the docs now");
+    }
 }

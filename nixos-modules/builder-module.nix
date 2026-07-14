@@ -39,6 +39,13 @@ in
         default = 4;
       };
 
+      buildCores = lib.mkOption {
+        description = "Cores made available to each build (NIX_BUILD_CORES). 0 means use all available cores.";
+        type = lib.types.ints.unsigned;
+        default = config.nix.settings.cores;
+        defaultText = lib.literalExpression "config.nix.settings.cores";
+      };
+
       buildDirAvailThreshold = lib.mkOption {
         description = "Threshold in percent for nix build dir before jobs are no longer scheduled on the machine";
         type = lib.types.float;
@@ -176,6 +183,8 @@ in
             cfg.speedFactor
             "--max-jobs"
             cfg.maxJobs
+            "--build-cores"
+            cfg.buildCores
             "--build-dir-avail-threshold"
             cfg.buildDirAvailThreshold
             "--store-avail-threshold"

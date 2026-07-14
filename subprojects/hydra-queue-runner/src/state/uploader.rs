@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
 use harmonia_store_path::StorePath;
@@ -24,24 +26,33 @@ where
 struct Message {
     #[serde(skip_serializing, deserialize_with = "deserialize_with_new_v4")]
     id: uuid::Uuid,
-    store_paths: std::sync::Arc<Vec<StorePath>>,
-    log_remote_path: std::sync::Arc<String>,
-    log_local_path: std::sync::Arc<std::path::PathBuf>,
+    store_paths: Arc<Vec<StorePath>>,
+    log_remote_path: Arc<String>,
+    log_local_path: Arc<std::path::PathBuf>,
+    /// Drv path to report on the completion channel once the upload was
+    /// attempted. Set for steps whose finished flag is gated on the upload.
+    #[serde(default)]
+    notify_drv: Option<StorePath>,
 }
 
 #[derive(Debug)]
 pub struct Uploader {
     queue: super::InspectableChannel<Message>,
     current_tasks: parking_lot::RwLock<Vec<Message>>,
+    completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
 
     state_file_path: std::path::PathBuf,
 }
 
 impl Uploader {
-    pub async fn new(state_file_path: std::path::PathBuf) -> Self {
+    pub async fn new(
+        state_file_path: std::path::PathBuf,
+        completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
+    ) -> Self {
         let uploader = Self {
             queue: super::InspectableChannel::with_capacity(1000),
             current_tasks: parking_lot::RwLock::new(Vec::with_capacity(10)),
+            completion_tx,
             state_file_path,
         };
 
@@ -90,34 +101,50 @@ impl Uploader {
         store_paths: Vec<StorePath>,
         log_remote_path: String,
         log_local_path: std::path::PathBuf,
+        notify_drv: Option<StorePath>,
     ) {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
         self.queue.send(Message {
             id: uuid::Uuid::new_v4(),
-            store_paths: std::sync::Arc::new(store_paths),
-            log_remote_path: std::sync::Arc::new(log_remote_path),
-            log_local_path: std::sync::Arc::new(log_local_path),
+            store_paths: Arc::new(store_paths),
+            log_remote_path: Arc::new(log_remote_path),
+            log_local_path: Arc::new(log_local_path),
+            notify_drv,
         });
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     async fn upload_msg(
         &self,
-        local_store: harmonia_store_remote::ConnectionPool,
+        store: daemon_client_utils::DaemonStoreReader,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         msg: Message,
+    ) {
+        self.upload_msg_inner(store, local_store, remote_stores, &msg)
+            .await;
+        if let Some(drv) = &msg.notify_drv {
+            // Reported even when the upload failed: the gated step then
+            // finishes anyway and dependents fall back to substituting the
+            // inputs themselves, instead of hanging forever.
+            let _ = self.completion_tx.send(drv.clone());
+        }
+    }
+
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
+    async fn upload_msg_inner(
+        &self,
+        store: daemon_client_utils::DaemonStoreReader,
+        local_store: daemon_client_utils::DaemonConnector,
+        remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        msg: &Message,
     ) {
         let span = tracing::info_span!("upload_msg", msg = ?msg);
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
-        let closure = match daemon_client_utils::query_closure(
-            &local_store,
-            msg.store_paths.as_ref(),
-        )
-        .await
-        {
+        let closure = match store.query_closure_infos(msg.store_paths.to_vec()).await {
             Ok(c) => c,
             Err(e) => {
                 tracing::error!("Failed to query requisites: {e}");
@@ -130,9 +157,9 @@ impl Uploader {
             closure.len()
         );
 
+        let store_dir = local_store.store_dir().clone();
         for remote_store in remote_stores {
-            if let Err(e) = Self::upload_to_store(&remote_store, &local_store, &msg, &closure).await
-            {
+            if let Err(e) = Self::upload_to_store(&remote_store, &store_dir, msg, &closure).await {
                 // Non-fatal: per-store failure shouldn't block other
                 // stores. Outputs remain in the local store.
                 tracing::error!(
@@ -152,25 +179,42 @@ impl Uploader {
     /// anything goes wrong (after retries).
     async fn upload_to_store(
         remote_store: &binary_cache::S3BinaryCacheClient,
-        local_store: &harmonia_store_remote::ConnectionPool,
+        store_dir: &harmonia_store_path::StoreDir,
         msg: &Message,
         closure: &[harmonia_store_path_info::ValidPathInfo],
     ) -> Result<(), UploaderError> {
-        // Upload log file
-        (|| async {
-            let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
-            let reader = Box::new(tokio::io::BufReader::new(file));
-            remote_store
-                .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
+        // Steps that did not run here (substituted paths, builds finished
+        // before a restart) have no log file. A missing log must not block
+        // the NAR upload.
+        match fs_err::tokio::metadata(msg.log_local_path.as_path()).await {
+            Ok(_) => {
+                (|| async {
+                    let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
+                    let reader = Box::new(tokio::io::BufReader::new(file));
+                    remote_store
+                        .upsert_file_stream(
+                            &msg.log_remote_path,
+                            reader,
+                            "text/plain; charset=utf-8",
+                        )
+                        .await?;
+                    Ok::<(), UploaderError>(())
+                })
+                .retry(
+                    ExponentialBuilder::default()
+                        .with_max_delay(std::time::Duration::from_secs(30))
+                        .with_max_times(3),
+                )
                 .await?;
-            Ok::<(), UploaderError>(())
-        })
-        .retry(
-            ExponentialBuilder::default()
-                .with_max_delay(std::time::Duration::from_secs(30))
-                .with_max_times(3),
-        )
-        .await?;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::warn!(
+                    "no build log at {}, skipping log upload",
+                    msg.log_local_path.display()
+                );
+            }
+            Err(e) => return Err(e.into()),
+        }
 
         // Copy NARs
         let missing_paths: hashbrown::HashSet<StorePath> = remote_store
@@ -190,7 +234,7 @@ impl Uploader {
 
         (|| async {
             remote_store
-                .copy_paths(local_store, paths_to_copy.clone(), false)
+                .copy_paths(store_dir, paths_to_copy.clone(), false)
                 .await?;
             Ok::<(), UploaderError>(())
         })
@@ -209,10 +253,11 @@ impl Uploader {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     pub async fn upload_once(
         &self,
-        local_store: harmonia_store_remote::ConnectionPool,
+        store: daemon_client_utils::DaemonStoreReader,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
     ) {
         let Some(msg) = self.queue.recv().await else {
@@ -224,7 +269,8 @@ impl Uploader {
             current_tasks.push(msg.clone());
         }
 
-        self.upload_msg(local_store, remote_stores, msg).await;
+        self.upload_msg(store, local_store, remote_stores, msg)
+            .await;
 
         {
             let mut current_tasks = self.current_tasks.write();
@@ -233,10 +279,11 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
     pub async fn upload_many(
-        &self,
-        local_store: harmonia_store_remote::ConnectionPool,
+        self: &Arc<Self>,
+        store: daemon_client_utils::DaemonStoreReader,
+        local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
         limit: usize,
     ) {
@@ -251,11 +298,24 @@ impl Uploader {
             current_tasks.extend(messages.iter().cloned());
         }
 
-        let mut jobs = vec![];
+        // Spawn a task per upload so NAR compression runs on multiple worker
+        // threads instead of interleaving on one.
+        let mut jobs = tokio::task::JoinSet::new();
         for msg in messages {
-            jobs.push(self.upload_msg(local_store.clone(), remote_stores.clone(), msg));
+            let this = self.clone();
+            let store = store.clone();
+            let local_store = local_store.clone();
+            let remote_stores = remote_stores.clone();
+            jobs.spawn(async move {
+                this.upload_msg(store, local_store, remote_stores, msg)
+                    .await;
+            });
         }
-        futures::future::join_all(jobs).await;
+        while let Some(res) = jobs.join_next().await {
+            if let Err(e) = res {
+                tracing::error!("Upload task panicked: {e}");
+            }
+        }
 
         {
             let mut current_tasks = self.current_tasks.write();

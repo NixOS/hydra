@@ -30,6 +30,12 @@ pub struct S3CacheConfig {
     pub buffer_size: usize,
 
     pub presigned_url_expiry: std::time::Duration,
+
+    /// Location of the persistent positive narinfo-presence cache.
+    /// `S3BinaryCacheClient::new` requires this to be set.
+    pub presence_cache_path: Option<std::path::PathBuf>,
+    /// How long a cached "present" result is trusted before re-checking.
+    pub presence_cache_ttl: std::time::Duration,
 }
 
 impl S3CacheConfig {
@@ -50,7 +56,23 @@ impl S3CacheConfig {
             log_compression: Compression::None,
             buffer_size: 8 * 1024 * 1024,
             presigned_url_expiry: std::time::Duration::from_hours(1),
+            presence_cache_path: None,
+            // FIXME: Long TTL, okay for cache.nixos.org but probably not in general,
+            presence_cache_ttl: std::time::Duration::from_hours(60 * 24),
         }
+    }
+
+    #[must_use]
+    pub fn with_presence_cache(
+        mut self,
+        path: Option<std::path::PathBuf>,
+        ttl: Option<std::time::Duration>,
+    ) -> Self {
+        self.presence_cache_path = path;
+        if let Some(ttl) = ttl {
+            self.presence_cache_ttl = ttl;
+        }
+        self
     }
 
     #[must_use]
@@ -703,7 +725,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 8 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -811,7 +833,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
 
         let config = S3CacheConfig::new(client_config)
@@ -819,7 +841,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -869,7 +891,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16_777_216);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
     }
 
@@ -1087,7 +1109,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
         assert_eq!(config.secret_key_files.len(), 2);
     }
@@ -1118,14 +1140,14 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(60)
+            std::time::Duration::from_mins(1)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=86400";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(86400)
+            std::time::Duration::from_hours(24)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=59";

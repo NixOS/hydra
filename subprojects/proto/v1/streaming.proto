@@ -21,6 +21,7 @@ service RunnerService {
   rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
   rpc FetchPaths(nix.store.v1.StorePaths) returns (stream AddToStoreRequest) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
+  rpc RequestMultipartParts(MultipartPartsRequest) returns (MultipartPartsResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
 }
 
@@ -132,6 +133,7 @@ message BuildMessage {
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
   int32 build_timeout = 6;
+  uint64 max_output_size = 9; // per-output NAR size limit; 0 disables it
   optional PresignedUploadOpts presigned_url_opts = 7; // None if presigned url upload is disabled
   // bool is_deterministic = 5;
   // bool enforce_determinism = 6;
@@ -210,6 +212,9 @@ enum BuildResultState {
   ImportFailure = 3;
   UploadFailure = 4;
   PostProcessingFailure = 5;
+  TimedOutFailure = 6;
+  LogLimitFailure = 7;
+  NarSizeLimitFailure = 8;
 }
 
 message BuildResultInfo {
@@ -220,12 +225,15 @@ message BuildResultInfo {
   uint64 upload_time_ms = 5;
   BuildResultState result_state = 6;
   map<string, OutputInfo> outputInfos = 7;
+  // Failure reason, set only for failure result_states.
+  optional string error_msg = 8;
 }
 
 message PresignedNarRequest {
   string store_path = 1;
   nix.store.v1.Hash nar_hash = 2;
   repeated string debug_info_build_ids = 3;
+  uint64 nar_size = 4; // uncompressed NAR size, used to pick multipart uploads
 }
 
 message PresignedUrlRequest {
@@ -239,6 +247,43 @@ message PresignedUpload {
   string url = 2;
   string compression = 3;
   int32 compression_level = 4;
+  // Set on the NAR upload when the object needs multipart; `url` is then unused.
+  optional MultipartUpload multipart = 5;
+}
+
+message MultipartPart {
+  uint32 part_number = 1; // 1-based
+  string url = 2;
+}
+
+message MultipartUpload {
+  string upload_id = 1;
+  uint64 part_size = 2;
+  repeated MultipartPart parts = 3;
+}
+
+message MultipartCompletedPart {
+  uint32 part_number = 1;
+  string etag = 2;
+}
+
+message MultipartCompletion {
+  string object_key = 1;
+  string upload_id = 2;
+  repeated MultipartCompletedPart parts = 3;
+}
+
+message MultipartPartsRequest {
+  string build_id = 1; // UUIDv4
+  string machine_id = 2; // UUIDv4
+  string object_key = 3;
+  string upload_id = 4;
+  uint32 start_part_number = 5;
+  uint32 num_parts = 6;
+}
+
+message MultipartPartsResponse {
+  repeated MultipartPart parts = 1;
 }
 
 message PresignedNarResponse {
@@ -257,4 +302,11 @@ message PresignedUploadComplete {
   string build_id = 1; // UUIDv4
   string machine_id = 2; // UUIDv4
   nix.store.v1.NarInfo nar_info = 13;
+  // Present when the NAR was uploaded via multipart; the server finalises it.
+  optional MultipartCompletion multipart = 14;
+  // Set when a single-PUT NAR upload found the object already present (the
+  // conditional If-None-Match PUT returned 412). The server then takes the
+  // narinfo's FileHash/FileSize from the stored object rather than from this
+  // upload's (discarded) compression.
+  bool nar_already_present = 15;
 }

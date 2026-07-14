@@ -116,17 +116,16 @@ impl Connection {
         jobset_id: i32,
         scheduling_window: i64,
     ) -> crate::Result<Vec<BuildSteps>> {
-        #[allow(clippy::cast_precision_loss)]
         Ok(sqlx::query_as!(
             BuildSteps,
             r#"
             SELECT s.startTime, s.stopTime FROM buildsteps s join builds b on build = id
             WHERE
               s.startTime IS NOT NULL AND
-              to_timestamp(s.stopTime) > (NOW() - (interval '1 second' * $1)) AND
+              s.stopTime > (EXTRACT(epoch FROM NOW())::bigint - $1) AND
               jobset_id = $2
             "#,
-            Some((scheduling_window * 10) as f64),
+            scheduling_window,
             jobset_id,
         )
         .fetch_all(&mut *self.conn)
@@ -175,6 +174,29 @@ impl Connection {
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
             Some(stop_time),
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    /// Finalize a single still-busy buildstep with the given status. Used to
+    /// reconcile a specific orphaned step in the DB without touching any other
+    /// step.
+    pub async fn clear_busy_step(
+        &mut self,
+        build_id: crate::models::BuildID,
+        step_nr: i32,
+        stop_time: i32,
+        status: BuildStatus,
+    ) -> crate::Result<()> {
+        sqlx::query!(
+            "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 \
+             WHERE build = $3 AND stepnr = $4 AND busy != 0;",
+            status as i32,
+            Some(stop_time),
+            build_id,
+            step_nr,
         )
         .execute(&mut *self.conn)
         .await?;
@@ -609,6 +631,10 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         step: InsertBuildStep<'_>,
     ) -> crate::Result<Option<i32>> {
+        // stepnr is MAX(stepnr) + 1; concurrent transactions for the same
+        // build pick the same number and all but one return None and retry.
+        // The queue runner serializes the hot dispatch path with an
+        // in-process per-build lock, so this only happens on rare paths.
         let drv_path = store_dir.display(step.drv_path).to_string();
         let success = sqlx::query!(
             r#"
@@ -1248,6 +1274,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use crate::RetryableError as _;
 
     fn test_store_dir() -> StoreDir {
         StoreDir::new("/nix/store").unwrap()
@@ -1301,6 +1328,51 @@ mod tests {
         .execute(&mut *conn.conn)
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn clear_busy_step_finalizes_only_the_named_step() {
+        async fn insert_busy(conn: &mut Connection, build: i32, stepnr: i32, drv: &StorePath) {
+            sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)")
+                .bind(build)
+                .bind(stepnr)
+                .bind(test_store_dir().display(drv).to_string())
+                .execute(&mut *conn.conn)
+                .await
+                .unwrap();
+        }
+
+        async fn busy_status(conn: &mut Connection, build: i32, stepnr: i32) -> (i32, Option<i32>) {
+            sqlx::query_as::<_, (i32, Option<i32>)>(
+                "SELECT busy, status FROM buildsteps WHERE build = $1 AND stepnr = $2",
+            )
+            .bind(build)
+            .bind(stepnr)
+            .fetch_one(&mut *conn.conn)
+            .await
+            .unwrap()
+        }
+
+        let (_pg, mut conn) = setup().await;
+        // Two busy steps of one build (a duplicate-dispatch leaves an old
+        // stepnr busy) plus a busy step of another build.
+        insert_busy(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 1, 2, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 2, 1, &sp("bar.drv")).await;
+
+        conn.clear_busy_step(1, 1, 12345, BuildStatus::Aborted)
+            .await
+            .unwrap();
+
+        let (busy, status) = busy_status(&mut conn, 1, 1).await;
+        assert_eq!(busy, 0, "named step must be cleared");
+        assert_eq!(status, Some(BuildStatus::Aborted as i32));
+
+        let (busy, _) = busy_status(&mut conn, 1, 2).await;
+        assert_eq!(busy, 1, "sibling stepnr of same build must stay busy");
+
+        let (busy, _) = busy_status(&mut conn, 2, 1).await;
+        assert_eq!(busy, 1, "other build must stay busy");
     }
 
     #[tokio::test]
@@ -1597,5 +1669,130 @@ mod tests {
         )
         .await;
         assert_eq!(result, Some(sp("final-result")));
+    }
+
+    async fn replica_conn(pool: &sqlx::PgPool) -> Connection {
+        let mut conn = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql("SET session_replication_role = 'replica';")
+            .execute(&mut *conn.conn)
+            .await
+            .unwrap();
+        conn
+    }
+
+    fn substitution_step(build_id: i32, drv_path: &StorePath) -> InsertBuildStep<'_> {
+        InsertBuildStep {
+            build_id,
+            r#type: crate::models::BuildType::Substitution,
+            drv_path,
+            status: BuildStatus::Success,
+            busy: false,
+            start_time: Some(0),
+            stop_time: Some(0),
+            platform: None,
+            propagated_from: None,
+            error_msg: None,
+            machine: "",
+        }
+    }
+
+    /// Two transactions inserting a step for the same build compute the same
+    /// stepnr (MAX+1) while the first is still open. The second blocks on the
+    /// unique index and, once the first commits, resolves to `None` via
+    /// ON CONFLICT DO NOTHING. The caller retries; a fresh insert then picks
+    /// the next number. The hot dispatch path avoids this collision with an
+    /// in-process per-build lock in the queue runner.
+    #[tokio::test]
+    async fn concurrent_step_inserts_for_same_build_conflict() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+        let sd = test_store_dir();
+
+        let mut conn_a = replica_conn(&pool).await;
+        let mut conn_b = replica_conn(&pool).await;
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        let step_a = tx_a
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        assert_eq!(step_a, Some(1));
+
+        let task_b = tokio::spawn(async move {
+            let sd = test_store_dir();
+            let mut tx_b = conn_b.begin_transaction().await.unwrap();
+            let step = tx_b
+                .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+                .await
+                .unwrap();
+            tx_b.commit().await.unwrap();
+            step
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(
+            !task_b.is_finished(),
+            "concurrent insert should block on the unique index"
+        );
+
+        tx_a.commit().await.unwrap();
+
+        // The blocked insert conflicts once the first transaction commits.
+        assert_eq!(task_b.await.unwrap(), None);
+
+        // After the conflict the caller retries; a fresh insert sees the
+        // committed row and picks the next number.
+        let mut tx_c = conn_a.begin_transaction().await.unwrap();
+        let step_c = tx_c
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        tx_c.commit().await.unwrap();
+        assert_eq!(step_c, Some(2));
+    }
+
+    /// A real Postgres deadlock (40P01) is classified as retryable.
+    #[tokio::test]
+    async fn deadlock_is_retryable_serialization_failure() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+
+        let mut setup = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql(
+            "CREATE TABLE deadlock_test (id int PRIMARY KEY, v int);
+             INSERT INTO deadlock_test VALUES (1, 0), (2, 0);",
+        )
+        .execute(&mut *setup.conn)
+        .await
+        .unwrap();
+
+        let mut conn_a = Connection::new(pool.acquire().await.unwrap());
+        let mut conn_b = Connection::new(pool.acquire().await.unwrap());
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 1")
+            .execute(&mut *tx_a.tx)
+            .await
+            .unwrap();
+
+        let mut tx_b = conn_b.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 2")
+            .execute(&mut *tx_b.tx)
+            .await
+            .unwrap();
+
+        // Each transaction now reaches for the row the other holds, closing the
+        // cycle; Postgres aborts one of them with a deadlock error.
+        let (res_a, res_b) = tokio::join!(
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 2").execute(&mut *tx_a.tx),
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 1").execute(&mut *tx_b.tx),
+        );
+
+        let victim = match (res_a, res_b) {
+            (Err(e), Ok(_)) | (Ok(_), Err(e)) => crate::Error::from(e),
+            (Err(_), Err(_)) => panic!("both transactions failed"),
+            (Ok(_), Ok(_)) => panic!("expected a deadlock"),
+        };
+        assert!(
+            victim.is_retryable_serialization_failure(),
+            "deadlock error should be retryable: {victim:?}"
+        );
     }
 }

@@ -5,10 +5,11 @@ use harmonia_store_path::StorePath;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _tracing_guard = hydra_tracing::init()?;
     let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
-    let store = harmonia_store_remote::ConnectionPool::new(
-        &nix_config.socket,
-        harmonia_store_remote::PoolConfig::default(),
+    let connector = daemon_client_utils::DaemonConnector::new(
+        nix_config.socket.clone(),
+        nix_config.store_dir.clone(),
     );
+    let store = daemon_client_utils::DaemonStoreReader::new(connector);
 
     let client = S3BinaryCacheClient::new(
         "s3://nix-cache-staging?ls-compression=br&log-compression=br".parse()?,
@@ -18,10 +19,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let drv: StorePath = "z3d15qi11dvljq5qz84kak3h0nb12wca-rsyslog-8.2510.0".parse()?;
 
-    let ps: Vec<StorePath> = daemon_client_utils::query_closure(&store, &[drv.clone()])
+    let ps: Vec<StorePath> = store
+        .query_closure_infos(vec![drv.clone()])
         .await?
         .into_iter()
-        .map(|vpi| vpi.path)
+        .map(|i| i.path)
         .collect();
     println!("closure size: {}", ps.len());
 

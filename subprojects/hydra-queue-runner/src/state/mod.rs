@@ -1,5 +1,6 @@
 mod atomic;
 mod build;
+mod cached_output;
 pub mod drv;
 mod fod_checker;
 mod inspectable_channel;
@@ -101,6 +102,12 @@ impl From<DrvLookupError> for StateError {
     }
 }
 
+impl db::RetryableError for StateError {
+    fn is_retryable_serialization_failure(&self) -> bool {
+        matches!(self, Self::Db(e) if e.is_retryable_serialization_failure())
+    }
+}
+
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
@@ -111,11 +118,13 @@ pub use step::{Step, Steps};
 pub use step_info::StepInfo;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::os::unix::ffi::OsStrExt as _;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Instant;
 
 use futures::TryStreamExt as _;
+use harmonia_store_remote::DaemonStore as _;
 use hashbrown::{HashMap, HashSet};
 use secrecy::ExposeSecret as _;
 
@@ -124,6 +133,7 @@ use harmonia_store_derivation::derivation::DerivationOutput;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedRealisation};
 use inspectable_channel::InspectableChannel;
+use sha2::{Digest as _, Sha256};
 
 use crate::config::{App, Cli};
 use crate::state::build::get_mark_build_sccuess_data;
@@ -132,12 +142,122 @@ use crate::state::machine::Machines;
 use crate::utils::finish_build_step;
 
 pub type System = String;
-const MAX_CONCURRENT_BUILD_INJECTION: usize = 10;
+const MAX_CONCURRENT_BUILD_INJECTION: usize = 50;
+/// Cap on daemon connections held for store-validity reads during one
+/// ingestion pass. Bounds the connect/fork load the pass puts on the daemon.
+const MAX_DAEMON_READ_CONNS: usize = 16;
+const BUILD_STEP_LOCK_SHARDS: usize = 1024;
 
 enum CreateStepResult {
     None,
     Valid(Arc<Step>),
     PreviousFailure(Arc<Step>),
+}
+
+/// Pass-wide state threaded through build and step creation during one queue
+/// ingestion pass.
+struct InjectCtx {
+    /// Derivations already decided finished in this pass
+    finished_drvs: parking_lot::RwLock<HashSet<StorePath>>,
+    /// Builds still to be injected, by id
+    new_builds_by_id: parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>,
+    /// Builds indexed by the derivation they build
+    new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
+    /// Bounded daemon connections shared by this pass's store-validity reads.
+    pool: Arc<daemon_client_utils::DaemonConnPool>,
+}
+
+impl InjectCtx {
+    /// A context for a single step created outside the bulk ingestion pass
+    /// (e.g. a resolved derivation), with empty build maps.
+    fn oneshot(pool: Arc<daemon_client_utils::DaemonConnPool>) -> Arc<Self> {
+        Arc::new(Self {
+            finished_drvs: parking_lot::RwLock::default(),
+            new_builds_by_id: parking_lot::RwLock::default(),
+            new_builds_by_path: HashMap::new(),
+            pool,
+        })
+    }
+}
+
+/// Output availability as discovered by [`State::prefetch_step_facts`].
+#[derive(Debug)]
+enum OutputAvailability {
+    /// All outputs are available where builders fetch their inputs from.
+    Complete,
+    /// All outputs are valid locally, but builders fetch their inputs from
+    /// the remote binary cache (presigned uploads) and these paths are
+    /// missing there. The step must not count as finished before the upload
+    /// completed.
+    PendingUpload(Vec<StorePath>),
+    /// Outputs are missing; the step has to be built.
+    Incomplete,
+}
+
+/// What the IO phase ([`State::prefetch_step_facts`]) learned about a
+/// derivation, used by the synchronous [`attach_step`].
+struct StepFacts {
+    drv: Derivation,
+    availability: OutputAvailability,
+    previous_failure: bool,
+}
+
+enum AttachOutcome {
+    Finished,
+    PreviousFailure,
+    /// Created but gated: the caller must schedule an upload of these paths
+    /// and finish the step via [`complete_step`] once it is done.
+    PendingUpload(Vec<StorePath>),
+    Attached,
+}
+
+/// Mark a step finished and wake its reverse dependencies.
+fn complete_step(step: &Arc<Step>) {
+    step.set_finished(true);
+    step.make_rdeps_runnable();
+}
+
+/// Synchronously attach a prefetched step to the in-memory step graph:
+/// finished/failure marking, dep registration, created flag and runnability
+/// all happen here, with no IO in between. Deps are inserted via
+/// [`Step::add_dep_if_unfinished`], so a dep that finished since the
+/// prefetch is never added and the step cannot get stuck waiting on it.
+fn attach_step(
+    step: &Arc<Step>,
+    availability: OutputAvailability,
+    previous_failure: bool,
+    deps: Vec<Arc<Step>>,
+    new_runnable: &mut HashSet<Arc<Step>>,
+) -> AttachOutcome {
+    if previous_failure {
+        step.set_previous_failure(true);
+        return AttachOutcome::PreviousFailure;
+    }
+    match availability {
+        OutputAvailability::Complete => {
+            complete_step(step);
+            AttachOutcome::Finished
+        }
+        OutputAvailability::PendingUpload(paths) => {
+            // No deps and not runnable: nothing to build, but rdeps must
+            // wait for the upload before they may be dispatched.
+            step.atomic_state.set_created(true);
+            AttachOutcome::PendingUpload(paths)
+        }
+        OutputAvailability::Incomplete => {
+            for dep in deps {
+                if dep.get_previous_failure() {
+                    continue;
+                }
+                step.add_dep_if_unfinished(dep);
+            }
+            step.atomic_state.set_created(true);
+            if step.get_deps_size() == 0 {
+                new_runnable.insert(step.clone());
+            }
+            AttachOutcome::Attached
+        }
+    }
 }
 
 enum RealiseStepResult {
@@ -158,14 +278,23 @@ struct ProcessedBuild {
 
 #[allow(missing_debug_implementations)]
 pub enum RemoteStoreBackend {
-    S3(binary_cache::S3BinaryCacheClient),
+    S3(Box<binary_cache::S3BinaryCacheClient>),
     /// A nix store reachable via `nix copy --to <uri>`.
     NixCopy(String),
 }
 
+/// Presence-cache filename derived from the store URI, so reordering the
+/// store list cannot alias one store's cache onto another.
+fn presence_cache_file(uri: &str) -> String {
+    let digest = Sha256::digest(uri.as_bytes());
+    format!("narinfo-presence-{digest:x}.db")
+}
+
 #[allow(missing_debug_implementations)]
 pub struct State {
-    pub pool: harmonia_store_remote::ConnectionPool,
+    pub connector: daemon_client_utils::DaemonConnector,
+    /// Reads store validity and path info through the nix-daemon.
+    pub store: daemon_client_utils::DaemonStoreReader,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     pub config: App,
     pub cli: Cli,
@@ -193,9 +322,26 @@ pub struct State {
 
     pub started_at: jiff::Timestamp,
 
+    /// Per-build locks (sharded by build id) serializing build step
+    /// inserts; the queue runner is the only writer of `buildsteps`, so
+    /// stepnr allocation only needs in-process serialization.
+    build_step_locks: [tokio::sync::Mutex<()>; BUILD_STEP_LOCK_SHARDS],
+
+    /// Caps concurrent queue-ingestion prefetches. `create_step` recurses with
+    /// per-level `buffered` concurrency, so a deep graph fans out into many more
+    /// in-flight prefetches than any single level, each acquiring a DB
+    /// connection. Bounding them below the pool size keeps connections free for
+    /// the critical path.
+    ingest_prefetch_sem: Arc<tokio::sync::Semaphore>,
+
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
-    pub uploader: uploader::Uploader,
+    pub uploader: Arc<uploader::Uploader>,
+    /// Receiver for upload completions of steps gated on
+    /// [`OutputAvailability::PendingUpload`]; consumed by
+    /// [`State::start_upload_completion_loop`].
+    upload_completion_rx:
+        parking_lot::Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<StorePath>>>,
 
     /// Parsed nix daemon store config (for reconstructing URIs etc).
     pub nix_daemon_config: daemon_client_utils::NixDaemonStoreConfig,
@@ -210,7 +356,7 @@ impl State {
     fn real_path(&self, path: &StorePath) -> std::path::PathBuf {
         match &self.real_store_dir {
             Some(real) => real.join(path.to_string()),
-            None => std::path::PathBuf::from(self.pool.store_dir().display(path).to_string()),
+            None => std::path::PathBuf::from(self.connector.store_dir().display(path).to_string()),
         }
     }
 
@@ -230,7 +376,7 @@ impl State {
                 reason: "parsing derivation name",
             })?;
         harmonia_store_aterm::parse_derivation_aterm(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             content.as_bytes(),
             name,
         )
@@ -245,11 +391,8 @@ impl State {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
         let store_dir = nix_config.store_dir.clone();
-        let pool = harmonia_store_remote::ConnectionPool::with_store_dir(
-            &nix_config.socket,
-            store_dir.clone(),
-            harmonia_store_remote::PoolConfig::default(),
-        );
+        let connector =
+            daemon_client_utils::DaemonConnector::new(nix_config.socket.clone(), store_dir.clone());
 
         tracing::info!("LocalStore dir={store_dir}");
 
@@ -257,36 +400,46 @@ impl State {
 
         let config = App::init(&cli.config_path)?;
         let log_dir = config.get_hydra_log_dir();
-        let db = db::Database::new(
-            config.get_db_url().expose_secret(),
-            config.get_max_db_connections(),
-        )
-        .await?;
+        let max_db_connections = config.get_max_db_connections();
+        let db = db::Database::new(config.get_db_url().expose_secret(), max_db_connections).await?;
+        let ingest_prefetch_sem = Arc::new(tokio::sync::Semaphore::new(
+            (max_db_connections as usize / 4).max(4),
+        ));
 
         match fs_err::tokio::create_dir_all(&log_dir).await {
             Ok(()) => tracing::info!("successfully created hydra log_dir={log_dir:?}"),
             Err(e) => tracing::error!("Failed to create hydra log_dir={log_dir:?} e={e}"),
         }
 
+        let presence_cache_dir = config.get_hydra_data_dir().join("queue-runner");
         let mut remote_stores = vec![];
         for uri in config.get_remote_store_addrs() {
             if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
-                remote_stores.push(RemoteStoreBackend::S3(
+                let cfg = cfg.with_presence_cache(
+                    Some(presence_cache_dir.join(presence_cache_file(&uri))),
+                    None,
+                );
+                remote_stores.push(RemoteStoreBackend::S3(Box::new(
                     binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                ));
+                )));
             } else {
                 remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
             }
         }
 
         let fod_checker = if config.get_enable_fod_checker() {
-            Some(Arc::new(FodChecker::new(pool.clone(), None)))
+            Some(Arc::new(FodChecker::new(connector.clone(), None)))
         } else {
             None
         };
 
+        let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let store = daemon_client_utils::DaemonStoreReader::new(connector.clone());
+
         Ok(Arc::new(Self {
-            pool,
+            connector,
+            store,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             cli,
             db,
@@ -299,12 +452,18 @@ impl State {
             queues: Queues::new(),
             fod_checker,
             started_at: jiff::Timestamp::now(),
+            build_step_locks: std::array::from_fn(|_| tokio::sync::Mutex::new(())),
+            ingest_prefetch_sem,
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
-            uploader: uploader::Uploader::new(
-                config.get_hydra_data_dir().join("uploader_state.json"),
-            )
-            .await,
+            uploader: Arc::new(
+                uploader::Uploader::new(
+                    config.get_hydra_data_dir().join("uploader_state.json"),
+                    upload_completion_tx,
+                )
+                .await,
+            ),
+            upload_completion_rx: parking_lot::Mutex::new(Some(upload_completion_rx)),
             real_store_dir: nix_config.real_store_dir(),
             nix_daemon_config: nix_config,
             config,
@@ -325,13 +484,18 @@ impl State {
         let curr_step_sort_fn = self.config.get_step_sort_fn();
         let curr_remote_stores = self.config.get_remote_store_addrs();
         let curr_enable_fod_checker = self.config.get_enable_fod_checker();
+        let presence_cache_dir = self.config.get_hydra_data_dir().join("queue-runner");
         let mut new_remote_stores = vec![];
         if curr_remote_stores != new_config.remote_store_addr {
             for uri in &new_config.remote_store_addr {
                 if let Ok(cfg) = uri.parse::<binary_cache::S3CacheConfig>() {
-                    new_remote_stores.push(RemoteStoreBackend::S3(
+                    let cfg = cfg.with_presence_cache(
+                        Some(presence_cache_dir.join(presence_cache_file(uri))),
+                        None,
+                    );
+                    new_remote_stores.push(RemoteStoreBackend::S3(Box::new(
                         binary_cache::S3BinaryCacheClient::new(cfg).await?,
-                    ));
+                    )));
                 } else {
                     new_remote_stores.push(RemoteStoreBackend::NixCopy(uri.clone()));
                 }
@@ -394,12 +558,12 @@ impl State {
                     .fail_step(
                         machine_id,
                         &job.path,
-                        // we fail this with preparing because we kinda want to restart all jobs if
-                        // a machine is removed
-                        BuildResultState::Completed(
-                            hydra_proto::BuildResultState::PreparingFailure,
-                        ),
+                        // The machine went away (disconnect or shutdown); the
+                        // step itself did not fail. Record Aborted, like
+                        // clear_busy, and let the retry reschedule it.
+                        BuildResultState::Aborted,
                         BuildTimings::default(),
+                        None,
                     )
                     .await
                 {
@@ -407,6 +571,21 @@ impl State {
                         "Failed to fail step machine_id={machine_id} drv={} e={e}",
                         job.path
                     );
+                    // fail_step did not finalize this step (e.g. the step was
+                    // re-dispatched to another machine and now belongs to it).
+                    // Reconcile this machine's own orphaned buildstep row so
+                    // the DB does not keep showing it busy until the next
+                    // queue-runner restart.
+                    if let Err(e) = self
+                        .abort_orphaned_build_step(job.build_id, job.step_nr)
+                        .await
+                    {
+                        tracing::error!(
+                            "Failed to clear orphaned busy step build_id={} step_nr={} e={e}",
+                            job.build_id,
+                            job.step_nr,
+                        );
+                    }
                 }
             }
         }
@@ -423,6 +602,146 @@ impl State {
         let mut db = self.db.get().await?;
         db.clear_busy(0).await?;
         Ok(())
+    }
+
+    async fn abort_orphaned_build_step(
+        &self,
+        build_id: BuildID,
+        step_nr: i32,
+    ) -> Result<(), db::Error> {
+        self.finalize_orphaned_build_step(build_id, step_nr, BuildStatus::Aborted)
+            .await
+    }
+
+    async fn finalize_orphaned_build_step(
+        &self,
+        build_id: BuildID,
+        step_nr: i32,
+        status: BuildStatus,
+    ) -> Result<(), db::Error> {
+        let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+        let mut db = self.db.get().await?;
+        db.clear_busy_step(build_id, step_nr, stop_time, status)
+            .await?;
+        Ok(())
+    }
+
+    /// Resolve the scheduled step a builder is reporting on, rejecting any
+    /// reporter that is not its current owner. The returned `StepGuard`
+    /// reconciles the busy row if dropped before the caller finalizes and
+    /// disarms it.
+    async fn claim_owned_step(
+        &self,
+        machine_id: uuid::Uuid,
+        drv_path: &StorePath,
+        reported: BuildStatus,
+    ) -> Result<(StepGuard, queue::ScheduledItem, machine::Job), StateError> {
+        let item = self
+            .queues
+            .peek_scheduled(drv_path)
+            .await
+            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+        if item.machine.id != machine_id {
+            self.reconcile_stale_reporter(machine_id, drv_path, reported)
+                .await;
+            return Err(StateError::from(StepLookupError::StepOwnedByOtherMachine {
+                scheduled: item.machine.id,
+                reporting: machine_id,
+            }));
+        }
+        let job = item.machine.get_job(drv_path).ok_or_else(|| {
+            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
+        })?;
+        let guard = StepGuard {
+            db: self.db.clone(),
+            queues: self.queues.clone(),
+            drv: drv_path.clone(),
+            build_id: job.build_id,
+            step_nr: job.step_nr,
+            armed: true,
+        };
+        Ok((guard, item, job))
+    }
+
+    /// A builder reported for a step it no longer owns. Drop its defunct job to
+    /// free the slot and finalize its duplicate buildstep row with the status
+    /// the builder actually reported. The current owner's step has a different
+    /// stepnr and is left untouched.
+    async fn reconcile_stale_reporter(
+        &self,
+        machine_id: uuid::Uuid,
+        drv_path: &StorePath,
+        reported: BuildStatus,
+    ) {
+        let Some(machine) = self.machines.get_machine_by_id(machine_id) else {
+            return;
+        };
+        let Some(stale) = machine.remove_job(drv_path) else {
+            return;
+        };
+        if let Err(e) = self
+            .finalize_orphaned_build_step(stale.build_id, stale.step_nr, reported)
+            .await
+        {
+            tracing::error!(
+                "Failed to clear duplicate busy step build_id={} step_nr={} e={e}",
+                stale.build_id,
+                stale.step_nr,
+            );
+        }
+    }
+}
+
+/// Liveness guard for the step a builder is reporting on. Dropped while armed,
+/// it reconciles the orphaned busy row and releases the scheduled slot, so an
+/// early return, `?`, or panic before finalize cannot leave the step busy
+/// until the next queue-runner restart. The caller disarms it once the row is
+/// finalized and the slot released.
+struct StepGuard {
+    db: db::Database,
+    queues: Queues,
+    drv: StorePath,
+    build_id: BuildID,
+    step_nr: i32,
+    armed: bool,
+}
+
+impl StepGuard {
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for StepGuard {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let db = self.db.clone();
+        let queues = self.queues.clone();
+        let build_id = self.build_id;
+        let step_nr = self.step_nr;
+        let drv = self.drv.clone();
+        tokio::spawn(async move {
+            tracing::warn!(
+                "step guard dropped while armed; reconciling build_id={build_id} step_nr={step_nr} drv={drv}"
+            );
+            let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+            match db.get().await {
+                Ok(mut conn) => {
+                    if let Err(e) = conn
+                        .clear_busy_step(build_id, step_nr, stop_time, BuildStatus::Aborted)
+                        .await
+                    {
+                        tracing::error!(
+                            "step claim drop: clear_busy_step build_id={build_id} step_nr={step_nr} e={e}"
+                        );
+                    }
+                }
+                Err(e) => tracing::error!("step claim drop: db.get build_id={build_id} e={e}"),
+            }
+            queues.remove_job_from_scheduled(&drv).await;
+        });
     }
 }
 
@@ -466,9 +785,12 @@ impl State {
             return Ok(RealiseStepResult::None);
         };
         let drv = step_info.step.get_drv_path();
-        let default_max_log_size: u64 = 64 << 20; // 64 MiB
-        let max_silent_time: i32;
-        let build_timeout: i32;
+        let default_max_log_size = self.config.max_log_size();
+        // Defaults for builds without meta.maxSilent/meta.timeout.
+        let default_max_silent_time = self.config.max_silent_time();
+        let default_build_timeout = self.config.build_timeout();
+        let mut max_silent_time: i32;
+        let mut build_timeout: i32;
 
         let build = {
             let mut dependents = HashSet::new();
@@ -497,11 +819,27 @@ impl State {
 
             // We want the biggest timeout otherwise we could build a step like llvm with a timeout
             // of 180 because a nixostest with a timeout got scheduled and needs this step
-            let biggest_max_silent_time = dependents.iter().map(|x| x.max_silent_time).max();
-            let biggest_build_timeout = dependents.iter().map(|x| x.timeout).max();
+            let biggest_max_silent_time = dependents
+                .iter()
+                .map(|x| x.max_silent_time.unwrap_or(default_max_silent_time))
+                .max();
+            let biggest_build_timeout = dependents
+                .iter()
+                .map(|x| x.timeout.unwrap_or(default_build_timeout))
+                .max();
 
-            max_silent_time = biggest_max_silent_time.unwrap_or(build.max_silent_time);
-            build_timeout = biggest_build_timeout.unwrap_or(build.timeout);
+            max_silent_time = biggest_max_silent_time.unwrap_or(default_max_silent_time);
+            build_timeout = biggest_build_timeout.unwrap_or(default_build_timeout);
+
+            // A build's meta.timeout describes its own derivation. When this
+            // step is only a dependency of other builds (none has it as its
+            // top-level), don't let their budgets cut below the hydra
+            // defaults: a nixos test with meta.timeout = 180 must not limit
+            // building its dependency closure on an empty binary cache.
+            if !dependents.iter().any(|b| &b.drv_path == drv) {
+                max_silent_time = max_silent_time.max(default_max_silent_time);
+                build_timeout = build_timeout.max(default_build_timeout);
+            }
             build.clone()
         };
 
@@ -519,34 +857,11 @@ impl State {
         self.construct_log_file_path(drv)
             .await
             .clone_into(&mut job.result.log_file);
+        // A Busy buildstep row is only cleared once the job is attached to a
+        // machine (build_drv) and finalized via succeed_step/fail_step. The
+        // input resolution below can fail or be cancelled before that point,
+        // so the row is created later, once dispatch is certain.
         let mut db = self.db.get().await?;
-        let step_nr = {
-            let mut tx = db.begin_transaction().await?;
-
-            let step_nr = tx
-                .create_build_step(
-                    self.pool.store_dir(),
-                    Some(job.result.get_start_time_as_i32()?),
-                    build_id,
-                    step_info.step.get_drv_path(),
-                    step_info.step.get_system().as_deref(),
-                    machine.hostname.clone(),
-                    BuildStatus::Busy,
-                    None,
-                    None,
-                    step_info
-                        .step
-                        .get_output_paths(self.pool.store_dir())
-                        .unwrap_or_default()
-                        .into_iter()
-                        .collect(),
-                )
-                .await?;
-
-            tx.commit().await?;
-            step_nr
-        };
-        job.step_nr = step_nr;
 
         // Resolve derivation inputs: replace `Built` input references with
         // concrete output store paths using `try_resolve_force`. For
@@ -556,16 +871,17 @@ impl State {
         // that resolve to a different drv path still need the two-phase
         // build dance.
         let (basic_drv, was_deferred) = {
-            let guard = step_info.step.get_drv();
-            let Some(drv_ref) = guard.as_ref() else {
-                // Should never happen
+            // Steps no longer keep the parsed derivation in memory; re-read it
+            // from the local store now that the step is actually being realised.
+            let Ok(full_drv) = self.read_derivation(drv).await else {
                 return Ok(RealiseStepResult::MaybeCancelled);
             };
+            let drv_ref = &full_drv;
 
             // Resolve `Built` input references to concrete store paths.
             let resolved_map = self.resolved_drv_map.read().clone();
             let mut basic_drv = StepInfo::try_resolve_force(
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 &self.db,
                 drv_ref,
                 &resolved_map,
@@ -591,7 +907,7 @@ impl State {
                     .clone()
                     .map_outputs(|_| harmonia_store_aterm::input_address::UnfilledOutput);
                 let filled = harmonia_store_aterm::input_address::fill_outputs(
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     unfilled,
                 )
                 .map_err(|_| ResolutionError::FillDeferredOutputs(drv.clone()))?;
@@ -613,10 +929,10 @@ impl State {
             // Write the resolved derivation to the store via daemon
             // protocol so we can compare its path.
             let resolved_path = {
-                let mut guard = self.pool.acquire().await?;
+                let mut conn = self.connector.connect().await?;
                 harmonia_protocol::daemon::write_derivation(
-                    guard.client(),
-                    self.pool.store_dir(),
+                    &mut conn,
+                    self.connector.store_dir(),
                     &basic_drv,
                     false,
                 )
@@ -632,23 +948,31 @@ impl State {
                     .write()
                     .insert(drv.clone(), resolved_path.clone());
 
-                // Finish original step as "resolved" in the DB and in-memory
+                // Record the original step directly as Resolved.
                 step_info.step.set_finished(true);
-                let mut resolved_result = RemoteBuild::new();
-                resolved_result.step_status = BuildStatus::Resolved;
-                resolved_result.set_start_time_now();
-                resolved_result.set_stop_time_now();
-                resolved_result.log_file.clone_from(&job.result.log_file);
-                finish_build_step(
-                    &self.db,
-                    self.pool.store_dir(),
-                    build_id,
-                    step_nr,
-                    &resolved_result,
-                    Some(&machine.hostname),
-                    None,
-                )
-                .await?;
+                {
+                    let _step_lock = self.build_step_lock(build_id).lock().await;
+                    let mut tx = db.begin_transaction().await?;
+                    tx.create_build_step(
+                        self.connector.store_dir(),
+                        Some(job.result.get_start_time_as_i32()?),
+                        build_id,
+                        step_info.step.get_drv_path(),
+                        step_info.step.get_system().as_deref(),
+                        machine.hostname.clone(),
+                        BuildStatus::Resolved,
+                        None,
+                        None,
+                        step_info
+                            .step
+                            .get_output_paths()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .collect(),
+                    )
+                    .await?;
+                    tx.commit().await?;
+                }
 
                 // Only mark the resolved step as a direct build if the
                 // unresolved step was the toplevel derivation of the build.
@@ -680,7 +1004,7 @@ impl State {
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
-                        Arc::new(parking_lot::RwLock::new(HashSet::new())),
+                        InjectCtx::oneshot(self.read_pool()),
                     )
                     .await
                 {
@@ -697,7 +1021,12 @@ impl State {
                     }
                 };
 
-                resolved_step.make_runnable();
+                // Do not dispatch a resolved step that only waits for its
+                // outputs to be uploaded; the upload completion wakes its
+                // rdeps instead.
+                if !resolved_step.get_finished() && !resolved_step.has_pending_upload() {
+                    resolved_step.make_runnable();
+                }
 
                 // The in-memory `Arc<Step>` objects are kept alive by having a reference
                 // from a `Build` (if they are the root build) or a dependant `Step`
@@ -741,6 +1070,38 @@ impl State {
         // Encode the force-resolved derivation as protobuf to send to the builder.
         let resolved_drv = hydra_proto::nix::store::derivation::v1::Basic::from(&basic_drv);
 
+        // Input resolution succeeded; create the Busy row now that the step
+        // will be dispatched and finalized by succeed_step/fail_step.
+        let step_nr = {
+            let _step_lock = self.build_step_lock(build_id).lock().await;
+            let mut tx = db.begin_transaction().await?;
+            let step_nr = tx
+                .create_build_step(
+                    self.connector.store_dir(),
+                    Some(job.result.get_start_time_as_i32()?),
+                    build_id,
+                    step_info.step.get_drv_path(),
+                    step_info.step.get_system().as_deref(),
+                    machine.hostname.clone(),
+                    BuildStatus::Busy,
+                    None,
+                    None,
+                    step_info
+                        .step
+                        .get_output_paths()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .collect(),
+                )
+                .await?;
+            tx.commit().await?;
+            step_nr
+        };
+        job.step_nr = step_nr;
+
+        // Finalize the Busy row if dispatch fails below; otherwise it lingers
+        // busy until restart while the step is re-dispatched under a new stepnr.
+        let dispatch_result: Result<(), StateError> = async {
         {
             let mut tx = db.begin_transaction().await?;
             tx.notify_build_started(build_id).await?;
@@ -766,6 +1127,7 @@ impl State {
                 job,
                 drv.clone(),
                 default_max_log_size,
+                self.config.max_output_size(),
                 max_silent_time,
                 build_timeout,
                 // TODO: cleanup
@@ -783,6 +1145,17 @@ impl State {
                 resolved_drv,
             )
             .await?;
+        Ok(())
+        }
+        .await;
+        if let Err(e) = dispatch_result {
+            if let Err(e2) = self.abort_orphaned_build_step(build_id, step_nr).await {
+                tracing::error!(
+                    "Failed to clear busy step after dispatch failure build_id={build_id} step_nr={step_nr} e={e2}"
+                );
+            }
+            return Err(e);
+        }
         self.metrics.nr_steps_started.inc();
         self.metrics.nr_steps_building.add(1);
         Ok(RealiseStepResult::Valid(machine))
@@ -820,15 +1193,13 @@ impl State {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    #[tracing::instrument(skip(self, new_builds_by_id, new_builds_by_path, finished_drvs), err)]
+    #[tracing::instrument(skip(self, ctx), err)]
     async fn process_single_build(
         &self,
         id: BuildID,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
+        ctx: Arc<InjectCtx>,
     ) -> Result<Option<ProcessedBuild>, StateError> {
-        let Some(build) = new_builds_by_id.read().get(&id).cloned() else {
+        let Some(build) = ctx.new_builds_by_id.read().get(&id).cloned() else {
             return Ok(None);
         };
 
@@ -836,15 +1207,8 @@ impl State {
         let nr_added: Arc<AtomicI64> = Arc::new(0.into());
         let now = Instant::now();
 
-        self.create_build(
-            build,
-            nr_added.clone(),
-            new_builds_by_id,
-            new_builds_by_path,
-            finished_drvs,
-            new_runnable.clone(),
-        )
-        .await?;
+        self.create_build(build, nr_added.clone(), new_runnable.clone(), ctx)
+            .await?;
 
         // we should never run into this issue
         #[allow(clippy::cast_possible_truncation)]
@@ -862,59 +1226,32 @@ impl State {
     async fn process_new_builds(
         &self,
         new_ids: Vec<BuildID>,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
+        new_builds_by_id: HashMap<BuildID, Arc<Build>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
     ) -> Result<bool, StateError> {
         use futures::stream::StreamExt as _;
 
-        let finished_drvs = Arc::new(parking_lot::RwLock::new(HashSet::<StorePath>::new()));
-        let new_builds_by_path = Arc::new(new_builds_by_path);
         let starttime = jiff::Timestamp::now();
+        let ctx = Arc::new(InjectCtx {
+            finished_drvs: parking_lot::RwLock::new(HashSet::new()),
+            new_builds_by_id: parking_lot::RwLock::new(new_builds_by_id),
+            new_builds_by_path,
+            pool: self.read_pool(),
+        });
 
         let mut futures = futures::stream::FuturesUnordered::new();
         let mut ids_iter = new_ids.into_iter();
 
         for _ in 0..MAX_CONCURRENT_BUILD_INJECTION {
             if let Some(id) = ids_iter.next() {
-                futures.push(Box::pin(Self::process_single_build(
-                    self,
-                    id,
-                    new_builds_by_id.clone(),
-                    new_builds_by_path.clone(),
-                    finished_drvs.clone(),
-                )));
+                futures.push(Box::pin(Self::process_single_build(self, id, ctx.clone())));
             }
         }
 
         let mut early_exit = false;
 
         while let Some(result) = futures.next().await {
-            let Some(ProcessedBuild {
-                nr_added,
-                new_runnable,
-                elapsed,
-                ..
-            }) = result?
-            else {
-                continue;
-            };
-
-            self.metrics.build_read_time_ms.inc_by(elapsed);
-
-            {
-                let new_runnable = new_runnable.read();
-                tracing::info!(
-                    "got {} new runnable steps from {} new builds",
-                    new_runnable.len(),
-                    nr_added.load(Ordering::Relaxed)
-                );
-                for r in new_runnable.iter() {
-                    r.make_runnable();
-                }
-            }
-            if let Ok(added_u64) = u64::try_from(nr_added.load(Ordering::Relaxed)) {
-                self.metrics.nr_builds_read.inc_by(added_u64);
-            }
+            let processed = result?;
 
             // Check early exit only once, after each completed build.
             // If already exiting, we let in-flight tasks drain naturally.
@@ -928,15 +1265,37 @@ impl State {
                 }
             }
 
-            // Queue the next build if not exiting early.
+            // Refill for every completed future, also those that resolved to
+            // None, otherwise the in-flight set shrinks until the run ends.
             if !early_exit && let Some(id) = ids_iter.next() {
-                futures.push(Box::pin(Self::process_single_build(
-                    self,
-                    id,
-                    new_builds_by_id.clone(),
-                    new_builds_by_path.clone(),
-                    finished_drvs.clone(),
-                )));
+                futures.push(Box::pin(Self::process_single_build(self, id, ctx.clone())));
+            }
+
+            let Some(ProcessedBuild {
+                nr_added,
+                new_runnable,
+                elapsed,
+                ..
+            }) = processed
+            else {
+                continue;
+            };
+
+            self.metrics.build_read_time_ms.inc_by(elapsed);
+
+            {
+                let new_runnable = new_runnable.read();
+                tracing::debug!(
+                    "got {} new runnable steps from {} new builds",
+                    new_runnable.len(),
+                    nr_added.load(Ordering::Relaxed)
+                );
+                for r in new_runnable.iter() {
+                    r.make_runnable();
+                }
+            }
+            if let Ok(added_u64) = u64::try_from(nr_added.load(Ordering::Relaxed)) {
+                self.metrics.nr_builds_read.inc_by(added_u64);
             }
         }
 
@@ -973,6 +1332,7 @@ impl State {
                     &drv_path,
                     BuildResultState::Cancelled,
                     BuildTimings::default(),
+                    None,
                 )
                 .await
             {
@@ -1005,7 +1365,7 @@ impl State {
         let mut db = self.db.get().await?;
         let drv = self.read_derivation(drv_path).await?;
         db.insert_debug_build(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform).map_err(StateError::InvalidPlatformUtf8)?,
@@ -1030,7 +1390,7 @@ impl State {
         {
             let mut conn = self.db.get().await?;
             for b in conn
-                .get_not_finished_builds(self.pool.store_dir())
+                .get_not_finished_builds(self.connector.store_dir())
                 .await?
                 .into_iter()
                 .filter(|b| b.id == build_id)
@@ -1056,7 +1416,6 @@ impl State {
             return Ok(());
         }
 
-        let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
         let _early_exit =
             Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
                 .await?;
@@ -1073,7 +1432,10 @@ impl State {
 
         {
             let mut conn = self.db.get().await?;
-            for b in conn.get_not_finished_builds(self.pool.store_dir()).await? {
+            for b in conn
+                .get_not_finished_builds(self.connector.store_dir())
+                .await?
+            {
                 let jobset = self
                     .jobsets
                     .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
@@ -1091,7 +1453,6 @@ impl State {
         tracing::debug!("new_builds_by_id: {new_builds_by_id:?}");
         tracing::debug!("new_builds_by_path: {new_builds_by_path:?}");
 
-        let new_builds_by_id = Arc::new(parking_lot::RwLock::new(new_builds_by_id));
         let early_exit =
             Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
                 .await?;
@@ -1232,7 +1593,7 @@ impl State {
                     } else {
                         self.notify_dispatch.notified().await;
                     }
-                    tracing::info!("starting dispatch");
+                    tracing::debug!("starting dispatch");
 
                     #[allow(clippy::cast_possible_truncation)]
                     self.metrics
@@ -1244,6 +1605,8 @@ impl State {
                     self.clone().do_dispatch_once().await;
 
                     let elapsed = before_work.elapsed();
+                    // Coalesce trigger bursts; every finished build notifies.
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
                     #[allow(clippy::cast_possible_truncation)]
                     self.metrics
@@ -1265,28 +1628,74 @@ impl State {
         let task = tokio::task::spawn({
             async move {
                 loop {
-                    let local_store = self.pool.clone();
+                    let store = self.store.clone();
+                    let local_store = self.connector.clone();
                     let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                         let r = self.remote_stores.read();
                         r.iter()
                             .filter_map(|s| match s {
-                                RemoteStoreBackend::S3(s) => Some(s.clone()),
+                                RemoteStoreBackend::S3(s) => Some((**s).clone()),
                                 RemoteStoreBackend::NixCopy(_) => None,
                             })
                             .collect()
                     };
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
-                        self.uploader.upload_once(local_store, s3_stores).await;
+                        self.uploader
+                            .upload_once(store, local_store, s3_stores)
+                            .await;
                     } else {
                         self.uploader
-                            .upload_many(local_store, s3_stores, limit)
+                            .upload_many(store, local_store, s3_stores, limit)
                             .await;
                     }
                 }
             }
         });
         task.abort_handle()
+    }
+
+    /// Process upload completions for steps gated on
+    /// [`OutputAvailability::PendingUpload`]: only once their outputs exist
+    /// in the remote binary cache that builders fetch inputs from may the
+    /// steps finish and their rdeps be dispatched.
+    #[tracing::instrument(skip(self))]
+    pub fn start_upload_completion_loop(self: Arc<Self>) -> tokio::task::AbortHandle {
+        let task = tokio::task::spawn(async move {
+            let Some(mut rx) = self.upload_completion_rx.lock().take() else {
+                tracing::error!("upload completion loop started twice");
+                return;
+            };
+            while let Some(drv_path) = rx.recv().await {
+                self.finish_uploaded_step(&drv_path).await;
+            }
+        });
+        task.abort_handle()
+    }
+
+    #[tracing::instrument(skip(self), fields(%drv_path))]
+    async fn finish_uploaded_step(&self, drv_path: &StorePath) {
+        let Some(step) = self.steps.get(drv_path) else {
+            // Step is gone (e.g. the upload was re-queued from disk after a
+            // restart); the queue monitor revalidates it on the next run.
+            return;
+        };
+        if step.get_finished() {
+            return;
+        }
+        complete_step(&step);
+        if let Some(fod_checker) = &self.fod_checker {
+            fod_checker.to_traverse(drv_path);
+        }
+        // Builds with this step as toplevel are now cached successes.
+        for build in step.get_direct_builds() {
+            let build_id = build.id;
+            if let Err(e) = self.handle_cached_build(build).await {
+                tracing::error!("failed to handle cached build: {e}");
+            }
+            self.builds.remove_by_id(build_id);
+        }
+        self.trigger_dispatch();
     }
 
     #[tracing::instrument(skip(self))]
@@ -1298,7 +1707,13 @@ impl State {
     async fn do_dispatch_once(self: Arc<Self>) {
         // Prune old historical build step info from the jobsets.
         self.jobsets.prune();
-        let new_runnable = self.steps.clone_runnable();
+        if self.config.get_step_sort_fn() == crate::config::StepSortFn::WithCriticalPath {
+            // New steps start with cp_length 0 and sort last until the next
+            // recomputation; acceptable for a priority heuristic.
+            self.steps.compute_critical_paths_throttled(60);
+        }
+        let mut new_runnable = self.steps.drain_pending_runnable();
+        new_runnable.extend(self.steps.clone_runnable_throttled(300));
 
         let now = jiff::Timestamp::now();
         let mut new_queues = HashMap::<System, Vec<StepInfo>>::with_capacity(10);
@@ -1307,6 +1722,10 @@ impl State {
                 continue;
             };
             if r.atomic_state.tries.load(Ordering::Relaxed) > 0 {
+                continue;
+            }
+            // Only offer steps that are not already held in the queues.
+            if !r.try_mark_queued() {
                 continue;
             }
             let step_info = StepInfo::new(r.clone());
@@ -1330,6 +1749,7 @@ impl State {
         }
         self.queues.remove_all_weak_pointer().await;
 
+        let free_fn = self.config.get_machine_free_fn();
         let nr_steps_waiting_all_queues = self
             .queues
             .process(
@@ -1339,6 +1759,7 @@ impl State {
                         Box::pin(state.clone().realise_drv_on_valid_machine(constraint)).await
                     }
                 },
+                |system: &str| self.machines.has_capacity_for_system(system, free_fn),
                 &self.metrics,
             )
             .await;
@@ -1391,6 +1812,12 @@ pub enum StepLookupError {
 
     #[error("job is missing in machine.jobs m={0}")]
     JobNotOnMachine(String),
+
+    #[error("step is owned by a different machine (scheduled={scheduled}, reporting={reporting})")]
+    StepOwnedByOtherMachine {
+        scheduled: uuid::Uuid,
+        reporting: uuid::Uuid,
+    },
 }
 
 impl State {
@@ -1403,11 +1830,11 @@ impl State {
         output: BuildOutput,
     ) -> Result<(), StateError> {
         tracing::info!("marking job as done: drv_path={drv_path}");
-        let item = self
-            .queues
-            .remove_job_from_scheduled(drv_path)
-            .await
-            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
+        // Peek (not remove) so the step cannot be re-dispatched mid-finalize;
+        // the guard reconciles the row if an early return precedes disarm.
+        let (mut guard, item, mut job) = self
+            .claim_owned_step(machine_id, drv_path, BuildStatus::Success)
+            .await?;
 
         item.step_info.step.set_finished(true);
 
@@ -1417,7 +1844,7 @@ impl State {
         // the queue runner and builder are disagreeing on what the drv itself
         // means (regardless of what it produces) which would be an "all bets
         // are off" bug.
-        if let Some(expected) = item.step_info.step.get_output_paths(self.pool.store_dir()) {
+        if let Some(expected) = item.step_info.step.get_output_paths() {
             for (name, expected_path) in &expected {
                 let Some(expected_path) = expected_path else {
                     continue; // path not statically known (Deferred/CAFloating/Impure)
@@ -1428,23 +1855,16 @@ impl State {
                     return Err(StateError::from(ResolutionError::OutputPathMismatch {
                         name: name.to_string(),
                         drv: drv_path.clone(),
-                        expected: self.pool.store_dir().display(expected_path).to_string(),
-                        actual: self.pool.store_dir().display(actual_path).to_string(),
+                        expected: self
+                            .connector
+                            .store_dir()
+                            .display(expected_path)
+                            .to_string(),
+                        actual: self.connector.store_dir().display(actual_path).to_string(),
                     }));
                 }
             }
         }
-
-        tracing::debug!(
-            "removing job from machine: drv_path={drv_path} m={}",
-            item.machine.id
-        );
-        let mut job = item.machine.remove_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
-        self.queues
-            .remove_job(&item.step_info, &item.build_queue)
-            .await;
 
         job.result.step_status = BuildStatus::Success;
         job.result.set_stop_time_now();
@@ -1459,7 +1879,7 @@ impl State {
 
         finish_build_step(
             &self.db,
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             job.build_id,
             job.step_nr,
             &job.result,
@@ -1467,6 +1887,26 @@ impl State {
             Some(&output.outputs),
         )
         .await?;
+
+        // Row finalized; release ownership and disarm. The step stays finished,
+        // so the dispatch loop will not re-pick it.
+        item.machine.remove_job(drv_path);
+        self.queues.remove_job_from_scheduled(drv_path).await;
+        self.queues
+            .remove_job(&item.step_info, &item.build_queue)
+            .await;
+        guard.disarm();
+
+        // Without presigned uploads, builders import outputs from the queue
+        // runner's local store, so pin them with GC roots until consumed.
+        // Best-effort: a failed root must not fail the build.
+        if !self.config.use_presigned_uploads() {
+            for out_path in output.outputs.values() {
+                if let Err(e) = self.add_root(out_path).await {
+                    tracing::warn!("failed to create GC root for {out_path}: {e}");
+                }
+            }
+        }
 
         // Copy outputs to non-S3 stores via `nix copy`.
         {
@@ -1484,7 +1924,7 @@ impl State {
                 let paths: Vec<String> = output
                     .outputs
                     .values()
-                    .map(|p| self.pool.store_dir().display(p).to_string())
+                    .map(|p| self.connector.store_dir().display(p).to_string())
                     .collect();
                 for dest_uri in &nix_copy_uris {
                     let output = tokio::process::Command::new("nix")
@@ -1535,6 +1975,7 @@ impl State {
                         outputs_to_upload,
                         format!("log/{}", job.path),
                         job.result.log_file.clone(),
+                        None,
                     )
                     .await;
             }
@@ -1548,18 +1989,14 @@ impl State {
         // `Realisations` table (for non-S3 / FFI stores) once nix is
         // updated to 2.35, which uses path-based DrvOutput matching
         // the harmonia types.
-        let drv_guard = item.step_info.step.get_drv();
-        if let Some(drv_ref) = drv_guard.as_ref() {
-            let has_ca_floating = drv_ref
-                .outputs
-                .values()
-                .any(|o| matches!(o, DerivationOutput::CAFloating(_)));
+        {
+            let has_ca_floating = item.step_info.step.has_ca_floating_outputs();
             if has_ca_floating {
                 let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                     let r = self.remote_stores.read();
                     r.iter()
                         .filter_map(|s| match s {
-                            RemoteStoreBackend::S3(s) => Some(s.clone()),
+                            RemoteStoreBackend::S3(s) => Some((**s).clone()),
                             RemoteStoreBackend::NixCopy(_) => None,
                         })
                         .collect()
@@ -1586,30 +2023,36 @@ impl State {
             }
         }
 
-        let direct = item.step_info.step.get_direct_builds();
+        let mut direct = item.step_info.step.get_direct_builds();
+        // Lock build rows in id order so concurrent completions can't deadlock.
+        direct.sort_by_key(|b| b.id);
         if direct.is_empty() {
             self.steps.remove(item.step_info.step.get_drv_path());
         }
 
         {
-            let mut db = self.db.get().await?;
-            let mut tx = db.begin_transaction().await?;
             let start_time = job.result.get_start_time_as_i32()?;
             let stop_time = job.result.get_stop_time_as_i32()?;
-            for b in &direct {
-                let is_cached = job.build_id != b.id || job.result.is_cached;
-                tx.mark_succeeded_build(
-                    get_mark_build_sccuess_data(b, &output),
-                    is_cached,
-                    start_time,
-                    stop_time,
-                    self.pool.store_dir(),
-                )
-                .await?;
+            crate::utils::with_serialization_retry("succeed_step", || async {
+                let mut db = self.db.get().await?;
+                let mut tx = db.begin_transaction().await?;
+                for b in &direct {
+                    let is_cached = job.build_id != b.id || job.result.is_cached;
+                    tx.mark_succeeded_build(
+                        get_mark_build_sccuess_data(b, &output),
+                        is_cached,
+                        start_time,
+                        stop_time,
+                        self.connector.store_dir(),
+                    )
+                    .await?;
+                }
+                Ok(tx.commit().await?)
+            })
+            .await?;
+            for _ in &direct {
                 self.metrics.nr_builds_done.inc();
             }
-
-            tx.commit().await?;
         }
 
         // Remove the direct dependencies from 'builds'. This will cause them to be
@@ -1674,8 +2117,8 @@ impl State {
                         None,
                         Some((dependent_step.clone(), relation)),
                         Arc::default(),
-                        Arc::default(),
                         new_runnable.clone(),
+                        InjectCtx::oneshot(self.read_pool()),
                     )
                     .await
                 {
@@ -1694,8 +2137,11 @@ impl State {
                     r.make_runnable();
                 }
 
-                // create_step already added rdeps, but we need to add a forward dep as well
-                dependent_step.add_dep(new_step);
+                // create_step already added the rdep; add the forward dep
+                // unless the new step finished in the meantime (then its
+                // make_rdeps_runnable already woke the dependent and the dep
+                // would linger in deps forever).
+                dependent_step.add_dep_if_unfinished(new_step);
             }
         }
         item.step_info.step.make_rdeps_runnable();
@@ -1713,27 +2159,21 @@ impl State {
         drv_path: &StorePath,
         state: BuildResultState,
         timings: BuildTimings,
+        error_msg: Option<String>,
     ) -> Result<(), StateError> {
         tracing::info!("removing job from running in system queue: drv_path={drv_path}");
-        let item = self
-            .queues
-            .remove_job_from_scheduled(drv_path)
-            .await
-            .ok_or(StateError::from(StepLookupError::StepNotScheduled))?;
-
-        item.step_info.step.set_finished(false);
-
-        tracing::debug!(
-            "removing job from machine: drv_path={drv_path} m={}",
-            item.machine.id
-        );
-        let mut job = item.machine.remove_job(drv_path).ok_or_else(|| {
-            StateError::from(StepLookupError::JobNotOnMachine(item.machine.to_string()))
-        })?;
+        // Peek (not remove) so the step cannot be re-dispatched mid-fail; the
+        // guard reconciles the row if an early return precedes disarm.
+        let (mut guard, item, mut job) = self
+            .claim_owned_step(machine_id, drv_path, BuildStatus::Failed)
+            .await?;
 
         job.result.step_status = BuildStatus::Failed;
         // this can override step_status to something more specific
         job.result.update_with_result_state(state);
+        if let Some(error_msg) = error_msg {
+            job.result.error_msg = Some(error_msg);
+        }
         job.result.set_stop_time_now();
         job.result.set_overhead(timings.get_overhead())?;
 
@@ -1746,34 +2186,24 @@ impl State {
         let (max_retries, retry_interval, retry_backoff) = self.config.get_retry();
 
         if job.result.can_retry {
-            item.step_info
-                .step
-                .atomic_state
-                .tries
-                .fetch_add(1, Ordering::Relaxed);
-            let tries = item
-                .step_info
-                .step
-                .atomic_state
-                .tries
-                .load(Ordering::Relaxed);
+            let step = &item.step_info.step;
+            step.atomic_state.tries.fetch_add(1, Ordering::Relaxed);
+            let tries = step.atomic_state.tries.load(Ordering::Relaxed);
             if tries < max_retries {
                 self.metrics.nr_retries.inc();
                 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
                 let delta = (retry_interval * retry_backoff.powf((tries - 1) as f32)) as i64;
                 tracing::info!("will retry '{drv_path}' after {delta}s");
-                item.step_info
-                    .step
-                    .set_after(jiff::Timestamp::now() + jiff::SignedDuration::from_secs(delta));
+                step.set_after(jiff::Timestamp::now() + jiff::SignedDuration::from_secs(delta));
                 if i64::from(tries) > self.metrics.max_nr_retries.get() {
                     self.metrics.max_nr_retries.set(i64::from(tries));
                 }
 
-                item.step_info.set_already_scheduled(false);
-
+                // Finalize the row while still owned; set_after above makes the
+                // dispatch loop skip it until the backoff elapses.
                 finish_build_step(
                     &self.db,
-                    self.pool.store_dir(),
+                    self.connector.store_dir(),
                     job.build_id,
                     job.step_nr,
                     &job.result,
@@ -1781,23 +2211,33 @@ impl State {
                     None,
                 )
                 .await?;
+                step.set_finished(false);
+                item.machine.remove_job(drv_path);
+                self.queues.remove_job_from_scheduled(drv_path).await;
+                guard.disarm();
                 self.trigger_dispatch();
                 return Ok(());
             }
         }
 
-        // remove job from queues, aka actually fail the job
+        // Permanent failure: release ownership, then fail the job and its
+        // dependents. inner_fail_job finalizes the row, so disarm only once it
+        // succeeds; otherwise the guard reconciles the still-busy row.
+        item.step_info.step.set_finished(false);
+        item.machine.remove_job(drv_path);
+        self.queues.remove_job_from_scheduled(drv_path).await;
         self.queues
             .remove_job(&item.step_info, &item.build_queue)
             .await;
 
-        self.inner_fail_job(
-            drv_path,
-            Some(item.machine),
-            job,
-            item.step_info.step.clone(),
-        )
-        .await
+        let step = item.step_info.step.clone();
+        let result = self
+            .inner_fail_job(drv_path, Some(item.machine), job, step)
+            .await;
+        if result.is_ok() {
+            guard.disarm();
+        }
+        result
     }
 }
 
@@ -1837,6 +2277,7 @@ impl State {
         machine_id: uuid::Uuid,
         state: BuildResultState,
         timings: BuildTimings,
+        error_msg: Option<String>,
     ) -> Result<(), StateError> {
         let machine = self
             .machines
@@ -1846,7 +2287,8 @@ impl State {
             .get_job_drv_for_build_id(build_id)
             .ok_or(StateError::from(MachineLookupError::JobNotFound))?;
 
-        self.fail_step(machine_id, &drv_path, state, timings).await
+        self.fail_step(machine_id, &drv_path, state, timings, error_msg)
+            .await
     }
 
     #[allow(clippy::too_many_lines)]
@@ -1865,7 +2307,7 @@ impl State {
         if job.step_nr != 0 {
             finish_build_step(
                 &self.db,
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 job.build_id,
                 job.step_nr,
                 &job.result,
@@ -1878,7 +2320,8 @@ impl State {
         let mut dependent_ids = Vec::new();
         let mut step_finished = false;
         loop {
-            let indirect = self.get_all_indirect_builds(&step);
+            let mut indirect: Vec<_> = self.get_all_indirect_builds(&step).into_iter().collect();
+            indirect.sort_by_key(|b| b.id);
             if indirect.is_empty() && step_finished {
                 break;
             }
@@ -1886,7 +2329,8 @@ impl State {
             // Create failed build steps for every build that depends on this, except when this
             // step is cached and is the top-level of that build (since then it's redundant with
             // the build's isCachedBuild field).
-            {
+            let marked_failed = crate::utils::with_serialization_retry("fail_step", || async {
+                let mut marked_failed = 0usize;
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
                 for b in &indirect {
@@ -1901,7 +2345,7 @@ impl State {
                     }
 
                     tx.create_build_step(
-                        self.pool.store_dir(),
+                        self.connector.store_dir(),
                         None,
                         b.id,
                         step.get_drv_path(),
@@ -1917,7 +2361,7 @@ impl State {
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_output_paths(self.pool.store_dir())
+                        step.get_output_paths()
                             .unwrap_or_default()
                             .into_iter()
                             .collect(),
@@ -1948,22 +2392,25 @@ impl State {
                         job.result.step_status == BuildStatus::CachedFailure,
                     )
                     .await?;
-                    self.metrics.nr_builds_done.inc();
+                    marked_failed += 1;
                 }
 
                 // Remember failed paths in the database so that they won't be built again.
                 if job.result.step_status != BuildStatus::CachedFailure && job.result.can_cache {
-                    for (_, path) in step
-                        .get_output_paths(self.pool.store_dir())
-                        .unwrap_or_default()
-                    {
+                    for (_, path) in step.get_output_paths().unwrap_or_default() {
                         if let Some(path) = path {
-                            tx.insert_failed_paths(self.pool.store_dir(), &path).await?;
+                            tx.insert_failed_paths(self.connector.store_dir(), &path)
+                                .await?;
                         }
                     }
                 }
 
                 tx.commit().await?;
+                Ok(marked_failed)
+            })
+            .await?;
+            for _ in 0..marked_failed {
+                self.metrics.nr_builds_done.inc();
             }
 
             step_finished = true;
@@ -2027,126 +2474,160 @@ impl State {
         }
 
         // if !build.finished_in_db
-        let mut conn = self.db.get().await?;
-        let mut tx = conn.begin_transaction().await?;
+        crate::utils::with_serialization_retry("handle_previous_failure", || async {
+            let mut conn = self.db.get().await?;
+            let mut tx = conn.begin_transaction().await?;
 
-        // Find the previous build step record, first by derivation path, then by output
-        // path.
-        let mut propagated_from = tx
-            .get_last_build_step_id(self.pool.store_dir(), step.get_drv_path())
-            .await?
-            .unwrap_or_default();
-
-        if propagated_from == 0 {
-            // we can access step.drv here because the value is always set if
-            // PreviousFailure is returned, so this should never yield None
-
-            let outputs = step
-                .get_output_paths(self.pool.store_dir())
+            // Find the previous build step record, first by derivation path, then by output
+            // path.
+            let mut propagated_from = tx
+                .get_last_build_step_id(self.connector.store_dir(), step.get_drv_path())
+                .await?
                 .unwrap_or_default();
-            for (name, path) in &outputs {
-                let res = if let Some(path) = path {
-                    tx.get_last_build_step_id_for_output_path(self.pool.store_dir(), path)
+
+            if propagated_from == 0 {
+                // we can access step.drv here because the value is always set if
+                // PreviousFailure is returned, so this should never yield None
+
+                let outputs = step.get_output_paths().unwrap_or_default();
+                for (name, path) in &outputs {
+                    let res = if let Some(path) = path {
+                        tx.get_last_build_step_id_for_output_path(self.connector.store_dir(), path)
+                            .await
+                    } else {
+                        tx.get_last_build_step_id_for_output_with_drv(
+                            self.connector.store_dir(),
+                            step.get_drv_path(),
+                            name.as_ref(),
+                        )
                         .await
-                } else {
-                    tx.get_last_build_step_id_for_output_with_drv(
-                        self.pool.store_dir(),
-                        step.get_drv_path(),
-                        name.as_ref(),
-                    )
-                    .await
-                };
-                if let Ok(Some(res)) = res {
-                    propagated_from = res;
-                    break;
+                    };
+                    if let Ok(Some(res)) = res {
+                        propagated_from = res;
+                        break;
+                    }
                 }
             }
-        }
 
-        tx.create_build_step(
-            self.pool.store_dir(),
-            None,
-            build.id,
-            step.get_drv_path(),
-            step.get_system().as_deref(),
-            String::new(),
-            BuildStatus::CachedFailure,
-            None,
-            Some(propagated_from),
-            step.get_output_paths(self.pool.store_dir())
-                .unwrap_or_default()
-                .into_iter()
-                .collect(),
-        )
-        .await?;
-        tx.update_build_after_previous_failure(
-            build.id,
-            if step.get_drv_path() == &build.drv_path {
-                BuildStatus::Failed
-            } else {
-                BuildStatus::DepFailed
-            },
-        )
-        .await?;
+            tx.create_build_step(
+                self.connector.store_dir(),
+                None,
+                build.id,
+                step.get_drv_path(),
+                step.get_system().as_deref(),
+                String::new(),
+                BuildStatus::CachedFailure,
+                None,
+                Some(propagated_from),
+                step.get_output_paths()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect(),
+            )
+            .await?;
+            tx.update_build_after_previous_failure(
+                build.id,
+                if step.get_drv_path() == &build.drv_path {
+                    BuildStatus::Failed
+                } else {
+                    BuildStatus::DepFailed
+                },
+            )
+            .await?;
 
-        let _ = tx.notify_build_finished(build.id, &[]).await;
-        tx.commit().await?;
+            let _ = tx.notify_build_finished(build.id, &[]).await;
+            Ok(tx.commit().await?)
+        })
+        .await?;
 
         build.set_finished_in_db(true);
         self.metrics.nr_builds_done.inc();
         Ok(())
     }
 
-    #[allow(clippy::too_many_lines)]
-    #[tracing::instrument(skip(
-        self,
-        build,
-        nr_added,
-        new_builds_by_id,
-        new_builds_by_path,
-        finished_drvs,
-        new_runnable
-    ), fields(build_id=build.id))]
+    /// Mark a build whose derivation is no longer in the store as aborted.
+    async fn abort_gced_build(&self, build: &Arc<Build>) {
+        tracing::error!(
+            "aborting GC'ed build id={} path={}",
+            build.id,
+            self.connector.store_dir().display(&build.drv_path)
+        );
+        if !build.get_finished_in_db() {
+            match self.db.get().await {
+                Ok(mut conn) => {
+                    if let Err(e) = conn.abort_build(build.id).await {
+                        tracing::error!("Failed to abort the build={} e={}", build.id, e);
+                    }
+                }
+                Err(e) => tracing::error!(
+                    "Failed to get a database connection to abort the build={} e={}",
+                    build.id,
+                    e
+                ),
+            }
+        }
+        build.set_finished_in_db(true);
+        self.metrics.nr_builds_done.inc();
+    }
+
+    /// Inject the builds whose top-level derivation is a step just created, so
+    /// their own steps and dependencies get wired into the graph.
+    async fn inject_dependency_builds(
+        &self,
+        new_steps: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        nr_added: &Arc<AtomicI64>,
+        new_runnable: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: &Arc<InjectCtx>,
+    ) -> Result<(), StateError> {
+        use futures::stream::StreamExt as _;
+
+        let builds = {
+            let new_steps = new_steps.read();
+            new_steps
+                .iter()
+                .filter_map(|r| Some(ctx.new_builds_by_path.get(r.get_drv_path())?.clone()))
+                .flatten()
+                .collect::<Vec<_>>()
+        };
+        let mut stream = futures::StreamExt::map(tokio_stream::iter(builds), |b| {
+            let nr_added = nr_added.clone();
+            let new_runnable = new_runnable.clone();
+            let ctx = ctx.clone();
+            async move {
+                let Some(j) = ctx.new_builds_by_id.read().get(&b).cloned() else {
+                    return Ok(());
+                };
+                Box::pin(self.create_build(j, nr_added, new_runnable, ctx)).await
+            }
+        })
+        .buffered(10);
+        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+            result?;
+        }
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, build, nr_added, new_runnable, ctx), fields(build_id=build.id))]
     async fn create_build(
         &self,
         build: Arc<Build>,
         nr_added: Arc<AtomicI64>,
-        new_builds_by_id: Arc<parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>>,
-        new_builds_by_path: Arc<HashMap<StorePath, HashSet<BuildID>>>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: Arc<InjectCtx>,
     ) -> Result<(), StateError> {
         self.metrics.queue_build_loads.inc();
-        tracing::info!("loading build {} ({})", build.id, build.full_job_name());
+        tracing::debug!("loading build {} ({})", build.id, build.full_job_name());
         nr_added.fetch_add(1, Ordering::Relaxed);
+        ctx.new_builds_by_id.write().remove(&build.id);
+
+        if !ctx
+            .pool
+            .acquire()
+            .await?
+            .is_valid_path(&build.drv_path)
+            .await?
         {
-            let mut new_builds_by_id = new_builds_by_id.write();
-            new_builds_by_id.remove(&build.id);
-        }
-
-        if !daemon_client_utils::is_valid_path(&self.pool, &build.drv_path).await? {
-            tracing::error!(
-                "aborting GC'ed build id={} path={}",
-                build.id,
-                self.pool.store_dir().display(&build.drv_path)
-            );
-            if !build.get_finished_in_db() {
-                match self.db.get().await {
-                    Ok(mut conn) => {
-                        if let Err(e) = conn.abort_build(build.id).await {
-                            tracing::error!("Failed to abort the build={} e={}", build.id, e);
-                        }
-                    }
-                    Err(e) => tracing::error!(
-                        "Failed to get database connection so we can abort the build={} e={}",
-                        build.id,
-                        e
-                    ),
-                }
-            }
-
-            build.set_finished_in_db(true);
-            self.metrics.nr_builds_done.inc();
+            self.abort_gced_build(&build).await;
             return Ok(());
         }
 
@@ -2154,14 +2635,13 @@ impl State {
         let new_steps = Arc::new(parking_lot::RwLock::new(HashSet::<Arc<Step>>::new()));
         let step = match self
             .create_step(
-                // conn,
                 build.clone(),
                 build.drv_path.clone(),
                 Some(build.clone()),
                 None,
-                finished_drvs.clone(),
                 new_steps.clone(),
                 new_runnable.clone(),
+                ctx.clone(),
             )
             .await
         {
@@ -2175,48 +2655,8 @@ impl State {
             }
         };
 
-        {
-            use futures::stream::StreamExt as _;
-
-            let builds = {
-                let new_steps = new_steps.read();
-                new_steps
-                    .iter()
-                    .filter_map(|r| Some(new_builds_by_path.get(r.get_drv_path())?.clone()))
-                    .flatten()
-                    .collect::<Vec<_>>()
-            };
-            let mut stream = futures::StreamExt::map(tokio_stream::iter(builds), |b| {
-                let nr_added = nr_added.clone();
-                let new_builds_by_id = new_builds_by_id.clone();
-                let new_builds_by_path = new_builds_by_path.clone();
-                let finished_drvs = finished_drvs.clone();
-                let new_runnable = new_runnable.clone();
-                async move {
-                    let j = {
-                        if let Some(j) = new_builds_by_id.read().get(&b) {
-                            j.clone()
-                        } else {
-                            return Ok(());
-                        }
-                    };
-
-                    Box::pin(self.create_build(
-                        j,
-                        nr_added,
-                        new_builds_by_id,
-                        new_builds_by_path,
-                        finished_drvs,
-                        new_runnable,
-                    ))
-                    .await
-                }
-            })
-            .buffered(10);
-            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
-                result?;
-            }
-        }
+        self.inject_dependency_builds(&new_steps, &nr_added, &new_runnable, &ctx)
+            .await?;
 
         if let Some(step) = step {
             if !build.get_finished_in_db() {
@@ -2226,7 +2666,7 @@ impl State {
             build.set_toplevel_step(step.clone());
             build.propagate_priorities();
 
-            tracing::info!(
+            tracing::debug!(
                 "added build {} (top-level step {}, {} new steps)",
                 build.id,
                 step.get_drv_path(),
@@ -2248,9 +2688,9 @@ impl State {
         build,
         referring_build,
         referring_step,
-        finished_drvs,
         new_steps,
-        new_runnable
+        new_runnable,
+        ctx
     ), fields(build_id=build.id, %drv_path))]
     async fn create_step(
         &self,
@@ -2258,14 +2698,14 @@ impl State {
         drv_path: StorePath,
         referring_build: Option<Arc<Build>>,
         referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
-        finished_drvs: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
         new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: Arc<InjectCtx>,
     ) -> CreateStepResult {
         use futures::stream::StreamExt as _;
 
         {
-            let finished_drvs = finished_drvs.read();
+            let finished_drvs = ctx.finished_drvs.read();
             if finished_drvs.contains(&drv_path) {
                 return CreateStepResult::None;
             }
@@ -2300,18 +2740,20 @@ impl State {
             if step.get_finished() {
                 return CreateStepResult::None;
             }
-            if let Some(output_paths) = step.get_output_paths(self.pool.store_dir()) {
+            if let Some(output_paths) = step.get_output_paths() {
                 // All output paths must be known (Some) and valid in
                 // the store for the step to count as finished.  CA
                 // floating outputs have None paths until built.
                 let all_resolved = output_paths.values().all(Option::is_some);
                 let all_valid = if all_resolved {
+                    let mut conn = ctx.pool.acquire().await.ok();
                     let mut valid = true;
                     for path in output_paths.values().flatten() {
-                        if !daemon_client_utils::is_valid_path(&self.pool, path)
-                            .await
-                            .unwrap_or(false)
-                        {
+                        let path_valid = match conn.as_mut() {
+                            Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
+                            None => false,
+                        };
+                        if !path_valid {
                             valid = false;
                             break;
                         }
@@ -2321,9 +2763,9 @@ impl State {
                     false
                 };
                 if all_valid {
-                    finished_drvs.write().insert(drv_path.clone());
-                    step.set_finished(true);
-                    return CreateStepResult::None;
+                    return self
+                        .revalidate_locally_valid_step(step, &drv_path, &ctx.finished_drvs)
+                        .await;
                 }
             }
             return CreateStepResult::Valid(step);
@@ -2331,14 +2773,279 @@ impl State {
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
-        let Some(drv) = self.read_derivation(&drv_path).await.ok() else {
-            tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
+        let Some(facts) = self.prefetch_step_facts(&build, &drv_path, &ctx.pool).await else {
             return CreateStepResult::None;
         };
-        if let Some(fod_checker) = &self.fod_checker {
-            fod_checker.add_ca_drv_parsed(&drv_path, &drv);
+        let StepFacts {
+            drv,
+            availability,
+            previous_failure,
+        } = facts;
+        let input_drvs = drv::input_drvs(&drv);
+        step.set_drv(&drv, self.connector.store_dir());
+
+        // Recurse into the input derivations only when the step actually has
+        // to be built; finished and previously-failed steps never get
+        // forward deps.
+        let mut deps = Vec::new();
+        if !previous_failure && matches!(availability, OutputAvailability::Incomplete) {
+            tracing::debug!("creating build step '{drv_path}");
+
+            let step2 = step.clone();
+            let mut stream = futures::StreamExt::map(
+                tokio_stream::iter(input_drvs),
+                |(input_path, relation)| {
+                    let build = build.clone();
+                    let step = step2.clone();
+                    let new_steps = new_steps.clone();
+                    let new_runnable = new_runnable.clone();
+                    let ctx = ctx.clone();
+
+                    async move {
+                        Box::pin(self.create_step(
+                            build,
+                            input_path,
+                            None,
+                            Some((step, relation)),
+                            new_steps,
+                            new_runnable,
+                            ctx,
+                        ))
+                        .await
+                    }
+                },
+            )
+            .buffered(25);
+            while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
+                match result {
+                    CreateStepResult::None => (),
+                    CreateStepResult::Valid(dep) => deps.push(dep),
+                    CreateStepResult::PreviousFailure(step) => {
+                        return CreateStepResult::PreviousFailure(step);
+                    }
+                }
+            }
         }
 
+        let outcome = {
+            let mut new_runnable = new_runnable.write();
+            attach_step(
+                &step,
+                availability,
+                previous_failure,
+                deps,
+                &mut new_runnable,
+            )
+        };
+        match outcome {
+            AttachOutcome::PreviousFailure => CreateStepResult::PreviousFailure(step),
+            AttachOutcome::Finished => {
+                tracing::debug!(
+                    "create_step: {drv_path} already finished (outputs in store), skipping"
+                );
+                if let Some(fod_checker) = &self.fod_checker {
+                    fod_checker.to_traverse(&drv_path);
+                }
+                ctx.finished_drvs.write().insert(drv_path.clone());
+                CreateStepResult::None
+            }
+            AttachOutcome::PendingUpload(paths) => {
+                tracing::info!(
+                    "create_step: {drv_path} outputs valid locally, awaiting upload to remote store"
+                );
+                step.try_mark_upload_scheduled();
+                let log_file = self.construct_log_file_path(&drv_path).await;
+                self.uploader
+                    .schedule_upload(
+                        paths,
+                        format!("log/{drv_path}"),
+                        log_file,
+                        Some(drv_path.clone()),
+                    )
+                    .await;
+                new_steps.write().insert(step.clone());
+                CreateStepResult::Valid(step)
+            }
+            AttachOutcome::Attached => {
+                new_steps.write().insert(step.clone());
+                CreateStepResult::Valid(step)
+            }
+        }
+    }
+
+    /// A pre-existing step whose outputs turned out to be all valid in the
+    /// local store. Decide whether it counts as finished, applying the same
+    /// upload gating as [`State::prefetch_step_facts`]: with presigned
+    /// uploads builders fetch inputs from the remote binary cache, so the
+    /// step only finishes once its outputs were uploaded there.
+    async fn revalidate_locally_valid_step(
+        &self,
+        step: Arc<Step>,
+        drv_path: &StorePath,
+        finished_drvs: &parking_lot::RwLock<HashSet<StorePath>>,
+    ) -> CreateStepResult {
+        let output_paths = step.get_output_paths().unwrap_or_default();
+        if let Some(missing) = self.query_missing_remote_outputs(output_paths).await
+            && !missing.is_empty()
+        {
+            let paths: Vec<StorePath> = missing.values().filter_map(Clone::clone).collect();
+            let gated = self.config.use_presigned_uploads();
+            if step.try_mark_upload_scheduled() {
+                let log_file = self.construct_log_file_path(drv_path).await;
+                self.uploader
+                    .schedule_upload(
+                        paths,
+                        format!("log/{drv_path}"),
+                        log_file,
+                        gated.then(|| drv_path.clone()),
+                    )
+                    .await;
+            }
+            if gated {
+                // Builders fetch inputs from the remote cache; the step
+                // stays unfinished until the upload completion event.
+                return CreateStepResult::Valid(step);
+            }
+            // Builders import inputs from the queue runner's local
+            // Local validity is enough; the upload only fills the cache.
+        }
+        finished_drvs.write().insert(drv_path.clone());
+        complete_step(&step);
+        CreateStepResult::None
+    }
+
+    /// IO phase of step creation: read the derivation, check local/remote
+    /// output validity, try substitutes and look up cached failures. Must
+    /// not mutate the step graph; that happens in [`attach_step`].
+    #[allow(clippy::too_many_lines)]
+    #[tracing::instrument(skip(self, build, pool), fields(build_id = build.id, %drv_path))]
+    async fn prefetch_step_facts(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+        pool: &Arc<daemon_client_utils::DaemonConnPool>,
+    ) -> Option<StepFacts> {
+        // Bound ingestion DB load. Released before create_step recurses, so it
+        // cannot deadlock. acquire() only fails on a closed semaphore.
+        let _permit = self.ingest_prefetch_sem.acquire().await.ok()?;
+
+        let Some(drv) = self.read_derivation(drv_path).await.ok() else {
+            tracing::warn!("create_step: could not query derivation {drv_path}, skipping");
+            return None;
+        };
+        if let Some(fod_checker) = &self.fod_checker {
+            fod_checker.add_ca_drv_parsed(drv_path, &drv);
+        }
+
+        self.observe_input_drvs(&drv);
+
+        let use_substitutes = self.config.get_use_substitutes();
+        let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
+            .outputs
+            .iter()
+            .map(|(name, output)| {
+                (
+                    name.clone(),
+                    output
+                        .path(self.connector.store_dir(), &drv.name, name)
+                        .ok()
+                        .flatten(),
+                )
+            })
+            .collect();
+        let missing_local_outputs = self
+            .missing_local_outputs(build, drv_path, &output_paths, pool)
+            .await;
+
+        // Handle paths that aren't in the remote store (for pushing).
+        let mut pending_upload: Option<Vec<StorePath>> = None;
+        let missing_outputs = match self
+            .query_missing_remote_outputs(output_paths.clone())
+            .await
+        {
+            Some(mut missing) => {
+                if !missing.is_empty() && missing_local_outputs.is_empty() {
+                    // We have all paths locally, so we can just upload them to
+                    // the remote store.
+                    let missing_paths: Vec<StorePath> =
+                        missing.values().filter_map(Clone::clone).collect();
+                    if self.config.use_presigned_uploads() {
+                        // Builders fetch their inputs from the remote cache, so
+                        // the step must not count as finished before the upload
+                        // completed. The caller schedules the upload when
+                        // attaching the step.
+                        pending_upload = Some(missing_paths);
+                    } else {
+                        // Builders import inputs from the queue runner's local
+                        // Local validity is enough; the upload only fills
+                        // the cache.
+                        let log_file = self.construct_log_file_path(drv_path).await;
+                        self.uploader
+                            .schedule_upload(
+                                missing_paths,
+                                format!("log/{drv_path}"),
+                                log_file,
+                                None,
+                            )
+                            .await;
+                    }
+                    missing.clear();
+                }
+                missing
+            }
+            None => {
+                // Without a remote store, just check the local store.
+                // Reuse missing_local_outputs which already includes None
+                // (CA floating) paths as missing.
+                missing_local_outputs.clone()
+            }
+        };
+
+        // Same lookup as `check_cached_failure`, but from the prefetched
+        // output paths so the step graph is not touched in this phase.
+        let previous_failure = match self.db.get().await {
+            Ok(mut conn) => conn
+                .check_if_paths_failed(
+                    self.connector.store_dir(),
+                    &output_paths.values().flatten().cloned().collect::<Vec<_>>(),
+                )
+                .await
+                .unwrap_or_default(),
+            Err(_) => false,
+        };
+        if previous_failure {
+            return Some(StepFacts {
+                drv,
+                availability: OutputAvailability::Incomplete,
+                previous_failure: true,
+            });
+        }
+
+        tracing::debug!("missing outputs: {missing_outputs:?}");
+        let finished = if !missing_outputs.is_empty() && use_substitutes {
+            self.substitute_missing_outputs(build, drv_path, missing_outputs)
+                .await
+        } else {
+            // CA floating outputs have None paths — they must be built.
+            missing_outputs.is_empty()
+        };
+
+        let availability = if let Some(paths) = pending_upload {
+            OutputAvailability::PendingUpload(paths)
+        } else if finished {
+            OutputAvailability::Complete
+        } else {
+            OutputAvailability::Incomplete
+        };
+        Some(StepFacts {
+            drv,
+            availability,
+            previous_failure: false,
+        })
+    }
+
+    /// Record the number of input derivations of `drv`, labelled by platform.
+    fn observe_input_drvs(&self, drv: &Derivation) {
         if let Ok(system_type) = std::str::from_utf8(&drv.platform) {
             #[allow(clippy::cast_precision_loss)]
             self.metrics.observe_build_input_drvs(
@@ -2348,220 +3055,154 @@ impl State {
                 system_type,
             );
         }
+    }
 
-        let use_substitutes = self.config.get_use_substitutes();
-        // TODO: check all remote stores
-        let remote_store: Option<binary_cache::S3BinaryCacheClient> = {
-            let r = self.remote_stores.read();
-            r.iter().find_map(|s| match s {
-                RemoteStoreBackend::S3(s) => Some(s.clone()),
-                RemoteStoreBackend::NixCopy(_) => None,
-            })
-        };
-        let output_paths: BTreeMap<OutputName, Option<StorePath>> = drv
-            .outputs
-            .iter()
-            .map(|(name, output)| {
-                (
-                    name.clone(),
-                    output
-                        .path(self.pool.store_dir(), &drv.name, name)
-                        .ok()
-                        .flatten(),
-                )
-            })
-            .collect();
+    /// Outputs of `drv_path` that are not valid in the local store, keyed by
+    /// output name. CA floating outputs (unknown path) always count as
+    /// missing. As a side effect, outputs that are valid but unknown to the
+    /// database get registered as local build steps.
+    async fn missing_local_outputs(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+        output_paths: &BTreeMap<OutputName, Option<StorePath>>,
+        pool: &Arc<daemon_client_utils::DaemonConnPool>,
+    ) -> BTreeMap<OutputName, Option<StorePath>> {
         let known_outputs = self
-            .query_known_drv_outputs(&drv_path)
+            .query_known_drv_outputs(drv_path)
             .await
             .unwrap_or_else(|e| {
                 tracing::warn!("Could not query known outputs, continuing: {e}");
                 BTreeMap::new()
             });
-        // Outputs with None paths (CA floating) are always missing —
-        // their path is unknown until the derivation is built.
-        let missing_local_outputs: BTreeMap<OutputName, Option<StorePath>> = {
-            let mut missing = BTreeMap::new();
-            for (name, path) in &output_paths {
-                match path {
-                    Some(path) => {
-                        if !daemon_client_utils::is_valid_path(&self.pool, path)
-                            .await
-                            .unwrap_or(false)
-                        {
-                            missing.insert(name.clone(), Some(path.clone()));
-                        }
-                    }
-                    None => {
-                        // CA floating: output path unknown, definitely missing
-                        missing.insert(name.clone(), None);
+        let mut conn = pool.acquire().await.ok();
+        let mut missing = BTreeMap::new();
+        for (name, path) in output_paths {
+            match path {
+                Some(path) => {
+                    let valid = match conn.as_mut() {
+                        Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
+                        None => false,
+                    };
+                    if !valid {
+                        missing.insert(name.clone(), Some(path.clone()));
                     }
                 }
+                None => {
+                    missing.insert(name.clone(), None);
+                }
             }
-            missing
-        };
-        // Handle paths that aren't in the database (for resolution)
-        // existing_local_outputs = output_paths - missing_local_outputs
-        // unregistered_local_outputs = existing_local_outputs - known_outputs
-        let unregistered_local_outputs = output_paths
+        }
+
+        // Register outputs that are valid locally but not yet in the database.
+        let unregistered = output_paths
             .iter()
             .filter(|(name, path)| {
-                path.is_some()
-                    && !missing_local_outputs.contains_key(name)
-                    && !known_outputs.contains_key(name)
+                path.is_some() && !missing.contains_key(name) && !known_outputs.contains_key(name)
             })
             .map(|(name, path)| (name.clone(), path.clone()))
             .collect::<BTreeMap<_, _>>();
-        if !unregistered_local_outputs.is_empty()
+        if !unregistered.is_empty()
             && let Err(e) = crate::utils::make_local_step(
                 &self.db,
-                self.pool.store_dir(),
+                self.connector.store_dir(),
                 build.id,
-                &drv_path,
-                &unregistered_local_outputs,
+                drv_path,
+                &unregistered,
             )
             .await
         {
             tracing::warn!("Failed to mark outputs as already found, continuing: {e}");
         }
+        missing
+    }
 
-        // Handle paths that aren't in the remote store (for pushing)
-        let missing_outputs = if let Some(ref remote_store) = remote_store {
-            let mut missing = remote_store
-                .query_missing_remote_outputs(output_paths.clone())
-                .await;
-            if !missing.is_empty() && missing_local_outputs.is_empty() {
-                // we have all paths locally, so we can just upload them to the remote_store
-                {
-                    let log_file = self.construct_log_file_path(&drv_path).await;
-                    let missing_paths: Vec<StorePath> =
-                        missing.values().filter_map(Clone::clone).collect();
-                    self.uploader
-                        .schedule_upload(missing_paths, format!("log/{drv_path}"), log_file)
-                        .await;
-                    missing.clear();
+    /// Try to fetch the still-missing outputs from the binary cache. Returns
+    /// whether every missing output was substituted.
+    async fn substitute_missing_outputs(
+        &self,
+        build: &Arc<Build>,
+        drv_path: &StorePath,
+        missing_outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> bool {
+        use futures::stream::StreamExt as _;
+
+        let remote_store = self.first_s3_remote_store();
+        let mut substituted = 0;
+        let missing_outputs_len = missing_outputs.len();
+        let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
+            self.metrics.nr_substitutes_started.inc();
+            crate::utils::substitute_output(
+                self.db.clone(),
+                &self.store,
+                self.connector.clone(),
+                o,
+                build.id,
+                drv_path,
+                remote_store.as_ref(),
+            )
+        })
+        .buffer_unordered(10);
+        while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
+            match v {
+                Ok(true) => {
+                    self.metrics.nr_substitutes_succeeded.inc();
+                    substituted += 1;
                 }
-            }
-            missing
-        } else {
-            // Without a remote store, just check the local store.
-            // Reuse missing_local_outputs which already includes None
-            // (CA floating) paths as missing.
-            missing_local_outputs.clone()
-        };
-
-        let input_drvs = drv::input_drvs(&drv);
-        step.set_drv(drv);
-
-        if self.check_cached_failure(step.clone()).await {
-            step.set_previous_failure(true);
-            return CreateStepResult::PreviousFailure(step);
-        }
-
-        tracing::debug!("missing outputs: {missing_outputs:?}");
-        let finished = if !missing_outputs.is_empty() && use_substitutes {
-            use futures::stream::StreamExt as _;
-
-            let mut substituted = 0;
-            let missing_outputs_len = missing_outputs.len();
-            let mut stream = futures::StreamExt::map(tokio_stream::iter(missing_outputs), |o| {
-                self.metrics.nr_substitutes_started.inc();
-                crate::utils::substitute_output(
-                    self.db.clone(),
-                    self.pool.clone(),
-                    o,
-                    build.id,
-                    &drv_path,
-                    remote_store.as_ref(),
-                )
-            })
-            .buffer_unordered(10);
-            while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
-                match v {
-                    Ok(v) if v => {
-                        self.metrics.nr_substitutes_succeeded.inc();
-                        substituted += 1;
-                    }
-                    Ok(_) => {
-                        self.metrics.nr_substitutes_failed.inc();
-                    }
-                    Err(e) => {
-                        self.metrics.nr_substitutes_failed.inc();
-                        tracing::warn!("Failed to substitute path: {e}");
-                    }
+                Ok(false) => {
+                    self.metrics.nr_substitutes_failed.inc();
                 }
-            }
-            substituted == missing_outputs_len
-        } else {
-            // CA floating outputs have None paths — they must be built.
-            missing_outputs.is_empty()
-        };
-
-        if finished {
-            tracing::info!("create_step: {drv_path} already finished (outputs in store), skipping");
-            if let Some(fod_checker) = &self.fod_checker {
-                fod_checker.to_traverse(&drv_path);
-            }
-
-            finished_drvs.write().insert(drv_path.clone());
-            step.set_finished(true);
-            return CreateStepResult::None;
-        }
-
-        tracing::debug!("creating build step '{drv_path}");
-
-        let step2 = step.clone();
-        let mut stream =
-            futures::StreamExt::map(tokio_stream::iter(input_drvs), |(input_path, relation)| {
-                let build = build.clone();
-                let step = step2.clone();
-                let finished_drvs = finished_drvs.clone();
-                let new_steps = new_steps.clone();
-                let new_runnable = new_runnable.clone();
-
-                async move {
-                    Box::pin(self.create_step(
-                        build,
-                        input_path,
-                        None,
-                        Some((step, relation)),
-                        finished_drvs,
-                        new_steps,
-                        new_runnable,
-                    ))
-                    .await
-                }
-            })
-            .buffered(25);
-        while let Some(result) = tokio_stream::StreamExt::next(&mut stream).await {
-            match result {
-                CreateStepResult::None => (),
-                CreateStepResult::Valid(dep) => {
-                    if !dep.get_finished() && !dep.get_previous_failure() {
-                        // finished can be true if a step was returned, that already exists in
-                        // self.steps and is currently being processed for completion
-                        step.add_dep(dep);
-                    }
-                }
-                CreateStepResult::PreviousFailure(step) => {
-                    return CreateStepResult::PreviousFailure(step);
+                Err(e) => {
+                    self.metrics.nr_substitutes_failed.inc();
+                    tracing::warn!("Failed to substitute path: {e}");
                 }
             }
         }
+        substituted == missing_outputs_len
+    }
 
-        {
-            step.atomic_state.set_created(true);
-            if step.get_deps_size() == 0 {
-                let mut new_runnable = new_runnable.write();
-                new_runnable.insert(step.clone());
-            }
-        }
+    /// A daemon connection pool scoped to one ingestion pass, bounding the
+    /// connect load that pass's store-validity reads put on the daemon.
+    fn read_pool(&self) -> Arc<daemon_client_utils::DaemonConnPool> {
+        daemon_client_utils::DaemonConnPool::new(self.store.clone(), MAX_DAEMON_READ_CONNS)
+    }
 
-        {
-            let mut new_steps = new_steps.write();
-            new_steps.insert(step.clone());
-        }
-        CreateStepResult::Valid(step)
+    /// Lock guarding build step inserts for a build, sharded by build id.
+    fn build_step_lock(&self, build_id: BuildID) -> &tokio::sync::Mutex<()> {
+        let idx = usize::try_from(build_id.unsigned_abs()).unwrap_or_default();
+        &self.build_step_locks[idx % BUILD_STEP_LOCK_SHARDS]
+    }
+
+    /// The first configured S3 remote store, if any. Several scheduling
+    /// paths only need a single S3 store to decide whether outputs already
+    /// live in the binary cache.
+    // TODO: check all remote stores
+    fn first_s3_remote_store(&self) -> Option<binary_cache::S3BinaryCacheClient> {
+        let r = self.remote_stores.read();
+        r.iter().find_map(|s| match s {
+            RemoteStoreBackend::S3(s) => Some((**s).clone()),
+            RemoteStoreBackend::NixCopy(_) => None,
+        })
+    }
+
+    /// Returns the subset of `output_paths` missing from the binary cache, or
+    /// `None` when no S3 store is configured.
+    ///
+    /// A narinfo lookup is issued for every output. We deliberately do not
+    /// trust the database's record of previously succeeded build steps: the
+    /// cache can garbage-collect a path that Hydra built earlier, and treating
+    /// such a path as present dispatches dependents whose inputs are then
+    /// unfetchable, failing them with a bare `DependencyFailed`.
+    async fn query_missing_remote_outputs(
+        &self,
+        output_paths: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> Option<BTreeMap<OutputName, Option<StorePath>>> {
+        let remote_store = self.first_s3_remote_store()?;
+        Some(
+            remote_store
+                .query_missing_remote_outputs(output_paths)
+                .await,
+        )
     }
 
     #[tracing::instrument(skip(self))]
@@ -2571,13 +3212,13 @@ impl State {
     ) -> Result<BTreeMap<OutputName, StorePath>, db::Error> {
         let mut db = self.db.get().await?;
         let mut tx = db.begin_transaction().await?;
-        tx.find_build_step_outputs(self.pool.store_dir(), drv_path)
+        tx.find_build_step_outputs(self.connector.store_dir(), drv_path)
             .await
     }
 
     #[tracing::instrument(skip(self, step), ret, level = "debug")]
     async fn check_cached_failure(&self, step: Arc<Step>) -> bool {
-        let Some(drv_outputs) = step.get_output_paths(self.pool.store_dir()) else {
+        let Some(drv_outputs) = step.get_output_paths() else {
             return false;
         };
 
@@ -2586,7 +3227,7 @@ impl State {
         };
 
         conn.check_if_paths_failed(
-            self.pool.store_dir(),
+            self.connector.store_dir(),
             &drv_outputs.values().flatten().cloned().collect::<Vec<_>>(),
         )
         .await
@@ -2598,23 +3239,26 @@ impl State {
         let res = self.get_build_output_cached(&build.drv_path).await?;
 
         {
-            let mut db = self.db.get().await?;
-            let mut tx = db.begin_transaction().await?;
-
             tracing::info!("marking build {} as succeeded (cached)", build.id);
-            let now = jiff::Timestamp::now().as_second();
-            tx.mark_succeeded_build(
-                get_mark_build_sccuess_data(&build, &res),
-                true,
-                i32::try_from(now)?, // TODO
-                i32::try_from(now)?, // TODO
-                self.pool.store_dir(),
-            )
+            let now = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
+            crate::utils::with_serialization_retry("handle_cached_build", || async {
+                let mut db = self.db.get().await?;
+                let mut tx = db.begin_transaction().await?;
+
+                tx.mark_succeeded_build(
+                    get_mark_build_sccuess_data(&build, &res),
+                    true,
+                    now,
+                    now,
+                    self.connector.store_dir(),
+                )
+                .await?;
+
+                tx.notify_build_finished(build.id, &[]).await?;
+                Ok(tx.commit().await?)
+            })
             .await?;
             self.metrics.nr_builds_done.inc();
-
-            tx.notify_build_finished(build.id, &[]).await?;
-            tx.commit().await?;
         }
         build.set_finished_in_db(true);
 
@@ -2635,7 +3279,7 @@ impl State {
                 (
                     name.clone(),
                     output
-                        .path(self.pool.store_dir(), &drv.name, name)
+                        .path(self.connector.store_dir(), &drv.name, name)
                         .ok()
                         .flatten(),
                 )
@@ -2648,7 +3292,7 @@ impl State {
                     continue;
                 };
                 let Some(db_build_output) = db
-                    .get_build_output_for_path(self.pool.store_dir(), out_path)
+                    .get_build_output_for_path(self.connector.store_dir(), out_path)
                     .await?
                 else {
                     continue;
@@ -2659,7 +3303,7 @@ impl State {
                 };
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id, self.pool.store_dir())
+                    .get_build_products_for_build_id(build_id, self.connector.store_dir())
                     .await?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)
@@ -2671,9 +3315,24 @@ impl State {
             }
         }
 
-        let default_store: std::path::PathBuf = self.pool.store_dir().to_string().into();
-        let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
-        let build_output = BuildOutput::new(&self.pool, real_dir, output_paths).await?;
+        // BuildOutput::new reads nix-support files from the local store. For a
+        // cached build the outputs may only exist in the binary cache, so read
+        // them by streaming each output's NAR from the cache instead of
+        // substituting the full closure into the local store (which fills the
+        // disk). Fall back to the local store only when no S3 cache is
+        // configured.
+        let build_output = if let Some(store) = self.first_s3_remote_store() {
+            Box::pin(cached_output::build_output_from_cache(
+                &store,
+                self.connector.store_dir(),
+                &output_paths,
+            ))
+            .await?
+        } else {
+            let default_store: std::path::PathBuf = self.connector.store_dir().to_string().into();
+            let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);
+            BuildOutput::new(&self.store, &self.connector, real_dir, output_paths).await?
+        };
 
         if let Ok(platform) = std::str::from_utf8(&drv.platform) {
             #[allow(clippy::cast_precision_loss)]
@@ -2684,13 +3343,19 @@ impl State {
         Ok(build_output)
     }
 
-    #[allow(unused)]
-    fn add_root(&self, store_path: &StorePath) -> std::io::Result<()> {
-        let roots_dir = self.config.get_roots_dir();
-        // Inline filesystem symlink for GC roots
-        let link_path = roots_dir.join(store_path.to_string());
-        let store_path_full = format!("{}/{store_path}", self.pool.store_dir());
-        fs_err::os::unix::fs::symlink(&store_path_full, &link_path)
+    /// Create a persistent, GC-safe root for `store_path` via the daemon's
+    /// addPermRoot: it pins the path with a temp root (synchronising with a
+    /// running GC over the socket), writes the symlink atomically and
+    /// registers it as an indirect root, all under the daemon's GC lock.
+    async fn add_root(&self, store_path: &StorePath) -> Result<(), StateError> {
+        let link_path = self.config.get_roots_dir().join(store_path.to_string());
+        let gc_root = bytes::Bytes::copy_from_slice(link_path.as_os_str().as_bytes());
+        self.connector
+            .connect()
+            .await?
+            .add_perm_root(store_path, &gc_root)
+            .await?;
+        Ok(())
     }
 
     async fn abort_unsupported(&self) {
@@ -2763,5 +3428,142 @@ impl State {
         self.metrics
             .nr_unsupported_steps_aborted
             .inc_by(aborted.len() as u64);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    fn drv_path(name: &str) -> StorePath {
+        StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
+    }
+
+    /// A parent step and its dep, registered like `create_step` does it:
+    /// the child carries the parent as rdep before the parent attaches.
+    fn parent_and_child(steps: &Steps) -> (Arc<Step>, Arc<Step>) {
+        let (parent, _) = steps.create(&drv_path("parent"), None, None);
+        let (child, _) = steps.create(
+            &drv_path("child"),
+            None,
+            Some((&parent, drv::OutputNameChain::default())),
+        );
+        (parent, child)
+    }
+
+    /// Regression test for a lost wakeup: the dep finishes and runs its
+    /// `make_rdeps_runnable` pass between prefetch and attach. The parent
+    /// must still come out runnable instead of keeping a finished dep.
+    #[test]
+    fn attach_skips_dep_that_finished_after_prefetch() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        child.set_finished(true);
+        child.make_rdeps_runnable();
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert_eq!(parent.get_deps_size(), 0);
+        assert!(new_runnable.contains(&parent));
+    }
+
+    #[test]
+    fn dep_finishing_after_attach_wakes_parent() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert!(new_runnable.is_empty());
+        assert!(!parent.get_runnable());
+        assert_eq!(parent.get_deps_size(), 1);
+
+        child.set_finished(true);
+        child.make_rdeps_runnable();
+        assert_eq!(parent.get_deps_size(), 0);
+        assert!(parent.get_runnable());
+    }
+
+    /// Regression test for premature dispatch: a dep whose outputs are
+    /// valid locally but
+    /// missing in the remote binary cache must keep its rdeps blocked until
+    /// the upload completion event, and must not be dispatchable itself.
+    #[test]
+    fn pending_upload_gates_parent_until_upload_completes() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        let outcome = attach_step(
+            &child,
+            OutputAvailability::PendingUpload(Vec::new()),
+            false,
+            Vec::new(),
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::PendingUpload(_)));
+        assert!(!child.get_finished());
+        assert!(new_runnable.is_empty());
+
+        let outcome = attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Attached));
+        assert!(new_runnable.is_empty());
+        assert!(!parent.get_runnable());
+
+        // Upload completion event.
+        complete_step(&child);
+        assert!(child.get_finished());
+        assert!(parent.get_runnable());
+    }
+
+    /// A step revalidating as complete must wake rdeps that already wait on
+    /// it; the old revalidation path never called `make_rdeps_runnable`.
+    #[test]
+    fn complete_step_wakes_existing_rdeps() {
+        let steps = Steps::new();
+        let (parent, child) = parent_and_child(&steps);
+
+        let mut new_runnable = HashSet::new();
+        attach_step(
+            &parent,
+            OutputAvailability::Incomplete,
+            false,
+            vec![child.clone()],
+            &mut new_runnable,
+        );
+        assert!(!parent.get_runnable());
+
+        let outcome = attach_step(
+            &child,
+            OutputAvailability::Complete,
+            false,
+            Vec::new(),
+            &mut new_runnable,
+        );
+        assert!(matches!(outcome, AttachOutcome::Finished));
+        assert!(parent.get_runnable());
     }
 }

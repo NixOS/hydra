@@ -41,6 +41,7 @@ fn start_task_loops(state: &std::sync::Arc<State>) -> Vec<tokio::task::AbortHand
         spawn_config_reloader(state.clone(), state.config.clone(), &state.cli.config_path),
         state.clone().start_dispatch_loop(),
         state.clone().start_uploader_queue(),
+        state.clone().start_upload_completion_loop(),
     ];
     if !state.cli.disable_queue_monitor_loop {
         service_list.push(state.clone().start_queue_monitor_loop());
@@ -93,7 +94,7 @@ async fn main() -> color_eyre::Result<()> {
         }));
     }
 
-    let state = State::new().await?;
+    let state = Box::pin(State::new()).await?;
 
     let lockfile_path = state.config.get_lockfile();
     let _lock = lock_file::LockFile::acquire(&lockfile_path)

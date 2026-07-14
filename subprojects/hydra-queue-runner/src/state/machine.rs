@@ -388,11 +388,29 @@ impl Machines {
         let Some(system) = s.get_system() else {
             return false;
         };
-        self.get_machine_for_system(&system, &s.get_required_features(), None)
+        let info = s.drv_info();
+        let required_features = info
+            .as_ref()
+            .map_or(&[][..], |i| i.required_features.as_slice());
+        self.get_machine_for_system(&system, required_features, None)
             .is_some()
     }
 
     #[tracing::instrument(skip(self, system))]
+    /// Whether any machine of this system has a free slot, ignoring
+    /// feature matching. Used as a cheap saturation probe by the dispatcher.
+    pub fn has_capacity_for_system(&self, system: &str, free_fn: MachineFreeFn) -> bool {
+        let inner = self.inner.read();
+        if system == "builtin" {
+            inner.by_uuid.values().any(|m| m.has_capacity(free_fn))
+        } else {
+            inner
+                .by_system
+                .get(system)
+                .is_some_and(|machines| machines.iter().any(|m| m.has_capacity(free_fn)))
+        }
+    }
+
     pub fn get_machine_for_system(
         &self,
         system: &str,
@@ -497,6 +515,7 @@ pub enum Message {
         build_id: uuid::Uuid,
         drv: StorePath,
         max_log_size: u64,
+        max_output_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
@@ -516,6 +535,7 @@ impl Message {
                 build_id,
                 drv,
                 max_log_size,
+                max_output_size,
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
@@ -524,6 +544,7 @@ impl Message {
                 build_id: build_id.to_string(),
                 drv: Some(hydra_proto::ProtoStorePath::from(drv)),
                 max_log_size,
+                max_output_size,
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
@@ -656,6 +677,7 @@ impl Machine {
         job: Job,
         effective_drv: StorePath,
         max_log_size: u64,
+        max_output_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
         presigned_url_opts: Option<PresignedUploadOpts>,
@@ -667,6 +689,7 @@ impl Machine {
                 build_id: job.internal_build_id,
                 drv,
                 max_log_size,
+                max_output_size,
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
@@ -737,27 +760,6 @@ impl Machine {
 
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
-        let now = jiff::Timestamp::now().as_second();
-        let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
-        let jobs_in_last_30s_count = self.stats.jobs_in_last_30s_count.load(Ordering::Relaxed);
-
-        // ensure that we dont submit more than 4 jobs in 30s
-        if now <= (jobs_in_last_30s_start + 30)
-            && jobs_in_last_30s_count >= 4
-            // ensure that we havent already finished some of them, because then its fine again
-            && self.stats.get_current_jobs() >= 4
-        {
-            return false;
-        } else if now > (jobs_in_last_30s_start + 30) {
-            // reset count
-            self.stats
-                .jobs_in_last_30s_start
-                .store(0, Ordering::Relaxed);
-            self.stats
-                .jobs_in_last_30s_count
-                .store(0, Ordering::Relaxed);
-        }
-
         if self.stats.get_build_dir_free_percent() < self.build_dir_avail_threshold {
             return false;
         }
@@ -832,6 +834,11 @@ impl Machine {
         jobs.iter()
             .find(|j| &j.path == drv)
             .map(|v| v.internal_build_id)
+    }
+
+    #[tracing::instrument(skip(self), fields(%drv))]
+    pub fn get_job(&self, drv: &StorePath) -> Option<Job> {
+        self.jobs.read().iter().find(|j| &j.path == drv).cloned()
     }
 
     #[tracing::instrument(skip(self, job))]

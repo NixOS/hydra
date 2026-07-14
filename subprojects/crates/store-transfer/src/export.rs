@@ -12,7 +12,7 @@ use harmonia_store_path_info::UnkeyedValidPathInfo;
 /// The `infos` map must contain an entry for every path. Paths
 /// missing from the map are skipped.
 pub async fn export(
-    guard: &mut harmonia_store_remote::PooledConnectionGuard,
+    client: &mut daemon_client_utils::DaemonConn,
     paths: &[StorePath],
     infos: &hashbrown::HashMap<StorePath, UnkeyedValidPathInfo>,
     tx: &tokio::sync::mpsc::UnboundedSender<Result<hydra_proto::AddToStoreRequest, tonic::Status>>,
@@ -82,7 +82,7 @@ pub async fn export(
 
         let mut bytes_written: u64 = 0;
         use harmonia_protocol::types::DaemonStore;
-        let mut nar_reader = guard.client().nar_from_path(path).await?;
+        let mut nar_reader = client.nar_from_path(path).await?;
         loop {
             let buf = nar_reader.fill_buf().await?;
             if buf.is_empty() {

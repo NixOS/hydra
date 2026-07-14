@@ -20,8 +20,9 @@ pub struct Build {
     pub jobset_id: JobsetID,
     pub name: String,
     pub timestamp: jiff::Timestamp,
-    pub max_silent_time: i32,
-    pub timeout: i32,
+    // meta.maxSilent/meta.timeout; None falls back to the queue-runner defaults.
+    pub max_silent_time: Option<i32>,
+    pub timeout: Option<i32>,
     pub local_priority: i32,
     pub global_priority: AtomicI32,
 
@@ -57,8 +58,8 @@ impl Build {
             jobset_id: JobsetID::MAX,
             name: "debug".into(),
             timestamp: jiff::Timestamp::now(),
-            max_silent_time: i32::MAX,
-            timeout: i32::MAX,
+            max_silent_time: Some(i32::MAX),
+            timeout: Some(i32::MAX),
             local_priority: 1000,
             global_priority: 1000.into(),
             toplevel: arc_swap::ArcSwapOption::from(None),
@@ -76,8 +77,8 @@ impl Build {
             jobset_id: v.jobset_id,
             name: v.job,
             timestamp: jiff::Timestamp::from_second(v.timestamp)?,
-            max_silent_time: v.maxsilent.unwrap_or(3600),
-            timeout: v.timeout.unwrap_or(36000),
+            max_silent_time: v.maxsilent,
+            timeout: v.timeout,
             local_priority: v.priority,
             global_priority: v.globalpriority.into(),
             toplevel: arc_swap::ArcSwapOption::from(None),
@@ -147,7 +148,7 @@ impl Build {
             );
             step.add_jobset(self.jobset.clone());
             for dep in step.get_all_deps_not_queued(&queued) {
-                queued.insert(dep.clone());
+                queued.insert(super::step::ByPtr(dep.clone()));
                 todo.push_back(dep);
             }
         }
@@ -233,12 +234,26 @@ impl RemoteBuild {
             hydra_proto::BuildResultState::BuildFailure => {
                 self.can_retry = false;
             }
+            hydra_proto::BuildResultState::TimedOutFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::TimedOut;
+            }
+            hydra_proto::BuildResultState::LogLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::LogLimitExceeded;
+            }
+            hydra_proto::BuildResultState::NarSizeLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::NarSizeLimitExceeded;
+            }
             hydra_proto::BuildResultState::Success => (),
             hydra_proto::BuildResultState::PreparingFailure
             | hydra_proto::BuildResultState::ImportFailure
             | hydra_proto::BuildResultState::UploadFailure
             | hydra_proto::BuildResultState::PostProcessingFailure => {
                 self.can_retry = true;
+                // Retryable: only genuine build failures are recorded as Failed.
+                self.step_status = BuildStatus::Aborted;
             }
         }
     }
@@ -447,9 +462,10 @@ impl BuildOutput {
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(store, real_store_dir, outputs), err)]
+    #[tracing::instrument(skip(store, connector, real_store_dir, outputs), err)]
     pub async fn new(
-        store: &harmonia_store_remote::ConnectionPool,
+        store: &daemon_client_utils::DaemonStoreReader,
+        connector: &daemon_client_utils::DaemonConnector,
         real_store_dir: &std::path::Path,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> Result<Self, BuildOutputError> {
@@ -457,18 +473,19 @@ impl BuildOutput {
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
+        // Reuse one daemon connection across both query loops below.
+        let mut conn = store.connect().await?;
         let mut pathinfos = BTreeMap::new();
         for path in resolved.values() {
-            if let Some(info) = daemon_client_utils::query_path_info(store, path).await? {
-                pathinfos.insert(path.clone(), info);
+            if let Some(info) = daemon_client_utils::query_path_info(&mut conn, path).await? {
+                pathinfos.insert(path.clone(), info.info);
             }
         }
         let fs = nix_support::FilesystemOperations {
             real_store_dir: real_store_dir.to_owned(),
         };
         let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
-            store.store_dir(),
-            real_store_dir,
+            connector.store_dir(),
             &fs,
             &resolved,
         ))
@@ -485,7 +502,7 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += daemon_client_utils::compute_closure_size(store, &path).await;
+                closure_size += daemon_client_utils::compute_closure_size(&mut conn, &path).await;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }
@@ -591,5 +608,70 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn propagate_priorities_visits_shared_diamond_dep() {
+        use crate::state::step::Steps;
+
+        fn drv(name: &str) -> StorePath {
+            StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+                .unwrap()
+        }
+
+        // Diamond: bottom is reachable from two parents, so the walk hits it
+        // twice and must still apply the priority.
+        let steps = Steps::new();
+        let (top, _) = steps.create(&drv("top"), None, None);
+        let (left, _) = steps.create(&drv("left"), None, None);
+        let (right, _) = steps.create(&drv("right"), None, None);
+        let (bottom, _) = steps.create(&drv("bottom"), None, None);
+        let (bottom_again, is_new) = steps.create(&drv("bottom"), None, None);
+        assert!(!is_new, "bottom must be the same shared allocation");
+        assert!(Arc::ptr_eq(&bottom, &bottom_again));
+
+        top.add_dep(left.clone());
+        top.add_dep(right.clone());
+        left.add_dep(bottom.clone());
+        right.add_dep(bottom.clone());
+
+        let build = Build::new_debug(&drv("top"));
+        build.set_toplevel_step(top.clone());
+        build.propagate_priorities();
+
+        let prio = build.global_priority.load(Ordering::Relaxed);
+        assert!(prio > 0);
+        for step in [&top, &left, &right, &bottom] {
+            assert_eq!(
+                step.atomic_state
+                    .highest_global_priority
+                    .load(Ordering::Relaxed),
+                prio,
+                "step {} not propagated",
+                step.get_drv_path()
+            );
+        }
+    }
+
+    #[test]
+    fn transient_completed_failures_are_recorded_as_aborted() {
+        for state in [
+            hydra_proto::BuildResultState::PreparingFailure,
+            hydra_proto::BuildResultState::ImportFailure,
+            hydra_proto::BuildResultState::UploadFailure,
+            hydra_proto::BuildResultState::PostProcessingFailure,
+        ] {
+            let mut result = RemoteBuild::new();
+            result.step_status = BuildStatus::Failed;
+            result.update_with_result_state(BuildResultState::Completed(state));
+            assert!(result.can_retry);
+            assert_eq!(result.step_status, BuildStatus::Aborted, "{state:?}");
+        }
     }
 }

@@ -22,3 +22,5 @@
 <link rel="stylesheet" [% HTML.attributes(href => c.uri_for("/static/css/tree.css")) %] type="text/css" />
 
 <script type="text/javascript" src="[% c.uri_for("/static/js/common.js") %]"></script>
+
+<script type="text/javascript" src="[% c.uri_for("/static/js/ansi_up.js") %]"></script>

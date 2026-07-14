@@ -186,6 +186,18 @@ const fn default_enable_fod_checker() -> bool {
     false
 }
 
+const fn default_max_silent_time() -> i32 {
+    3600
+}
+
+const fn default_build_timeout() -> i32 {
+    36000
+}
+
+const fn default_max_log_size() -> u64 {
+    64 << 20 // 64 MiB
+}
+
 #[derive(Debug, Default, serde::Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum MachineSortFn {
     SpeedFactorOnly,
@@ -207,6 +219,7 @@ pub enum StepSortFn {
     Legacy,
     #[default]
     WithRdeps,
+    WithCriticalPath,
 }
 
 /// Main configuration of the application
@@ -277,6 +290,26 @@ struct AppConfig {
     #[serde(default)]
     use_presigned_uploads: bool,
 
+    // Per-output NAR size limit in bytes; builds whose output exceeds it fail
+    // with NarSizeLimitExceeded. 0 (default) disables the check.
+    #[serde(default)]
+    max_output_size: u64,
+
+    // Default maximum silent time in seconds for builds without
+    // meta.maxSilent. Also used as a floor for dependency-only steps.
+    #[serde(default = "default_max_silent_time")]
+    max_silent_time: i32,
+
+    // Default build timeout in seconds for builds without meta.timeout.
+    // Also used as a floor for dependency-only steps.
+    #[serde(default = "default_build_timeout")]
+    build_timeout: i32,
+
+    // Maximum build log size in bytes before a build fails with
+    // LogLimitExceeded.
+    #[serde(default = "default_max_log_size")]
+    max_log_size: u64,
+
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -308,6 +341,10 @@ pub struct PreparedApp {
     token_list: Option<Vec<String>>,
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
+    pub max_output_size: u64,
+    pub max_silent_time: i32,
+    pub build_timeout: i32,
+    pub max_log_size: u64,
     pub forced_substituters: Vec<String>,
 }
 
@@ -404,6 +441,10 @@ impl TryFrom<AppConfig> for PreparedApp {
             token_list,
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
+            max_output_size: val.max_output_size,
+            max_silent_time: val.max_silent_time,
+            build_timeout: val.build_timeout,
+            max_log_size: val.max_log_size,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -500,6 +541,30 @@ impl App {
     pub fn use_presigned_uploads(&self) -> bool {
         let inner = self.inner.load();
         inner.use_presigned_uploads
+    }
+
+    #[must_use]
+    pub fn max_output_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_output_size
+    }
+
+    #[must_use]
+    pub fn max_silent_time(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.max_silent_time
+    }
+
+    #[must_use]
+    pub fn build_timeout(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.build_timeout
+    }
+
+    #[must_use]
+    pub fn max_log_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_log_size
     }
 
     #[must_use]

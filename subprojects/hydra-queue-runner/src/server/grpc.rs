@@ -19,11 +19,27 @@ use tracing::Instrument as _;
 use crate::state::{Machine, MachineMessage, State};
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
-    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, PROTO_API_VERSION,
-    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StepUpdate, VersionCheckRequest, VersionCheckResponse, builder_request,
+    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, MultipartPartsRequest,
+    MultipartPartsResponse, PROTO_API_VERSION, PresignedUploadComplete, PresignedUrlRequest,
+    PresignedUrlResponse, RunnerRequest, SimplePingMessage, StepUpdate, VersionCheckRequest,
+    VersionCheckResponse, builder_request,
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
+
+fn multipart_to_proto(mp: binary_cache::PresignedMultipart) -> hydra_proto::MultipartUpload {
+    hydra_proto::MultipartUpload {
+        upload_id: mp.upload_id,
+        part_size: mp.part_size,
+        parts: mp
+            .parts
+            .into_iter()
+            .map(|p| hydra_proto::MultipartPart {
+                part_number: p.part_number,
+                url: p.url,
+            })
+            .collect(),
+    }
+}
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
@@ -217,7 +233,7 @@ impl RunnerService for Server {
             }));
         }
 
-        let our_store_dir = self.state.pool.store_dir().to_string();
+        let our_store_dir = self.state.connector.store_dir().to_string();
         if req.store_dir != our_store_dir {
             return Err(tonic::Status::failed_precondition(format!(
                 "Store dir mismatch: builder has `{}`, server has `{}`",
@@ -402,13 +418,13 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<tonic::Streaming<hydra_proto::AddToStoreRequest>>,
     ) -> BuilderResult<hydra_proto::Empty> {
-        let mut guard = self
+        let mut conn = self
             .state
-            .pool
-            .acquire()
+            .connector
+            .connect()
             .await
             .map_err(|e| tonic::Status::internal(format!("daemon connection failed: {e}")))?;
-        store_transfer::import::import(&mut guard, req.into_inner())
+        store_transfer::import::import(&mut conn, req.into_inner())
             .await
             .map_err(|e| tonic::Status::internal(format!("import error: {e}")))?;
         Ok(tonic::Response::new(hydra_proto::Empty {}))
@@ -469,42 +485,33 @@ impl RunnerService for Server {
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
-        tokio::spawn({
-            async move {
-                if req.result_state() == hydra_proto::BuildResultState::Success {
-                    let build_output = match crate::state::BuildOutput::from_grpc(req) {
-                        Ok(output) => output,
-                        Err(e) => {
-                            tracing::error!("Failed to parse build output: {e}");
-                            return;
-                        }
-                    };
-                    if let Err(e) = state
-                        .succeed_step_by_uuid(build_id, machine_id, build_output)
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to mark step with build_id={build_id} as done: {e}"
-                        );
-                    }
-                } else if let Err(e) = state
-                    .fail_step_by_uuid(
-                        build_id,
-                        machine_id,
-                        req.result_state().into(),
-                        crate::state::BuildTimings::new(
-                            req.import_time_ms,
-                            req.build_time_ms,
-                            req.upload_time_ms,
-                        ),
-                    )
-                    .await
-                {
-                    tracing::error!("Failed to fail step with build_id={build_id}: {e}");
-                }
-            }
-            .in_current_span()
-        });
+        // Finalize inline and propagate failure: remove_job must run to free
+        // the machine slot, so a failed finalize has to reach the builder
+        // (which retries complete_build) rather than being swallowed.
+        if req.result_state() == hydra_proto::BuildResultState::Success {
+            let build_output = crate::state::BuildOutput::from_grpc(req).map_err(|e| {
+                tonic::Status::invalid_argument(format!("invalid build output: {e}"))
+            })?;
+            state
+                .succeed_step_by_uuid(build_id, machine_id, build_output)
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        } else {
+            state
+                .fail_step_by_uuid(
+                    build_id,
+                    machine_id,
+                    req.result_state().into(),
+                    crate::state::BuildTimings::new(
+                        req.import_time_ms,
+                        req.build_time_ms,
+                        req.upload_time_ms,
+                    ),
+                    req.error_msg.clone(),
+                )
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        }
 
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
@@ -517,16 +524,17 @@ impl RunnerService for Server {
         let state = self.state.clone();
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
-        let requisites: Vec<ProtoStorePath> =
-            daemon_client_utils::query_closure(&state.pool, &paths)
-                .await
-                .map_err(|e| {
-                    tracing::error!("failed to compute closure e={e}");
-                    tonic::Status::internal("failed to compute closure.")
-                })?
-                .into_iter()
-                .map(|vpi| ProtoStorePath(vpi.path))
-                .collect();
+        let requisites: Vec<ProtoStorePath> = state
+            .store
+            .query_closure_infos(paths)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to compute closure e={e}");
+                tonic::Status::internal("failed to compute closure.")
+            })?
+            .into_iter()
+            .map(|vpi| ProtoStorePath(vpi.path))
+            .collect();
 
         Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
             requisites,
@@ -540,7 +548,9 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path: bool = daemon_client_utils::is_valid_path(&state.pool, &path)
+        let has_path: bool = state
+            .store
+            .is_valid_path(&path)
             .await
             .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
@@ -556,11 +566,19 @@ impl RunnerService for Server {
     ) -> BuilderResult<Self::FetchPathsStream> {
         let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
+        // Reuse one daemon connection for the whole path-info loop.
+        let mut conn = self
+            .state
+            .store
+            .connect()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connection: {e}")))?;
         let mut infos = hashbrown::HashMap::with_capacity(paths.len());
         for path in &paths {
-            let info = daemon_client_utils::query_path_info(&self.state.pool, path)
+            let info = daemon_client_utils::query_path_info(&mut conn, path)
                 .await
                 .map_err(|e| tonic::Status::internal(format!("query_path_info failed: {e}")))?
+                .map(|vpi| vpi.info)
                 .ok_or_else(|| tonic::Status::not_found(format!("path '{path}' is not valid")))?;
             infos.insert(path.clone(), info);
         }
@@ -568,17 +586,16 @@ impl RunnerService for Server {
         let (tx, rx) = mpsc::unbounded_channel();
 
         tokio::spawn({
-            let pool = self.state.pool.clone();
+            let connector = self.state.connector.clone();
             async move {
-                let mut guard = match pool.acquire().await {
-                    Ok(g) => g,
+                let mut conn = match connector.connect().await {
+                    Ok(c) => c,
                     Err(e) => {
                         tracing::error!("export failed: daemon connection: {e}");
                         return;
                     }
                 };
-                if let Err(e) =
-                    store_transfer::export::export(&mut guard, &paths, &infos, &tx).await
+                if let Err(e) = store_transfer::export::export(&mut conn, &paths, &infos, &tx).await
                 {
                     tracing::error!("export failed: {e}");
                 }
@@ -603,20 +620,31 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<PresignedUrlRequest>,
     ) -> BuilderResult<PresignedUrlResponse> {
-        let _state = self.state.clone();
+        let state = self.state.clone();
         let req = req.into_inner();
 
-        let _build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
+        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
             tracing::error!("Failed to parse build_id into uuid: {e}");
             tonic::Status::invalid_argument("build_id is not a valid uuid.")
         })?;
-        let _machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
+        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
             tracing::error!("Failed to parse machine_id into uuid: {e}");
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
+        // Only a builder that owns a running job for this build may mint an
+        // upload URL, so a stale or reclaimed-from builder cannot publish
+        // outputs for a step it no longer owns.
+        let machine = state
+            .machines
+            .get_machine_by_id(machine_id)
+            .ok_or_else(|| tonic::Status::not_found("Machine not found"))?;
+        machine
+            .get_job_drv_for_build_id(build_id)
+            .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
+
         let remote_store = {
-            let remote_stores = _state.remote_stores.read();
+            let remote_stores = state.remote_stores.read();
             remote_stores
                 .iter()
                 .find_map(|s| match s {
@@ -626,10 +654,28 @@ impl RunnerService for Server {
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
+        let requests = req
+            .request
+            .into_iter()
+            .map(|r| StorePath::from_base_path(&r.store_path).map(|p| (p, r)))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
+
+        // Only mint upload URLs for paths missing from the remote cache.
+        // Presigning the whole closure makes the builder re-compress and
+        // re-PUT already-cached deps (glibc, gcc, …) on every build while it
+        // holds its build slot, which collapses throughput.
+        let missing: hashbrown::HashSet<StorePath> = remote_store
+            .query_missing_paths(requests.iter().map(|(p, _)| p.clone()).collect())
+            .await
+            .into_iter()
+            .collect();
+
         let mut responses = Vec::new();
-        for presigned_request in req.request {
-            let store_path = StorePath::from_base_path(&presigned_request.store_path)
-                .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
+        for (store_path, presigned_request) in requests {
+            if !missing.contains(&store_path) {
+                continue;
+            }
 
             let proto_hash = presigned_request
                 .nar_hash
@@ -644,6 +690,7 @@ impl RunnerService for Server {
                 .generate_nar_upload_presigned_url(
                     &store_path,
                     &nar_hash,
+                    presigned_request.nar_size,
                     presigned_request.debug_info_build_ids,
                 )
                 .await
@@ -664,6 +711,10 @@ impl RunnerService for Server {
                         .compression
                         .as_str()
                         .to_owned(),
+                    multipart: presigned_response
+                        .nar_upload
+                        .multipart
+                        .map(multipart_to_proto),
                 }),
                 ls_upload: presigned_response
                     .ls_upload
@@ -672,6 +723,7 @@ impl RunnerService for Server {
                         url: ls.url,
                         path: ls.path,
                         compression: ls.compression.as_str().to_owned(),
+                        multipart: None,
                     }),
                 debug_info_upload: presigned_response
                     .debug_info_upload
@@ -681,6 +733,7 @@ impl RunnerService for Server {
                         url: p.url,
                         path: p.path,
                         compression: p.compression.as_str().to_owned(),
+                        multipart: None,
                     })
                     .collect(),
             });
@@ -689,6 +742,56 @@ impl RunnerService for Server {
         tracing::debug!("Generated {} presigned URLs", responses.len());
         Ok(tonic::Response::new(PresignedUrlResponse {
             inner: responses,
+        }))
+    }
+
+    async fn request_multipart_parts(
+        &self,
+        req: tonic::Request<MultipartPartsRequest>,
+    ) -> BuilderResult<MultipartPartsResponse> {
+        let req = req.into_inner();
+
+        uuid::Uuid::parse_str(&req.build_id)
+            .map_err(|_| tonic::Status::invalid_argument("build_id is not a valid uuid."))?;
+        uuid::Uuid::parse_str(&req.machine_id)
+            .map_err(|_| tonic::Status::invalid_argument("machine_id is not a valid uuid."))?;
+        if req.num_parts == 0 {
+            return Err(tonic::Status::invalid_argument(
+                "num_parts must be positive",
+            ));
+        }
+
+        let remote_store = {
+            let remote_stores = self.state.remote_stores.read();
+            remote_stores
+                .iter()
+                .find_map(|s| match s {
+                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
+                })
+                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
+        };
+
+        let parts = remote_store
+            .presign_more_multipart_parts(
+                &req.object_key,
+                &req.upload_id,
+                req.start_part_number,
+                req.num_parts,
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to presign more multipart parts: {e}");
+                tonic::Status::internal("Failed to presign multipart parts")
+            })?;
+
+        Ok(tonic::Response::new(MultipartPartsResponse {
+            parts: parts
+                .into_iter()
+                .map(|p| hydra_proto::MultipartPart {
+                    part_number: p.part_number,
+                    url: p.url,
+                })
+                .collect(),
         }))
     }
 
@@ -743,10 +846,10 @@ impl RunnerService for Server {
             .try_into()
             .map_err(|e: hydra_proto::NarInfoConvertError| tonic::Status::invalid_argument(e.0))?;
 
-        if &narinfo.info.info.store_dir != self.state.pool.store_dir() {
+        if &narinfo.info.info.store_dir != self.state.connector.store_dir() {
             return Err(tonic::Status::invalid_argument(format!(
                 "store_dir mismatch: expected {}, got {}",
-                self.state.pool.store_dir(),
+                self.state.connector.store_dir(),
                 narinfo.info.info.store_dir
             )));
         }
@@ -754,7 +857,10 @@ impl RunnerService for Server {
         // The cache signs and formats narinfos with its own configured store
         // dir; for those signatures to match the uploaded paths it must agree
         // with the local store (the narinfo was just checked against it above).
-        debug_assert_eq!(&remote_store.cfg.store_dir, self.state.pool.store_dir());
+        debug_assert_eq!(
+            &remote_store.cfg.store_dir,
+            self.state.connector.store_dir()
+        );
 
         let store_path = narinfo.path.clone();
 
@@ -764,8 +870,64 @@ impl RunnerService for Server {
         let url = narinfo.info.url.clone();
         let size = narinfo.info.download_size;
 
+        // The content-addressed nar/<hash> object is written at most once
+        // (If-None-Match). The narinfo is always written, but it must describe
+        // the stored object: when the NAR was already present, its bytes are a
+        // different (equally valid) compression than this upload's, so the
+        // narinfo writer recomputes FileHash/FileSize from the object. For a
+        // single PUT the builder reports this; for multipart the conditional
+        // Complete here decides it.
+        let mut nar_already_present = req.nar_already_present;
+
+        // Multipart NAR objects only exist on S3 once finalised; do it here,
+        // before upload_narinfo_after_presigned_upload HEAD-checks the object.
+        if let Some(mp) = req.multipart {
+            let parts = mp
+                .parts
+                .into_iter()
+                .map(|p| binary_cache::CompletedPart {
+                    part_number: p.part_number,
+                    etag: p.etag,
+                })
+                .collect();
+            match remote_store
+                .complete_multipart_upload(&mp.object_key, &mp.upload_id, parts)
+                .await
+            {
+                Ok(binary_cache::WriteOutcome::Created) => {}
+                Ok(binary_cache::WriteOutcome::AlreadyExists) => {
+                    nar_already_present = true;
+                }
+                // CompleteMultipartUpload is not idempotent and must not be
+                // aborted: aborting frees the uploadId, so a builder retry would
+                // see 404 NoSuchUpload and never finalise. If the object is
+                // present the completion effectively succeeded (treat as
+                // already-present); otherwise return a retryable error so the
+                // builder retries with the same (still-live) uploadId.
+                Err(e) => {
+                    if remote_store
+                        .head_object(&mp.object_key)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        tracing::warn!(
+                            "complete_multipart_upload for {store_path} reported {e}, but the object is present; treating as already complete"
+                        );
+                        nar_already_present = true;
+                    } else {
+                        tracing::error!(
+                            "Failed to complete multipart upload for {store_path}: {e}"
+                        );
+                        return Err(tonic::Status::internal(
+                            "Failed to complete multipart upload",
+                        ));
+                    }
+                }
+            }
+        }
+
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(narinfo)
+            .upload_narinfo_after_presigned_upload(narinfo, nar_already_present)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);

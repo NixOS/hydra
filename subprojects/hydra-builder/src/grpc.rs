@@ -2,13 +2,30 @@ use crate::error::BuilderError;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use tonic::{Request, service::interceptor::InterceptedService, transport::Channel};
+use std::time::Duration;
 
+use tonic::{
+    Request,
+    service::interceptor::InterceptedService,
+    transport::{Channel, Endpoint},
+};
+
+use backon::RetryableWithContext as _;
 use harmonia_store_path::StorePath;
 use hydra_proto::{
-    BuilderRequest, VersionCheckRequest, builder_request, runner_request,
-    runner_service_client::RunnerServiceClient,
+    BuildResultInfo, BuilderRequest, PresignedUploadComplete, VersionCheckRequest, builder_request,
+    runner_request, runner_service_client::RunnerServiceClient,
 };
+
+const RETRY_MIN_DELAY: Duration = Duration::from_secs(3);
+const RETRY_MAX_DELAY: Duration = Duration::from_secs(90);
+
+fn retry_strategy() -> backon::ExponentialBuilder {
+    backon::ExponentialBuilder::default()
+        .with_jitter()
+        .with_min_delay(RETRY_MIN_DELAY)
+        .with_max_delay(RETRY_MAX_DELAY)
+}
 
 #[derive(Debug, Clone)]
 pub enum BuilderInterceptor {
@@ -49,38 +66,131 @@ impl std::ops::DerefMut for BuilderClient {
 }
 
 impl BuilderClient {
+    /// Retry a gRPC call across transient transport failures. The channel to
+    /// the queue runner is long-lived and proxied through nginx, which
+    /// periodically recycles HTTP/2 connections; a recycle racing an in-flight
+    /// request surfaces as a transport cancellation, so every RPC retries on a
+    /// fresh connection instead of failing the build.
+    async fn call_with_retry<T, F, Fut>(&self, what: &'static str, f: F) -> Result<T, tonic::Status>
+    where
+        F: FnMut(Self) -> Fut,
+        Fut: Future<Output = (Self, Result<T, tonic::Status>)>,
+    {
+        f.retry(retry_strategy())
+            .sleep(tokio::time::sleep)
+            .context(self.clone())
+            .notify(move |err: &tonic::Status, dur: Duration| {
+                tracing::warn!("{what} failed: err={err}, retrying in={dur:?}");
+            })
+            .await
+            .1
+    }
+
+    pub async fn complete_build(&self, body: BuildResultInfo) -> Result<(), tonic::Status> {
+        self.call_with_retry("complete_build", |mut client: Self| {
+            let body = body.clone();
+            async move {
+                let res = client.0.complete_build(body).await.map(|_| ());
+                (client, res)
+            }
+        })
+        .await
+    }
+
+    pub async fn notify_presigned_upload_complete(
+        &self,
+        msg: PresignedUploadComplete,
+    ) -> Result<(), tonic::Status> {
+        self.call_with_retry("notify_presigned_upload_complete", |mut client: Self| {
+            let msg = msg.clone();
+            async move {
+                let res = client
+                    .0
+                    .notify_presigned_upload_complete(msg)
+                    .await
+                    .map(|_| ());
+                (client, res)
+            }
+        })
+        .await
+    }
+
     #[tracing::instrument(skip(self, store_paths), err)]
     pub async fn request_presigned_urls(
-        &mut self,
+        &self,
         build_id: &str,
         machine_id: &str,
-        store_paths: Vec<(StorePath, harmonia_store_path_info::NarHash, Vec<String>)>,
+        store_paths: Vec<(
+            StorePath,
+            harmonia_store_path_info::NarHash,
+            u64,
+            Vec<String>,
+        )>,
     ) -> Result<Vec<hydra_proto::PresignedNarResponse>, BuilderError> {
         use hydra_proto::{PresignedNarRequest, PresignedUrlRequest};
 
         let request = store_paths
             .into_iter()
-            .map(|(path, nar_hash, build_ids)| {
+            .map(|(path, nar_hash, nar_size, build_ids)| {
                 let hash: harmonia_utils_hash::Hash = nar_hash.into();
                 PresignedNarRequest {
                     store_path: path.to_string(),
                     nar_hash: Some((&hash).into()),
                     debug_info_build_ids: build_ids,
+                    nar_size,
                 }
             })
             .collect::<Vec<_>>();
 
+        let req = PresignedUrlRequest {
+            build_id: build_id.to_owned(),
+            machine_id: machine_id.to_owned(),
+            request,
+        };
+
         let response = self
-            .request_presigned_url(PresignedUrlRequest {
-                build_id: build_id.to_owned(),
-                machine_id: machine_id.to_owned(),
-                request,
+            .call_with_retry("request_presigned_url", |mut client: Self| {
+                let req = req.clone();
+                async move {
+                    let res = client.0.request_presigned_url(req).await;
+                    (client, res)
+                }
             })
             .await
             .map_err(BuilderError::PresignedUrls)?;
 
         Ok(response.into_inner().inner)
     }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn request_multipart_parts(
+        &self,
+        req: hydra_proto::MultipartPartsRequest,
+    ) -> Result<Vec<hydra_proto::MultipartPart>, BuilderError> {
+        let response = self
+            .call_with_retry("request_multipart_parts", |mut client: Self| {
+                let req = req.clone();
+                async move {
+                    let res = client.0.request_multipart_parts(req).await;
+                    (client, res)
+                }
+            })
+            .await
+            .map_err(BuilderError::PresignedUrls)?;
+
+        Ok(response.into_inner().parts)
+    }
+}
+
+/// Apply HTTP/2 keepalive pings to the channel. The builder holds a single
+/// long-lived channel and the queue runner sits behind nginx, which recycles
+/// idle HTTP/2 connections; keepalive pings keep the connection healthy and let
+/// tonic notice a dropped connection promptly instead of stalling.
+fn configure_endpoint(endpoint: Endpoint) -> Endpoint {
+    endpoint
+        .http2_keep_alive_interval(Duration::from_secs(20))
+        .keep_alive_timeout(Duration::from_secs(20))
+        .keep_alive_while_idle(true)
 }
 
 #[tracing::instrument(err)]
@@ -105,19 +215,21 @@ pub async fn init_client(cli: &crate::config::Cli) -> Result<BuilderClient, Buil
             .ca_certificate(server_root_ca_cert)
             .identity(client_identity);
 
-        Channel::builder(
-            cli.gateway_endpoint
-                .parse()
-                .map_err(BuilderError::GatewayEndpoint)?,
+        configure_endpoint(
+            Channel::builder(
+                cli.gateway_endpoint
+                    .parse()
+                    .map_err(BuilderError::GatewayEndpoint)?,
+            )
+            .tls_config(tls)
+            .map_err(BuilderError::TlsConfig)?,
         )
-        .tls_config(tls)
-        .map_err(BuilderError::TlsConfig)?
         .connect()
         .await
         .map_err(BuilderError::Connection)?
     } else if let Some(path) = cli.gateway_endpoint.strip_prefix("unix://") {
         let path = path.to_owned();
-        tonic::transport::Endpoint::from_static("http://[::]:50051")
+        configure_endpoint(Endpoint::from_static("http://[::]:50051"))
             .connect_with_connector(tower::service_fn(move |_: tonic::transport::Uri| {
                 let path = path.clone();
                 async move {
@@ -137,22 +249,24 @@ pub async fn init_client(cli: &crate::config::Cli) -> Result<BuilderClient, Buil
         let tls = tonic::transport::ClientTlsConfig::new()
             .domain_name(uri.host().ok_or(BuilderError::GatewayMissingHost)?)
             .with_enabled_roots();
-        Channel::builder(
-            cli.gateway_endpoint
-                .parse()
-                .map_err(BuilderError::GatewayEndpoint)?,
+        configure_endpoint(
+            Channel::builder(
+                cli.gateway_endpoint
+                    .parse()
+                    .map_err(BuilderError::GatewayEndpoint)?,
+            )
+            .tls_config(tls)
+            .map_err(BuilderError::TlsConfig)?,
         )
-        .tls_config(tls)
-        .map_err(BuilderError::TlsConfig)?
         .connect()
         .await
         .map_err(BuilderError::Connection)?
     } else {
-        Channel::builder(
+        configure_endpoint(Channel::builder(
             cli.gateway_endpoint
                 .parse()
                 .map_err(BuilderError::GatewayEndpoint)?,
-        )
+        ))
         .connect()
         .await
         .map_err(BuilderError::Connection)?
@@ -251,7 +365,7 @@ pub async fn start_bidirectional_stream(
             message: Some(builder_request::Message::Join(join_msg))
         };
 
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(state.config.ping_interval));
+        let mut interval = tokio::time::interval(Duration::from_secs(state.config.ping_interval));
         loop {
             interval.tick().await;
 
