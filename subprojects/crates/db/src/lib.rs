@@ -22,6 +22,7 @@ use std::str::FromStr as _;
 pub use connection::{Connection, Transaction};
 pub use error::{DataError, Error, Result};
 pub use harmonia_store_path::StoreDir;
+pub use sqlx::postgres::PgNotification as Notification;
 
 /// Error that a serialization-failure retry can recognise.
 pub trait RetryableError {

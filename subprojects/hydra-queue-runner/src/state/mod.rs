@@ -1471,6 +1471,29 @@ impl State {
         task.abort_handle()
     }
 
+    async fn wait_for_queue_notification<E: std::fmt::Display>(
+        listener: &mut (impl futures::Stream<Item = Result<db::Notification, E>> + Unpin),
+        timeout: Option<std::time::Duration>,
+    ) -> Option<String> {
+        let next = listener.try_next();
+        let result = if let Some(timeout) = timeout {
+            tokio::select! {
+                () = tokio::time::sleep(timeout) => return Some("timer_reached".into()),
+                v = next => v,
+            }
+        } else {
+            next.await
+        };
+        match result {
+            Ok(Some(v)) => Some(v.channel().to_owned()),
+            Ok(None) => None,
+            Err(e) => {
+                tracing::warn!("PgListener failed with e={e}");
+                None
+            }
+        }
+    }
+
     #[tracing::instrument(skip(self), err)]
     async fn queue_monitor_loop(&self) -> Result<(), StateError> {
         let mut listener = self
@@ -1485,16 +1508,28 @@ impl State {
             ])
             .await?;
 
+        let mut consecutive_failures = 0u32;
         loop {
             let before_work = Instant::now();
             // no cache in daemon protocol
             let early_exit = match self.get_queued_builds().await {
                 Ok(early_exit) => early_exit,
                 Err(e) => {
-                    tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
+                    // Back off instead of retrying immediately: a persistent
+                    // failure would otherwise busy-loop, re-reading the whole
+                    // queue at full speed.
+                    consecutive_failures += 1;
+                    let backoff = std::time::Duration::from_secs(
+                        2u64.saturating_pow(consecutive_failures.min(6)),
+                    );
+                    tracing::error!(
+                        "get_queued_builds failed inside queue monitor loop (retrying in {backoff:?}): {e:?}"
+                    );
+                    tokio::time::sleep(backoff).await;
                     continue;
                 }
             };
+            consecutive_failures = 0;
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
@@ -1502,42 +1537,16 @@ impl State {
                 .inc_by(before_work.elapsed().as_micros() as u64);
 
             let before_sleep = Instant::now();
-            let queue_trigger_timer = self.config.get_queue_trigger_timer();
-            let notification = if early_exit {
+            let timeout = if early_exit {
                 // Short poll: process maybe pending notifications, then re-run immediately.
-                let short_poll = std::time::Duration::from_millis(100);
-                tokio::select! {
-                    () = tokio::time::sleep(short_poll) => {"timer_reached".into()},
-                    v = listener.try_next() => match v {
-                        Ok(Some(v)) => v.channel().to_owned(),
-                        Ok(None) => continue,
-                        Err(e) => {
-                            tracing::warn!("PgListener failed with e={e}");
-                            continue;
-                        }
-                    },
-                }
-            } else if let Some(timer) = queue_trigger_timer {
-                tokio::select! {
-                    () = tokio::time::sleep(timer) => {"timer_reached".into()},
-                    v = listener.try_next() => match v {
-                        Ok(Some(v)) => v.channel().to_owned(),
-                        Ok(None) => continue,
-                        Err(e) => {
-                            tracing::warn!("PgListener failed with e={e}");
-                            continue;
-                        }
-                    },
-                }
+                Some(std::time::Duration::from_millis(100))
             } else {
-                match listener.try_next().await {
-                    Ok(Some(v)) => v.channel().to_owned(),
-                    Ok(None) => continue,
-                    Err(e) => {
-                        tracing::warn!("PgListener failed with e={e}");
-                        continue;
-                    }
-                }
+                self.config.get_queue_trigger_timer()
+            };
+            let Some(notification) =
+                Self::wait_for_queue_notification(&mut listener, timeout).await
+            else {
+                continue;
             };
             self.metrics.nr_queue_wakeups.inc();
             tracing::trace!("New notification from PgListener. notification={notification:?}");
