@@ -1874,8 +1874,11 @@ impl State {
         item.machine
             .stats
             .track_build_success(output.timings, total_step_time);
-        self.metrics
-            .track_build_success(output.timings, total_step_time);
+        self.metrics.track_build_success(
+            output.timings,
+            total_step_time,
+            item.step_info.step.get_system().as_deref(),
+        );
 
         finish_build_step(
             &self.db,
@@ -2181,7 +2184,11 @@ impl State {
         item.machine
             .stats
             .track_build_failure(timings, total_step_time);
-        self.metrics.track_build_failure(timings, total_step_time);
+        self.metrics.track_build_failure(
+            timings,
+            total_step_time,
+            item.step_info.step.get_system().as_deref(),
+        );
 
         let (max_retries, retry_interval, retry_backoff) = self.config.get_retry();
 
