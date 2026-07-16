@@ -113,6 +113,11 @@ __PACKAGE__->table("buildsteps");
   data_type: 'boolean'
   is_nullable: 1
 
+=head2 resolveddrvpath
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -146,6 +151,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_nullable => 1 },
   "isnondeterministic",
   { data_type => "boolean", is_nullable => 1 },
+  "resolveddrvpath",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -215,8 +222,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-07-14 13:37:32
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5DXzz2Gtv1HyerfsgWKhdA
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-07-15 11:41:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BzGi6sOIZ8K602dlsYEiag
 
 my %hint = (
     columns => [
@@ -225,6 +232,7 @@ my %hint = (
         "stepnr",
         "drvpath",
         "starttime",
+        "resolveddrvpath",
     ],
     eager_relations => {
         build => 'id'
