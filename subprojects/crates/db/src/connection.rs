@@ -821,6 +821,21 @@ impl Transaction<'_> {
         .map_err(crate::Error::from)
     }
 
+    #[tracing::instrument(skip(self), err)]
+    pub async fn get_drv_path_from_build(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+    ) -> crate::Result<Option<StorePath>> {
+        sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
+            .fetch_optional(&mut *self.tx)
+            .await?
+            .map(|v| v.drvpath)
+            .map(|p| store_dir.parse(&p))
+            .transpose()
+            .map_err(crate::Error::from)
+    }
+
     #[tracing::instrument(skip(self, build_id), err)]
     pub async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> crate::Result<bool> {
         Ok(sqlx::query!(

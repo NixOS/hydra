@@ -27,6 +27,7 @@ if [ ! -f "$HYDRA_DATA/hydra.conf" ]; then
 # test-time instances likely don't want to bootstrap nixpkgs from scratch
 use-substitutes = true
 queue_runner_endpoint = http://localhost:$HYDRA_QUEUE_RUNNER_REST_PORT
+ws_endpoint = ws://localhost:$HYDRA_WS_PORT
 
 <hydra_notify>
   <prometheus>
