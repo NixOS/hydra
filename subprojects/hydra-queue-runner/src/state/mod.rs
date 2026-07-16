@@ -1508,16 +1508,28 @@ impl State {
             ])
             .await?;
 
+        let mut consecutive_failures = 0u32;
         loop {
             let before_work = Instant::now();
             // no cache in daemon protocol
             let early_exit = match self.get_queued_builds().await {
                 Ok(early_exit) => early_exit,
                 Err(e) => {
-                    tracing::error!("get_queue_builds failed inside queue monitor loop: {e}");
+                    // Back off instead of retrying immediately: a persistent
+                    // failure would otherwise busy-loop, re-reading the whole
+                    // queue at full speed.
+                    consecutive_failures += 1;
+                    let backoff = std::time::Duration::from_secs(
+                        2u64.saturating_pow(consecutive_failures.min(6)),
+                    );
+                    tracing::error!(
+                        "get_queued_builds failed inside queue monitor loop (retrying in {backoff:?}): {e:?}"
+                    );
+                    tokio::time::sleep(backoff).await;
                     continue;
                 }
             };
+            consecutive_failures = 0;
 
             #[allow(clippy::cast_possible_truncation)]
             self.metrics
