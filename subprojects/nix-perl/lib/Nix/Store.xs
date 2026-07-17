@@ -10,7 +10,7 @@
 #include "nix/store/realisation.hh"
 #include "nix/store/globals.hh"
 #include "nix/store/store-open.hh"
-#include "nix/util/source-accessor.hh"
+#include "nix/util/posix-source-accessor.hh"
 #include <nlohmann/json.hpp>
 
 using namespace nix;
@@ -146,7 +146,7 @@ SV *
 StoreWrapper::queryRawRealisation(char * outputId)
     PPCODE:
       try {
-        auto realisation = THIS->store->queryRealisation(DrvOutput::parse(*THIS->store, outputId));
+        auto realisation = THIS->store->queryRealisation(DrvOutput::parse(outputId));
         if (realisation)
             XPUSHs(sv_2mortal(newSVpv(static_cast<nlohmann::json>(*realisation).dump().c_str(), 0)));
         else
@@ -235,7 +235,7 @@ StoreWrapper::addToStore(char * srcPath, int recursive, char * algo)
             auto method = recursive ? ContentAddressMethod::Raw::NixArchive : ContentAddressMethod::Raw::Flat;
             auto path = THIS->store->addToStore(
                 std::string(baseNameOf(srcPath)),
-                {makeFSSourceAccessor(absPath(srcPath)), CanonPath::root},
+                PosixSourceAccessor::createAtRoot(srcPath),
                 method, parseHashAlgo(algo));
             XPUSHs(sv_2mortal(newSVpv(THIS->store->printStorePath(path).c_str(), 0)));
         } catch (Error & e) {
