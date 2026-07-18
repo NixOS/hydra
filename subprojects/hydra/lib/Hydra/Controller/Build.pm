@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::LogEndpoints;
 use File::Basename;
 use File::LibMagic;
 use File::stat;
@@ -116,6 +117,20 @@ sub build_GET {
 
     $c->stash->{steps} = [$build->buildsteps->search({}, {order_by => "stepnr desc"})];
 
+    $c->stash->{resolvedTerminals} = {};
+    my %chainCache;
+    for my $step (@{$c->stash->{steps}}) {
+        next unless defined $step->status && $step->status == 13 && $step->resolveddrvpath;
+        my ($terminal, $chain) = followResolvedChain($c, $step, \%chainCache);
+        next unless $terminal;
+        next if $terminal->get_column('build') == $step->get_column('build')
+                && $terminal->stepnr == $step->stepnr;
+        $c->stash->{resolvedTerminals}->{$step->stepnr} = {
+            terminal => $terminal,
+            chain    => $chain,
+        };
+    }
+
     $c->stash->{binaryCachePublicUri} = $c->config->{binary_cache_public_uri};
 }
 
@@ -133,17 +148,13 @@ sub constituents_GET {
 }
 
 
-sub view_nixlog : Chained('buildChain') PathPart('nixlog') {
+# Redirect old /build/:id/nixlog/:stepnr[/:mode] URLs to new canonical paths
+sub nixlog_redirect : Chained('buildChain') PathPart('nixlog') {
     my ($self, $c, $stepnr, $mode) = @_;
 
-    my $step = $c->stash->{build}->buildsteps->find({stepnr => $stepnr});
-    notFound($c, "Build doesn't have a build step $stepnr.") if !defined $step;
-
-    $c->stash->{step} = $step;
-
-    my $drvPath = $step->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
-    showLog($c, $mode, $log_uri);
+    my @path = ('/build', $c->stash->{id}, 'step', $stepnr, 'log');
+    push @path, $mode if defined $mode;
+    $c->res->redirect($c->uri_for(@path), 301);
 }
 
 
@@ -163,32 +174,6 @@ sub view_runcommandlog : Chained('buildChain') PathPart('runcommandlog') {
     showLog($c, $mode, $log_uri);
     $c->stash->{template} = 'runcommand-log.tt';
     $c->stash->{runcommandlog} = $c->stash->{build}->runcommandlogs->find({ uuid => $uuid });
-}
-
-
-sub showLog {
-    my ($c, $mode, $log_uri) = @_;
-    $mode //= "pretty";
-
-    if ($mode eq "pretty") {
-        $c->stash->{log_uri} = $log_uri;
-        $c->stash->{template} = 'log.tt';
-    }
-
-    elsif ($mode eq "raw") {
-        $c->res->redirect($log_uri);
-    }
-
-    elsif ($mode eq "tail") {
-        my $lines = 50;
-        $c->stash->{log_uri} = $log_uri . "?tail=$lines";
-        $c->stash->{tail} = $lines;
-        $c->stash->{template} = 'log.tt';
-    }
-
-    else {
-        error($c, "Unknown log display mode '$mode'.");
-    }
 }
 
 
@@ -592,6 +577,32 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     $c->stash->{json}->{drvPath} = $build->drvpath;
     my $out = getMainOutput($build);
     $c->stash->{json}->{outPath} = $out->path if defined $out;
+
+    my @resolved;
+    my %chainCache;
+    for my $step ($build->buildsteps->search({ status => 13 })) {
+        next unless $step->resolveddrvpath;
+        my ($terminal, $chain) = followResolvedChain($c, $step, \%chainCache);
+        my $entry = {
+            stepnr           => $step->stepnr,
+            resolvedDrvPath  => $step->resolveddrvpath,
+            chain            => $chain,
+        };
+        if ($terminal
+            && !($terminal->get_column('build') == $build->id
+                 && $terminal->stepnr == $step->stepnr))
+        {
+            $entry->{terminal} = {
+                buildId => $terminal->get_column('build'),
+                stepnr  => $terminal->stepnr,
+                status  => $terminal->status,
+                busy    => $terminal->busy,
+            };
+        }
+        push @resolved, $entry;
+    }
+    $c->stash->{json}->{resolvedSteps} = \@resolved if @resolved;
+
     $c->forward('View::JSON');
 }
 

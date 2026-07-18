@@ -8,6 +8,7 @@ use File::Basename;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Model::DB;
+use Nix::Config;
 use Nix::Store;
 use Encode;
 use Sys::Hostname::Long;
@@ -23,6 +24,8 @@ our @EXPORT = qw(
     cancelBuilds
     constructRunCommandLogPath
     findLog
+    findResolutionOrigins
+    followResolvedChain
     gcRootFor
     getBaseUrl
     getDrvLogPath
@@ -234,6 +237,100 @@ sub getMainOutput {
     return
         $build->buildoutputs->find({name => "out"}) //
         $build->buildoutputs->find({}, {limit => 1, order_by => ["name"]});
+}
+
+
+# Returns the terminal step and the resolveddrvpath basenames followed.
+# The terminal may still be Resolved when the chain dead-ends.
+sub followResolvedChain {
+    my ($c, $step, $cache) = @_;
+    return ($step, []) unless $step
+        && (($step->status // -1) == 13)
+        && $step->resolveddrvpath;
+    # Distinct resolved steps that share a resolveddrvpath produce identical
+    # chains; let callers thread a request-scoped cache to dedupe lookups.
+    my $cacheKey;
+    if ($cache) {
+        $cacheKey = $step->get_column('build') . ':' . $step->resolveddrvpath;
+        return @{ $cache->{$cacheKey} } if exists $cache->{$cacheKey};
+    }
+    my %seen;
+    my @chain;
+    my $cur = $step;
+    while ($cur && (($cur->status // -1) == 13) && $cur->resolveddrvpath) {
+        # Track source rows; distinct resolved steps may share a target.
+        my $rowKey = $cur->get_column('build') . ':' . $cur->stepnr;
+        last if $seen{$rowKey}++;
+        last if scalar @chain >= 32;
+        my $basename = $cur->resolveddrvpath;
+        # resolveddrvpath is a store-path basename, not a path.
+        last if $basename =~ m{/};
+        push @chain, $basename;
+        # Resolution hops stay within the build that requested the work.
+        my $next = $c->model('DB::BuildSteps')->search(
+            {
+                build   => $cur->get_column('build'),
+                drvpath => $Nix::Config::storeDir . "/" . $basename,
+            },
+            { order_by => [{ -asc => 'status' }, { -desc => 'stoptime' }],
+              rows     => 1,
+            }
+        )->single;
+        last unless $next;
+        $cur = $next;
+    }
+    $cache->{$cacheKey} = [$cur, \@chain] if $cache;
+    return ($cur, \@chain);
+}
+
+# Find every Resolved step whose resolution chain terminates at $drvpath.
+# Distinct origins can resolve to the same target; each gets its own chain
+# (hops from origin's own drv to $drvpath, oldest hop first).
+sub findResolutionOrigins {
+    my ($c, $build_id, $drvpath) = @_;
+    my $basename = File::Basename::basename($drvpath);
+    my @directs = $c->model('DB::BuildSteps')->search(
+        {
+            build           => $build_id,
+            status          => 13,
+            resolveddrvpath => $basename,
+        },
+        { order_by => [{ -asc => 'stepnr' }] }
+    )->all;
+    my @origins;
+    for my $direct (@directs) {
+        my @reverseRows = ($direct);
+        my %seen = ($direct->get_column('build') . ':' . $direct->stepnr => 1);
+        my $cursor = defined $direct->drvpath
+            ? File::Basename::basename($direct->drvpath)
+            : undef;
+        while (defined $cursor) {
+            last if scalar @reverseRows >= 32;
+            my $prev = $c->model('DB::BuildSteps')->search(
+                {
+                    build           => $build_id,
+                    status          => 13,
+                    resolveddrvpath => $cursor,
+                },
+                { order_by => [{ -desc => 'stepnr' }], rows => 1 }
+            )->single;
+            last unless $prev;
+            my $rowKey = $prev->get_column('build') . ':' . $prev->stepnr;
+            last if $seen{$rowKey}++;
+            push @reverseRows, $prev;
+            my $prevDrv = $prev->drvpath;
+            last unless defined $prevDrv;
+            $cursor = File::Basename::basename($prevDrv);
+        }
+        my $origin = $reverseRows[-1];
+        my @forwardChain = map { $_->resolveddrvpath } reverse @reverseRows;
+        push @origins, {
+            origin      => $origin,
+            chain       => \@forwardChain,
+            origDrvPath => $origin->drvpath,
+        };
+    }
+    return \@origins;
 }
 
 
