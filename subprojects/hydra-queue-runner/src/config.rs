@@ -357,6 +357,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             .into_iter()
             .filter(|v| {
                 v.starts_with("file://")
+                    || v.starts_with("https://")
                     || v.starts_with("s3://")
                     || v.starts_with("ssh://")
                     || v.starts_with('/')
