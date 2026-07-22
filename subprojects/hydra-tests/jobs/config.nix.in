@@ -2,10 +2,11 @@ rec {
   path = "@testPath@";
   nixBinDir = "@nixBinDir@";
   bash = "@bash@";
+  system = "@system@";
 
   mkDerivation = args:
     derivation ({
-      system = builtins.currentSystem;
+      inherit system;
       PATH = path;
     } // args);
   mkContentAddressedDerivation = args: mkDerivation ({

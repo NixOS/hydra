@@ -1,18 +1,28 @@
+use harmonia_store_derivation::derivation::Derivation;
+use harmonia_store_path::StorePath;
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let p = nix_utils::parse_store_path("dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv");
+async fn main() -> color_eyre::eyre::Result<()> {
+    let p: StorePath = "dzgpbp0vp7lj7lgj26rjgmnjicq2wf4k-hello-2.12.2.drv".parse()?;
     let (tx, mut rx) = tokio::sync::mpsc::channel::<()>(4);
 
-    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(Some(tx)));
+    let nix_config =
+        daemon_client_utils::parse_nix_remote().map_err(|e| color_eyre::eyre::eyre!(e))?;
+    let connector = daemon_client_utils::DaemonConnector::new(
+        nix_config.socket.clone(),
+        nix_config.store_dir.clone(),
+    );
+    let fod = std::sync::Arc::new(hydra_queue_runner::state::FodChecker::new(
+        connector,
+        Some(tx),
+    ));
     fod.clone().start_traverse_loop();
     fod.to_traverse(&p);
     fod.trigger_traverse();
     let _ = rx.recv().await;
-    fod.process(
-        async move |path: nix_utils::StorePath, _: nix_utils::Derivation| {
-            println!("{path}");
-        },
-    )
+    fod.process(async move |path: StorePath, _: Derivation| {
+        println!("{path}");
+    })
     .await;
     Ok(())
 }

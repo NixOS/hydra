@@ -22,11 +22,17 @@ pub enum Error {
     #[error("std io error: `{0}`")]
     Io(#[from] std::io::Error),
 
-    #[error("anyhow error: `{0}`")]
-    Anyhow(#[from] anyhow::Error),
+    #[error("prometheus error: `{0}`")]
+    Prometheus(#[from] prometheus::Error),
+
+    #[error(transparent)]
+    State(#[from] crate::state::StateError),
 
     #[error("db error: `{0}`")]
     Sqlx(#[from] db::Error),
+
+    #[error("invalid store path")]
+    StorePath(#[from] harmonia_store_path::ParseStorePathError),
 
     #[error("Not found")]
     NotFound,
@@ -44,8 +50,10 @@ impl Error {
             | Self::HyperHttp(_)
             | Self::Hyper(_)
             | Self::Io(_)
-            | Self::Anyhow(_)
+            | Self::Prometheus(_)
+            | Self::State(_)
             | Self::Sqlx(_)
+            | Self::StorePath(_)
             | Self::Fatal => hyper::StatusCode::INTERNAL_SERVER_ERROR,
             Self::NotFound => hyper::StatusCode::NOT_FOUND,
         }
@@ -89,7 +97,16 @@ impl Server {
         let server_span = tracing::span!(tracing::Level::TRACE, "http_server", %addr);
 
         loop {
-            let (stream, _) = listener.accept().await?;
+            // Never propagate an accept error: it drops the listener and wedges
+            // every endpoint. Back off (lets fds free under EMFILE) and retry.
+            let (stream, _) = match listener.accept().await {
+                Ok(conn) => conn,
+                Err(err) => {
+                    tracing::error!("HTTP accept error, continuing: {err}");
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    continue;
+                }
+            };
             let io = hyper_util::rt::TokioIo::new(stream);
 
             let state = state.clone();
@@ -207,8 +224,8 @@ mod handler {
                 stores
                     .iter()
                     .filter_map(|s| match s {
-                        crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                        _ => None,
+                        crate::state::RemoteStoreBackend::S3(s) => Some((**s).clone()),
+                        crate::state::RemoteStoreBackend::NixCopy(_) => None,
                     })
                     .collect()
             };
@@ -216,7 +233,6 @@ mod handler {
                 queue_stats,
                 machines,
                 jobsets,
-                &state.store,
                 &s3_stores,
             ))
         }
@@ -344,6 +360,7 @@ mod handler {
 
         use super::super::{Error, Response, construct_json_ok_response};
         use crate::{io, state::State};
+        use harmonia_store_path::StorePath;
 
         #[tracing::instrument(skip(req, state), err)]
         pub(crate) async fn put(
@@ -354,7 +371,7 @@ mod handler {
             let data: io::BuildPayload = serde_json::from_reader(whole_body.reader())?;
 
             state
-                .queue_one_build(data.jobset_id, &nix_utils::parse_store_path(&data.drv))
+                .queue_one_build(data.jobset_id, &StorePath::from_base_path(&data.drv)?)
                 .await?;
             construct_json_ok_response(&io::Empty {})
         }

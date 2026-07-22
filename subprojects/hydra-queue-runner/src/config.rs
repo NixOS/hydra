@@ -1,7 +1,31 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Context as _;
 use clap::Parser;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("missing option: {0}")]
+    MissingOption(&'static str),
+
+    #[error("environment variable `{0}` is missing")]
+    MissingEnvVar(&'static str),
+
+    #[error("parsing Nix remote: {0}")]
+    ParseNixStore(String),
+
+    #[error("reading configuration file")]
+    Io(#[from] std::io::Error),
+
+    #[error("{context}")]
+    Toml {
+        context: String,
+        #[source]
+        source: toml::de::Error,
+    },
+
+    #[error("preparing configuration")]
+    Prepare(#[source] Box<ConfigError>),
+}
 
 #[derive(Debug, Clone)]
 pub enum BindSocket {
@@ -86,20 +110,20 @@ impl Cli {
     #[tracing::instrument(skip(self), err)]
     pub async fn get_mtls(
         &self,
-    ) -> anyhow::Result<(tonic::transport::Certificate, tonic::transport::Identity)> {
+    ) -> Result<(tonic::transport::Certificate, tonic::transport::Identity), ConfigError> {
         let server_cert_path = self
             .server_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_cert_path"))?;
         let server_key_path = self
             .server_key_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_key_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_key_path"))?;
 
         let client_ca_cert_path = self
             .client_ca_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("client_ca_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("client_ca_cert_path"))?;
         let client_ca_cert = fs_err::tokio::read_to_string(client_ca_cert_path).await?;
         let client_ca_cert = tonic::transport::Certificate::from_pem(client_ca_cert);
 
@@ -162,6 +186,18 @@ const fn default_enable_fod_checker() -> bool {
     false
 }
 
+const fn default_max_silent_time() -> i32 {
+    3600
+}
+
+const fn default_build_timeout() -> i32 {
+    36000
+}
+
+const fn default_max_log_size() -> u64 {
+    64 << 20 // 64 MiB
+}
+
 #[derive(Debug, Default, serde::Deserialize, Copy, Clone, PartialEq, Eq)]
 pub enum MachineSortFn {
     SpeedFactorOnly,
@@ -183,6 +219,7 @@ pub enum StepSortFn {
     Legacy,
     #[default]
     WithRdeps,
+    WithCriticalPath,
 }
 
 /// Main configuration of the application
@@ -253,6 +290,26 @@ struct AppConfig {
     #[serde(default)]
     use_presigned_uploads: bool,
 
+    // Per-output NAR size limit in bytes; builds whose output exceeds it fail
+    // with NarSizeLimitExceeded. 0 (default) disables the check.
+    #[serde(default)]
+    max_output_size: u64,
+
+    // Default maximum silent time in seconds for builds without
+    // meta.maxSilent. Also used as a floor for dependency-only steps.
+    #[serde(default = "default_max_silent_time")]
+    max_silent_time: i32,
+
+    // Default build timeout in seconds for builds without meta.timeout.
+    // Also used as a floor for dependency-only steps.
+    #[serde(default = "default_build_timeout")]
+    build_timeout: i32,
+
+    // Maximum build log size in bytes before a build fails with
+    // LogLimitExceeded.
+    #[serde(default = "default_max_log_size")]
+    max_log_size: u64,
+
     #[serde(default)]
     forced_substituters: Vec<String>,
 }
@@ -284,11 +341,15 @@ pub struct PreparedApp {
     token_list: Option<Vec<String>>,
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
+    pub max_output_size: u64,
+    pub max_silent_time: i32,
+    pub build_timeout: i32,
+    pub max_log_size: u64,
     pub forced_substituters: Vec<String>,
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
-    type Error = anyhow::Error;
+    type Error = ConfigError;
 
     fn try_from(val: AppConfig) -> Result<Self, Self::Error> {
         let remote_store_addr = val
@@ -302,18 +363,17 @@ impl TryFrom<AppConfig> for PreparedApp {
             })
             .collect();
 
-        let logname = std::env::var("LOGNAME").context("LOGNAME env var missing")?;
-        let nix_state_dir =
-            std::env::var("NIX_STATE_DIR").unwrap_or_else(|_| "/nix/var/nix/".to_owned());
-        let roots_dir = val.roots_dir.map_or_else(
-            || {
-                std::path::PathBuf::from(nix_state_dir)
-                    .join("gcroots/per-user")
-                    .join(logname)
-                    .join("hydra-roots")
-            },
-            |roots_dir| roots_dir,
-        );
+        let logname =
+            std::env::var("LOGNAME").map_err(|_| ConfigError::MissingEnvVar("LOGNAME"))?;
+        let nix_remote =
+            daemon_client_utils::parse_nix_remote().map_err(ConfigError::ParseNixStore)?;
+        let roots_dir = val.roots_dir.unwrap_or_else(|| {
+            nix_remote
+                .state_dir
+                .join("gcroots/per-user")
+                .join(logname)
+                .join("hydra-roots")
+        });
         fs_err::create_dir_all(&roots_dir)?;
 
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");
@@ -381,6 +441,10 @@ impl TryFrom<AppConfig> for PreparedApp {
             token_list,
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
+            max_output_size: val.max_output_size,
+            max_silent_time: val.max_silent_time,
+            build_timeout: val.build_timeout,
+            max_log_size: val.max_log_size,
             forced_substituters: val.forced_substituters,
         })
     }
@@ -388,18 +452,24 @@ impl TryFrom<AppConfig> for PreparedApp {
 
 /// Loads the config from specified path
 #[tracing::instrument(err)]
-fn load_config(filepath: &str) -> anyhow::Result<PreparedApp> {
+fn load_config(filepath: &str) -> Result<PreparedApp, ConfigError> {
     tracing::info!("Trying to loading file: {filepath}");
     let toml: AppConfig = if let Ok(content) = fs_err::read_to_string(filepath) {
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to toml load from '{filepath}'"))?
+        toml::from_str(&content).map_err(|source| ConfigError::Toml {
+            context: format!("loading config from '{filepath}'"),
+            source,
+        })?
     } else {
         tracing::warn!("no config file found! Using default config");
-        toml::from_str("").context("Failed to parse empty string as config")?
+        toml::from_str("").map_err(|source| ConfigError::Toml {
+            context: "parsing empty string as config".to_owned(),
+            source,
+        })?
     };
     tracing::info!("Loaded config: {toml:?}");
 
-    toml.try_into().context("Failed to prepare configuration")
+    toml.try_into()
+        .map_err(|e| ConfigError::Prepare(Box::new(e)))
 }
 
 #[derive(Debug, Clone)]
@@ -409,7 +479,7 @@ pub struct App {
 
 impl App {
     #[tracing::instrument(err)]
-    pub fn init(filepath: &str) -> anyhow::Result<Self> {
+    pub fn init(filepath: &str) -> Result<Self, ConfigError> {
         Ok(Self {
             inner: Arc::new(arc_swap::ArcSwap::from(Arc::new(load_config(filepath)?))),
         })
@@ -471,6 +541,30 @@ impl App {
     pub fn use_presigned_uploads(&self) -> bool {
         let inner = self.inner.load();
         inner.use_presigned_uploads
+    }
+
+    #[must_use]
+    pub fn max_output_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_output_size
+    }
+
+    #[must_use]
+    pub fn max_silent_time(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.max_silent_time
+    }
+
+    #[must_use]
+    pub fn build_timeout(&self) -> i32 {
+        let inner = self.inner.load();
+        inner.build_timeout
+    }
+
+    #[must_use]
+    pub fn max_log_size(&self) -> u64 {
+        let inner = self.inner.load();
+        inner.max_log_size
     }
 
     #[must_use]

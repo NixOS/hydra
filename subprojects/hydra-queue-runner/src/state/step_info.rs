@@ -2,10 +2,35 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use db::models::BuildID;
-use nix_utils::SingleDerivedPath;
+use harmonia_store_derivation::derivation::{BasicDerivation, Derivation};
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path::{StoreDir, StorePath};
 
 use super::Step;
 use super::drv::flatten_chain;
+
+/// Resolve an input-addressed derivation output from the `.drv` file on
+/// disk. The build-history lookup in the database can miss outputs that
+/// never got a successful build step row, e.g. paths that were already
+/// valid when the step was created or whose step was aborted by a
+/// restart after the build finished. For input-addressed derivations the
+/// output path is fixed by the derivation itself, so the file is
+/// authoritative.
+fn resolve_from_drv_file(
+    store_dir: &StoreDir,
+    drv_path: &StorePath,
+    output_name: &OutputName,
+) -> Option<StorePath> {
+    let path = std::path::PathBuf::from(store_dir.display(drv_path).to_string());
+    let content = fs_err::read(path).ok()?;
+    let name = drv_path.name().strip_suffix(".drv")?.parse().ok()?;
+    let drv = harmonia_store_aterm::parse_derivation_aterm(store_dir, &content, name).ok()?;
+    let output = drv.outputs.get(output_name)?;
+    output
+        .path(store_dir, &drv.name, output_name)
+        .ok()
+        .flatten()
+}
 
 #[derive(Debug)]
 pub struct StepInfo {
@@ -28,7 +53,7 @@ impl StepInfo {
     }
 
     /// Resolve a derivation's inputs into concrete store paths, returning a
-    /// [`BasicDerivation`](nix_utils::BasicDerivation).
+    /// [`BasicDerivation`](BasicDerivation).
     ///
     /// Returns [`None`] if the derivation is input-addressed (shouldn't be resolved),
     /// or if resolution fails because required outputs haven't been built yet.
@@ -38,22 +63,12 @@ impl StepInfo {
     ///
     /// We only need a store dir, not a store, because all the info we need comes from the Hydra
     /// database.
-    pub(super) async fn try_resolve(
-        store_dir: &nix_utils::StoreDir,
+    pub(super) async fn try_resolve_force(
+        store_dir: &StoreDir,
         db: &db::Database,
-        drv: &nix_utils::Derivation,
-        resolved_drv_map: &hashbrown::HashMap<nix_utils::StorePath, nix_utils::StorePath>,
-    ) -> Option<nix_utils::BasicDerivation> {
-        // Input-addressed derivations should not be resolved because this would change their
-        // output paths.
-        let all_input_addressed = drv
-            .outputs
-            .values()
-            .any(|o| matches!(o, nix_utils::DerivationOutput::InputAddressed(_)));
-        if all_input_addressed {
-            return None;
-        }
-
+        drv: &Derivation,
+        resolved_drv_map: &hashbrown::HashMap<StorePath, StorePath>,
+    ) -> Option<BasicDerivation> {
         // If there are no Built inputs, the derivation is already resolved.
         let has_built_inputs = drv
             .inputs
@@ -74,12 +89,10 @@ impl StepInfo {
         let mut conn = db.get().await.ok()?;
 
         // Memoize depth-1 lookups across all chains resolved in this call.
-        let mut memo = std::collections::HashMap::<
-            (nix_utils::StorePath, nix_utils::OutputName),
-            Option<nix_utils::StorePath>,
-        >::new();
+        let mut memo =
+            std::collections::HashMap::<(StorePath, OutputName), Option<StorePath>>::new();
 
-        drv.try_resolve(store_dir, &mut |inputs| {
+        drv.try_resolve_force(store_dir, &mut |inputs| {
             tokio::task::block_in_place(|| {
                 let rt = tokio::runtime::Handle::current();
 
@@ -102,20 +115,18 @@ impl StepInfo {
                                 .cloned()
                                 .unwrap_or_else(|| current.clone());
                             let key = (translated, output_name.clone());
-                            let result = match memo.get(&key) {
-                                Some(cached) => cached.clone(),
-                                None => {
-                                    let r = rt
-                                        .block_on(
-                                            conn.resolve_drv_output(store_dir, &key.0, &key.1),
-                                        )
-                                        .unwrap_or_else(|e| {
-                                            tracing::warn!("resolve_drv_output failed: {e}");
-                                            None
-                                        });
-                                    memo.insert(key, r.clone());
-                                    r
-                                }
+                            let result = if let Some(cached) = memo.get(&key) {
+                                cached.clone()
+                            } else {
+                                let r = rt
+                                    .block_on(conn.resolve_drv_output(store_dir, &key.0, &key.1))
+                                    .unwrap_or_else(|e| {
+                                        tracing::warn!("resolve_drv_output failed: {e}");
+                                        None
+                                    })
+                                    .or_else(|| resolve_from_drv_file(store_dir, &key.0, &key.1));
+                                memo.insert(key, r.clone());
+                                r
                             };
                             current = result?;
                         }
@@ -198,6 +209,41 @@ impl StepInfo {
         .reverse()
     }
 
+    pub(super) fn compare_with_critical_path(&self, other: &Self) -> std::cmp::Ordering {
+        #[allow(irrefutable_let_patterns)]
+        (if let c1 = self
+            .get_highest_global_priority()
+            .cmp(&other.get_highest_global_priority())
+            && c1 != std::cmp::Ordering::Equal
+        {
+            c1
+        } else if let c2 = other
+            .get_lowest_share_used()
+            .total_cmp(&self.get_lowest_share_used())
+            && c2 != std::cmp::Ordering::Equal
+        {
+            c2
+        } else if let c3 = self
+            .step
+            .atomic_state
+            .cp_length
+            .load(Ordering::Relaxed)
+            .cmp(&other.step.atomic_state.cp_length.load(Ordering::Relaxed))
+            && c3 != std::cmp::Ordering::Equal
+        {
+            c3
+        } else if let c4 = self
+            .get_highest_local_priority()
+            .cmp(&other.get_highest_local_priority())
+            && c4 != std::cmp::Ordering::Equal
+        {
+            c4
+        } else {
+            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
+        })
+        .reverse()
+    }
+
     pub(super) fn compare_with_rdeps(&self, other: &Self) -> std::cmp::Ordering {
         #[allow(irrefutable_let_patterns)]
         (if let c1 = self
@@ -236,6 +282,8 @@ impl StepInfo {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use db::models::BuildID;
 
@@ -246,9 +294,10 @@ mod tests {
         lowest_share_used: f64,
         rdeps_len: u64,
     ) -> StepInfo {
-        let step = Step::new(nix_utils::parse_store_path(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv",
-        ));
+        let step = Step::new(
+            StorePath::from_base_path("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-test.drv").unwrap(),
+            Arc::default(),
+        );
 
         step.atomic_state
             .highest_global_priority

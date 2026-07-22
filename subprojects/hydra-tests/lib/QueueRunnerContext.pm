@@ -2,15 +2,17 @@ use warnings;
 use strict;
 
 package QueueRunnerContext;
-use File::Path qw(make_path);
 use IO::Socket::IP;
 use IPC::Run;
 use LWP::UserAgent;
 use POSIX qw(dup2);
 use Hydra::Config;
+use NixDaemon qw(start_nix_daemon);
+use ProcessGroup;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     start_queue_runner
+    wait_for_builds
     wait_for_url
 );
 
@@ -26,46 +28,21 @@ sub wait_for_url {
     return 0;
 }
 
-# Start a nix daemon for the given store config.
-# Returns the daemon harness.  Caller must kill_kill it when done.
-sub start_nix_daemon {
-    my ($store) = @_;
-    make_path($store->{nix_state_dir});
-
-    my ($in, $out, $err) = ("", "", "");
-    my $harness;
-    {
-        local $ENV{NIX_REMOTE} = $store->{nix_store_uri};
-        local $ENV{NIX_STORE_DIR} = $store->{nix_store_dir};
-        local $ENV{NIX_STATE_DIR} = $store->{nix_state_dir};
-        local $ENV{NIX_CONF_DIR} = $store->{nix_conf_dir};
-        local $ENV{NIX_DAEMON_SOCKET_PATH} = $store->{nix_daemon_socket_path};
-        local $ENV{NIX_CONFIG} = "trusted-users = *";
-        $harness = IPC::Run::start(
-            ["nix-daemon"],
-            \$in, \$out, \$err,
-        );
-    }
-    my $socket = $store->{nix_daemon_socket_path};
-    for (1..50) {
-        last if -S $socket;
-        select(undef, undef, undef, 0.1);
-    }
-    -S $socket or die "nix-daemon did not start: $socket\n";
-    return $harness;
-}
 
 # Start a queue runner process using systemd socket activation.
 # We bind TCP sockets ourselves (port 0 for OS-assigned ports), then
 # pass them to the queue runner via LISTEN_FDS/LISTEN_FDNAMES.
-# Returns ($harness, $rest_url, $grpc_addr, \$stdout_buf, \$stderr_buf, $daemon_harness).
-# Caller is responsible for calling $harness->kill_kill when done.
+# Returns ($process_group, $rest_url, $grpc_addr).
+# The ProcessGroup has the nix daemon and queue-runner registered.
+# Caller is responsible for calling $pg->stop when done.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
 
+    my $pg = ProcessGroup->new;
+
     # Start a nix daemon for the queue runner to use.
-    my $daemon_harness = start_nix_daemon($ctx->{central});
+    start_nix_daemon($ctx->{central}, $pg, "queue-runner daemon");
 
     my $config_dir = $ENV{T2_HARNESS_TEMP_DIR}
         // $ctx->{central}{hydra_data};
@@ -124,7 +101,7 @@ sub start_queue_runner {
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         local $ENV{NIX_REMOTE} = $ctx->{central}{nix_daemon_uri};
-        local $ENV{RUST_LOG} = $opts{rust_log} // "error";
+        local $ENV{RUST_LOG} = "hydra_queue_runner=debug,info";
         local $ENV{NO_COLOR} = "1";
         local $ENV{LISTEN_FDS} = "2";
         local $ENV{LISTEN_FDNAMES} = "rest:grpc";
@@ -156,7 +133,45 @@ sub start_queue_runner {
     my $rest_url = "http://[::1]:$rest_port";
     my $grpc_addr = "[::1]:$grpc_port";
 
-    return ($qr_harness, $rest_url, $grpc_addr, \$qr_out, \$qr_err, $daemon_harness);
+    $pg->{procs}{"queue-runner"} = {
+        label => "queue-runner", harness => $qr_harness, out => \$qr_out, err => \$qr_err,
+    };
+    push @{$pg->{order}}, "queue-runner";
+
+    return ($pg, $rest_url, $grpc_addr);
+}
+
+# Poll the queue runner REST API until all given build IDs are no longer
+# active. Calls $pg->pump_logs each iteration so test output stays visible.
+#
+# Args: ($ua, $base_url, $process_group, @build_ids)
+# Dies on timeout or if the builder process exits unexpectedly.
+sub wait_for_builds {
+    my ($ua, $base_url, $pg, @build_ids) = @_;
+    my $timeout = 60 * scalar(@build_ids);
+    $timeout = 60 if $timeout < 60;
+    my $deadline = time() + $timeout;
+    while (time() < $deadline) {
+        $pg->pump_logs;
+        my $bl = $pg->harness("builder");
+        if ($bl && !$bl->pumpable) {
+            $bl->finish;
+            my $rc = $bl->result;
+            die "builder exited unexpectedly (exit code $rc)\n";
+        }
+
+        my $all_done = 1;
+        for my $bid (@build_ids) {
+            my $resp = $ua->get("$base_url/status/build/$bid/active");
+            if ($resp->decoded_content =~ /true/) {
+                $all_done = 0;
+                last;
+            }
+        }
+        return 1 if $all_done;
+        sleep 2;
+    }
+    die "timed out waiting for builds to finish\n";
 }
 
 1;

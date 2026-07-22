@@ -55,7 +55,7 @@
         log_data = log_data.split("\n").slice(-[% HTML.escape(tail) %]).join("\n");
         [% END %]
 
-        $("#contents").text(log_data);
+        $("#contents").html(new ansiUp.AnsiUp().ansi_to_html(log_data));
       },
       error: function () {
         bootbox.alert("The log file is not available.");

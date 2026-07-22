@@ -10,20 +10,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let has_info = client
-        .has_narinfo(&nix_utils::parse_store_path(
-            "lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66",
-        ))
+        .has_narinfo(
+            &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
+                .parse::<harmonia_store_path::StorePath>()?,
+        )
         .await?;
     tracing::info!("has narinfo? {has_info}");
 
     let narinfo = client
-        .download_narinfo(&nix_utils::parse_store_path(
-            "lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66",
-        ))
+        .download_narinfo(
+            &"lmn7lwydprqibdkghw7wgcn21yhllz13-glibc-2.40-66"
+                .parse::<harmonia_store_path::StorePath>()?,
+        )
         .await?;
     tracing::info!("narinfo:\n{narinfo:?}");
 
-    let nardata = client.download_nar(&narinfo.unwrap().url).await?;
+    let nardata = client
+        .download_nar(narinfo.unwrap().info.url.as_deref().unwrap_or(""))
+        .await?;
     tracing::info!("nardata len: {}", nardata.unwrap().len());
 
     let stats = client.s3_stats();

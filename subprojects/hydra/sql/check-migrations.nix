@@ -23,14 +23,18 @@ let
 
   allVersions = lib.unique (migrationVersions ++ schemaVersions);
 
+  maxMigrationVersion = lib.last (lib.sort lib.lessThan migrationVersions);
+
   # A version N is covered when we have schema N-1, schema N, and upgrade-N.sql.
   # Schema-only versions (like version 1, the base) are also covered.
+  # The highest migration version is special: it uses hydra.sql (the current
+  # schema) as its target, so it doesn't need a vendored schema file.
   isCovered =
     n:
     (
       builtins.elem n migrationVersions
       && builtins.elem (n - 1) schemaVersions
-      && builtins.elem n schemaVersions
+      && (builtins.elem n schemaVersions || n == maxMigrationVersion)
     )
     || (!builtins.elem n migrationVersions && builtins.elem n schemaVersions);
 
@@ -46,7 +50,9 @@ builtins.listToAttrs (
     let
       from = to - 1;
       schemaBefore = ./schemas/hydra-${toString from}.sql;
-      schemaAfter = ./schemas/hydra-${toString to}.sql;
+      # The latest migration tests against the current schema directly,
+      # so we don't need to vendor a copy of it.
+      schemaAfter = if to == maxMigrationVersion then ./hydra.sql else ./schemas/hydra-${toString to}.sql;
       migration = ./migrations/upgrade-${toString to}.sql;
     in
     {

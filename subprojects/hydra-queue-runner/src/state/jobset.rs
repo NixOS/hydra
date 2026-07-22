@@ -5,6 +5,22 @@ use std::sync::atomic::{AtomicI64, AtomicU32, Ordering};
 
 use hashbrown::HashMap;
 
+#[derive(Debug, thiserror::Error)]
+pub enum JobsetError {
+    #[error("database error")]
+    Db(#[from] db::Error),
+
+    #[error("scheduling shares not found for jobset {jobset_id}")]
+    MissingShares { jobset_id: i32 },
+
+    #[error("scheduling shares out of range: {value}")]
+    SharesOutOfRange {
+        value: i32,
+        #[source]
+        source: std::num::TryFromIntError,
+    },
+}
+
 pub type JobsetID = i32;
 pub(super) const SCHEDULING_WINDOW: i64 = 24 * 60 * 60;
 
@@ -61,10 +77,8 @@ impl Jobset {
         ((seconds as f64) / f64::from(shares))
     }
 
-    pub fn set_shares(&self, shares: i32) -> anyhow::Result<()> {
-        debug_assert!(shares > 0);
-        self.shares.store(shares.try_into()?, Ordering::Relaxed);
-        Ok(())
+    pub fn set_shares(&self, shares: u32) {
+        self.shares.store(shares, Ordering::Relaxed);
     }
 
     pub fn get_shares(&self) -> u32 {
@@ -84,10 +98,7 @@ impl Jobset {
         let now = jiff::Timestamp::now().as_second();
         let mut steps = self.steps.write();
 
-        loop {
-            let Some(first) = steps.first_entry() else {
-                break;
-            };
+        while let Some(first) = steps.first_entry() {
             let start_time = *first.key();
 
             if start_time > now - SCHEDULING_WINDOW {
@@ -162,7 +173,7 @@ impl Jobsets {
         jobset_id: i32,
         project_name: &str,
         jobset_name: &str,
-    ) -> anyhow::Result<Arc<Jobset>> {
+    ) -> Result<Arc<Jobset>, JobsetError> {
         let key = (project_name.to_owned(), jobset_name.to_owned());
         {
             let jobsets = self.inner.read();
@@ -174,9 +185,9 @@ impl Jobsets {
         let shares = conn
             .get_jobset_scheduling_shares(jobset_id)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("Scheduling Shares not found for jobset not found."))?;
+            .ok_or(JobsetError::MissingShares { jobset_id })?;
         let jobset = Jobset::new(jobset_id, project_name, jobset_name);
-        jobset.set_shares(shares)?;
+        jobset.set_shares(shares);
 
         for step in conn
             .get_jobset_build_steps(jobset_id, SCHEDULING_WINDOW)
@@ -201,20 +212,19 @@ impl Jobsets {
     }
 
     #[tracing::instrument(skip(self, conn), err)]
-    pub async fn handle_change(&self, conn: &mut db::Connection) -> anyhow::Result<()> {
+    pub async fn handle_change(&self, conn: &mut db::Connection) -> Result<(), JobsetError> {
         let curr_jobsets_in_db = conn.get_jobsets().await?;
 
         let jobsets = self.inner.read();
         for row in curr_jobsets_in_db {
-            if let Some(i) = jobsets.get(&(row.project.clone(), row.name.clone()))
-                && let Err(e) = i.set_shares(row.schedulingshares)
-            {
-                tracing::error!(
-                    "Failed to update jobset scheduling shares. project_name={} jobset_name={} e={}",
-                    row.project,
-                    row.name,
-                    e,
-                );
+            if let Some(i) = jobsets.get(&(row.project.clone(), row.name.clone())) {
+                let shares = u32::try_from(row.schedulingshares).map_err(|source| {
+                    JobsetError::SharesOutOfRange {
+                        value: row.schedulingshares,
+                        source,
+                    }
+                })?;
+                i.set_shares(shares);
             }
         }
         Ok(())

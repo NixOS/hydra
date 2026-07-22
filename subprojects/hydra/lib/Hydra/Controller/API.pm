@@ -57,10 +57,10 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if ! $project eq "";
-    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
-    $filter->{job} = $job if !$job eq "";
-    $filter->{system} = $system if !$system eq "";
+    $filter->{"jobset.project"} = $project if defined $project && $project ne "";
+    $filter->{"jobset.name"} = $jobset if defined $jobset && $jobset ne "";
+    $filter->{job} = $job if defined $job && $job ne "";
+    $filter->{system} = $system if defined $system && $system ne "";
 
     my @latest = $c->model('DB::Builds')->search(
         $filter,
@@ -163,10 +163,10 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my $system = $c->request->params->{system};
 
     my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if ! $project eq "";
-    $filter->{"jobset.name"} = $jobset if ! $jobset eq "";
-    $filter->{job} = $job if !$job eq "";
-    $filter->{system} = $system if !$system eq "";
+    $filter->{"jobset.project"} = $project if defined $project && $project ne "";
+    $filter->{"jobset.name"} = $jobset if defined $jobset && $jobset ne "";
+    $filter->{job} = $job if defined $job && $job ne "";
+    $filter->{system} = $system if defined $system && $system ne "";
 
     $base = 60*60 if($period eq "hour");
     $base = 24*60*60 if($period eq "day");

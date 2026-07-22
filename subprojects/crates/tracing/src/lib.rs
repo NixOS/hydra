@@ -22,6 +22,21 @@ use opentelemetry::trace::TracerProvider as _;
 #[cfg(feature = "tonic")]
 pub mod propagate;
 
+#[derive(Debug, thiserror::Error)]
+pub enum TracingInitError {
+    #[error(transparent)]
+    SetLogger(#[from] tracing_log::log::SetLoggerError),
+    #[error(transparent)]
+    SetGlobalDefault(#[from] tracing::subscriber::SetGlobalDefaultError),
+    // Don't directly include the eyre::Report, if the handler fails to install
+    // then the traceback would never be printed.
+    #[error("failed to install color-eyre handler: {0}")]
+    ColorEyre(String),
+    #[cfg(feature = "otel")]
+    #[error(transparent)]
+    ExporterBuild(#[from] opentelemetry_otlp::ExporterBuildError),
+}
+
 #[cfg(feature = "otel")]
 fn resource() -> opentelemetry_sdk::Resource {
     opentelemetry_sdk::Resource::builder()
@@ -60,7 +75,8 @@ impl Drop for TracingGuard {
 }
 
 #[cfg(feature = "otel")]
-fn init_tracer_provider() -> anyhow::Result<opentelemetry_sdk::trace::SdkTracerProvider> {
+fn init_tracer_provider()
+-> Result<opentelemetry_sdk::trace::SdkTracerProvider, opentelemetry_otlp::ExporterBuildError> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
         .build()?;
@@ -71,17 +87,22 @@ fn init_tracer_provider() -> anyhow::Result<opentelemetry_sdk::trace::SdkTracerP
         .build())
 }
 
-pub fn init() -> anyhow::Result<TracingGuard> {
+pub fn init() -> Result<TracingGuard, TracingInitError> {
+    color_eyre::install().map_err(|e| TracingInitError::ColorEyre(e.to_string()))?;
     tracing_log::LogTracer::init()?;
     let (log_env_filter, reload_handle) = tracing_subscriber::reload::Layer::new(
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
     );
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_writer(std::io::stderr)
+        // Output goes to journald, not a terminal: skip ANSI styling so log
+        // lines do not carry escape codes and the formatter does no coloring.
+        .with_ansi(false)
         .compact();
     let subscriber = tracing_subscriber::Registry::default()
         .with(log_env_filter)
-        .with(fmt_layer);
+        .with(fmt_layer)
+        .with(tracing_error::ErrorLayer::default());
 
     #[cfg(feature = "otel")]
     {

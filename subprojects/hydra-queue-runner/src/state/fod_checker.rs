@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
+use harmonia_store_derivation::derivation::{Derivation, DerivationOutput};
+use harmonia_store_path::StorePath;
 use hashbrown::{HashMap, HashSet};
-use nix_utils::{Derivation, LocalStore, StorePath};
 
-#[derive(Debug)]
 pub struct FodChecker {
+    connector: daemon_client_utils::DaemonConnector,
     ca_derivations: parking_lot::RwLock<HashMap<StorePath, Derivation>>,
     to_traverse: parking_lot::RwLock<HashSet<StorePath>>,
 
@@ -12,8 +13,23 @@ pub struct FodChecker {
     traverse_done_notifier: Option<tokio::sync::mpsc::Sender<()>>,
 }
 
+impl std::fmt::Debug for FodChecker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FodChecker")
+            .field(
+                "connector",
+                &format_args!("<daemon for {}>", self.connector.store_dir()),
+            )
+            .field("ca_derivations", &self.ca_derivations)
+            .field("to_traverse", &self.to_traverse)
+            .field("notify_traverse", &self.notify_traverse)
+            .field("traverse_done_notifier", &self.traverse_done_notifier)
+            .finish()
+    }
+}
+
 async fn collect_ca_derivations(
-    store: &LocalStore,
+    store: &daemon_client_utils::DaemonConnector,
     drv: &StorePath,
     processed: Arc<parking_lot::RwLock<HashSet<StorePath>>>,
 ) -> HashMap<StorePath, Derivation> {
@@ -30,16 +46,25 @@ async fn collect_ca_derivations(
         p.insert(drv.clone());
     }
 
-    let Some(parsed) = nix_utils::query_drv(store, drv).await.ok().flatten() else {
+    let parsed = async {
+        let drv_path_str = store.store_dir().display(drv).to_string();
+        let content = fs_err::tokio::read_to_string(&drv_path_str).await.ok()?;
+        let drv_name_str = drv.name().to_string();
+        let name = drv_name_str.strip_suffix(".drv")?.parse().ok()?;
+        harmonia_store_aterm::parse_derivation_aterm(store.store_dir(), content.as_bytes(), name)
+            .ok()
+    }
+    .await;
+    let Some(parsed) = parsed as Option<Derivation> else {
         return HashMap::new();
     };
 
     let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-        nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+        DerivationOutput::CAFixed(ca) => Some(ca.hash()),
         _ => None,
     });
     let input_drvs: Vec<StorePath> =
-        harmonia_store_core::derivation::DerivationInputs::from(&parsed.inputs)
+        harmonia_store_derivation::derivation::DerivationInputs::from(&parsed.inputs)
             .drvs
             .into_keys()
             .collect();
@@ -64,8 +89,12 @@ async fn collect_ca_derivations(
 
 impl FodChecker {
     #[must_use]
-    pub fn new(traverse_done_notifier: Option<tokio::sync::mpsc::Sender<()>>) -> Self {
+    pub fn new(
+        connector: daemon_client_utils::DaemonConnector,
+        traverse_done_notifier: Option<tokio::sync::mpsc::Sender<()>>,
+    ) -> Self {
         Self {
+            connector,
             ca_derivations: parking_lot::RwLock::new(HashMap::with_capacity(1000)),
             to_traverse: parking_lot::RwLock::new(HashSet::new()),
 
@@ -76,7 +105,7 @@ impl FodChecker {
 
     pub(super) fn add_ca_drv_parsed(&self, drv: &StorePath, parsed: &Derivation) {
         let ca_fixed_hash = parsed.outputs.values().find_map(|o| match o {
-            nix_utils::DerivationOutput::CAFixed(ca) => Some(ca.hash()),
+            DerivationOutput::CAFixed(ca) => Some(ca.hash()),
             _ => None,
         });
         if ca_fixed_hash.is_some() {
@@ -90,7 +119,7 @@ impl FodChecker {
         tt.insert(drv.clone());
     }
 
-    async fn traverse(&self, store: &LocalStore) {
+    async fn traverse(&self, store: &daemon_client_utils::DaemonConnector) {
         use futures::StreamExt as _;
 
         let drvs = {
@@ -127,10 +156,9 @@ impl FodChecker {
         loop {
             tokio::select! {
                 () = self.notify_traverse.notified() => {},
-                () = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {},
+                () = tokio::time::sleep(tokio::time::Duration::from_mins(1)) => {},
             };
-            let store = LocalStore::init();
-            self.traverse(&store).await;
+            self.traverse(&self.connector).await;
             if let Some(tx) = &self.traverse_done_notifier {
                 let _ = tx.send(()).await;
             }
@@ -170,19 +198,26 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use crate::state::fod_checker::FodChecker;
-    use nix_utils::BaseStore as _;
+    use harmonia_store_path::StorePath;
 
     #[ignore = "Requires a valid drv in the nix-store"]
     #[tokio::test]
     async fn test_traverse() {
-        let store = nix_utils::LocalStore::init();
+        let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
+        let connector = daemon_client_utils::DaemonConnector::new(
+            nix_config.socket.clone(),
+            nix_config.store_dir.clone(),
+        );
         let hello_drv =
-            nix_utils::parse_store_path("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv");
-        store.ensure_path(&hello_drv).await.unwrap();
+            StorePath::from_base_path("rl5m4zxd24mkysmpbp4j9ak6q7ia6vj8-hello-2.12.2.drv").unwrap();
+        let mut conn = connector.connect().await.unwrap();
+        daemon_client_utils::ensure_path(&mut conn, &hello_drv)
+            .await
+            .unwrap();
 
-        let fod = FodChecker::new(None);
+        let fod = FodChecker::new(connector.clone(), None);
         fod.to_traverse(&hello_drv);
-        fod.traverse(&store).await;
+        fod.traverse(&fod.connector).await;
         assert_eq!(fod.ca_derivations.read().len(), 59);
     }
 }

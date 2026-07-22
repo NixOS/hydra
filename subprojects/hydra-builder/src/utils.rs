@@ -1,17 +1,21 @@
+use harmonia_store_path::StorePath;
 use tokio::io::BufReader;
-use tokio_stream::wrappers::LinesStream;
 use tokio_util::io::ReaderStream;
 
-use crate::grpc::runner_v1::LogChunk;
-use shared::proto::ProtoStorePath;
+use hydra_proto::LogChunk;
+use hydra_proto::ProtoStorePath;
 
 pub(crate) type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
-pub(crate) type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
-pub(crate) const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
+const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
 
+/// Build a gRPC `LogChunk` stream from a channel of raw log bytes.
+///
+/// Log data received on `rx` is zstd-compressed and yielded as
+/// `LogChunk` messages.  The first chunk carries the drv path so the
+/// server knows which build the log belongs to.
 pub(crate) fn compressed_log_stream(
-    drv: &nix_utils::StorePath,
-    log_output: LinesStream<BufReader<tokio::process::ChildStderr>>,
+    drv: &StorePath,
+    rx: tokio::sync::mpsc::UnboundedReceiver<bytes::Bytes>,
 ) -> impl tokio_stream::Stream<Item = LogChunk> + use<> {
     let (raw_writer, raw_reader) = tokio::io::duplex(DUPLEX_BUFFER_SIZE);
 
@@ -19,21 +23,12 @@ pub(crate) fn compressed_log_stream(
         use tokio::io::AsyncWriteExt as _;
         use tokio_stream::StreamExt as _;
 
-        let mut log_output = log_output;
+        let mut rx = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
         let mut raw_writer = raw_writer;
 
-        while let Some(chunk) = log_output.next().await {
-            match chunk {
-                Ok(line) => {
-                    let data = format!("{line}\n");
-                    if raw_writer.write_all(data.as_bytes()).await.is_err() {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to read log chunk: {e}");
-                    break;
-                }
+        while let Some(chunk) = rx.next().await {
+            if raw_writer.write_all(&chunk).await.is_err() {
+                break;
             }
         }
     });
@@ -49,7 +44,7 @@ pub(crate) fn compressed_log_stream(
             match chunk {
                 Ok(bytes) => yield LogChunk {
                     // Only the first chunk needs the drv; server reads it once
-                    drv: if first { first = false; Some(drv.clone()) } else {None},
+                    drv: if first { first = false; Some(drv.clone()) } else { None },
                     data: bytes.into(),
                 },
                 Err(e) => {

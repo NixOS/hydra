@@ -47,6 +47,7 @@ hydra.overrideAttrs (
 
     nativeBuildInputs = collectInputs "nativeBuildInputs" ++ [
       foreman
+      pkgs.cargo-nextest
       pkgs.clippy
       pkgs.nixfmt
       pkgs.rustfmt

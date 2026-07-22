@@ -1,0 +1,413 @@
+{
+  system,
+  nixpkgs,
+  common,
+  # When true, builders upload NARs via presigned URLs instead of the queue
+  # runner doing the upload.
+  presigned ? false,
+}:
+
+let
+  pkgs = nixpkgs.legacyPackages.${system};
+  inherit (pkgs) lib;
+
+  garagePort = 3900;
+  garageRpcPort = 3901;
+  garageAdminPort = 3902;
+
+  # Query parameters are alphabetical: the queue runner matches
+  # forcedSubstituters against the builder's substituters by exact string,
+  # and Nix reports them sorted.
+  s3StoreUri = "s3://hydra-cache?compression=none&endpoint=http://s3:${toString garagePort}&region=garage&scheme=http&write-nar-listing=1";
+
+  # 32-byte hex RPC secret for garage
+  rpcSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+  # Spans several upload parts (part size floors at 10 MiB) so multipart
+  # stitching is exercised, not just a single-part upload.
+  blobSize = 25 * 1024 * 1024;
+
+  # A derivation that produces a directory with various entry types
+  # (regular files, executable files, symlinks, subdirectories) so we
+  # can verify the NAR listing captures all of them.
+  #
+  # The store paths for bash and coreutils are interpolated as literal
+  # strings by writeText.  Inside the expression, builtins.storePath
+  # re-introduces the string context so that the evaluator on the VM
+  # knows the derivation depends on them and the sandbox gets access.
+  # Shared so the `trivial` derivation referenced by `trivial2` below has the
+  # exact same drv hash, putting it into trivial2's closure.
+  trivialExpr = ''
+    builtins.derivation {
+      name = "trivial";
+      system = "${system}";
+      builder = "''${builtins.storePath "${pkgs.bash}"}/bin/bash";
+      PATH = "''${builtins.storePath "${pkgs.coreutils}"}/bin";
+      allowSubstitutes = false;
+      preferLocalBuild = true;
+      args = [
+        "-c"
+        "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
+      ];
+    }
+  '';
+
+  jobFile = pkgs.writeText "default.nix" ''
+    {
+      trivial = ${trivialExpr};
+    }
+  '';
+
+  # A second job that references `trivial` (writing its path into the output
+  # creates a runtime reference), so `trivial` ends up in trivial2's closure.
+  # When building trivial2 the queue runner must skip re-uploading the
+  # already-cached `trivial` NAR.
+  jobFile2 = pkgs.writeText "default2.nix" ''
+    let
+      trivial = ${trivialExpr};
+    in {
+      trivial2 = builtins.derivation {
+        name = "trivial2";
+        system = "${system}";
+        builder = "''${builtins.storePath "${pkgs.bash}"}/bin/bash";
+        PATH = "''${builtins.storePath "${pkgs.coreutils}"}/bin";
+        inref = trivial;
+        allowSubstitutes = false;
+        preferLocalBuild = true;
+        args = [
+          "-c"
+          "mkdir -p $out; cp $inref/greeting $out/greeting; echo $inref > $out/ref; exit 0"
+        ];
+      };
+    }
+  '';
+
+  # The exact NAR listing we expect, used for an exact JSON comparison.
+  expectedListing = builtins.toJSON {
+    version = 1;
+    root = {
+      type = "directory";
+      entries = {
+        greeting = {
+          type = "regular";
+          executable = false;
+          size = 6; # "hello\n"
+        };
+        link = {
+          type = "symlink";
+          target = "greeting";
+        };
+        "run.sh" = {
+          type = "regular";
+          executable = true;
+          size = 18; # printf "#!/bin/sh\necho hi\n" (no extra trailing newline)
+        };
+        subdir = {
+          type = "directory";
+          entries = {
+            file = {
+              type = "regular";
+              executable = false;
+              size = 7; # "nested\n"
+            };
+          };
+        };
+        blob = {
+          type = "regular";
+          executable = false;
+          size = blobSize;
+        };
+      };
+    };
+  };
+in
+
+(import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
+  name = "hydra-s3${lib.optionalString presigned "-presigned"}";
+
+  nodes.s3 =
+    { pkgs, ... }:
+    {
+      services.garage = {
+        enable = true;
+        package = pkgs.garage;
+        settings = {
+          replication_factor = 1;
+          db_engine = "sqlite";
+          rpc_bind_addr = "[::]:${toString garageRpcPort}";
+          rpc_secret = rpcSecret;
+          s3_api = {
+            s3_region = "garage";
+            api_bind_addr = "[::]:${toString garagePort}";
+            root_domain = ".s3.garage";
+          };
+          s3_web = {
+            bind_addr = "[::]:3903";
+            root_domain = ".web.garage";
+          };
+          admin.api_bind_addr = "[::]:${toString garageAdminPort}";
+        };
+      };
+
+      networking.firewall.allowedTCPPorts = [
+        garagePort
+        garageAdminPort
+      ];
+    };
+
+  nodes.server =
+    { pkgs, ... }:
+    {
+      imports = [ common.serverConfig ];
+
+      services.hydra-queue-runner-dev = {
+        settings.remoteStoreAddr = [ s3StoreUri ];
+        settings.usePresignedUploads = presigned;
+        settings.forcedSubstituters = lib.optionals presigned [ s3StoreUri ];
+        awsCredentialsFile = "/var/lib/hydra/queue-runner/.aws-credentials";
+      };
+
+      environment.systemPackages = [ pkgs.jq ];
+    };
+
+  nodes.builder = {
+    imports = [ common.builderConfig ];
+    # Presigned uploads require the builder to advertise the forced
+    # substituter with substitution enabled, or the queue runner rejects it.
+    services.hydra-queue-builder-dev.useSubstitutes = lib.mkForce presigned;
+    nix.settings.substituters = lib.mkForce (lib.optionals presigned [ s3StoreUri ]);
+  };
+
+  skipLint = true;
+
+  testScript = ''
+    import json
+    import shlex
+
+    s3.start()
+    server.start()
+    builder.start()
+
+    # Wait for garage to start
+    s3.wait_for_unit("garage.service")
+    s3.wait_for_open_port(${toString garagePort})
+    s3.wait_for_open_port(${toString garageAdminPort})
+
+    # Configure garage: assign layout, apply, create bucket and key
+    node_id = s3.succeed("garage node id -q 2>/dev/null").strip()
+    short_id = node_id.split("@")[0][:16] if "@" in node_id else node_id[:16]
+
+    s3.succeed(f"garage layout assign {short_id} -z dc1 -c 1G")
+
+    version = s3.succeed(
+        "garage layout show | grep -oP 'apply --version \\K[0-9]+'"
+    ).strip()
+    s3.succeed(f"garage layout apply --version {version}")
+
+    s3.succeed("garage bucket create hydra-cache")
+
+    key_output = s3.succeed("garage key create hydra-key")
+    key_id = ""
+    key_secret = ""
+    for line in key_output.splitlines():
+        if "Key ID" in line:
+            key_id = line.split()[-1]
+        if "Secret key" in line:
+            key_secret = line.split()[-1]
+
+    s3.succeed(
+        f"garage bucket allow hydra-cache --read --write --owner --key {key_id}"
+    )
+
+    # Write AWS credentials before starting the queue-runner.
+    # Uses /var/lib/hydra/ (persistent) rather than /run/ (wiped on restart).
+    creds_path = "/var/lib/hydra/queue-runner/.aws-credentials"
+    server.wait_for_unit("hydra-init.service")
+    server.succeed(
+        f"mkdir -p /var/lib/hydra/queue-runner && "
+        f"printf '[default]\\naws_access_key_id = {key_id}\\naws_secret_access_key = {key_secret}\\n' > {creds_path} && "
+        f"chown hydra-queue-runner:hydra {creds_path} && "
+        f"chmod 600 {creds_path}"
+    )
+    server.succeed("systemctl restart hydra-queue-runner-dev.service")
+    server.wait_for_unit("hydra-queue-runner-dev.service")
+    builder.wait_for_unit("hydra-queue-builder-dev.service")
+
+    # Create an admin account and project
+    server.succeed(
+        'su - hydra -c "hydra-create-user root --email-address root@example.org --password foobar --role admin"'
+    )
+
+    server.wait_for_unit("hydra-server.service")
+    server.wait_for_open_port(3000)
+
+    # Create project and jobset via the API
+    server.succeed(
+        "mkdir -p /run/jobset && "
+        "cp ${jobFile} /run/jobset/default.nix && "
+        "chmod -R 755 /run/jobset && "
+        "chown -R hydra /run/jobset"
+    )
+
+    URL = "http://localhost:3000"
+    cookie_jar = "/tmp/hydra-cookie.txt"
+
+    def mycurl(method, path, data=None):
+        cmd = f"curl --referer {shlex.quote(URL)} -H 'Accept: application/json' -H 'Content-Type: application/json'"
+        cmd += f" -X {method} {shlex.quote(URL + path)}"
+        cmd += f" -b {cookie_jar} -c {cookie_jar}"
+        if data:
+            cmd += f" -d {shlex.quote(json.dumps(data))}"
+        return server.succeed(cmd)
+
+    mycurl("POST", "/login", {
+        "username": "root",
+        "password": "foobar",
+    })
+
+    mycurl("PUT", "/project/test", {
+        "displayname": "Test",
+        "enabled": "1",
+        "visible": "1",
+    })
+
+    mycurl("PUT", "/jobset/test/trivial", {
+        "description": "Trivial",
+        "checkinterval": "0",
+        "enabled": "1",
+        "visible": "1",
+        "keepnr": "1",
+        "type": 0,
+        "nixexprinput": "src",
+        "nixexprpath": "default.nix",
+        "inputs": {
+            "src": {"value": "/run/jobset", "type": "path"},
+        },
+    })
+
+    # Trigger evaluation
+    mycurl("POST", "/api/push?jobsets=test:trivial&force=1")
+
+    # Wait for the build to finish (any status — fail fast instead of hanging)
+    server.wait_until_succeeds(
+        f'curl -sf {URL}/build/1 -H "Accept: application/json"'
+        ' | jq -e ".finished == 1"',
+        timeout=120,
+    )
+
+    # Check build succeeded
+    build_info = json.loads(
+        server.succeed(
+            f'curl -sf {URL}/build/1 -H "Accept: application/json"'
+        )
+    )
+    if build_info.get("buildstatus") != 0:
+        drv = build_info.get("drvpath", "unknown")
+        # Dump the nix build log from inside the builder VM
+        print(builder.succeed(f"nix-store -l {drv} 2>&1 || true"))
+        # Also dump hydra's own build log
+        print(
+            server.succeed(
+                f"find /var/lib/hydra/build-logs -type f -exec bzcat {{}} \\; 2>/dev/null || true"
+            )
+        )
+        raise Exception(
+            f"Build failed with status {build_info.get('buildstatus')}, drv={drv}"
+        )
+
+    out_path = build_info["buildoutputs"]["out"]["path"]
+    store_hash = out_path.split("/")[-1][:32]
+
+    # Wait for the .ls listing to appear in S3 (upload may still be in progress)
+    server.wait_until_succeeds(
+        f"curl -sf http://s3:${toString garagePort}/hydra-cache/{store_hash}.ls"
+        f" --aws-sigv4 'aws:amz:garage:s3'"
+        f" -u '{key_id}:{key_secret}'",
+        timeout=60,
+    )
+
+    # Fetch the .ls listing
+    ls_json = server.succeed(
+        f"curl -sf http://s3:${toString garagePort}/hydra-cache/{store_hash}.ls"
+        f" --aws-sigv4 'aws:amz:garage:s3'"
+        f" -u '{key_id}:{key_secret}'"
+    )
+
+    # Exact comparison with the expected listing
+    expected = json.loads('${expectedListing}')
+    actual = json.loads(ls_json)
+    assert actual == expected, (
+        f"NAR listing mismatch.\n"
+        f"Expected:\n{json.dumps(expected, indent=2)}\n"
+        f"Actual:\n{json.dumps(actual, indent=2)}"
+    )
+
+    ${lib.optionalString presigned ''
+      # Regression: a closure path already in the cache must not be re-uploaded
+      # by a later build. trivial2 references trivial, so trivial is in its
+      # closure; building trivial2 must NOT re-PUT trivial's NAR.
+      def s3_curl(args):
+          return (
+              f"curl -sf http://s3:${toString garagePort}/hydra-cache/{args}"
+              f" --aws-sigv4 'aws:amz:garage:s3' -u '{key_id}:{key_secret}'"
+          )
+
+      def last_modified(nar_url):
+          headers = server.succeed(s3_curl(nar_url) + " -I")
+          for line in headers.splitlines():
+              if line.lower().startswith("last-modified:"):
+                  return line.split(":", 1)[1].strip()
+          raise Exception(f"no Last-Modified for {nar_url}:\n{headers}")
+
+      narinfo = server.succeed(s3_curl(f"{store_hash}.narinfo"))
+      trivial_nar = next(
+          l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith("URL:")
+      )
+      before_lm = last_modified(trivial_nar)
+
+      # Build trivial2 in its own jobset. Use a fresh source dir: the queue
+      # runner imports the path input to the store once, so reusing
+      # /run/jobset would hide the new expression.
+      server.succeed(
+          "mkdir -p /run/jobset2 && cp ${jobFile2} /run/jobset2/default.nix && "
+          "chmod -R 755 /run/jobset2 && chown -R hydra /run/jobset2"
+      )
+      mycurl("PUT", "/jobset/test/trivial2", {
+          "description": "Trivial2",
+          "checkinterval": "0",
+          "enabled": "1",
+          "visible": "1",
+          "keepnr": "1",
+          "type": 0,
+          "nixexprinput": "src",
+          "nixexprpath": "default.nix",
+          "inputs": {"src": {"value": "/run/jobset2", "type": "path"}},
+      })
+      mycurl("POST", "/api/push?jobsets=test:trivial2&force=1")
+
+      server.wait_until_succeeds(
+          'curl -sf ' + URL + '/build/2 -H "Accept: application/json"'
+          ' | jq -e ".finished == 1"',
+          timeout=120,
+      )
+      build2 = json.loads(
+          server.succeed('curl -sf ' + URL + '/build/2 -H "Accept: application/json"')
+      )
+      assert build2.get("buildstatus") == 0, f"trivial2 build failed: {build2}"
+
+      out2_hash = build2["buildoutputs"]["out"]["path"].split("/")[-1][:32]
+      # Wait until trivial2's own NAR has been uploaded, i.e. the upload pass ran.
+      server.wait_until_succeeds(s3_curl(f"{out2_hash}.narinfo"), timeout=60)
+
+      after_lm = last_modified(trivial_nar)
+      assert before_lm == after_lm, (
+          "trivial NAR was re-uploaded while building trivial2 "
+          f"(Last-Modified {before_lm!r} -> {after_lm!r})"
+      )
+    ''}
+
+    builder.shutdown()
+    server.shutdown()
+    s3.shutdown()
+  '';
+}

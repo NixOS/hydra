@@ -1,110 +1,57 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
+use harmonia_store_path::StorePath;
+/// Errors from gRPC server setup and serving.
+#[derive(Debug, thiserror::Error)]
+pub enum ServerError {
+    #[error("gRPC transport error")]
+    Transport(#[from] tonic::transport::Error),
+    #[error("loading mTLS certificate and identity")]
+    Mtls(#[from] crate::config::ConfigError),
+    #[error("reflection service: {0}")]
+    Reflection(#[from] tonic_reflection::server::Error),
+}
 use tokio::sync::mpsc;
 use tonic::service::interceptor::InterceptedService;
 use tower::ServiceBuilder;
 use tracing::Instrument as _;
 
-use crate::{
-    server::grpc::runner_v1::{BuildResultState, StepUpdate},
-    state::{Machine, MachineMessage, State},
+use crate::state::{Machine, MachineMessage, State};
+use hydra_proto::ProtoStorePath;
+use hydra_proto::{
+    BuildResultInfo, BuilderRequest, JoinResponse, LogChunk, MultipartPartsRequest,
+    MultipartPartsResponse, PROTO_API_VERSION, PresignedUploadComplete, PresignedUrlRequest,
+    PresignedUrlResponse, RunnerRequest, SimplePingMessage, StepUpdate, VersionCheckRequest,
+    VersionCheckResponse, builder_request,
+    runner_service_server::{RunnerService, RunnerServiceServer},
 };
-use nix_utils::BaseStore as _;
 
-include!(concat!(env!("OUT_DIR"), "/proto_version.rs"));
-use runner_v1::runner_service_server::{RunnerService, RunnerServiceServer};
-use runner_v1::{
-    BuildResultInfo, BuilderRequest, FetchRequisitesRequest, JoinResponse, LogChunk, NarData,
-    PresignedUploadComplete, PresignedUrlRequest, PresignedUrlResponse, RunnerRequest,
-    SimplePingMessage, StorePaths, VersionCheckRequest, VersionCheckResponse, builder_request,
-};
-use shared::proto::ProtoStorePath;
+fn multipart_to_proto(mp: binary_cache::PresignedMultipart) -> hydra_proto::MultipartUpload {
+    hydra_proto::MultipartUpload {
+        upload_id: mp.upload_id,
+        part_size: mp.part_size,
+        parts: mp
+            .parts
+            .into_iter()
+            .map(|p| hydra_proto::MultipartPart {
+                part_number: p.part_number,
+                url: p.url,
+            })
+            .collect(),
+    }
+}
 
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<RunnerRequest, tonic::Status>> + Send>>;
-type StreamFileResponseStream =
-    std::pin::Pin<Box<dyn futures::Stream<Item = Result<NarData, tonic::Status>> + Send>>;
-
-type CompressionEncoder<R> = async_compression::tokio::bufread::ZstdEncoder<R>;
+type FetchPathsResponseStream = std::pin::Pin<
+    Box<dyn futures::Stream<Item = Result<hydra_proto::AddToStoreRequest, tonic::Status>> + Send>,
+>;
 type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
-
-const DUPLEX_BUFFER_SIZE: usize = 256 * 1024;
-
-fn decode_stream<S>(
-    stream: S,
-) -> impl tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>>
-where
-    S: tokio_stream::Stream<Item = Result<bytes::Bytes, std::io::Error>> + Unpin,
-{
-    let reader = tokio_util::io::StreamReader::new(stream);
-    let decoder = CompressionDecoder::new(reader);
-    tokio_util::io::ReaderStream::new(decoder)
-}
-
-fn compression_encode_channel() -> (
-    tokio::io::DuplexStream,
-    mpsc::UnboundedReceiver<Result<NarData, tonic::Status>>,
-) {
-    let (raw_writer, raw_reader) = tokio::io::duplex(DUPLEX_BUFFER_SIZE);
-    let (tx, rx) = mpsc::unbounded_channel();
-
-    tokio::task::spawn(async move {
-        use tokio_stream::StreamExt as _;
-        let encoder = CompressionEncoder::new(tokio::io::BufReader::new(raw_reader));
-        let mut stream = tokio_util::io::ReaderStream::new(encoder);
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(bytes) => {
-                    if tx
-                        .send(Ok(NarData {
-                            chunk: bytes.into(),
-                        }))
-                        .is_err()
-                    {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to compress chunk: {e}");
-                    let _ = tx.send(Err(tonic::Status::internal("Compression error")));
-                    break;
-                }
-            }
-        }
-    });
-
-    (raw_writer, rx)
-}
 
 // there is no reason to make this configurable, it only exists so we ensure the channel is not
 // closed. we dont use this to write any actual information.
 const BACKWARDS_PING_INTERVAL: u64 = 30;
-
-pub mod runner_v1 {
-    // We need to allow pedantic here because of generated code
-    #![allow(clippy::pedantic, unused_qualifications)]
-
-    tonic::include_proto!("runner.v1");
-
-    pub(crate) const FILE_DESCRIPTOR_SET: &[u8] =
-        tonic::include_file_descriptor_set!("streaming_descriptor");
-
-    impl From<StepStatus> for db::models::StepStatus {
-        fn from(item: StepStatus) -> Self {
-            match item {
-                StepStatus::Preparing => Self::Preparing,
-                StepStatus::Connecting => Self::Connecting,
-                StepStatus::SeningInputs => Self::SendingInputs,
-                StepStatus::Building => Self::Building,
-                StepStatus::WaitingForLocalSlot => Self::WaitingForLocalSlot,
-                StepStatus::ReceivingOutputs => Self::ReceivingOutputs,
-                StepStatus::PostProcessing => Self::PostProcessing,
-            }
-        }
-    }
-}
 
 fn match_for_io_error(err_status: &tonic::Status) -> Option<&std::io::Error> {
     let mut err: &(dyn std::error::Error + 'static) = err_status;
@@ -179,7 +126,10 @@ pub struct Server {
 impl Server {
     /// Serve on a pre-bound TCP listener.
     #[tracing::instrument(skip(listener, state), err)]
-    pub async fn run(listener: tokio::net::TcpListener, state: Arc<State>) -> anyhow::Result<()> {
+    pub async fn run(
+        listener: tokio::net::TcpListener,
+        state: Arc<State>,
+    ) -> Result<(), ServerError> {
         let stream = tokio_stream::wrappers::TcpListenerStream::new(listener);
         Self::serve_incoming(stream, state).await
     }
@@ -189,12 +139,12 @@ impl Server {
     pub async fn run_unix(
         listener: tokio::net::UnixListener,
         state: Arc<State>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), ServerError> {
         let stream = tokio_stream::wrappers::UnixListenerStream::new(listener);
         Self::serve_incoming(stream, state).await
     }
 
-    async fn serve_incoming<S, IO, IE>(incoming: S, state: Arc<State>) -> anyhow::Result<()>
+    async fn serve_incoming<S, IO, IE>(incoming: S, state: Arc<State>) -> Result<(), ServerError>
     where
         S: futures_util::Stream<Item = Result<IO, IE>>,
         IO: tokio::io::AsyncRead
@@ -203,6 +153,8 @@ impl Server {
             + Unpin
             + Send
             + 'static,
+        // Required by tonic's `serve_with_incoming` API. We cannot replace this bound with
+        // something else.
         IE: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
         let service = RunnerServiceServer::new(Self {
@@ -231,11 +183,7 @@ impl Server {
 
         if state.cli.mtls_enabled() {
             tracing::info!("Using mtls");
-            let (client_ca_cert, server_identity) = state
-                .cli
-                .get_mtls()
-                .await
-                .context("Failed to get_mtls Certificate and Identity")?;
+            let (client_ca_cert, server_identity) = state.cli.get_mtls().await?;
 
             let tls = tonic::transport::ServerTlsConfig::new()
                 .identity(server_identity)
@@ -243,7 +191,7 @@ impl Server {
             server = server.tls_config(tls)?;
         }
         let reflection_service = tonic_reflection::server::Builder::configure()
-            .register_encoded_file_descriptor_set(runner_v1::FILE_DESCRIPTOR_SET)
+            .register_encoded_file_descriptor_set(hydra_proto::FILE_DESCRIPTOR_SET)
             .build_v1()?;
 
         let (_health_reporter, health_service) = tonic_health::server::health_reporter();
@@ -261,8 +209,7 @@ impl Server {
 #[tonic::async_trait]
 impl RunnerService for Server {
     type OpenTunnelStream = OpenTunnelResponseStream;
-    type StreamFileStream = StreamFileResponseStream;
-    type StreamFilesStream = StreamFileResponseStream;
+    type FetchPathsStream = FetchPathsResponseStream;
 
     #[tracing::instrument(skip(self, req), err)]
     async fn check_version(
@@ -286,7 +233,7 @@ impl RunnerService for Server {
             }));
         }
 
-        let our_store_dir = self.state.store.store_dir().to_string();
+        let our_store_dir = self.state.connector.store_dir().to_string();
         if req.store_dir != our_store_dir {
             return Err(tonic::Status::failed_precondition(format!(
                 "Store dir mismatch: builder has `{}`, server has `{}`",
@@ -348,7 +295,7 @@ impl RunnerService for Server {
         let (output_tx, output_rx) = mpsc::channel(128);
         if let Err(e) = output_tx
             .send(Ok(RunnerRequest {
-                message: Some(runner_v1::runner_request::Message::Join(JoinResponse {
+                message: Some(hydra_proto::runner_request::Message::Join(JoinResponse {
                     machine_id: machine_id.to_string(),
                     max_concurrent_downloads: state.config.get_max_concurrent_downloads(),
                 })),
@@ -366,7 +313,7 @@ impl RunnerService for Server {
                 tokio::select! {
                     _ = ping_interval.tick() => {
                         let msg = RunnerRequest {
-                            message: Some(runner_v1::runner_request::Message::Ping(SimplePingMessage {
+                            message: Some(hydra_proto::runner_request::Message::Ping(SimplePingMessage {
                                 message: "ping".into(),
                             }))
                         };
@@ -426,7 +373,7 @@ impl RunnerService for Server {
     async fn build_log(
         &self,
         req: tonic::Request<tonic::Streaming<LogChunk>>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         use tokio_stream::StreamExt as _;
 
         let stream = req.into_inner();
@@ -463,37 +410,31 @@ impl RunnerService for Server {
             .await
             .map_err(|e| tonic::Status::internal(format!("Failed to write log file: {e}")))?;
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), err)]
     async fn build_result(
         &self,
-        req: tonic::Request<tonic::Streaming<NarData>>,
-    ) -> BuilderResult<runner_v1::Empty> {
-        let stream = req.into_inner();
-
-        // We leak memory if we use the store from state, so we open and close a new
-        // connection for each import. This sucks but using the state.store will result in the path
-        // not being closed!
-        {
-            let data_stream = tokio_stream::StreamExt::map(stream, |s| {
-                s.map(|v| bytes::Bytes::from(v.chunk))
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::UnexpectedEof, e))
-            });
-
-            let store = nix_utils::LocalStore::init();
-            store.import_paths(decode_stream(data_stream), false).await
-        }
-        .map_err(|_| tonic::Status::internal("Failed to import path."))?;
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        req: tonic::Request<tonic::Streaming<hydra_proto::AddToStoreRequest>>,
+    ) -> BuilderResult<hydra_proto::Empty> {
+        let mut conn = self
+            .state
+            .connector
+            .connect()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connection failed: {e}")))?;
+        store_transfer::import::import(&mut conn, req.into_inner())
+            .await
+            .map_err(|e| tonic::Status::internal(format!("import error: {e}")))?;
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self), err)]
     async fn build_step_update(
         &self,
         req: tonic::Request<StepUpdate>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
 
         let req = req.into_inner();
@@ -524,14 +465,14 @@ impl RunnerService for Server {
             }.in_current_span()
         });
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), fields(machine_id=req.get_ref().machine_id, build_id=req.get_ref().build_id), err)]
     async fn complete_build(
         &self,
         req: tonic::Request<BuildResultInfo>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
 
         let req = req.into_inner();
@@ -544,72 +485,58 @@ impl RunnerService for Server {
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
-        tokio::spawn({
-            async move {
-                if req.result_state() == BuildResultState::Success {
-                    let build_output =
-                        match crate::state::BuildOutput::from_grpc(state.store.store_dir(), req) {
-                            Ok(output) => output,
-                            Err(e) => {
-                                tracing::error!("Failed to parse build output: {e}");
-                                return;
-                            }
-                        };
-                    if let Err(e) = state
-                        .succeed_step_by_uuid(build_id, machine_id, build_output)
-                        .await
-                    {
-                        tracing::error!(
-                            "Failed to mark step with build_id={build_id} as done: {e}"
-                        );
-                    }
-                } else if let Err(e) = state
-                    .fail_step_by_uuid(
-                        build_id,
-                        machine_id,
-                        req.result_state().into(),
-                        crate::state::BuildTimings::new(
-                            req.import_time_ms,
-                            req.build_time_ms,
-                            req.upload_time_ms,
-                        ),
-                    )
-                    .await
-                {
-                    tracing::error!("Failed to fail step with build_id={build_id}: {e}");
-                }
-            }
-            .in_current_span()
-        });
+        // Finalize inline and propagate failure: remove_job must run to free
+        // the machine slot, so a failed finalize has to reach the builder
+        // (which retries complete_build) rather than being swallowed.
+        if req.result_state() == hydra_proto::BuildResultState::Success {
+            let build_output = crate::state::BuildOutput::from_grpc(req).map_err(|e| {
+                tonic::Status::invalid_argument(format!("invalid build output: {e}"))
+            })?;
+            state
+                .succeed_step_by_uuid(build_id, machine_id, build_output)
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        } else {
+            state
+                .fail_step_by_uuid(
+                    build_id,
+                    machine_id,
+                    req.result_state().into(),
+                    crate::state::BuildTimings::new(
+                        req.import_time_ms,
+                        req.build_time_ms,
+                        req.upload_time_ms,
+                    ),
+                    req.error_msg.clone(),
+                )
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to finalize build: {e}")))?;
+        }
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
     #[tracing::instrument(skip(self, req), err)]
-    async fn fetch_drv_requisites(
+    async fn fetch_requisites(
         &self,
-        req: tonic::Request<FetchRequisitesRequest>,
-    ) -> BuilderResult<runner_v1::DrvRequisitesMessage> {
+        req: tonic::Request<hydra_proto::StorePaths>,
+    ) -> BuilderResult<hydra_proto::RequisitesResponse> {
         let state = self.state.clone();
-        let req = req.into_inner();
-        let drv = req
-            .path
-            .ok_or_else(|| tonic::Status::invalid_argument("missing path"))?
-            .0;
+        let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
-        let requisites = state
+        let requisites: Vec<ProtoStorePath> = state
             .store
-            .query_requisites(&[&drv], req.include_outputs)
+            .query_closure_infos(paths)
             .await
             .map_err(|e| {
-                tracing::error!("failed to toposort drv e={e}");
-                tonic::Status::internal("failed to toposort drv.")
+                tracing::error!("failed to compute closure e={e}");
+                tonic::Status::internal("failed to compute closure.")
             })?
             .into_iter()
-            .map(ProtoStorePath::from)
+            .map(|vpi| ProtoStorePath(vpi.path))
             .collect();
 
-        Ok(tonic::Response::new(runner_v1::DrvRequisitesMessage {
+        Ok(tonic::Response::new(hydra_proto::RequisitesResponse {
             requisites,
         }))
     }
@@ -618,62 +545,66 @@ impl RunnerService for Server {
     async fn has_path(
         &self,
         req: tonic::Request<ProtoStorePath>,
-    ) -> BuilderResult<runner_v1::HasPathResponse> {
+    ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
         let state = self.state.clone();
-        let has_path = state.store.is_valid_path(&path).await;
+        let has_path: bool = state
+            .store
+            .is_valid_path(&path)
+            .await
+            .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
 
-        Ok(tonic::Response::new(runner_v1::HasPathResponse {
+        Ok(tonic::Response::new(hydra_proto::HasPathResponse {
             has_path,
         }))
     }
 
     #[tracing::instrument(skip(self, req), err)]
-    async fn stream_file(
+    async fn fetch_paths(
         &self,
-        req: tonic::Request<ProtoStorePath>,
-    ) -> BuilderResult<Self::StreamFileStream> {
-        let path = req.into_inner().0;
-        let (raw_writer, rx) = compression_encode_channel();
+        req: tonic::Request<hydra_proto::StorePaths>,
+    ) -> BuilderResult<Self::FetchPathsStream> {
+        let paths: Vec<_> = req.into_inner().paths.into_iter().map(|p| p.0).collect();
 
-        tokio::task::spawn_blocking(move || {
-            let store = nix_utils::LocalStore::init();
-            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
-            let closure = move |data: &[u8]| {
-                use std::io::Write;
-                sync_writer.write_all(data).is_ok()
-            };
-            let _ = store.export_paths(&[path], closure);
+        // Reuse one daemon connection for the whole path-info loop.
+        let mut conn = self
+            .state
+            .store
+            .connect()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connection: {e}")))?;
+        let mut infos = hashbrown::HashMap::with_capacity(paths.len());
+        for path in &paths {
+            let info = daemon_client_utils::query_path_info(&mut conn, path)
+                .await
+                .map_err(|e| tonic::Status::internal(format!("query_path_info failed: {e}")))?
+                .map(|vpi| vpi.info)
+                .ok_or_else(|| tonic::Status::not_found(format!("path '{path}' is not valid")))?;
+            infos.insert(path.clone(), info);
+        }
+
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        tokio::spawn({
+            let connector = self.state.connector.clone();
+            async move {
+                let mut conn = match connector.connect().await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::error!("export failed: daemon connection: {e}");
+                        return;
+                    }
+                };
+                if let Err(e) = store_transfer::export::export(&mut conn, &paths, &infos, &tx).await
+                {
+                    tracing::error!("export failed: {e}");
+                }
+            }
         });
 
         Ok(tonic::Response::new(
             Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
-                as Self::StreamFileStream,
-        ))
-    }
-
-    #[tracing::instrument(skip(self, req), err)]
-    async fn stream_files(
-        &self,
-        req: tonic::Request<StorePaths>,
-    ) -> BuilderResult<Self::StreamFilesStream> {
-        let req = req.into_inner();
-        let paths = req.paths.into_iter().map(|p| p.0).collect::<Vec<_>>();
-        let (raw_writer, rx) = compression_encode_channel();
-
-        tokio::task::spawn_blocking(move || {
-            let store = nix_utils::LocalStore::init();
-            let mut sync_writer = tokio_util::io::SyncIoBridge::new(raw_writer);
-            let closure = move |data: &[u8]| {
-                use std::io::Write;
-                sync_writer.write_all(data).is_ok()
-            };
-            let _ = store.export_paths(&paths, closure);
-        });
-
-        Ok(tonic::Response::new(
-            Box::pin(tokio_stream::wrappers::UnboundedReceiverStream::new(rx))
-                as Self::StreamFilesStream,
+                as Self::FetchPathsStream,
         ))
     }
 
@@ -689,37 +620,77 @@ impl RunnerService for Server {
         &self,
         req: tonic::Request<PresignedUrlRequest>,
     ) -> BuilderResult<PresignedUrlResponse> {
-        let _state = self.state.clone();
+        let state = self.state.clone();
         let req = req.into_inner();
 
-        let _build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
+        let build_id = uuid::Uuid::parse_str(&req.build_id).map_err(|e| {
             tracing::error!("Failed to parse build_id into uuid: {e}");
             tonic::Status::invalid_argument("build_id is not a valid uuid.")
         })?;
-        let _machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
+        let machine_id = uuid::Uuid::parse_str(&req.machine_id).map_err(|e| {
             tracing::error!("Failed to parse machine_id into uuid: {e}");
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
 
+        // Only a builder that owns a running job for this build may mint an
+        // upload URL, so a stale or reclaimed-from builder cannot publish
+        // outputs for a step it no longer owns.
+        let machine = state
+            .machines
+            .get_machine_by_id(machine_id)
+            .ok_or_else(|| tonic::Status::not_found("Machine not found"))?;
+        machine
+            .get_job_drv_for_build_id(build_id)
+            .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
+
         let remote_store = {
-            let remote_stores = _state.remote_stores.read();
+            let remote_stores = state.remote_stores.read();
             remote_stores
                 .iter()
                 .find_map(|s| match s {
                     crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    _ => None,
+                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
                 })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
-        let mut responses = Vec::new();
-        for presigned_request in req.request {
-            let store_path = nix_utils::parse_store_path(&presigned_request.store_path);
+        let requests = req
+            .request
+            .into_iter()
+            .map(|r| StorePath::from_base_path(&r.store_path).map(|p| (p, r)))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| tonic::Status::invalid_argument(format!("bad store path: {e}")))?;
 
+        // Only mint upload URLs for paths missing from the remote cache.
+        // Presigning the whole closure makes the builder re-compress and
+        // re-PUT already-cached deps (glibc, gcc, …) on every build while it
+        // holds its build slot, which collapses throughput.
+        let missing: hashbrown::HashSet<StorePath> = remote_store
+            .query_missing_paths(requests.iter().map(|(p, _)| p.clone()).collect())
+            .await
+            .into_iter()
+            .collect();
+
+        let mut responses = Vec::new();
+        for (store_path, presigned_request) in requests {
+            if !missing.contains(&store_path) {
+                continue;
+            }
+
+            let proto_hash = presigned_request
+                .nar_hash
+                .ok_or_else(|| tonic::Status::invalid_argument("missing nar_hash"))?;
+            let hash: harmonia_utils_hash::Hash = proto_hash
+                .try_into()
+                .map_err(|e: &str| tonic::Status::invalid_argument(e))?;
+            let nar_hash: harmonia_store_path_info::NarHash = hash
+                .try_into()
+                .map_err(|_| tonic::Status::invalid_argument("nar_hash is not sha256"))?;
             let presigned_response = remote_store
                 .generate_nar_upload_presigned_url(
                     &store_path,
-                    &presigned_request.nar_hash,
+                    &nar_hash,
+                    presigned_request.nar_size,
                     presigned_request.debug_info_build_ids,
                 )
                 .await
@@ -728,10 +699,10 @@ impl RunnerService for Server {
                     tonic::Status::internal("Failed to generate presigned URL")
                 })?;
 
-            responses.push(runner_v1::PresignedNarResponse {
-                store_path: store_path.to_string().clone(),
+            responses.push(hydra_proto::PresignedNarResponse {
+                store_path: store_path.to_string(),
                 nar_url: presigned_response.nar_url,
-                nar_upload: Some(runner_v1::PresignedUpload {
+                nar_upload: Some(hydra_proto::PresignedUpload {
                     compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
                     url: presigned_response.nar_upload.url,
                     path: presigned_response.nar_upload.path,
@@ -740,23 +711,29 @@ impl RunnerService for Server {
                         .compression
                         .as_str()
                         .to_owned(),
+                    multipart: presigned_response
+                        .nar_upload
+                        .multipart
+                        .map(multipart_to_proto),
                 }),
                 ls_upload: presigned_response
                     .ls_upload
-                    .map(|ls| runner_v1::PresignedUpload {
+                    .map(|ls| hydra_proto::PresignedUpload {
                         compression_level: ls.get_compression_level_as_i32(),
                         url: ls.url,
                         path: ls.path,
                         compression: ls.compression.as_str().to_owned(),
+                        multipart: None,
                     }),
                 debug_info_upload: presigned_response
                     .debug_info_upload
                     .into_iter()
-                    .map(|p| runner_v1::PresignedUpload {
+                    .map(|p| hydra_proto::PresignedUpload {
                         compression_level: p.get_compression_level_as_i32(),
                         url: p.url,
                         path: p.path,
                         compression: p.compression.as_str().to_owned(),
+                        multipart: None,
                     })
                     .collect(),
             });
@@ -768,19 +745,68 @@ impl RunnerService for Server {
         }))
     }
 
+    async fn request_multipart_parts(
+        &self,
+        req: tonic::Request<MultipartPartsRequest>,
+    ) -> BuilderResult<MultipartPartsResponse> {
+        let req = req.into_inner();
+
+        uuid::Uuid::parse_str(&req.build_id)
+            .map_err(|_| tonic::Status::invalid_argument("build_id is not a valid uuid."))?;
+        uuid::Uuid::parse_str(&req.machine_id)
+            .map_err(|_| tonic::Status::invalid_argument("machine_id is not a valid uuid."))?;
+        if req.num_parts == 0 {
+            return Err(tonic::Status::invalid_argument(
+                "num_parts must be positive",
+            ));
+        }
+
+        let remote_store = {
+            let remote_stores = self.state.remote_stores.read();
+            remote_stores
+                .iter()
+                .find_map(|s| match s {
+                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
+                })
+                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
+        };
+
+        let parts = remote_store
+            .presign_more_multipart_parts(
+                &req.object_key,
+                &req.upload_id,
+                req.start_part_number,
+                req.num_parts,
+            )
+            .map_err(|e| {
+                tracing::error!("Failed to presign more multipart parts: {e}");
+                tonic::Status::internal("Failed to presign multipart parts")
+            })?;
+
+        Ok(tonic::Response::new(MultipartPartsResponse {
+            parts: parts
+                .into_iter()
+                .map(|p| hydra_proto::MultipartPart {
+                    part_number: p.part_number,
+                    url: p.url,
+                })
+                .collect(),
+        }))
+    }
+
     #[tracing::instrument(
         skip(self, req),
         fields(
             build_id=req.get_ref().build_id,
             machine_id=req.get_ref().machine_id,
-            store_path=req.get_ref().store_path
         ),
         err,
     )]
     async fn notify_presigned_upload_complete(
         &self,
         req: tonic::Request<PresignedUploadComplete>,
-    ) -> BuilderResult<runner_v1::Empty> {
+    ) -> BuilderResult<hydra_proto::Empty> {
         let state = self.state.clone();
         let req = req.into_inner();
 
@@ -807,34 +833,101 @@ impl RunnerService for Server {
                 .iter()
                 .find_map(|s| match s {
                     crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    _ => None,
+                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
                 })
                 .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
         };
 
-        let narinfo = binary_cache::NarInfo {
-            store_path: nix_utils::parse_store_path(&req.store_path),
-            url: req.url.clone(),
-            compression: remote_store.cfg.compression,
-            file_hash: binary_cache::parse_hash(&req.file_hash),
-            file_size: Some(req.file_size),
-            nar_hash: binary_cache::parse_hash(&req.nar_hash).ok_or_else(|| {
-                tonic::Status::invalid_argument(format!("invalid nar hash: {}", req.nar_hash))
-            })?,
-            nar_size: req.nar_size,
-            references: req
-                .references
+        let proto_nar_info = req
+            .nar_info
+            .ok_or_else(|| tonic::Status::invalid_argument("missing nar_info"))?;
+
+        let mut narinfo: binary_cache::NarInfo = proto_nar_info
+            .try_into()
+            .map_err(|e: hydra_proto::NarInfoConvertError| tonic::Status::invalid_argument(e.0))?;
+
+        if &narinfo.info.info.store_dir != self.state.connector.store_dir() {
+            return Err(tonic::Status::invalid_argument(format!(
+                "store_dir mismatch: expected {}, got {}",
+                self.state.connector.store_dir(),
+                narinfo.info.info.store_dir
+            )));
+        }
+
+        // The cache signs and formats narinfos with its own configured store
+        // dir; for those signatures to match the uploaded paths it must agree
+        // with the local store (the narinfo was just checked against it above).
+        debug_assert_eq!(
+            &remote_store.cfg.store_dir,
+            self.state.connector.store_dir()
+        );
+
+        let store_path = narinfo.path.clone();
+
+        // Override compression from server config
+        narinfo.info.compression = Some(remote_store.cfg.compression.as_str().to_owned());
+
+        let url = narinfo.info.url.clone();
+        let size = narinfo.info.download_size;
+
+        // The content-addressed nar/<hash> object is written at most once
+        // (If-None-Match). The narinfo is always written, but it must describe
+        // the stored object: when the NAR was already present, its bytes are a
+        // different (equally valid) compression than this upload's, so the
+        // narinfo writer recomputes FileHash/FileSize from the object. For a
+        // single PUT the builder reports this; for multipart the conditional
+        // Complete here decides it.
+        let mut nar_already_present = req.nar_already_present;
+
+        // Multipart NAR objects only exist on S3 once finalised; do it here,
+        // before upload_narinfo_after_presigned_upload HEAD-checks the object.
+        if let Some(mp) = req.multipart {
+            let parts = mp
+                .parts
                 .into_iter()
-                .map(|p| nix_utils::parse_store_path(&p))
-                .collect(),
-            deriver: req.deriver.map(|p| nix_utils::parse_store_path(&p)),
-            ca: req.ca,
-            sigs: vec![],
-        };
-        let store_path = narinfo.store_path.clone();
+                .map(|p| binary_cache::CompletedPart {
+                    part_number: p.part_number,
+                    etag: p.etag,
+                })
+                .collect();
+            match remote_store
+                .complete_multipart_upload(&mp.object_key, &mp.upload_id, parts)
+                .await
+            {
+                Ok(binary_cache::WriteOutcome::Created) => {}
+                Ok(binary_cache::WriteOutcome::AlreadyExists) => {
+                    nar_already_present = true;
+                }
+                // CompleteMultipartUpload is not idempotent and must not be
+                // aborted: aborting frees the uploadId, so a builder retry would
+                // see 404 NoSuchUpload and never finalise. If the object is
+                // present the completion effectively succeeded (treat as
+                // already-present); otherwise return a retryable error so the
+                // builder retries with the same (still-live) uploadId.
+                Err(e) => {
+                    if remote_store
+                        .head_object(&mp.object_key)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        tracing::warn!(
+                            "complete_multipart_upload for {store_path} reported {e}, but the object is present; treating as already complete"
+                        );
+                        nar_already_present = true;
+                    } else {
+                        tracing::error!(
+                            "Failed to complete multipart upload for {store_path}: {e}"
+                        );
+                        return Err(tonic::Status::internal(
+                            "Failed to complete multipart upload",
+                        ));
+                    }
+                }
+            }
+        }
 
         let narinfo_url = remote_store
-            .upload_narinfo_after_presigned_upload(&self.state.store, narinfo)
+            .upload_narinfo_after_presigned_upload(narinfo, nar_already_present)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to upload narinfo for {}: {e}", store_path);
@@ -842,13 +935,13 @@ impl RunnerService for Server {
             })?;
 
         tracing::debug!(
-            "Presigned upload completed and narinfo uploaded for path: {}, url: {}, size: {} bytes, narinfo: {}",
+            "Presigned upload completed and narinfo uploaded for path: {}, url: {:?}, size: {:?} bytes, narinfo: {}",
             store_path,
-            req.url,
-            req.file_size,
+            url,
+            size,
             narinfo_url
         );
 
-        Ok(tonic::Response::new(runner_v1::Empty {}))
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 }

@@ -1,3 +1,4 @@
+use harmonia_store_path::StorePath;
 use std::sync::{Arc, atomic::Ordering};
 
 use hashbrown::{HashMap, HashSet};
@@ -8,36 +9,22 @@ use db::models::BuildID;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
-use crate::server::grpc::runner_v1::{AbortMessage, BuildMessage, JoinMessage, runner_request};
+use hydra_proto::{AbortMessage, BuildMessage, JoinMessage, PresignedUploadOpts, runner_request};
 
-#[derive(Debug, Clone, Copy)]
-pub struct Pressure {
-    pub avg10: f32,
-    pub avg60: f32,
-    pub avg300: f32,
-    pub total: u64,
+#[derive(Debug, thiserror::Error)]
+pub enum MachineError {
+    #[error("{0}")]
+    ConfigIncompat(String),
+
+    #[error("failed to send message to machine: channel closed")]
+    Channel(#[from] mpsc::error::SendError<Message>),
+
+    #[error("parsing machine UUID")]
+    Uuid(#[from] uuid::Error),
 }
 
-impl From<crate::server::grpc::runner_v1::Pressure> for Pressure {
-    fn from(v: crate::server::grpc::runner_v1::Pressure) -> Self {
-        Self {
-            avg10: v.avg10,
-            avg60: v.avg60,
-            avg300: v.avg300,
-            total: v.total,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PressureState {
-    pub cpu_some: Option<Pressure>,
-    pub mem_some: Option<Pressure>,
-    pub mem_full: Option<Pressure>,
-    pub io_some: Option<Pressure>,
-    pub io_full: Option<Pressure>,
-    pub irq_full: Option<Pressure>,
-}
+pub use hydra_proto::Pressure;
+pub(crate) use hydra_proto::PressureState;
 
 #[derive(Debug)]
 pub struct Stats {
@@ -222,7 +209,7 @@ impl Stats {
         self.last_ping.load(Ordering::Relaxed)
     }
 
-    pub fn store_ping(&self, msg: &crate::server::grpc::runner_v1::PingMessage) {
+    pub fn store_ping(&self, msg: &hydra_proto::PingMessage) {
         self.last_ping
             .store(jiff::Timestamp::now().as_second(), Ordering::Relaxed);
 
@@ -232,14 +219,7 @@ impl Stats {
         self.mem_usage.store(msg.mem_usage, Ordering::Relaxed);
 
         if let Some(p) = msg.pressure {
-            self.pressure.store(Some(Arc::new(PressureState {
-                cpu_some: p.cpu_some.map(Into::into),
-                mem_some: p.mem_some.map(Into::into),
-                mem_full: p.mem_full.map(Into::into),
-                io_some: p.io_some.map(Into::into),
-                io_full: p.io_full.map(Into::into),
-                irq_full: p.irq_full.map(Into::into),
-            })));
+            self.pressure.store(Some(Arc::new(p)));
         }
 
         self.build_dir_free_percent
@@ -408,11 +388,29 @@ impl Machines {
         let Some(system) = s.get_system() else {
             return false;
         };
-        self.get_machine_for_system(&system, &s.get_required_features(), None)
+        let info = s.drv_info();
+        let required_features = info
+            .as_ref()
+            .map_or(&[][..], |i| i.required_features.as_slice());
+        self.get_machine_for_system(&system, required_features, None)
             .is_some()
     }
 
     #[tracing::instrument(skip(self, system))]
+    /// Whether any machine of this system has a free slot, ignoring
+    /// feature matching. Used as a cheap saturation probe by the dispatcher.
+    pub fn has_capacity_for_system(&self, system: &str, free_fn: MachineFreeFn) -> bool {
+        let inner = self.inner.read();
+        if system == "builtin" {
+            inner.by_uuid.values().any(|m| m.has_capacity(free_fn))
+        } else {
+            inner
+                .by_system
+                .get(system)
+                .is_some_and(|machines| machines.iter().any(|m| m.has_capacity(free_fn)))
+        }
+    }
+
     pub fn get_machine_for_system(
         &self,
         system: &str,
@@ -490,14 +488,14 @@ impl Machines {
 #[derive(Debug, Clone)]
 pub struct Job {
     pub internal_build_id: uuid::Uuid,
-    pub path: nix_utils::StorePath,
+    pub path: StorePath,
     pub build_id: BuildID,
     pub step_nr: i32,
     pub result: RemoteBuild,
 }
 
 impl Job {
-    pub fn new(build_id: BuildID, path: nix_utils::StorePath) -> Self {
+    pub fn new(build_id: BuildID, path: StorePath) -> Self {
         Self {
             internal_build_id: uuid::Uuid::new_v4(),
             path,
@@ -508,34 +506,20 @@ impl Job {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct PresignedUrlOpts {
-    pub upload_debug_info: bool,
-}
-
-impl From<PresignedUrlOpts> for crate::server::grpc::runner_v1::PresignedUploadOpts {
-    fn from(value: PresignedUrlOpts) -> Self {
-        Self {
-            upload_debug_info: value.upload_debug_info,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ConfigUpdate {
-    pub max_concurrent_downloads: u32,
-}
+pub(crate) use hydra_proto::ConfigUpdate;
 
 #[derive(Debug)]
 pub enum Message {
     ConfigUpdate(ConfigUpdate),
     BuildMessage {
         build_id: uuid::Uuid,
-        drv: nix_utils::StorePath,
+        drv: StorePath,
         max_log_size: u64,
+        max_output_size: u64,
         max_silent_time: i32,
         build_timeout: i32,
-        presigned_url_opts: Option<PresignedUrlOpts>,
+        presigned_url_opts: Option<PresignedUploadOpts>,
+        resolved_drv: Box<hydra_proto::nix::store::derivation::v1::Basic>,
     },
     AbortMessage {
         build_id: uuid::Uuid,
@@ -543,34 +527,35 @@ pub enum Message {
 }
 
 impl Message {
-    pub fn into_request(self) -> crate::server::grpc::runner_v1::RunnerRequest {
+    #[must_use]
+    pub fn into_request(self) -> hydra_proto::RunnerRequest {
         let msg = match self {
-            Self::ConfigUpdate(m) => runner_request::Message::ConfigUpdate(
-                crate::server::grpc::runner_v1::ConfigUpdate {
-                    max_concurrent_downloads: m.max_concurrent_downloads,
-                },
-            ),
+            Self::ConfigUpdate(m) => runner_request::Message::ConfigUpdate(m),
             Self::BuildMessage {
                 build_id,
                 drv,
                 max_log_size,
+                max_output_size,
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
+                resolved_drv,
             } => runner_request::Message::Build(BuildMessage {
                 build_id: build_id.to_string(),
-                drv: Some(shared::proto::ProtoStorePath::from(drv)),
+                drv: Some(hydra_proto::ProtoStorePath::from(drv)),
                 max_log_size,
+                max_output_size,
                 max_silent_time,
                 build_timeout,
-                presigned_url_opts: presigned_url_opts.map(Into::into),
+                presigned_url_opts,
+                resolved_drv: Some(*resolved_drv),
             }),
             Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
                 build_id: build_id.to_string(),
             }),
         };
 
-        crate::server::grpc::runner_v1::RunnerRequest { message: Some(msg) }
+        hydra_proto::RunnerRequest { message: Some(msg) }
     }
 }
 
@@ -631,21 +616,20 @@ impl Machine {
         tx: mpsc::Sender<Message>,
         use_presigned_uploads: bool,
         forced_substituters: &[String],
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self, MachineError> {
         if use_presigned_uploads && !forced_substituters.is_empty() {
             if !msg.use_substitutes {
-                return Err(anyhow::anyhow!(
-                    "Forced_substituters is configured but builder doesnt use substituters. This is an issue because presigned uploads are enabled",
+                return Err(MachineError::ConfigIncompat(
+                    "Forced_substituters is configured but builder doesnt use substituters. This is an issue because presigned uploads are enabled".into(),
                 ));
             }
 
             for forced_sub in forced_substituters {
                 if !msg.substituters.contains(forced_sub) {
-                    return Err(anyhow::anyhow!(
+                    return Err(MachineError::ConfigIncompat(format!(
                         "Builder missing required substituter '{}'. Available: {:?}",
-                        forced_sub,
-                        msg.substituters
-                    ));
+                        forced_sub, msg.substituters
+                    )));
                 }
             }
         }
@@ -680,26 +664,36 @@ impl Machine {
     }
 
     #[tracing::instrument(
-        skip(self, job, opts, presigned_url_opts),
+        skip(self, job, presigned_url_opts),
         fields(build_id=job.build_id, step_nr=job.step_nr),
         err,
+    )]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "params mirror the fields dispatched in `Message::BuildMessage`"
     )]
     pub async fn build_drv(
         &self,
         job: Job,
-        effective_drv: nix_utils::StorePath,
-        opts: &nix_utils::BuildOptions,
-        presigned_url_opts: Option<PresignedUrlOpts>,
-    ) -> anyhow::Result<()> {
+        effective_drv: StorePath,
+        max_log_size: u64,
+        max_output_size: u64,
+        max_silent_time: i32,
+        build_timeout: i32,
+        presigned_url_opts: Option<PresignedUploadOpts>,
+        resolved_drv: hydra_proto::nix::store::derivation::v1::Basic,
+    ) -> Result<(), MachineError> {
         let drv = effective_drv;
         self.msg_queue
             .send(Message::BuildMessage {
                 build_id: job.internal_build_id,
                 drv,
-                max_log_size: opts.get_max_log_size(),
-                max_silent_time: opts.get_max_silent_time(),
-                build_timeout: opts.get_build_timeout(),
+                max_log_size,
+                max_output_size,
+                max_silent_time,
+                build_timeout,
                 presigned_url_opts,
+                resolved_drv: Box::new(resolved_drv),
             })
             .await?;
 
@@ -718,7 +712,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(build_id=%build_id), err)]
-    pub async fn abort_build(&self, build_id: uuid::Uuid) -> anyhow::Result<()> {
+    pub async fn abort_build(&self, build_id: uuid::Uuid) -> Result<(), MachineError> {
         self.msg_queue
             .send(Message::AbortMessage { build_id })
             .await?;
@@ -728,7 +722,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn publish_config_update(&self, change: ConfigUpdate) -> anyhow::Result<()> {
+    pub async fn publish_config_update(&self, change: ConfigUpdate) -> Result<(), MachineError> {
         self.msg_queue.send(Message::ConfigUpdate(change)).await?;
         Ok(())
     }
@@ -766,27 +760,6 @@ impl Machine {
 
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
-        let now = jiff::Timestamp::now().as_second();
-        let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
-        let jobs_in_last_30s_count = self.stats.jobs_in_last_30s_count.load(Ordering::Relaxed);
-
-        // ensure that we dont submit more than 4 jobs in 30s
-        if now <= (jobs_in_last_30s_start + 30)
-            && jobs_in_last_30s_count >= 4
-            // ensure that we havent already finished some of them, because then its fine again
-            && self.stats.get_current_jobs() >= 4
-        {
-            return false;
-        } else if now > (jobs_in_last_30s_start + 30) {
-            // reset count
-            self.stats
-                .jobs_in_last_30s_start
-                .store(0, Ordering::Relaxed);
-            self.stats
-                .jobs_in_last_30s_count
-                .store(0, Ordering::Relaxed);
-        }
-
         if self.stats.get_build_dir_free_percent() < self.build_dir_avail_threshold {
             return false;
         }
@@ -832,7 +805,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn get_build_id_and_step_nr(&self, drv: &nix_utils::StorePath) -> Option<(i32, i32)> {
+    pub fn get_build_id_and_step_nr(&self, drv: &StorePath) -> Option<(i32, i32)> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| &j.path == drv)
@@ -848,7 +821,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%build_id))]
-    pub fn get_job_drv_for_build_id(&self, build_id: uuid::Uuid) -> Option<nix_utils::StorePath> {
+    pub fn get_job_drv_for_build_id(&self, build_id: uuid::Uuid) -> Option<StorePath> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| j.internal_build_id == build_id)
@@ -856,11 +829,16 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn get_internal_build_id_for_drv(&self, drv: &nix_utils::StorePath) -> Option<uuid::Uuid> {
+    pub fn get_internal_build_id_for_drv(&self, drv: &StorePath) -> Option<uuid::Uuid> {
         let jobs = self.jobs.read();
         jobs.iter()
             .find(|j| &j.path == drv)
             .map(|v| v.internal_build_id)
+    }
+
+    #[tracing::instrument(skip(self), fields(%drv))]
+    pub fn get_job(&self, drv: &StorePath) -> Option<Job> {
+        self.jobs.read().iter().find(|j| &j.path == drv).cloned()
     }
 
     #[tracing::instrument(skip(self, job))]
@@ -871,7 +849,7 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub fn remove_job(&self, drv: &nix_utils::StorePath) -> Option<Job> {
+    pub fn remove_job(&self, drv: &StorePath) -> Option<Job> {
         let job = {
             let mut jobs = self.jobs.write();
             let job = jobs.iter().find(|j| &j.path == drv).cloned();

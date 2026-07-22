@@ -1,15 +1,16 @@
+use harmonia_store_path::StorePath;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Build {
     id: db::models::BuildID,
-    drv_path: nix_utils::StorePath,
+    drv_path: StorePath,
     jobset_id: crate::state::JobsetID,
     name: String,
     timestamp: jiff::Timestamp,
-    max_silent_time: i32,
-    timeout: i32,
+    max_silent_time: Option<i32>,
+    timeout: Option<i32>,
     local_priority: i32,
     global_priority: i32,
     finished_in_db: bool,

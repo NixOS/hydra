@@ -1,3 +1,4 @@
+use harmonia_store_path::StoreDir;
 use hashbrown::HashMap;
 use smallvec::SmallVec;
 
@@ -10,6 +11,10 @@ const MAX_PRESIGNED_URL_EXPIRY_SECS: u64 = 24 * 60 * 60;
 #[allow(clippy::struct_excessive_bools)]
 pub struct S3CacheConfig {
     pub client_config: S3ClientConfig,
+
+    /// Store directory the cache's narinfos refer to, from the `store` query
+    /// parameter of the nix S3 URL (defaults to the standard `/nix/store`).
+    pub store_dir: StoreDir,
 
     pub compression: Compression,
     pub write_nar_listing: bool,
@@ -25,6 +30,12 @@ pub struct S3CacheConfig {
     pub buffer_size: usize,
 
     pub presigned_url_expiry: std::time::Duration,
+
+    /// Location of the persistent positive narinfo-presence cache.
+    /// `S3BinaryCacheClient::new` requires this to be set.
+    pub presence_cache_path: Option<std::path::PathBuf>,
+    /// How long a cached "present" result is trusted before re-checking.
+    pub presence_cache_ttl: std::time::Duration,
 }
 
 impl S3CacheConfig {
@@ -32,6 +43,7 @@ impl S3CacheConfig {
     pub fn new(client_config: S3ClientConfig) -> Self {
         Self {
             client_config,
+            store_dir: StoreDir::default(),
             compression: Compression::Xz,
             write_nar_listing: false,
             write_debug_info: false,
@@ -43,8 +55,24 @@ impl S3CacheConfig {
             ls_compression: Compression::None,
             log_compression: Compression::None,
             buffer_size: 8 * 1024 * 1024,
-            presigned_url_expiry: std::time::Duration::from_secs(3600),
+            presigned_url_expiry: std::time::Duration::from_hours(1),
+            presence_cache_path: None,
+            // FIXME: Long TTL, okay for cache.nixos.org but probably not in general,
+            presence_cache_ttl: std::time::Duration::from_hours(60 * 24),
         }
+    }
+
+    #[must_use]
+    pub fn with_presence_cache(
+        mut self,
+        path: Option<std::path::PathBuf>,
+        ttl: Option<std::time::Duration>,
+    ) -> Self {
+        self.presence_cache_path = path;
+        if let Some(ttl) = ttl {
+            self.presence_cache_ttl = ttl;
+        }
+        self
     }
 
     #[must_use]
@@ -139,6 +167,14 @@ impl S3CacheConfig {
         self
     }
 
+    #[must_use]
+    pub fn with_store_dir(mut self, store_dir: Option<StoreDir>) -> Self {
+        if let Some(store_dir) = store_dir {
+            self.store_dir = store_dir;
+        }
+        self
+    }
+
     pub fn with_presigned_url_expiry(
         mut self,
         expiry_secs: Option<u64>,
@@ -173,12 +209,14 @@ pub enum UrlParseError {
     UriParseError(#[from] url::ParseError),
     #[error("Int parse error: {0}")]
     IntParseError(#[from] std::num::ParseIntError),
-    #[error("Invalid S3Scheme: {0}")]
-    S3SchemeParseError(String),
-    #[error("Invalid Compression: {0}")]
-    CompressionParseError(String),
-    #[error("Bad schema: {0}")]
-    BadSchema(String),
+    #[error("Invalid store directory: {0}")]
+    StoreDir(String),
+    #[error(transparent)]
+    S3Scheme(#[from] InvalidS3Scheme),
+    #[error(transparent)]
+    Compression(#[from] crate::compression::InvalidCompression),
+    #[error("unsupported URI scheme: {0:?} (expected \"s3\")")]
+    UnsupportedScheme(String),
     #[error("Bucket not defined")]
     NoBucket,
     #[error("Invalid presigned URL expiry: {0}. Must be between {1} and {2} seconds")]
@@ -192,7 +230,7 @@ impl std::str::FromStr for S3CacheConfig {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uri = url::Url::parse(&s.trim().to_ascii_lowercase())?;
         if uri.scheme() != "s3" {
-            return Err(UrlParseError::BadSchema(uri.scheme().to_owned()));
+            return Err(UrlParseError::UnsupportedScheme(uri.scheme().to_owned()));
         }
         let bucket = uri.authority();
         if bucket.is_empty() {
@@ -205,19 +243,24 @@ impl std::str::FromStr for S3CacheConfig {
                 query
                     .get("scheme")
                     .map(|x| x.parse::<S3Scheme>())
-                    .transpose()
-                    .map_err(UrlParseError::S3SchemeParseError)?,
+                    .transpose()?,
             )
             .with_endpoint(query.get("endpoint").map(String::as_str))
             .with_profile(query.get("profile").map(String::as_str));
 
         Self::new(cfg)
+            .with_store_dir(
+                query
+                    .get("store")
+                    .map(|x| x.parse::<StoreDir>())
+                    .transpose()
+                    .map_err(|e| UrlParseError::StoreDir(e.to_string()))?,
+            )
             .with_compression(
                 query
                     .get("compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_write_nar_listing(query.get("write-nar-listing").map(String::as_str))
             .with_write_debug_info(query.get("write-debug-info").map(String::as_str))
@@ -249,22 +292,19 @@ impl std::str::FromStr for S3CacheConfig {
                 query
                     .get("narinfo-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_ls_compression(
                 query
                     .get("ls-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_log_compression(
                 query
                     .get("log-compression")
                     .map(|x| x.parse::<Compression>())
-                    .transpose()
-                    .map_err(UrlParseError::CompressionParseError)?,
+                    .transpose()?,
             )
             .with_buffer_size(
                 query
@@ -288,14 +328,21 @@ pub enum S3Scheme {
     HTTPS,
 }
 
+/// Invalid S3 URI scheme (expected `http` or `https`).
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("invalid S3 scheme: {got:?} (expected \"http\" or \"https\")")]
+pub struct InvalidS3Scheme {
+    pub got: String,
+}
+
 impl std::str::FromStr for S3Scheme {
-    type Err = String;
+    type Err = InvalidS3Scheme;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
             "http" => Ok(Self::HTTP),
             "https" => Ok(Self::HTTPS),
-            v => Err(v.to_owned()),
+            v => Err(InvalidS3Scheme { got: v.to_owned() }),
         }
     }
 }
@@ -445,7 +492,7 @@ mod tests {
 
     use super::{
         Compression, ConfigReadError, S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme,
-        UrlParseError, parse_aws_credentials_file,
+        StoreDir, UrlParseError, parse_aws_credentials_file,
     };
     use std::str::FromStr as _;
 
@@ -678,7 +725,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 8 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -786,7 +833,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
 
         let config = S3CacheConfig::new(client_config)
@@ -794,7 +841,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(3600)
+            std::time::Duration::from_hours(1)
         );
     }
 
@@ -809,8 +856,19 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
     }
 
     #[test]
+    fn test_s3_cache_config_from_str_store_dir() {
+        // Defaults to the standard store directory when `store` is absent.
+        let config = S3CacheConfig::from_str("s3://my-bucket").unwrap();
+        assert_eq!(config.store_dir, StoreDir::default());
+
+        // The `store` query param overrides it, matching nix S3 store URLs.
+        let config = S3CacheConfig::from_str("s3://my-bucket?store=/custom/store").unwrap();
+        assert_eq!(config.store_dir.to_string(), "/custom/store");
+    }
+
+    #[test]
     fn test_s3_cache_config_from_str_with_parameters() {
-        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bz2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
+        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bzip2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
 
         let config = S3CacheConfig::from_str(config_str).unwrap();
 
@@ -833,7 +891,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16_777_216);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
     }
 
@@ -893,7 +951,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert!(!config.write_debug_info);
         assert!(config.parallel_compression);
 
-        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZ2&ls-compression=BR&log-compression=ZSTD";
+        let config_str = "s3://test-bucket?compression=XZ&narinfo-compression=BZIP2&ls-compression=BR&log-compression=ZSTD";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(config.compression, Compression::Xz);
         assert_eq!(config.narinfo_compression, Compression::Bzip2);
@@ -905,7 +963,10 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
     fn test_s3_cache_config_from_str_errors() {
         let result = S3CacheConfig::from_str("http://test-bucket");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), UrlParseError::BadSchema(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            UrlParseError::UnsupportedScheme(_)
+        ));
 
         let result = S3CacheConfig::from_str("s3://");
         assert!(result.is_err());
@@ -913,17 +974,11 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
 
         let result = S3CacheConfig::from_str("s3://test-bucket?compression=invalid");
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UrlParseError::CompressionParseError(_)
-        ));
+        assert!(matches!(result.unwrap_err(), UrlParseError::Compression(_)));
 
         let result = S3CacheConfig::from_str("s3://test-bucket?scheme=invalid");
         assert!(result.is_err());
-        assert!(matches!(
-            result.unwrap_err(),
-            UrlParseError::S3SchemeParseError(_)
-        ));
+        assert!(matches!(result.unwrap_err(), UrlParseError::S3Scheme(_)));
 
         let result = S3CacheConfig::from_str("s3://test-bucket?compression-level=invalid");
         assert!(result.is_err());
@@ -1054,7 +1109,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.buffer_size, 16 * 1024 * 1024);
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(7200)
+            std::time::Duration::from_hours(2)
         );
         assert_eq!(config.secret_key_files.len(), 2);
     }
@@ -1085,14 +1140,14 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(60)
+            std::time::Duration::from_mins(1)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=86400";
         let config = S3CacheConfig::from_str(config_str).unwrap();
         assert_eq!(
             config.presigned_url_expiry,
-            std::time::Duration::from_secs(86400)
+            std::time::Duration::from_hours(24)
         );
 
         let config_str = "s3://test-bucket?presigned-url-expiry=59";

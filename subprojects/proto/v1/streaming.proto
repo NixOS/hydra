@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package runner.v1;
 
+import "v1/store.proto";
+import "v1/store/derivation.proto";
+import "v1/nix-support.proto";
+
 option java_multiple_files = true;
 option java_outer_classname = "RunnerProto";
 option java_package = "io.grpc.hydra.runner";
@@ -10,14 +14,14 @@ service RunnerService {
   rpc CheckVersion(VersionCheckRequest) returns (VersionCheckResponse) {}
   rpc OpenTunnel(stream BuilderRequest) returns (stream RunnerRequest) {}
   rpc BuildLog(stream LogChunk) returns (Empty) {}
-  rpc BuildResult(stream NarData) returns (Empty) {}
+  rpc BuildResult(stream AddToStoreRequest) returns (Empty) {}
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
-  rpc FetchDrvRequisites(FetchRequisitesRequest) returns (DrvRequisitesMessage) {}
-  rpc HasPath(StorePath) returns (HasPathResponse) {}
-  rpc StreamFile(StorePath) returns (stream NarData) {}
-  rpc StreamFiles(StorePaths) returns (stream NarData) {}
+  rpc FetchRequisites(nix.store.v1.StorePaths) returns (RequisitesResponse) {}
+  rpc HasPath(nix.store.v1.StorePath) returns (HasPathResponse) {}
+  rpc FetchPaths(nix.store.v1.StorePaths) returns (stream AddToStoreRequest) {}
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
+  rpc RequestMultipartParts(MultipartPartsRequest) returns (MultipartPartsResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
 }
 
@@ -124,18 +128,25 @@ message PresignedUploadOpts {
 
 message BuildMessage {
   string build_id = 1; // UUIDv4
-  StorePath drv = 2;
+  nix.store.v1.StorePath drv = 2;
   reserved 3;
   uint64 max_log_size = 4;
   int32 max_silent_time = 5;
   int32 build_timeout = 6;
+  uint64 max_output_size = 9; // per-output NAR size limit; 0 disables it
   optional PresignedUploadOpts presigned_url_opts = 7; // None if presigned url upload is disabled
   // bool is_deterministic = 5;
   // bool enforce_determinism = 6;
+
+  // Force-resolved derivation. The builder uses this with
+  // buildDerivation via the daemon protocol, rather than fetching
+  // the drv closure from the queue runner. All inputDrvs have been
+  // resolved to concrete output store paths in inputSrcs.
+  optional nix.store.derivation.v1.Basic resolved_drv = 8;
 }
 
-message DrvRequisitesMessage {
-  repeated StorePath requisites = 1;
+message RequisitesResponse {
+  repeated nix.store.v1.StorePath requisites = 1;
 }
 
 message AbortMessage {
@@ -143,76 +154,38 @@ message AbortMessage {
 }
 
 message LogChunk {
-  StorePath drv = 1;
+  nix.store.v1.StorePath drv = 1;
   bytes data = 2;
-}
-
-message FetchRequisitesRequest {
-  StorePath path = 1;
-  bool include_outputs = 2;
-}
-
-message StorePath {
-  string path = 1;
-}
-
-message StorePaths {
-  repeated StorePath paths = 1;
 }
 
 message HasPathResponse {
   bool has_path = 1;
 }
 
-message NarData {
-  bytes chunk = 1;
-}
-
-message OutputNameOnly {
-  string name = 1;
-}
-
-message OutputWithPath {
-  string name = 1;
-  StorePath path = 2;
-  uint64 closure_size = 3;
-  uint64 nar_size = 4;
-  string nar_hash = 5;
-}
-
-message Output {
-  oneof output {
-    OutputNameOnly nameonly = 1;
-    OutputWithPath withpath = 2;
+message AddToStoreRequest {
+  // Rules below for streaming (i.e. `stream AddToStoreRequest`). Pity we cannot
+  // encode this in gRPC types.
+  oneof content {
+    // First send one of these. The header includes NAR sizes so the
+    // receiver knows how many uncompressed bytes to expect per path.
+    AddToStoreHeader header = 1;
+    // Then send as many of these as are needed. These are for a single
+    // zstd-compressed NAR data for all paths concatenated in header
+    // order.
+    bytes nar_chunk = 2;
   }
 }
 
-message BuildMetric {
-  string path = 1;
-  string name = 2;
-  optional string unit = 3;
-  double value = 4;
+message AddToStoreHeader {
+  repeated nix.store.v1.ValidPathInfo path_infos = 1;
 }
 
-message BuildProduct {
-  string path = 1;
-  string default_path = 2;
-
-  string type = 3;
-  string subtype = 4;
-  string name = 5;
-
-  bool is_regular = 6;
-
-  optional string sha256hash = 7;
-  optional uint64 file_size = 8;
-}
-
-message NixSupport {
-  bool failed = 1;
-  optional string hydra_release_name = 2;
-  repeated BuildMetric metrics = 3;
-  repeated BuildProduct products = 4;
+message OutputInfo {
+  nix.store.v1.StorePath path = 1;
+  uint64 closure_size = 2;
+  uint64 nar_size = 3;
+  nix.store.v1.Hash nar_hash = 4;
+  optional NixSupport nixSupport = 5;
 }
 
 enum StepStatus {
@@ -239,6 +212,9 @@ enum BuildResultState {
   ImportFailure = 3;
   UploadFailure = 4;
   PostProcessingFailure = 5;
+  TimedOutFailure = 6;
+  LogLimitFailure = 7;
+  NarSizeLimitFailure = 8;
 }
 
 message BuildResultInfo {
@@ -248,14 +224,16 @@ message BuildResultInfo {
   uint64 build_time_ms = 4;
   uint64 upload_time_ms = 5;
   BuildResultState result_state = 6;
-  NixSupport nix_support = 7;
-  repeated Output outputs = 8;
+  map<string, OutputInfo> outputInfos = 7;
+  // Failure reason, set only for failure result_states.
+  optional string error_msg = 8;
 }
 
 message PresignedNarRequest {
   string store_path = 1;
-  string nar_hash = 2;
+  nix.store.v1.Hash nar_hash = 2;
   repeated string debug_info_build_ids = 3;
+  uint64 nar_size = 4; // uncompressed NAR size, used to pick multipart uploads
 }
 
 message PresignedUrlRequest {
@@ -269,6 +247,43 @@ message PresignedUpload {
   string url = 2;
   string compression = 3;
   int32 compression_level = 4;
+  // Set on the NAR upload when the object needs multipart; `url` is then unused.
+  optional MultipartUpload multipart = 5;
+}
+
+message MultipartPart {
+  uint32 part_number = 1; // 1-based
+  string url = 2;
+}
+
+message MultipartUpload {
+  string upload_id = 1;
+  uint64 part_size = 2;
+  repeated MultipartPart parts = 3;
+}
+
+message MultipartCompletedPart {
+  uint32 part_number = 1;
+  string etag = 2;
+}
+
+message MultipartCompletion {
+  string object_key = 1;
+  string upload_id = 2;
+  repeated MultipartCompletedPart parts = 3;
+}
+
+message MultipartPartsRequest {
+  string build_id = 1; // UUIDv4
+  string machine_id = 2; // UUIDv4
+  string object_key = 3;
+  string upload_id = 4;
+  uint32 start_part_number = 5;
+  uint32 num_parts = 6;
+}
+
+message MultipartPartsResponse {
+  repeated MultipartPart parts = 1;
 }
 
 message PresignedNarResponse {
@@ -286,14 +301,12 @@ message PresignedUrlResponse {
 message PresignedUploadComplete {
   string build_id = 1; // UUIDv4
   string machine_id = 2; // UUIDv4
-  string store_path = 3;
-  string url = 4;
-  string compression = 5;
-  string file_hash = 6;
-  uint64 file_size = 7;
-  string nar_hash = 8;
-  uint64 nar_size = 9;
-  repeated string references = 10;
-  optional string deriver = 11;
-  optional string ca = 12;
+  nix.store.v1.NarInfo nar_info = 13;
+  // Present when the NAR was uploaded via multipart; the server finalises it.
+  optional MultipartCompletion multipart = 14;
+  // Set when a single-PUT NAR upload found the object already present (the
+  // conditional If-None-Match PUT returned 412). The server then takes the
+  // narinfo's FileHash/FileSize from the stored object rather than from this
+  // upload's (discarded) compression.
+  bool nar_already_present = 15;
 }

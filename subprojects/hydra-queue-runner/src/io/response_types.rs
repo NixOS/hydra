@@ -1,7 +1,5 @@
 use hashbrown::HashMap;
 
-use nix_utils::BaseStore as _;
-
 use super::{
     Build, Jobset, Machine, QueueRunnerStats, Step, StepInfo, stats::S3Stats, stats::StoreStats,
 };
@@ -39,12 +37,9 @@ impl DumpResponse {
         queue_runner: QueueRunnerStats,
         machines: HashMap<String, Machine>,
         jobsets: HashMap<String, Jobset>,
-        local_store: &nix_utils::LocalStore,
         remote_stores: &[binary_cache::S3BinaryCacheClient],
     ) -> Self {
-        let store = local_store
-            .get_store_stats()
-            .map_or(None, |s| Some(StoreStats::new(&s)));
+        let store: Option<StoreStats> = None; // not available via daemon protocol
 
         Self {
             queue_runner,

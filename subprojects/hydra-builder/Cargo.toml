@@ -9,8 +9,8 @@ rust-version.workspace = true
 sd-notify.workspace = true
 tracing.workspace   = true
 
-anyhow.workspace      = true
 clap                  = { workspace = true, features = [ "derive" ] }
+color-eyre.workspace  = true
 fs-err                = { workspace = true, features = [ "tokio" ] }
 hashbrown.workspace   = true
 parking_lot.workspace = true
@@ -22,6 +22,7 @@ async-stream.workspace = true
 backon.workspace       = true
 bytes.workspace        = true
 futures.workspace      = true
+http.workspace         = true
 hyper-util.workspace   = true
 prost.workspace        = true
 tokio                  = { workspace = true, features = [ "full" ] }
@@ -35,27 +36,30 @@ url.workspace          = true
 serde.workspace      = true
 serde_json.workspace = true
 
-harmonia-store-core.workspace = true
+harmonia-protocol.workspace         = true
+harmonia-store-derivation.workspace = true
+harmonia-store-path.workspace       = true
+harmonia-store-remote.workspace     = true
+harmonia-utils-hash.workspace       = true
 
 gethostname.workspace = true
 nix                   = { workspace = true, features = [ "fs" ] }
 procfs-core.workspace = true
 
-binary-cache  = { path = "../crates/binary-cache" }
-hydra-tracing = { path = "../crates/tracing", features = [ "tonic" ] }
-nix-utils     = { path = "../crates/nix-utils" }
-shared        = { path = "../crates/shared" }
+binary-cache.workspace             = true
+daemon-client-utils.workspace      = true
+harmonia-store-path-info.workspace = true
+hydra-proto                        = { workspace = true, features = [ "client" ] }
+hydra-tracing                      = { workspace = true, features = [ "tonic" ] }
+nix-support.workspace              = true
+store-path-utils.workspace         = true
+store-transfer.workspace           = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 sysinfo.workspace = true
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator.workspace = true
-
-[build-dependencies]
-fs-err                      = { workspace = true }
-sha2.workspace              = true
-tonic-prost-build.workspace = true
 
 [features]
 otel = [ "hydra-tracing/otel" ]

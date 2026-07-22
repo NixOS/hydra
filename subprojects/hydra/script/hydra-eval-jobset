@@ -358,21 +358,14 @@ sub evalJobs {
     my @cmd;
 
     if (defined $flakeRef) {
-        my $nix_expr =
-            "let " .
-            "flake = builtins.getFlake (toString \"$flakeRef\"); " .
-            "in " .
-            "flake.hydraJobs " .
-            "or flake.checks " .
-            "or (throw \"flake '$flakeRef' does not provide any Hydra jobs or checks\")";
-
         @cmd = ("nix-eval-jobs",
                 # Disable the eval cache to prevent SQLite database contention.
                 # Since Hydra typically evaluates each revision only once,
                 # parallel workers would compete for database locks without
                 # providing any benefit from caching.
                 "--option", "eval-cache", "false",
-                "--expr", $nix_expr);
+                "--flake", $flakeRef,
+                "--select", "flake: flake.outputs.hydraJobs or flake.outputs.checks or (throw \"flake does not provide any Hydra jobs or checks\")");
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
@@ -498,12 +491,15 @@ sub checkBuild {
                 # the Nixpkgs jobset with PostgreSQL.
                 { jobset_id => $jobset->get_column('id'), job => $jobName,
                   name => $firstOutputName, %$pathOrDrvConstraint },
-                { rows => 1, columns => ['id', 'finished'], join => ['buildoutputs'] });
+                { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
-                #print STDERR "    already scheduled/built as build ", $prevBuild->id, "\n";
-                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath };
+                # Same output path but a different drv: repoint and rebuild.
+                # Applied after the evaluation transaction (applyDrvPathRepoints)
+                # to avoid holding Builds row locks for the whole evaluation.
+                my $repoint = $prevBuild->drvpath ne $drvPath;
+                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath, repoint => $repoint };
 
-                if ($prevBuild->finished) {
+                if ($prevBuild->finished && !$repoint) {
                     $db->storage->dbh->do("notify cached_build_finished, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
                 } else {
                     $db->storage->dbh->do("notify cached_build_queued, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
@@ -558,8 +554,8 @@ sub checkBuild {
             , license => getMetaConcatStrings($buildInfo->{meta}->{license}, "shortName")
             , homepage => getMeta($buildInfo->{meta}->{homepage}, undef)
             , maintainers => getMetaConcatStrings($buildInfo->{meta}->{maintainers}, "email")
-            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, 7200)
-            , timeout => getMeta($buildInfo->{meta}->{timeout}, 36000)
+            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, undef)
+            , timeout => getMeta($buildInfo->{meta}->{timeout}, undef)
             , nixname => $buildInfo->{name}
             , drvpath => $drvPath
             , system => $buildInfo->{system}
@@ -569,10 +565,10 @@ sub checkBuild {
             , ischannel => getMeta($buildInfo->{meta}->{isChannel}, 0)
             });
 
-        $build->buildoutputs->create({ name => $_, path => $buildInfo->{outputs}->{$_} })
-            foreach @outputNames;
-
-        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath };
+        # Output rows are inserted in bulk by the caller (see populate below);
+        # row-at-a-time creates dominate eval insertion time on large jobsets.
+        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath
+                                  , outputs => [ map { { build => $build->id, name => $_, path => $buildInfo->{outputs}->{$_} } } @outputNames ] };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
@@ -653,6 +649,68 @@ sub permute {
     return @list;
 }
 
+
+# Point the jobset's iscurrent flags at the given evaluation, in id-ordered
+# batches outside the evaluation transaction: updating 100k+ Builds rows
+# inside it holds their locks for minutes and deadlocks against the queue
+# runner finishing builds.
+sub syncCurrentBuilds {
+    my ($jobset, $evalId) = @_;
+    my $dbh = $db->storage->dbh;
+    my $batch = 10000;
+
+    my $run = sub {
+        my ($sql, @bind) = @_;
+        while (1) {
+            my $n;
+            for (my $attempt = 1; ; $attempt++) {
+                eval { $n = $dbh->do($sql, undef, @bind); };
+                last unless $@;
+                die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+                sleep 1;
+            }
+            last if $n == 0;
+        }
+    };
+
+    $run->(q{
+        update builds set iscurrent = 1 where id in (
+          select b.id from builds b join jobsetevalmembers m on m.build = b.id
+          where m.eval = ? and b.iscurrent = 0 order by b.id limit ?)
+    }, $evalId, $batch);
+
+    $run->(q{
+        update builds set iscurrent = 0 where id in (
+          select b.id from builds b
+          where b.jobset_id = ? and b.iscurrent = 1
+            and not exists (select 1 from jobsetevalmembers m where m.eval = ? and m.build = b.id)
+          order by b.id limit ?)
+    }, $jobset->get_column('id'), $evalId, $batch);
+}
+
+# Repoint existing builds at their new derivation in a short id-ordered
+# transaction outside the evaluation transaction, so it can't hold Builds row
+# locks for the whole evaluation and deadlock the queue runner.
+sub applyDrvPathRepoints {
+    my ($buildMap) = @_;
+    my @ids = sort { $a <=> $b } grep { $buildMap->{$_}->{repoint} } keys %$buildMap;
+    return unless @ids;
+
+    my $builds = $db->resultset('Builds');
+    for (my $attempt = 1; ; $attempt++) {
+        eval {
+            $db->txn_do(sub {
+                for my $id (@ids) {
+                    $builds->search({ id => $id })->update(
+                        { drvpath => $buildMap->{$id}->{drvPath}, finished => 0, buildstatus => undef });
+                }
+            });
+        };
+        last unless $@;
+        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+        sleep 1;
+    }
+}
 
 sub checkJobsetWrapped {
     my ($jobset, $tmpId) = @_;
@@ -793,13 +851,10 @@ sub checkJobsetWrapped {
     my @jobs;
     push @jobs, $_ while defined($_ = $jobsIter->());
 
-    $db->txn_do(sub {
+    my $currentEval;
+    my $evalTxn = sub {
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
-
-        # Clear the "current" flag on all builds.  Since we're in a
-        # transaction this will only become visible after the new
-        # current builds have been added.
-        $jobset->builds->search({iscurrent => 1})->update({iscurrent => 0});
+        $currentEval = undef;
 
         my $ev = $jobset->jobsetevals->create(
             { hash => $argsHash
@@ -834,6 +889,10 @@ sub checkJobsetWrapped {
             }
         }
 
+        # Bulk-insert the outputs of all new builds in one statement.
+        my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
+        $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
+
         # Have any builds been added or removed since last time?
         $jobsetChanged =
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
@@ -848,11 +907,9 @@ sub checkJobsetWrapped {
                               join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
 
         if ($jobsetChanged) {
-            # Create JobsetEvalMembers mappings.
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                $ev->jobsetevalmembers->create({ build => $id, isnew => $x->{new} });
-            }
+            # Create JobsetEvalMembers mappings in bulk.
+            $db->resultset('JobsetEvalMembers')->populate(
+                [ map { { eval => $ev->id, build => $_, isnew => $buildMap{$_}->{new} } } keys %buildMap ]);
 
             # Create AggregateConstituents mappings.  Since there can
             # be jobs that alias each other, if there are multiple
@@ -906,7 +963,7 @@ sub checkJobsetWrapped {
             }
 
             print STDERR "  created new eval ", $ev->id, "\n";
-            $ev->builds->update({iscurrent => 1});
+            $currentEval = $ev->id;
 
             # Wake up hydra-queue-runner.
             my $lowestId;
@@ -918,7 +975,7 @@ sub checkJobsetWrapped {
 
         } else {
             print STDERR "  created cached eval ", $ev->id, "\n";
-            $prevEval->builds->update({iscurrent => 1}) if defined $prevEval;
+            $currentEval = $prevEval->id if defined $prevEval;
         }
 
         # If this is a one-shot jobset, disable it now.
@@ -931,7 +988,23 @@ sub checkJobsetWrapped {
 
         $evalStop = clock_gettime(CLOCK_MONOTONIC);
         $ev->update({ evaltime => abs(int($evalStop - $evalStart)) });
-    });
+    };
+
+    # Retry rather than lose the evaluation if Postgres aborts the transaction
+    # to break a lock cycle with the queue runner.
+    for (my $attempt = 1; ; $attempt++) {
+        eval { $db->txn_do($evalTxn); };
+        last unless $@;
+        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
+        print STDERR "evaluation transaction aborted (attempt $attempt), retrying: $@";
+        %buildMap = ();
+        $jobOutPathMap = {};
+        $jobsetChanged = 0;
+        sleep $attempt;
+    }
+
+    applyDrvPathRepoints(\%buildMap);
+    syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
 
     Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
     Net::Statsd::increment("hydra.evaluator.evals");

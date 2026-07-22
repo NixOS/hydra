@@ -12,9 +12,13 @@
 )]
 #![allow(clippy::missing_errors_doc)]
 
+use crate::error::BuilderError;
+
 mod config;
+mod error;
 mod grpc;
 mod metrics;
+mod nix_config;
 mod state;
 mod system;
 mod types;
@@ -24,10 +28,7 @@ mod utils;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-async fn stop_application(
-    state: &std::sync::Arc<state::State>,
-    abort_handle: &tokio::task::AbortHandle,
-) {
+fn stop_application(state: &std::sync::Arc<state::State>, abort_handle: &tokio::task::AbortHandle) {
     let _ = sd_notify::notify(&[sd_notify::NotifyState::Stopping]);
     tracing::info!("Enabling halt");
     state.enable_halt();
@@ -35,14 +36,11 @@ async fn stop_application(
     state.abort_all_active_builds();
     tracing::info!("Closing connection with queue-runner");
     abort_handle.abort();
-    tracing::info!("Cleaning up gcroots");
-    let _ = state.clear_gcroots().await;
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> color_eyre::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
-    nix_utils::init_nix();
 
     let cli = config::Cli::new();
 
@@ -65,28 +63,31 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sigint.recv() => {
             tracing::info!("Received sigint - shutting down gracefully");
-            stop_application(&state, &abort_handle).await;
+            stop_application(&state, &abort_handle);
+            Ok(())
         }
         _ = sigterm.recv() => {
             tracing::info!("Received sigterm - shutting down gracefully");
-            stop_application(&state, &abort_handle).await;
+            stop_application(&state, &abort_handle);
+            Ok(())
         }
         r = task => {
-            let _ = state.clear_gcroots().await;
-            match r {
-                Ok(Ok(())) => (),
-                Ok(Err(e)) => {
-                    let error_str = e.to_string();
-                    if error_str.contains("API version mismatch") {
-                        tracing::error!("ERROR: {error_str}");
-                        std::process::exit(65); // EX_DATAERR
-                    } else {
-                        return Err(e);
-                    }
+            // The runner re-queues this builder's steps when the tunnel drops.
+            // Builds run in the nix daemon and outlive the tunnel, so abort
+            // them here too; otherwise the same drv keeps building untracked
+            // and can also be dispatched elsewhere.
+            tracing::info!("Queue-runner connection lost; aborting all active builds");
+            state.abort_all_active_builds();
+            match r.map_err(BuilderError::from).flatten() {
+                Ok(()) => Ok(()),
+                Err(e) => match e {
+                    BuilderError::VersionIncompatible(_) => {
+                        tracing::error!("ERROR: {e:?}");
+                        std::process::exit(65) // EX_DATAERR
+                    },
+                _=> Err(e.into())
                 }
-                Err(e) => return Err(e.into()),
             }
         }
-    };
-    Ok(())
+    }
 }

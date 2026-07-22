@@ -4,7 +4,6 @@
 
   rustPlatform,
 
-  nixComponents,
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
@@ -22,7 +21,6 @@ rustPlatform.buildRustPackage {
       ../../Cargo.lock
       ../../.cargo
       ../../subprojects/hydra-builder/Cargo.toml
-      ../../subprojects/hydra-builder/build.rs
       ../../subprojects/hydra-builder/src
       ../../subprojects/crates
       # For unit tests which want to spin up a fresh database
@@ -33,9 +31,7 @@ rustPlatform.buildRustPackage {
 
   cargoLock = {
     lockFile = ../../Cargo.lock;
-    outputHashes = {
-      "harmonia-store-core-0.0.0-alpha.0" = "sha256-T6Mbhet2sNGqU9wT5keCAKCSJKrDJ1NuuvtmWp7XUPY=";
-    };
+    outputHashes = import ../../packaging/cargo-output-hashes.nix;
   };
 
   # The source fileset above intentionally excludes hydra-queue-runner,
@@ -54,7 +50,6 @@ rustPlatform.buildRustPackage {
   ];
 
   buildInputs = [
-    nixComponents.nix-main
     protobuf
     rust-jemalloc-sys
   ];
