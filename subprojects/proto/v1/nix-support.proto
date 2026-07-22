@@ -1,0 +1,34 @@
+// Message formats for the hydra-relevant information contained in
+// the $output/nix-support directory.
+
+syntax = "proto3";
+
+package runner.v1;
+
+import "v1/store.proto";
+
+message BuildProduct {
+  nix.store.v1.RelativeStorePath path = 1;
+  string default_path = 2;
+
+  string type = 3;
+  string subtype = 4;
+  string name = 5;
+
+  bool is_regular = 6;
+
+  optional string sha256hash = 7;
+  optional uint64 file_size = 8;
+}
+
+message BuildMetric {
+  optional string unit = 1;
+  double value = 2;
+}
+
+message NixSupport {
+  bool failed = 1;
+  optional string hydra_release_name = 2;
+  repeated BuildProduct products = 3;
+  map<string, BuildMetric> metrics = 4;
+}

@@ -1,5 +1,21 @@
 use clap::Parser;
 
+/// Errors from reading builder configuration (mTLS certs, etc.).
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("missing config option: {0}")]
+    MissingOption(&'static str),
+
+    #[error("Reading configuration file")]
+    Reading(#[source] std::io::Error),
+
+    #[error(
+        "mTLS configured improperly, please pass all options: \
+        server_root_ca_cert_path, client_cert_path, client_key_path and domain_name"
+    )]
+    MtlsIncomplete,
+}
+
 #[derive(Parser, Debug)]
 #[clap(
     author,
@@ -23,6 +39,11 @@ pub struct Cli {
     /// Maximum number of allowed jobs
     #[clap(long, default_value_t = 4)]
     pub max_jobs: u32,
+
+    /// Number of cores to make available to each build (`NIX_BUILD_CORES`).
+    /// 0 means use all available cores on the machine.
+    #[clap(long, default_value_t = 0)]
+    pub build_cores: u32,
 
     /// build dir available storage percentage Threshold
     #[clap(long, default_value_t = 10.)]
@@ -117,44 +138,54 @@ impl Cli {
     #[tracing::instrument(skip(self), err)]
     pub async fn get_mtls(
         &self,
-    ) -> anyhow::Result<(
-        tonic::transport::Certificate,
-        tonic::transport::Identity,
-        String,
-    )> {
+    ) -> Result<
+        (
+            tonic::transport::Certificate,
+            tonic::transport::Identity,
+            String,
+        ),
+        ConfigError,
+    > {
         let server_root_ca_cert_path = self
             .server_root_ca_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("server_root_ca_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("server_root_ca_cert_path"))?;
         let client_cert_path = self
             .client_cert_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("client_cert_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("client_cert_path"))?;
         let client_key_path = self
             .client_key_path
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("client_key_path not provided"))?;
+            .ok_or(ConfigError::MissingOption("client_key_path"))?;
         let domain_name = self
             .domain_name
             .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("domain_name not provided"))?;
+            .ok_or(ConfigError::MissingOption("domain_name"))?;
 
-        let server_root_ca_cert = fs_err::tokio::read_to_string(server_root_ca_cert_path).await?;
+        let server_root_ca_cert = fs_err::tokio::read_to_string(server_root_ca_cert_path)
+            .await
+            .map_err(ConfigError::Reading)?;
         let server_root_ca_cert = tonic::transport::Certificate::from_pem(server_root_ca_cert);
 
-        let client_cert = fs_err::tokio::read_to_string(client_cert_path).await?;
-        let client_key = fs_err::tokio::read_to_string(client_key_path).await?;
+        let client_cert = fs_err::tokio::read_to_string(client_cert_path)
+            .await
+            .map_err(ConfigError::Reading)?;
+        let client_key = fs_err::tokio::read_to_string(client_key_path)
+            .await
+            .map_err(ConfigError::Reading)?;
         let client_identity = tonic::transport::Identity::from_pem(client_cert, client_key);
 
         Ok((server_root_ca_cert, client_identity, domain_name.to_owned()))
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_authorization_token(&self) -> anyhow::Result<Option<String>> {
+    pub async fn get_authorization_token(&self) -> Result<Option<String>, ConfigError> {
         if let Some(path) = &self.authorization_file {
             Ok(Some(
                 fs_err::tokio::read_to_string(path)
-                    .await?
+                    .await
+                    .map_err(ConfigError::Reading)?
                     .trim()
                     .to_string(),
             ))

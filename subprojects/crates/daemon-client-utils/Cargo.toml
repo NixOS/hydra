@@ -1,0 +1,14 @@
+[package]
+name                   = "daemon-client-utils"
+version                = "0.1.0"
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+harmonia-protocol.workspace        = true
+harmonia-store-path.workspace      = true
+harmonia-store-path-info.workspace = true
+harmonia-store-remote.workspace    = true
+tokio.workspace                    = true
+url.workspace                      = true

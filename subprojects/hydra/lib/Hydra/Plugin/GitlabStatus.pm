@@ -38,7 +38,7 @@ sub toGitlabState {
 }
 
 sub common {
-    my ($self, $topbuild, $dependents, $status) = @_;
+    my ($self, $topbuild, $dependents, $status, $cachedEval) = @_;
     my $baseurl = $self->{config}->{'base_uri'} || "http://localhost:3000";
 
     # Find matching configs
@@ -59,6 +59,10 @@ sub common {
                 name => "Hydra " . $build->get_column('job'),
             });
         while (my $eval = $evals->next) {
+            if (defined($cachedEval) && $cachedEval->id != $eval->id) {
+                next;
+            }
+
             my $gitlabstatusInput = $eval->jobsetevalinputs->find({ name => "gitlab_status_repo" });
             next unless defined $gitlabstatusInput && defined $gitlabstatusInput->value;
             my $i = $eval->jobsetevalinputs->find({ name => $gitlabstatusInput->value, altnr => 0 });
@@ -68,7 +72,6 @@ sub common {
             my $rev = $i->revision;
             my $domain = URI->new($i->uri)->host;
             my $url = "https://$domain/api/v4/projects/$projectId/statuses/$rev";
-            print STDERR "GitlabStatus POSTing $state to $url\n";
             my $req = HTTP::Request->new('POST', $url);
             $req->header('Content-Type' => 'application/json');
             $req->header('Private-Token' => $accessToken);
@@ -89,6 +92,16 @@ sub buildStarted {
 
 sub buildFinished {
     common(@_, 2);
+}
+
+sub cachedBuildQueued {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 0, $evaluation);
+}
+
+sub cachedBuildFinished {
+    my ($self, $evaluation, $build) = @_;
+    common($self, $build, [], 2, $evaluation);
 }
 
 1;

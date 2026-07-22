@@ -19,11 +19,21 @@ for schema_file in hydra-*.sql; do
   fi
 done
 
+# The newest version's schema is hydra.sql itself, so its commit-N.txt has no
+# vendored hydra-N.sql; the snapshot is only vendored once a newer migration
+# supersedes it.
+max_commit=0
+for commit_file in commit-*.txt; do
+  n="${commit_file#commit-}"
+  n="${n%.txt}"
+  (( n > max_commit )) && max_commit=$n
+done
+
 # Check for commits without schemas
 for commit_file in commit-*.txt; do
   n="${commit_file#commit-}"
   n="${n%.txt}"
-  if [ ! -f "hydra-${n}.sql" ]; then
+  if [ ! -f "hydra-${n}.sql" ] && [ "$n" != "$max_commit" ]; then
     echo "ORPHAN COMMIT: $commit_file has no hydra-${n}.sql"
     failures=$((failures + 1))
   fi
@@ -37,7 +47,12 @@ for commit_file in commit-*.txt; do
   schema_file="hydra-${n}.sql"
 
   if [ ! -f "$schema_file" ]; then
-    continue  # already reported above
+    if [ "$n" = "$max_commit" ]; then
+      # Newest version: verify the live hydra.sql against the recorded commit.
+      schema_file="../hydra.sql"
+    else
+      continue  # already reported above
+    fi
   fi
 
   # Find hydra.sql in the commit tree (search from repo root)

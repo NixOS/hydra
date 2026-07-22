@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n              build,\n              productnr,\n              type,\n              subtype,\n              fileSize,\n              sha256hash,\n              path,\n              name,\n              defaultPath\n            FROM buildproducts\n            WHERE build = $1 ORDER BY productnr;",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "build",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "productnr",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "subtype",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "filesize",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "sha256hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "defaultpath",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "4ecbc901d73fa59738d8826750482942962686992e1d16256771d1bb4af72f4a"
+}

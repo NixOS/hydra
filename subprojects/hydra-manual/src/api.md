@@ -1,18 +1,14 @@
 Using the external API
 ======================
 
-To be able to create integrations with other services, Hydra exposes an
-external API that you can manage projects with.
+To be able to create integrations with other services, Hydra exposes an external API that you can manage projects with.
 
-The API is accessed over HTTP(s) where all data is sent and received as
-JSON.
+The API is accessed over HTTP(s) where all data is sent and received as JSON.
 
-Creating resources requires the caller to be authenticated, while
-retrieving resources does not.
+Creating resources requires the caller to be authenticated, while retrieving resources does not.
 
-The API does not have a separate URL structure for it\'s endpoints.
-Instead you request the pages of the web interface as `application/json`
-to use the API.
+The API does not have a separate URL structure for its endpoints.
+Instead you request the pages of the web interface as `application/json` to use the API.
 
 List projects
 -------------
@@ -22,8 +18,7 @@ To list all the `projects` of the Hydra install:
     GET /
     Accept: application/json
 
-This will give you a list of `projects`, where each `project` contains
-general information and a list of its `job sets`.
+This will give you a list of `projects`, where each `project` contains general information and a list of its `job sets`.
 
 **Example**
 

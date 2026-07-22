@@ -8,15 +8,18 @@ rust-version = "1.91.0"
 version      = "0.1.0"
 
 [workspace.dependencies]
-anyhow = "1.0.98"
 arc-swap = "1.7"
 async-compression = { version = "0.4", default-features = false }
 async-stream = "0.3"
 atomic_float = "1.1.0"
+aws-credential-types = "1"
+aws-sigv4 = "1"
+aws-smithy-runtime-api = "1"
 backon = "1.5.2"
 byte-unit = "5.1.6"
 bytes = "1"
 clap = "4"
+color-eyre = "0.6"
 configparser = "3.1"
 cxx = "1"
 cxx-build = "1"
@@ -29,10 +32,20 @@ futures = "0.3"
 futures-util = "0.3"
 gethostname = "1"
 h2 = "0.4"
+harmonia-file-core = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-file-nar = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-protocol = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-store-aterm = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-core = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-content-address = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-derivation = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-nar-info = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path-info = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-remote = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-io = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-signature = { git = "https://github.com/nix-community/harmonia.git" }
 hashbrown = "0.16"
 http = "1.1"
 http-body-util = "0.1"
@@ -49,8 +62,10 @@ opentelemetry = "0.31.0"
 opentelemetry-http = "0.31.0"
 opentelemetry-otlp = "0.31.0"
 opentelemetry-semantic-conventions = "0.31.0"
-opentelemetry_sdk = "0.31.0"
+opentelemetry_sdk = "0.32.1"
 parking_lot = "0.12.4"
+percent-encoding = "2.3.2"
+petgraph = { version = "0.8", default-features = false, features = [ "graphmap", "std" ] }
 pkg-config = "0.3"
 procfs = "0.18"
 procfs-core = "0.18"
@@ -86,15 +101,36 @@ tonic-reflection = "0.14"
 tower = "0.5"
 tower-http = "0.6"
 tracing = "0.1"
+tracing-error = "0.2"
 tracing-log = "0.2.0"
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.18"
 url = "2.5.4"
 uuid = "1.16"
 zerocopy = { version = "0.8", features = [ "derive" ] }
+zstd = "0.13"
+
+# Local workspace crates
+binary-cache        = { path = "subprojects/crates/binary-cache" }
+daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
+db                  = { path = "subprojects/crates/db" }
+hydra-proto         = { path = "subprojects/crates/proto" }
+hydra-tracing       = { path = "subprojects/crates/tracing" }
+nix-support         = { path = "subprojects/crates/nix-support" }
+store-path-utils    = { path = "subprojects/crates/store-path-utils" }
+store-transfer      = { path = "subprojects/crates/store-transfer" }
+test-utils          = { path = "subprojects/crates/test-utils" }
 
 [patch.crates-io]
-harmonia-store-aterm         = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-store-core          = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmonia.git" }
-harmonia-utils-hash          = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-file-core             = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-file-nar              = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-aterm           = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-content-address = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-derivation      = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-nar-info        = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path            = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-store-path-info       = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-base-encoding   = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-hash            = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-io              = { git = "https://github.com/nix-community/harmonia.git" }
+harmonia-utils-signature       = { git = "https://github.com/nix-community/harmonia.git" }

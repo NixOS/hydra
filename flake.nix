@@ -1,7 +1,7 @@
 {
   description = "A Nix-based continuous build system";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11-small";
+  inputs.nixpkgs.url = "https://channels.nixos.org/nixos-26.05/nixexprs.tar.xz";
 
   inputs.nix = {
     url = "github:NixOS/nix/master";
@@ -78,10 +78,8 @@
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix {
           };
           hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix {
-            inherit nixComponents;
           };
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
-            inherit nixComponents;
           };
         });
       mkHydraBuilder =
@@ -89,7 +87,6 @@
         pkgs.lib.makeScope pkgs.newScope (self': {
           inherit version releaseVersion;
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
-            inherit nixComponents;
           };
         });
 
@@ -153,7 +150,7 @@
 
         builder = forEachSystemIncDarwin (system: packages.${system}.hydra-builder);
 
-        nixosTests = import ./nixos-tests.nix {
+        nixosTests = import ./nixos-tests {
           inherit forEachSystem nixpkgs nixosModules;
         };
 
@@ -189,6 +186,9 @@
             inherit (packages.${system}) hydra;
           };
           formatter = (treefmtEval system).config.build.check self;
+          dependency-diagram = pkgs.callPackage ./packaging/check-dependency-diagram.nix {
+            src = self;
+          };
         }
       );
 

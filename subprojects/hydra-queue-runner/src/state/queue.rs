@@ -1,3 +1,4 @@
+use harmonia_store_path::StorePath;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
 
@@ -71,16 +72,7 @@ impl BuildQueue {
 
         for j in jobs {
             if let Some(owned) = j.upgrade() {
-                // this ensures we only ever have each step once
-                // so ensure that current_jobs is never written anywhere else
-                // this should never continue as jobs, should already exclude duplicates
-                if current_jobs
-                    .iter()
-                    .filter_map(Weak::upgrade)
-                    .any(|v| v.step.get_drv_path() == owned.step.get_drv_path())
-                {
-                    continue;
-                }
+                // Uniqueness is guaranteed by InnerQueues, the sole writer here.
 
                 // runnable since is always > now
                 wait_time_ms += u64::try_from(now.duration_since(owned.runnable_since).as_millis())
@@ -102,6 +94,7 @@ impl BuildQueue {
         let cmp_fn = match sort_fn {
             StepSortFn::Legacy => StepInfo::legacy_compare,
             StepSortFn::WithRdeps => StepInfo::compare_with_rdeps,
+            StepSortFn::WithCriticalPath => StepInfo::compare_with_critical_path,
         };
 
         {
@@ -173,10 +166,10 @@ impl ScheduledItem {
 #[derive(Debug)]
 pub(super) struct InnerQueues {
     // flat list of all step infos in queues, owning those steps inner queue dont own them
-    jobs: HashMap<nix_utils::StorePath, Arc<StepInfo>>,
+    jobs: HashMap<StorePath, Arc<StepInfo>>,
     inner: HashMap<System, Arc<BuildQueue>>,
     #[allow(clippy::type_complexity)]
-    scheduled: parking_lot::RwLock<HashMap<nix_utils::StorePath, ScheduledItem>>,
+    scheduled: parking_lot::RwLock<HashMap<StorePath, ScheduledItem>>,
 }
 
 impl Default for InnerQueues {
@@ -261,15 +254,21 @@ impl InnerQueues {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    fn remove_job_from_scheduled(&self, drv: &nix_utils::StorePath) -> Option<ScheduledItem> {
+    fn remove_job_from_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
         let item = self.scheduled.write().remove(drv)?;
         item.step_info.set_already_scheduled(false);
         item.build_queue.decr_active();
         Some(item)
     }
 
-    fn remove_job_by_path(&mut self, drv: &nix_utils::StorePath) {
-        if self.jobs.remove(drv).is_none() {
+    fn peek_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
+        self.scheduled.read().get(drv).cloned()
+    }
+
+    fn remove_job_by_path(&mut self, drv: &StorePath) {
+        if let Some(j) = self.jobs.remove(drv) {
+            j.step.clear_queued();
+        } else {
             tracing::error!("Failed to remove stepinfo drv={drv} from jobs!");
         }
     }
@@ -282,12 +281,13 @@ impl InnerQueues {
                 stepinfo.step.get_drv_path(),
             );
         }
+        stepinfo.step.clear_queued();
         // active should be removed
         queue.scrube_jobs();
     }
 
     #[tracing::instrument(skip(self))]
-    async fn kill_active_steps(&self) -> Vec<(nix_utils::StorePath, uuid::Uuid)> {
+    async fn kill_active_steps(&self) -> Vec<(StorePath, uuid::Uuid)> {
         tracing::info!("Kill all active steps");
         let active = {
             let scheduled = self.scheduled.read();
@@ -381,11 +381,14 @@ impl JobConstraint {
         machines: &crate::state::Machines,
         free_fn: crate::config::MachineFreeFn,
     ) -> Option<(Arc<crate::state::Machine>, Arc<StepInfo>)> {
-        let step_features = self.job.step.get_required_features();
+        let info = self.job.step.drv_info();
+        let step_features = info
+            .as_ref()
+            .map_or(&[][..], |i| i.required_features.as_slice());
         let merged_features = if self.queue_features.is_empty() {
-            step_features
+            step_features.to_vec()
         } else {
-            [step_features.as_slice(), self.queue_features.as_slice()].concat()
+            [step_features, self.queue_features.as_slice()].concat()
         };
         if let Some(machine) =
             machines.get_machine_for_system(&self.system, &merged_features, Some(free_fn))
@@ -447,13 +450,17 @@ impl Queues {
         wq.ensure_queues_for_systems(systems);
     }
 
-    pub(super) async fn process<F>(
+    pub(super) async fn process<F, C>(
         &self,
         processor: F,
+        system_has_capacity: C,
         metrics: &super::metrics::PromMetrics,
     ) -> i64
     where
-        F: AsyncFn(JobConstraint) -> anyhow::Result<crate::state::RealiseStepResult>,
+        F: AsyncFn(
+            JobConstraint,
+        ) -> Result<crate::state::RealiseStepResult, crate::state::StateError>,
+        C: Fn(&str) -> bool,
     {
         let now = jiff::Timestamp::now();
         let mut nr_steps_waiting_all_queues = 0;
@@ -461,10 +468,23 @@ impl Queues {
         for (system, queue) in queues {
             let mut nr_disabled = 0;
             let mut nr_waiting = 0;
+            // Don't scan the queue if no machine of this system has a free slot.
+            if !system_has_capacity(&system) {
+                let remaining = i64::try_from(queue.get_stats().total_runnable).unwrap_or(0);
+                nr_steps_waiting_all_queues += remaining;
+                queue.set_nr_runnable_waiting(u64::try_from(remaining).unwrap_or(0));
+                continue;
+            }
+            let mut capacity_exhausted = false;
             for job in queue.clone_inner() {
                 let Some(job) = job.upgrade() else {
                     continue;
                 };
+                if capacity_exhausted {
+                    nr_waiting += 1;
+                    nr_steps_waiting_all_queues += 1;
+                    continue;
+                }
                 if job.get_already_scheduled() {
                     tracing::debug!(
                         "Can't schedule job because job is already scheduled system={system} drv={}",
@@ -503,6 +523,10 @@ impl Queues {
                         );
                         nr_waiting += 1;
                         nr_steps_waiting_all_queues += 1;
+                        // Stop early only when capacity ran out, not on a feature mismatch.
+                        if !system_has_capacity(&system) {
+                            capacity_exhausted = true;
+                        }
                     }
                     Ok(crate::state::RealiseStepResult::Resolved) => {}
                     Ok(
@@ -519,9 +543,18 @@ impl Queues {
                         metrics.queue_aborted_jobs_total.inc();
                     }
                     Err(e) => {
+                        // thiserror's Display does not include the source
+                        // chain; render it so the root cause is visible.
+                        let chain: Vec<String> =
+                            std::iter::successors(Some(&e as &dyn std::error::Error), |e| {
+                                e.source()
+                            })
+                            .map(ToString::to_string)
+                            .collect();
                         tracing::warn!(
-                            "Failed to realise drv on valid machine, will be skipped: drv={} e={e}",
+                            "Failed to realise drv on valid machine, will be skipped: drv={} e={}",
                             job.step.get_drv_path(),
+                            chain.join(": "),
                         );
                     }
                 }
@@ -548,15 +581,18 @@ impl Queues {
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
-    pub async fn remove_job_from_scheduled(
-        &self,
-        drv: &nix_utils::StorePath,
-    ) -> Option<ScheduledItem> {
+    pub async fn remove_job_from_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
         let rq = self.inner.read().await;
         rq.remove_job_from_scheduled(drv)
     }
 
-    pub async fn remove_job_by_path(&self, drv: &nix_utils::StorePath) {
+    /// Look up a scheduled step without releasing it, so it stays owned and
+    /// cannot be re-dispatched while the caller decides what to do with it.
+    pub async fn peek_scheduled(&self, drv: &StorePath) -> Option<ScheduledItem> {
+        self.inner.read().await.peek_scheduled(drv)
+    }
+
+    pub async fn remove_job_by_path(&self, drv: &StorePath) {
         let mut wq = self.inner.write().await;
         wq.remove_job_by_path(drv);
     }
@@ -568,7 +604,7 @@ impl Queues {
     }
 
     #[tracing::instrument(skip(self))]
-    pub async fn kill_active_steps(&self) -> Vec<(nix_utils::StorePath, uuid::Uuid)> {
+    pub async fn kill_active_steps(&self) -> Vec<(StorePath, uuid::Uuid)> {
         let rq = self.inner.read().await;
         rq.kill_active_steps().await
     }

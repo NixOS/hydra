@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use prometheus::Encoder as _;
 
-use nix_utils::BaseStore as _;
-
 #[derive(Debug)]
 pub struct PromMetrics {
     pub queue_runner_current_time_seconds: prometheus::IntGauge, // hydraqueuerunner_current_time_seconds
@@ -122,7 +120,7 @@ pub struct PromMetrics {
 impl PromMetrics {
     #[allow(clippy::too_many_lines)]
     #[tracing::instrument(err)]
-    pub fn new() -> anyhow::Result<Self> {
+    pub fn new() -> Result<Self, prometheus::Error> {
         let queue_checks_started = prometheus::IntCounter::with_opts(prometheus::Opts::new(
             "hydraqueuerunner_queue_checks_started_total",
             "Number of times State::get_queued_builds() was started",
@@ -852,12 +850,23 @@ impl PromMetrics {
 
     pub async fn refresh_dynamic_metrics(&self, state: &Arc<super::State>) {
         let nr_steps_done = self.nr_steps_done.get();
-        if nr_steps_done > 0 {
-            let avg_time = self.total_step_time_ms.get() / nr_steps_done;
-            let avg_import_time = self.total_step_import_time_ms.get() / nr_steps_done;
-            let avg_build_time = self.total_step_build_time_ms.get() / nr_steps_done;
-            let avg_upload_time = self.total_step_upload_time_ms.get() / nr_steps_done;
-
+        if let (
+            Some(avg_time),
+            Some(avg_import_time),
+            Some(avg_build_time),
+            Some(avg_upload_time),
+        ) = (
+            self.total_step_time_ms.get().checked_div(nr_steps_done),
+            self.total_step_import_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+            self.total_step_build_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+            self.total_step_upload_time_ms
+                .get()
+                .checked_div(nr_steps_done),
+        ) {
             if let Ok(v) = i64::try_from(avg_time) {
                 self.avg_step_time_ms.set(v);
             }
@@ -890,7 +899,6 @@ impl PromMetrics {
 
         self.refresh_per_machine_type_metrics(state).await;
         self.refresh_per_machine_metrics(state);
-        self.refresh_store_metrics(state);
         self.refresh_s3_metrics(state);
         self.refresh_transfer_metrics(state);
         self.refresh_jobset_metrics(state);
@@ -996,54 +1004,6 @@ impl PromMetrics {
         }
     }
 
-    fn refresh_store_metrics(&self, state: &Arc<super::State>) {
-        if let Ok(store_stats) = state.store.get_store_stats() {
-            if let Ok(v) = i64::try_from(store_stats.nar_info_read) {
-                self.store_nar_info_read.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_read_averted) {
-                self.store_nar_info_read_averted.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_missing) {
-                self.store_nar_info_missing.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_info_write) {
-                self.store_nar_info_write.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.path_info_cache_size) {
-                self.store_path_info_cache_size.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read) {
-                self.store_nar_read.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read_bytes) {
-                self.store_nar_read_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_read_compressed_bytes) {
-                self.store_nar_read_compressed_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write) {
-                self.store_nar_write.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_averted) {
-                self.store_nar_write_averted.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_bytes) {
-                self.store_nar_write_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_compressed_bytes) {
-                self.store_nar_write_compressed_bytes.set(v);
-            }
-            if let Ok(v) = i64::try_from(store_stats.nar_write_compression_time_ms) {
-                self.store_nar_write_compression_time_ms.set(v);
-            }
-            self.store_nar_compression_savings
-                .set(store_stats.nar_compression_savings());
-            self.store_nar_compression_speed
-                .set(store_stats.nar_compression_speed());
-        }
-    }
-
     fn refresh_s3_metrics(&self, state: &Arc<super::State>) {
         self.s3_put.reset();
         self.s3_put_bytes.reset();
@@ -1063,7 +1023,7 @@ impl PromMetrics {
         let backends = state.remote_stores.read();
         for remote_store in backends.iter().filter_map(|s| match s {
             super::RemoteStoreBackend::S3(s) => Some(s),
-            _ => None,
+            super::RemoteStoreBackend::NixCopy(_) => None,
         }) {
             let backend_name = &remote_store.cfg.client_config.bucket;
             let s3_stats = remote_store.s3_stats();
@@ -1149,7 +1109,10 @@ impl PromMetrics {
     }
 
     #[tracing::instrument(skip(self, state), err)]
-    pub async fn gather_metrics(&self, state: &Arc<super::State>) -> anyhow::Result<Vec<u8>> {
+    pub async fn gather_metrics(
+        &self,
+        state: &Arc<super::State>,
+    ) -> Result<Vec<u8>, prometheus::Error> {
         self.refresh_dynamic_metrics(state).await;
 
         let mut buffer = Vec::new();

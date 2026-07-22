@@ -1,4 +1,24 @@
-use anyhow::Context as _;
+#[derive(Debug, thiserror::Error)]
+pub enum CgroupError {
+    #[error("reading cgroup file")]
+    Io(#[from] std::io::Error),
+
+    #[error("reading process info")]
+    Proc(#[from] procfs::ProcError),
+
+    #[error("failed to parse cgroup value `{field}`")]
+    Parse {
+        field: &'static str,
+        #[source]
+        source: std::num::ParseIntError,
+    },
+
+    #[error("cgroup information is missing in process")]
+    NoCgroup,
+
+    #[error("cgroups directory does not exist")]
+    NoCgroupDir,
+}
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,24 +56,36 @@ pub struct MemoryStats {
 
 impl MemoryStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         Ok(Self {
             current_bytes: fs_err::read_to_string(cgroups_path.join("memory.current"))?
                 .trim()
                 .parse()
-                .context("memory current parsing failed")?,
+                .map_err(|source| CgroupError::Parse {
+                    field: "memory.current",
+                    source,
+                })?,
             peak_bytes: fs_err::read_to_string(cgroups_path.join("memory.peak"))?
                 .trim()
                 .parse()
-                .context("memory peak parsing failed")?,
+                .map_err(|source| CgroupError::Parse {
+                    field: "memory.peak",
+                    source,
+                })?,
             swap_current_bytes: fs_err::read_to_string(cgroups_path.join("memory.swap.current"))?
                 .trim()
                 .parse()
-                .context("swap parsing failed")?,
+                .map_err(|source| CgroupError::Parse {
+                    field: "memory.swap.current",
+                    source,
+                })?,
             zswap_current_bytes: fs_err::read_to_string(cgroups_path.join("memory.zswap.current"))?
                 .trim()
                 .parse()
-                .context("zswap parsing failed")?,
+                .map_err(|source| CgroupError::Parse {
+                    field: "memory.zswap.current",
+                    source,
+                })?,
         })
     }
 }
@@ -67,7 +99,7 @@ pub struct IoStats {
 
 impl IoStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         let mut total_read_bytes: u64 = 0;
         let mut total_write_bytes: u64 = 0;
 
@@ -108,7 +140,7 @@ pub struct CpuStats {
 
 impl CpuStats {
     #[tracing::instrument(err)]
-    fn new(cgroups_path: &std::path::Path) -> anyhow::Result<Self> {
+    fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
         let contents = fs_err::read_to_string(cgroups_path.join("cpu.stat"))?;
 
         let mut usage_usec: u128 = 0;
@@ -154,18 +186,18 @@ pub struct CgroupStats {
 
 impl CgroupStats {
     #[tracing::instrument(err)]
-    fn new(me: &procfs::process::Process) -> anyhow::Result<Self> {
+    fn new(me: &procfs::process::Process) -> Result<Self, CgroupError> {
         let cgroups_pathname = format!(
             "/sys/fs/cgroup/{}",
             me.cgroups()?
                 .0
                 .first()
-                .ok_or_else(|| anyhow::anyhow!("cgroup information is missing in process."))?
+                .ok_or(CgroupError::NoCgroup)?
                 .pathname
         );
         let cgroups_path = std::path::Path::new(&cgroups_pathname);
         if !cgroups_path.exists() {
-            return Err(anyhow::anyhow!("cgroups directory does not exists."));
+            return Err(CgroupError::NoCgroupDir);
         }
 
         Ok(Self {
@@ -232,7 +264,7 @@ pub struct StoreStats {
 
 impl StoreStats {
     #[must_use]
-    pub fn new(v: &nix_utils::StoreStats) -> Self {
+    pub fn new(v: &StoreStats) -> Self {
         Self {
             nar_info_read: v.nar_info_read,
             nar_info_read_averted: v.nar_info_read_averted,
@@ -247,8 +279,8 @@ impl StoreStats {
             nar_write_bytes: v.nar_write_bytes,
             nar_write_compressed_bytes: v.nar_write_compressed_bytes,
             nar_write_compression_time_ms: v.nar_write_compression_time_ms,
-            nar_compression_savings: v.nar_compression_savings(),
-            nar_compression_speed: v.nar_compression_speed(),
+            nar_compression_savings: 0.0, // not available via daemon protocol
+            nar_compression_speed: 0.0,   // not available via daemon protocol
         }
     }
 }

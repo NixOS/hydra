@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use nix_utils::SingleDerivedPath;
+use harmonia_store_derivation::derivation::Derivation;
+use harmonia_store_derivation::derived_path::{OutputName, SingleDerivedPath};
+use harmonia_store_path::StorePath;
 
 /// Output names of intermediate derivations for a dynamic derivation
 /// dependency, stored in reverse order so that the next level to resolve
@@ -12,10 +14,10 @@ use nix_utils::SingleDerivedPath;
 ///
 /// In the common case of depending on a static derivation, this is empty.
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OutputNameChain(pub Vec<nix_utils::OutputName>);
+pub struct OutputNameChain(pub Vec<OutputName>);
 
 impl OutputNameChain {
-    pub fn pop(&mut self) -> Option<nix_utils::OutputName> {
+    pub fn pop(&mut self) -> Option<OutputName> {
         self.0.pop()
     }
 }
@@ -25,7 +27,8 @@ impl OutputNameChain {
 /// The output chain is in stack order (outermost first) matching
 /// [`OutputNameChain`]'s convention. For `Built { Opaque(A), "foo" }`,
 /// returns `(A, ["foo"])`. For `Opaque(A)`, returns `(A, [])`.
-pub fn flatten_path(sdp: &SingleDerivedPath) -> (nix_utils::StorePath, OutputNameChain) {
+#[must_use]
+pub fn flatten_path(sdp: &SingleDerivedPath) -> (StorePath, OutputNameChain) {
     match sdp {
         SingleDerivedPath::Opaque(p) => (p.clone(), OutputNameChain::default()),
         SingleDerivedPath::Built { drv_path, output } => flatten_chain(drv_path, output),
@@ -36,10 +39,11 @@ pub fn flatten_path(sdp: &SingleDerivedPath) -> (nix_utils::StorePath, OutputNam
 ///
 /// For `Built { Opaque(A), "foo" }` with output `"bar"`,
 /// returns `(A, ["bar", "foo"])`.
+#[must_use]
 pub fn flatten_chain(
     drv_path: &SingleDerivedPath,
-    output_name: &nix_utils::OutputName,
-) -> (nix_utils::StorePath, OutputNameChain) {
+    output_name: &OutputName,
+) -> (StorePath, OutputNameChain) {
     let (root, mut chain) = flatten_path(drv_path);
     chain.0.push(output_name.clone());
     (root, chain)
@@ -51,9 +55,7 @@ pub fn flatten_chain(
 /// skipped — only derivation build dependencies are returned. For each
 /// `Built` input, the outermost output name (what we consume) is discarded;
 /// intermediate output names form the [`OutputNameChain`].
-pub fn input_drvs(
-    drv: &nix_utils::Derivation,
-) -> BTreeSet<(nix_utils::StorePath, OutputNameChain)> {
+pub fn input_drvs(drv: &Derivation) -> BTreeSet<(StorePath, OutputNameChain)> {
     drv.inputs
         .iter()
         .filter_map(|sdp| match sdp {

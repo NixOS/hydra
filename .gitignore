@@ -1,6 +1,9 @@
 # Editor backup files
 *~
 
+# Claude Code local settings
+.claude
+
 # Nix dev shell
 /.direnv/
 

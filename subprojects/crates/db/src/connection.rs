@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
-use anyhow::Context;
 use sqlx::Acquire;
 
-use harmonia_store_core::derived_path::OutputName;
-use harmonia_store_core::store_path::{StoreDir, StorePath};
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::{StoreDir, StorePath};
 
 use super::models::{
     Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
@@ -29,14 +29,14 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn begin_transaction(&mut self) -> sqlx::Result<Transaction<'_>> {
+    pub async fn begin_transaction(&mut self) -> crate::Result<Transaction<'_>> {
         let tx = self.conn.begin().await?;
         Ok(Transaction { tx })
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_not_finished_builds_fast(&mut self) -> sqlx::Result<Vec<BuildSmall>> {
-        sqlx::query_as!(
+    pub async fn get_not_finished_builds_fast(&mut self) -> crate::Result<Vec<BuildSmall>> {
+        Ok(sqlx::query_as!(
             BuildSmall,
             r#"
             SELECT
@@ -46,14 +46,14 @@ impl Connection {
             WHERE finished = 0;"#
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?)
     }
 
     #[tracing::instrument(skip(self), err)]
     pub async fn get_not_finished_builds(
         &mut self,
         store_dir: &StoreDir,
-    ) -> anyhow::Result<Vec<Build>> {
+    ) -> crate::Result<Vec<Build>> {
         let rows = sqlx::query_as!(
             Build::<String>,
             r#"
@@ -81,8 +81,8 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_jobsets(&mut self) -> sqlx::Result<Vec<Jobset>> {
-        sqlx::query_as!(
+    pub async fn get_jobsets(&mut self) -> crate::Result<Vec<Jobset>> {
+        Ok(sqlx::query_as!(
             Jobset,
             r#"
             SELECT
@@ -92,21 +92,22 @@ impl Connection {
             FROM jobsets"#
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?)
     }
 
     #[tracing::instrument(skip(self), err)]
     pub async fn get_jobset_scheduling_shares(
         &mut self,
         jobset_id: i32,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> crate::Result<Option<u32>> {
         Ok(sqlx::query!(
             "SELECT schedulingshares FROM jobsets WHERE id = $1",
             jobset_id,
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .map(|v| v.schedulingshares))
+        .map(|v| u32::try_from(v.schedulingshares))
+        .transpose()?)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -114,26 +115,28 @@ impl Connection {
         &mut self,
         jobset_id: i32,
         scheduling_window: i64,
-    ) -> sqlx::Result<Vec<BuildSteps>> {
-        #[allow(clippy::cast_precision_loss)]
-        sqlx::query_as!(
+    ) -> crate::Result<Vec<BuildSteps>> {
+        Ok(sqlx::query_as!(
             BuildSteps,
             r#"
             SELECT s.startTime, s.stopTime FROM buildsteps s join builds b on build = id
             WHERE
               s.startTime IS NOT NULL AND
-              to_timestamp(s.stopTime) > (NOW() - (interval '1 second' * $1)) AND
+              s.stopTime > (EXTRACT(epoch FROM NOW())::bigint - $1) AND
               jobset_id = $2
             "#,
-            Some((scheduling_window * 10) as f64),
+            scheduling_window,
             jobset_id,
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?)
     }
 
+    // TODO Currently unused. In the old C++ queue-runner, this was called
+    // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
+    // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
-    pub async fn abort_build(&mut self, build_id: i32) -> sqlx::Result<()> {
+    pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
         #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
@@ -152,7 +155,7 @@ impl Connection {
         &mut self,
         store_dir: &StoreDir,
         paths: &[StorePath],
-    ) -> sqlx::Result<bool> {
+    ) -> crate::Result<bool> {
         let paths: Vec<String> = paths
             .iter()
             .map(|p| store_dir.display(p).to_string())
@@ -166,7 +169,7 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn clear_busy(&mut self, stop_time: i32) -> sqlx::Result<()> {
+    pub async fn clear_busy(&mut self, stop_time: i32) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
@@ -177,8 +180,31 @@ impl Connection {
         Ok(())
     }
 
+    /// Finalize a single still-busy buildstep with the given status. Used to
+    /// reconcile a specific orphaned step in the DB without touching any other
+    /// step.
+    pub async fn clear_busy_step(
+        &mut self,
+        build_id: crate::models::BuildID,
+        step_nr: i32,
+        stop_time: i32,
+        status: BuildStatus,
+    ) -> crate::Result<()> {
+        sqlx::query!(
+            "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 \
+             WHERE build = $3 AND stepnr = $4 AND busy != 0;",
+            status as i32,
+            Some(stop_time),
+            build_id,
+            step_nr,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
     #[tracing::instrument(skip(self, step), err)]
-    pub async fn update_build_step(&mut self, step: UpdateBuildStep) -> sqlx::Result<()> {
+    pub async fn update_build_step(&mut self, step: UpdateBuildStep) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = $1 WHERE build = $2 AND stepnr = $3 AND busy != 0 AND status IS NULL",
             step.status as i32,
@@ -196,7 +222,7 @@ impl Connection {
         jobset_id: i32,
         drv_path: &StorePath,
         system: &str,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         let drv_path = store_dir.display(drv_path).to_string();
         sqlx::query!(
             r#"INSERT INTO builds (
@@ -242,9 +268,9 @@ impl Connection {
         &mut self,
         store_dir: &StoreDir,
         out_path: &StorePath,
-    ) -> sqlx::Result<Option<super::models::BuildOutput>> {
+    ) -> crate::Result<Option<super::models::BuildOutput>> {
         let out_path = store_dir.display(out_path).to_string();
-        sqlx::query_as!(
+        Ok(sqlx::query_as!(
             super::models::BuildOutput,
             r#"
             SELECT
@@ -255,18 +281,20 @@ impl Connection {
             out_path.as_str(),
         )
         .fetch_optional(&mut *self.conn)
-        .await
+        .await?)
     }
 
     pub async fn get_build_products_for_build_id(
         &mut self,
         build_id: i32,
         store_dir: &StoreDir,
-    ) -> anyhow::Result<Vec<crate::models::OwnedBuildProduct>> {
+    ) -> crate::Result<Vec<nix_support::BuildProduct>> {
         let rows = sqlx::query_as!(
-            crate::models::OwnedBuildProduct::<String>,
+            crate::models::BuildProductRow,
             r#"
             SELECT
+              build,
+              productnr,
               type,
               subtype,
               fileSize,
@@ -281,15 +309,15 @@ impl Connection {
         .fetch_all(&mut *self.conn)
         .await?;
         rows.into_iter()
-            .map(|r| Ok(r.parse_paths(store_dir)?))
+            .map(|r| Ok(r.into_build_product(store_dir)?))
             .collect()
     }
 
     pub async fn get_build_metrics_for_build_id(
         &mut self,
         build_id: i32,
-    ) -> sqlx::Result<Vec<crate::models::OwnedBuildMetric>> {
-        sqlx::query_as!(
+    ) -> crate::Result<Vec<(nix_support::BuildMetricName, nix_support::BuildMetric)>> {
+        let rows = sqlx::query_as!(
             crate::models::OwnedBuildMetric,
             r#"
             SELECT
@@ -299,7 +327,8 @@ impl Connection {
             build_id
         )
         .fetch_all(&mut *self.conn)
-        .await
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
     /// Resolve output paths for derivation chains via `buildstepoutputs`.
@@ -317,7 +346,7 @@ impl Connection {
         &mut self,
         store_dir: &StoreDir,
         chains: &[(&StorePath, &[&OutputName])],
-    ) -> sqlx::Result<Vec<Option<StorePath>>> {
+    ) -> crate::Result<Vec<Option<StorePath>>> {
         if chains.is_empty() {
             return Ok(Vec::new());
         }
@@ -381,16 +410,8 @@ impl Connection {
 
         let mut results = vec![None; chains.len()];
         for (idx, path) in rows {
-            let i = usize::try_from(idx - 1)
-                .context("SQL ordinality is always positive")
-                .map_err(|e| sqlx::Error::Decode(e.into_boxed_dyn_error()))?;
-            results[i] = path
-                .map(|p| {
-                    store_dir
-                        .parse(&p)
-                        .map_err(|e| sqlx::Error::Decode(Box::new(e)))
-                })
-                .transpose()?;
+            let i = usize::try_from(idx - 1)?;
+            results[i] = path.map(|p| store_dir.parse(&p)).transpose()?;
         }
         Ok(results)
     }
@@ -402,7 +423,7 @@ impl Connection {
         store_dir: &StoreDir,
         drv_path: &StorePath,
         output_name: &OutputName,
-    ) -> sqlx::Result<Option<StorePath>> {
+    ) -> crate::Result<Option<StorePath>> {
         let drv_display = store_dir.display(drv_path).to_string();
         let output_name_str: &str = output_name.as_ref();
         let row: Option<(String,)> = sqlx::query_as(
@@ -422,23 +443,18 @@ impl Connection {
         .fetch_optional(&mut *self.conn)
         .await?;
 
-        row.map(|(path,)| {
-            store_dir
-                .parse(&path)
-                .map_err(|e| sqlx::Error::Decode(Box::new(e)))
-        })
-        .transpose()
+        row.map(|(path,)| Ok(store_dir.parse(&path)?)).transpose()
     }
 }
 
 impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
-    pub async fn commit(self) -> sqlx::Result<()> {
-        self.tx.commit().await
+    pub async fn commit(self) -> crate::Result<()> {
+        Ok(self.tx.commit().await?)
     }
 
     #[tracing::instrument(skip(self, v), err)]
-    pub async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> sqlx::Result<()> {
+    pub async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -475,7 +491,7 @@ impl Transaction<'_> {
         start_time: i32,
         stop_time: i32,
         is_cached_build: bool,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -503,7 +519,7 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         status: BuildStatus,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             r#"
@@ -533,7 +549,7 @@ impl Transaction<'_> {
         build_id: i32,
         name: &str,
         path: &StorePath,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         let path = store_dir.display(path).to_string();
         // TODO: support inserting multiple at the same time
         sqlx::query!(
@@ -552,7 +568,7 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         path: &StorePath,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> crate::Result<Option<i32>> {
         let path = store_dir.display(path).to_string();
         Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1", path.as_str())
             .fetch_optional(&mut *self.tx)
@@ -565,7 +581,7 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         path: &StorePath,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> crate::Result<Option<i32>> {
         let path = store_dir.display(path).to_string();
         Ok(sqlx::query!(
             r#"
@@ -589,7 +605,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         drv_path: &StorePath,
         name: &str,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> crate::Result<Option<i32>> {
         let drv_path = store_dir.display(drv_path).to_string();
         Ok(sqlx::query!(
             r#"
@@ -614,7 +630,11 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         step: InsertBuildStep<'_>,
-    ) -> sqlx::Result<Option<i32>> {
+    ) -> crate::Result<Option<i32>> {
+        // stepnr is MAX(stepnr) + 1; concurrent transactions for the same
+        // build pick the same number and all but one return None and retry.
+        // The queue runner serializes the hot dispatch path with an
+        // in-process per-build lock, so this only happens on rare paths.
         let drv_path = store_dir.display(step.drv_path).to_string();
         let success = sqlx::query!(
             r#"
@@ -671,7 +691,7 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         outputs: &[InsertBuildStepOutput],
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         if outputs.is_empty() {
             return Ok(());
         }
@@ -703,7 +723,7 @@ impl Transaction<'_> {
         step_nr: i32,
         name: &str,
         path: &StorePath,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         let path = store_dir.display(path).to_string();
         // TODO: support inserting multiple at the same time
         sqlx::query!(
@@ -723,7 +743,7 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         drv_path: &StorePath,
-    ) -> sqlx::Result<BTreeMap<OutputName, StorePath>> {
+    ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
         let drv_path = store_dir.display(drv_path).to_string();
         let items: Vec<(String, String)> = sqlx::query_as(
             r"SELECT o.name, o.path
@@ -737,22 +757,19 @@ impl Transaction<'_> {
 
         items
             .into_iter()
-            .map(|(name, path)| -> anyhow::Result<_> {
-                let name: OutputName = name.parse().context("invalid output name from DB")?;
-                let path: StorePath = store_dir
-                    .parse(&path)
-                    .context("invalid store path from DB")?;
+            .map(|(name, path)| -> crate::Result<_> {
+                let name: OutputName = name.parse()?;
+                let path: StorePath = store_dir.parse(&path)?;
                 Ok((name, path))
             })
-            .collect::<anyhow::Result<_>>()
-            .map_err(|e| sqlx::Error::Decode(e.into_boxed_dyn_error()))
+            .collect()
     }
 
     #[tracing::instrument(skip(self, res), err)]
     pub async fn update_build_step_in_finish(
         &mut self,
         res: UpdateBuildStepInFinish<'_>,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         sqlx::query!(
             r#"
             UPDATE buildsteps SET
@@ -790,7 +807,7 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         build_id: i32,
         step_nr: i32,
-    ) -> sqlx::Result<Option<StorePath>> {
+    ) -> crate::Result<Option<StorePath>> {
         sqlx::query!(
             "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
             build_id,
@@ -799,16 +816,13 @@ impl Transaction<'_> {
         .fetch_optional(&mut *self.tx)
         .await?
         .and_then(|v| v.drvpath)
-        .map(|p| {
-            store_dir
-                .parse(&p)
-                .map_err(|e| sqlx::Error::Decode(Box::new(e)))
-        })
+        .map(|p| store_dir.parse(&p))
         .transpose()
+        .map_err(crate::Error::from)
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> sqlx::Result<bool> {
+    pub async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> crate::Result<bool> {
         Ok(sqlx::query!(
             "SELECT id FROM builds WHERE id = $1 AND finished = 0",
             build_id,
@@ -819,7 +833,10 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, p), err)]
-    pub async fn insert_build_product(&mut self, p: InsertBuildProduct<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn insert_build_product(
+        &mut self,
+        p: InsertBuildProduct<'_>,
+    ) -> crate::Result<()> {
         sqlx::query!(
             r#"
               INSERT INTO buildproducts (
@@ -841,7 +858,13 @@ impl Transaction<'_> {
             p.r#type,
             p.subtype,
             p.file_size,
-            p.sha256hash,
+            p.sha256hash.map(|h| {
+                let bytes: &[u8] = h.as_ref();
+                bytes.iter().fold(String::new(), |mut output, b| {
+                    let _ = write!(output, "{b:02x}");
+                    output
+                })
+            }) as Option<String>,
             p.path,
             p.name,
             p.default_path,
@@ -852,7 +875,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> sqlx::Result<()> {
+    pub async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildproducts WHERE build = $1", build_id)
             .execute(&mut *self.tx)
             .await?;
@@ -860,7 +883,10 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, metric), err)]
-    pub async fn insert_build_metric(&mut self, metric: InsertBuildMetric<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn insert_build_metric(
+        &mut self,
+        metric: InsertBuildMetric<'_>,
+    ) -> crate::Result<()> {
         sqlx::query!(
             r#"
               INSERT INTO buildmetrics (
@@ -891,7 +917,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> sqlx::Result<()> {
+    pub async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildmetrics WHERE build = $1", build_id)
             .execute(&mut *self.tx)
             .await?;
@@ -903,7 +929,7 @@ impl Transaction<'_> {
         &mut self,
         store_dir: &StoreDir,
         path: &StorePath,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         let path = store_dir.display(path).to_string();
         sqlx::query!(
             r#"
@@ -946,7 +972,7 @@ impl Transaction<'_> {
         error_msg: Option<String>,
         propagated_from: Option<crate::models::BuildID>,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
-    ) -> sqlx::Result<i32> {
+    ) -> crate::Result<i32> {
         let step_nr = loop {
             if let Some(step_nr) = self
                 .insert_build_step(
@@ -1009,7 +1035,7 @@ impl Transaction<'_> {
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
-    ) -> anyhow::Result<i32> {
+    ) -> crate::Result<i32> {
         let step_nr = loop {
             if let Some(step_nr) = self
                 .insert_build_step(
@@ -1063,7 +1089,7 @@ impl Transaction<'_> {
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
-    ) -> anyhow::Result<i32> {
+    ) -> crate::Result<i32> {
         let step_nr = loop {
             if let Some(step_nr) = self
                 .insert_build_step(
@@ -1113,7 +1139,7 @@ impl Transaction<'_> {
         start_time: i32,
         stop_time: i32,
         store_dir: &StoreDir,
-    ) -> anyhow::Result<()> {
+    ) -> crate::Result<()> {
         if build.finished_in_db {
             return Ok(());
         }
@@ -1148,26 +1174,27 @@ impl Transaction<'_> {
         self.delete_build_products_by_build_id(build.id).await?;
 
         for (nr, p) in build.products.iter().enumerate() {
+            let path_str = p.path.print(store_dir);
             self.insert_build_product(InsertBuildProduct {
                 build_id: build.id,
                 product_nr: i32::try_from(nr + 1)?,
-                r#type: p.r#type,
-                subtype: p.subtype,
-                file_size: p.filesize,
-                sha256hash: p.sha256hash,
-                path: p.path.as_deref().unwrap_or_default(),
-                name: p.name,
-                default_path: p.defaultpath.unwrap_or_default(),
+                r#type: &p.r#type,
+                subtype: &p.subtype,
+                file_size: p.file_size.and_then(|s| i64::try_from(s).ok()),
+                sha256hash: p.sha256hash.as_ref(),
+                path: &path_str,
+                name: &p.name,
+                default_path: &p.default_path,
             })
             .await?;
         }
 
         self.delete_build_metrics_by_build_id(build.id).await?;
-        for m in &build.metrics {
+        for (name, m) in &build.metrics {
             self.insert_build_metric(InsertBuildMetric {
                 build_id: build.id,
-                name: m.name,
-                unit: m.unit,
+                name,
+                unit: m.unit.as_deref(),
                 value: m.value,
                 project: build.project_name,
                 jobset: build.jobset_name,
@@ -1182,7 +1209,7 @@ impl Transaction<'_> {
 
 impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
-    async fn notify_any(&mut self, channel: &str, msg: &str) -> sqlx::Result<()> {
+    async fn notify_any(&mut self, channel: &str, msg: &str) -> crate::Result<()> {
         sqlx::query(
             r"SELECT pg_notify(chan, payload) from (values ($1, $2)) notifies(chan, payload)",
         )
@@ -1194,13 +1221,13 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn notify_builds_added(&mut self) -> sqlx::Result<()> {
+    pub async fn notify_builds_added(&mut self) -> crate::Result<()> {
         self.notify_any("builds_added", "?").await?;
         Ok(())
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn notify_build_started(&mut self, build_id: i32) -> sqlx::Result<()> {
+    pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
         self.notify_any("build_started", &build_id.to_string())
             .await?;
         Ok(())
@@ -1211,16 +1238,32 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         dependent_ids: &[i32],
-    ) -> sqlx::Result<()> {
-        let mut q = vec![build_id.to_string()];
-        q.extend(dependent_ids.iter().map(ToString::to_string));
+    ) -> crate::Result<()> {
+        // Postgres limits NOTIFY payloads to slightly less than 8000 bytes.
+        // A cached build can finish thousands of dependent builds at once,
+        // so split the dependents over multiple notifications that each
+        // repeat the finished build id as the first field.
+        const MAX_PAYLOAD_LEN: usize = 7000;
 
-        self.notify_any("build_finished", &q.join("\t")).await?;
+        let head = build_id.to_string();
+        let mut payload = head.clone();
+
+        for dep in dependent_ids {
+            let dep = dep.to_string();
+            if payload.len() + 1 + dep.len() > MAX_PAYLOAD_LEN {
+                self.notify_any("build_finished", &payload).await?;
+                payload = head.clone();
+            }
+            payload.push('\t');
+            payload.push_str(&dep);
+        }
+
+        self.notify_any("build_finished", &payload).await?;
         Ok(())
     }
 
     #[tracing::instrument(skip(self, build_id, step_nr,), err)]
-    pub async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> sqlx::Result<()> {
+    pub async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> crate::Result<()> {
         self.notify_any("step_started", &format!("{build_id}\t{step_nr}"))
             .await?;
         Ok(())
@@ -1232,7 +1275,7 @@ impl Transaction<'_> {
         build_id: i32,
         step_nr: i32,
         log_file: &str,
-    ) -> sqlx::Result<()> {
+    ) -> crate::Result<()> {
         self.notify_any(
             "step_finished",
             &format!("{build_id}\t{step_nr}\t{log_file}"),
@@ -1247,6 +1290,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use crate::RetryableError as _;
 
     fn test_store_dir() -> StoreDir {
         StoreDir::new("/nix/store").unwrap()
@@ -1300,6 +1344,51 @@ mod tests {
         .execute(&mut *conn.conn)
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn clear_busy_step_finalizes_only_the_named_step() {
+        async fn insert_busy(conn: &mut Connection, build: i32, stepnr: i32, drv: &StorePath) {
+            sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)")
+                .bind(build)
+                .bind(stepnr)
+                .bind(test_store_dir().display(drv).to_string())
+                .execute(&mut *conn.conn)
+                .await
+                .unwrap();
+        }
+
+        async fn busy_status(conn: &mut Connection, build: i32, stepnr: i32) -> (i32, Option<i32>) {
+            sqlx::query_as::<_, (i32, Option<i32>)>(
+                "SELECT busy, status FROM buildsteps WHERE build = $1 AND stepnr = $2",
+            )
+            .bind(build)
+            .bind(stepnr)
+            .fetch_one(&mut *conn.conn)
+            .await
+            .unwrap()
+        }
+
+        let (_pg, mut conn) = setup().await;
+        // Two busy steps of one build (a duplicate-dispatch leaves an old
+        // stepnr busy) plus a busy step of another build.
+        insert_busy(&mut conn, 1, 1, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 1, 2, &sp("foo.drv")).await;
+        insert_busy(&mut conn, 2, 1, &sp("bar.drv")).await;
+
+        conn.clear_busy_step(1, 1, 12345, BuildStatus::Aborted)
+            .await
+            .unwrap();
+
+        let (busy, status) = busy_status(&mut conn, 1, 1).await;
+        assert_eq!(busy, 0, "named step must be cleared");
+        assert_eq!(status, Some(BuildStatus::Aborted as i32));
+
+        let (busy, _) = busy_status(&mut conn, 1, 2).await;
+        assert_eq!(busy, 1, "sibling stepnr of same build must stay busy");
+
+        let (busy, _) = busy_status(&mut conn, 2, 1).await;
+        assert_eq!(busy, 1, "other build must stay busy");
     }
 
     #[tokio::test]
@@ -1596,5 +1685,159 @@ mod tests {
         )
         .await;
         assert_eq!(result, Some(sp("final-result")));
+    }
+
+    async fn replica_conn(pool: &sqlx::PgPool) -> Connection {
+        let mut conn = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql("SET session_replication_role = 'replica';")
+            .execute(&mut *conn.conn)
+            .await
+            .unwrap();
+        conn
+    }
+
+    fn substitution_step(build_id: i32, drv_path: &StorePath) -> InsertBuildStep<'_> {
+        InsertBuildStep {
+            build_id,
+            r#type: crate::models::BuildType::Substitution,
+            drv_path,
+            status: BuildStatus::Success,
+            busy: false,
+            start_time: Some(0),
+            stop_time: Some(0),
+            platform: None,
+            propagated_from: None,
+            error_msg: None,
+            machine: "",
+        }
+    }
+
+    /// Two transactions inserting a step for the same build compute the same
+    /// stepnr (MAX+1) while the first is still open. The second blocks on the
+    /// unique index and, once the first commits, resolves to `None` via
+    /// ON CONFLICT DO NOTHING. The caller retries; a fresh insert then picks
+    /// the next number. The hot dispatch path avoids this collision with an
+    /// in-process per-build lock in the queue runner.
+    #[tokio::test]
+    async fn concurrent_step_inserts_for_same_build_conflict() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+        let sd = test_store_dir();
+
+        let mut conn_a = replica_conn(&pool).await;
+        let mut conn_b = replica_conn(&pool).await;
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        let step_a = tx_a
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        assert_eq!(step_a, Some(1));
+
+        let task_b = tokio::spawn(async move {
+            let sd = test_store_dir();
+            let mut tx_b = conn_b.begin_transaction().await.unwrap();
+            let step = tx_b
+                .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+                .await
+                .unwrap();
+            tx_b.commit().await.unwrap();
+            step
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(
+            !task_b.is_finished(),
+            "concurrent insert should block on the unique index"
+        );
+
+        tx_a.commit().await.unwrap();
+
+        // The blocked insert conflicts once the first transaction commits.
+        assert_eq!(task_b.await.unwrap(), None);
+
+        // After the conflict the caller retries; a fresh insert sees the
+        // committed row and picks the next number.
+        let mut tx_c = conn_a.begin_transaction().await.unwrap();
+        let step_c = tx_c
+            .insert_build_step(&sd, substitution_step(1, &sp("foo.drv")))
+            .await
+            .unwrap();
+        tx_c.commit().await.unwrap();
+        assert_eq!(step_c, Some(2));
+    }
+
+    /// A real Postgres deadlock (40P01) is classified as retryable.
+    #[tokio::test]
+    async fn deadlock_is_retryable_serialization_failure() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+
+        let mut setup = Connection::new(pool.acquire().await.unwrap());
+        sqlx::raw_sql(
+            "CREATE TABLE deadlock_test (id int PRIMARY KEY, v int);
+             INSERT INTO deadlock_test VALUES (1, 0), (2, 0);",
+        )
+        .execute(&mut *setup.conn)
+        .await
+        .unwrap();
+
+        let mut conn_a = Connection::new(pool.acquire().await.unwrap());
+        let mut conn_b = Connection::new(pool.acquire().await.unwrap());
+
+        let mut tx_a = conn_a.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 1")
+            .execute(&mut *tx_a.tx)
+            .await
+            .unwrap();
+
+        let mut tx_b = conn_b.begin_transaction().await.unwrap();
+        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 2")
+            .execute(&mut *tx_b.tx)
+            .await
+            .unwrap();
+
+        // Each transaction now reaches for the row the other holds, closing the
+        // cycle; Postgres aborts one of them with a deadlock error.
+        let (res_a, res_b) = tokio::join!(
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 2").execute(&mut *tx_a.tx),
+            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 1").execute(&mut *tx_b.tx),
+        );
+
+        let victim = match (res_a, res_b) {
+            (Err(e), Ok(_)) | (Ok(_), Err(e)) => crate::Error::from(e),
+            (Err(_), Err(_)) => panic!("both transactions failed"),
+            (Ok(_), Ok(_)) => panic!("expected a deadlock"),
+        };
+        assert!(
+            victim.is_retryable_serialization_failure(),
+            "deadlock error should be retryable: {victim:?}"
+        );
+    }
+
+    /// Regression test: a dependent list too large for a single NOTIFY
+    /// payload is delivered completely across multiple notifications.
+    #[tokio::test]
+    async fn notify_build_finished_chunks_large_dependent_lists() {
+        let (_pg, pool) = test_utils::TestPg::new().await;
+
+        let mut listener = sqlx::postgres::PgListener::connect_with(&pool)
+            .await
+            .unwrap();
+        listener.listen("build_finished").await.unwrap();
+
+        let dependent_ids: Vec<i32> = (1_000_000..1_005_000).collect();
+        let mut conn = Connection::new(pool.acquire().await.unwrap());
+        let mut tx = conn.begin_transaction().await.unwrap();
+        tx.notify_build_finished(42, &dependent_ids).await.unwrap();
+        tx.commit().await.unwrap();
+
+        let mut received = std::collections::HashSet::new();
+        while received.len() < dependent_ids.len() {
+            let notification = listener.recv().await.unwrap();
+            let payload = notification.payload();
+            assert!(payload.len() <= 8000, "payload too long: {}", payload.len());
+            let mut fields = payload.split('\t');
+            assert_eq!(fields.next(), Some("42"));
+            received.extend(fields.map(|f| f.parse::<i32>().unwrap()));
+        }
+        assert!(dependent_ids.iter().all(|id| received.contains(id)));
     }
 }

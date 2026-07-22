@@ -3,25 +3,26 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
-use anyhow::Context;
 use hashbrown::{HashMap, HashSet};
 
 use super::{Jobset, JobsetID, Step};
 use db::models::{BuildID, BuildStatus};
-use nix_utils::BaseStore as _;
+use harmonia_store_derivation::derived_path::OutputName;
+use harmonia_store_path::StorePath;
 
 pub(super) type AtomicBuildID = AtomicI32;
 
 #[derive(Debug)]
 pub struct Build {
     pub id: BuildID,
-    pub drv_path: nix_utils::StorePath,
-    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
+    pub drv_path: StorePath,
+    pub outputs: BTreeMap<OutputName, StorePath>,
     pub jobset_id: JobsetID,
     pub name: String,
     pub timestamp: jiff::Timestamp,
-    pub max_silent_time: i32,
-    pub timeout: i32,
+    // meta.maxSilent/meta.timeout; None falls back to the queue-runner defaults.
+    pub max_silent_time: Option<i32>,
+    pub timeout: Option<i32>,
     pub local_priority: i32,
     pub global_priority: AtomicI32,
 
@@ -49,7 +50,7 @@ impl Hash for Build {
 
 impl Build {
     #[must_use]
-    pub fn new_debug(drv_path: &nix_utils::StorePath) -> Arc<Self> {
+    pub fn new_debug(drv_path: &StorePath) -> Arc<Self> {
         Arc::new(Self {
             id: BuildID::MAX,
             drv_path: drv_path.to_owned(),
@@ -57,8 +58,8 @@ impl Build {
             jobset_id: JobsetID::MAX,
             name: "debug".into(),
             timestamp: jiff::Timestamp::now(),
-            max_silent_time: i32::MAX,
-            timeout: i32::MAX,
+            max_silent_time: Some(i32::MAX),
+            timeout: Some(i32::MAX),
             local_priority: 1000,
             global_priority: 1000.into(),
             toplevel: arc_swap::ArcSwapOption::from(None),
@@ -68,7 +69,7 @@ impl Build {
     }
 
     #[tracing::instrument(skip(v, jobset), err)]
-    pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> anyhow::Result<Arc<Self>> {
+    pub fn new(v: db::models::Build, jobset: Arc<Jobset>) -> Result<Arc<Self>, jiff::Error> {
         Ok(Arc::new(Self {
             id: v.id,
             drv_path: v.drvpath,
@@ -76,8 +77,8 @@ impl Build {
             jobset_id: v.jobset_id,
             name: v.job,
             timestamp: jiff::Timestamp::from_second(v.timestamp)?,
-            max_silent_time: v.maxsilent.unwrap_or(3600),
-            timeout: v.timeout.unwrap_or(36000),
+            max_silent_time: v.maxsilent,
+            timeout: v.timeout,
             local_priority: v.priority,
             global_priority: v.globalpriority.into(),
             toplevel: arc_swap::ArcSwapOption::from(None),
@@ -147,7 +148,7 @@ impl Build {
             );
             step.add_jobset(self.jobset.clone());
             for dep in step.get_all_deps_not_queued(&queued) {
-                queued.insert(dep.clone());
+                queued.insert(super::step::ByPtr(dep.clone()));
                 todo.push_back(dep);
             }
         }
@@ -156,30 +157,15 @@ impl Build {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildResultState {
-    Success,
-    BuildFailure,
-    PreparingFailure,
-    ImportFailure,
-    UploadFailure,
-    PostProcessingFailure,
+    /// Result reported by the builder over gRPC.
+    Completed(hydra_proto::BuildResultState),
     Aborted,
     Cancelled,
 }
 
-impl From<crate::server::grpc::runner_v1::BuildResultState> for BuildResultState {
-    fn from(v: crate::server::grpc::runner_v1::BuildResultState) -> Self {
-        match v {
-            crate::server::grpc::runner_v1::BuildResultState::BuildFailure => Self::BuildFailure,
-            crate::server::grpc::runner_v1::BuildResultState::Success => Self::Success,
-            crate::server::grpc::runner_v1::BuildResultState::PreparingFailure => {
-                Self::PreparingFailure
-            }
-            crate::server::grpc::runner_v1::BuildResultState::ImportFailure => Self::ImportFailure,
-            crate::server::grpc::runner_v1::BuildResultState::UploadFailure => Self::UploadFailure,
-            crate::server::grpc::runner_v1::BuildResultState::PostProcessingFailure => {
-                Self::PostProcessingFailure
-            }
-        }
+impl From<hydra_proto::BuildResultState> for BuildResultState {
+    fn from(v: hydra_proto::BuildResultState) -> Self {
+        Self::Completed(v)
     }
 }
 
@@ -203,7 +189,7 @@ pub struct RemoteBuild {
     stop_time: Option<jiff::Timestamp>,
 
     overhead: i32,
-    pub log_file: String,
+    pub log_file: std::path::PathBuf,
 }
 
 impl Default for RemoteBuild {
@@ -226,7 +212,7 @@ impl RemoteBuild {
             start_time: None,
             stop_time: None,
             overhead: 0,
-            log_file: String::new(),
+            log_file: std::path::PathBuf::new(),
         }
     }
 
@@ -243,18 +229,38 @@ impl RemoteBuild {
         }
     }
 
-    pub const fn update_with_result_state(&mut self, state: &BuildResultState) {
+    const fn update_with_completed(&mut self, state: hydra_proto::BuildResultState) {
         match state {
-            BuildResultState::BuildFailure => {
+            hydra_proto::BuildResultState::BuildFailure => {
                 self.can_retry = false;
             }
-            BuildResultState::Success => (),
-            BuildResultState::PreparingFailure
-            | BuildResultState::ImportFailure
-            | BuildResultState::UploadFailure
-            | BuildResultState::PostProcessingFailure => {
-                self.can_retry = true;
+            hydra_proto::BuildResultState::TimedOutFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::TimedOut;
             }
+            hydra_proto::BuildResultState::LogLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::LogLimitExceeded;
+            }
+            hydra_proto::BuildResultState::NarSizeLimitFailure => {
+                self.can_retry = false;
+                self.step_status = BuildStatus::NarSizeLimitExceeded;
+            }
+            hydra_proto::BuildResultState::Success => (),
+            hydra_proto::BuildResultState::PreparingFailure
+            | hydra_proto::BuildResultState::ImportFailure
+            | hydra_proto::BuildResultState::UploadFailure
+            | hydra_proto::BuildResultState::PostProcessingFailure => {
+                self.can_retry = true;
+                // Retryable: only genuine build failures are recorded as Failed.
+                self.step_status = BuildStatus::Aborted;
+            }
+        }
+    }
+
+    pub const fn update_with_result_state(&mut self, state: BuildResultState) {
+        match state {
+            BuildResultState::Completed(s) => self.update_with_completed(s),
             BuildResultState::Aborted => {
                 self.can_retry = true;
                 self.step_status = BuildStatus::Aborted;
@@ -340,124 +346,7 @@ impl RemoteBuild {
     }
 }
 
-/// Store path with an optional relative path from the store object directory.
-///
-/// Build products can reference files inside store outputs (e.g. `/nix/store/hash-name/bin/foo`),
-/// so we separate the base `StorePath` from the trailing sub-path.
-#[derive(Debug, Clone)]
-pub struct RelativeStorePath {
-    pub base_path: nix_utils::StorePath,
-    pub relative_path: Box<str>,
-}
-
-impl RelativeStorePath {
-    pub fn from_path(store_dir: &nix_utils::StoreDir, path: &str) -> anyhow::Result<Self> {
-        let stripped = store_dir
-            .strip_prefix(path)
-            .with_context(|| format!("stripping store dir from '{path}'"))?;
-        let (base_str, remaining_str) = stripped.split_once('/').unwrap_or((stripped, ""));
-        Ok(Self {
-            base_path: nix_utils::StorePath::from_base_path(base_str)
-                .with_context(|| format!("parsing store path from '{base_str}'"))?,
-            relative_path: remaining_str.into(),
-        })
-    }
-
-    pub fn print(&self, store_dir: &nix_utils::StoreDir) -> String {
-        if self.relative_path.is_empty() {
-            store_dir.display(&self.base_path).to_string()
-        } else {
-            format!(
-                "{}/{}",
-                store_dir.display(&self.base_path),
-                self.relative_path
-            )
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BuildProduct {
-    pub path: Option<RelativeStorePath>,
-    pub default_path: Option<String>,
-
-    pub r#type: String,
-    pub subtype: String,
-    pub name: String,
-
-    pub is_regular: bool,
-
-    pub sha256hash: Option<String>,
-    pub file_size: Option<u64>,
-}
-
-impl BuildProduct {
-    pub fn from_db(v: db::models::OwnedBuildProduct) -> Self {
-        Self {
-            path: v.path.map(|p| RelativeStorePath {
-                base_path: p,
-                relative_path: "".into(),
-            }),
-            default_path: v.defaultpath,
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.filesize.is_some(),
-            sha256hash: v.sha256hash,
-            #[allow(clippy::cast_sign_loss)]
-            file_size: v.filesize.map(|v| v as u64),
-        }
-    }
-
-    pub fn from_grpc(
-        store_dir: &nix_utils::StoreDir,
-        v: crate::server::grpc::runner_v1::BuildProduct,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
-            default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
-        })
-    }
-
-    pub fn from_shared(
-        store_dir: &nix_utils::StoreDir,
-        v: shared::BuildProduct,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            path: Some(RelativeStorePath::from_path(store_dir, &v.path)?),
-            default_path: Some(v.default_path),
-            r#type: v.r#type,
-            subtype: v.subtype,
-            name: v.name,
-            is_regular: v.is_regular,
-            sha256hash: v.sha256hash,
-            file_size: v.file_size,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct BuildMetric {
-    pub name: String,
-    pub unit: Option<String>,
-    pub value: f64,
-}
-
-impl From<db::models::OwnedBuildMetric> for BuildMetric {
-    fn from(v: db::models::OwnedBuildMetric) -> Self {
-        Self {
-            name: v.name,
-            unit: v.unit,
-            value: v.value,
-        }
-    }
-}
+pub(crate) use nix_support::{BuildMetric, BuildProduct};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BuildTimings {
@@ -492,19 +381,40 @@ pub struct BuildOutput {
     pub size: u64,
 
     pub products: Vec<BuildProduct>,
-    pub outputs: BTreeMap<nix_utils::OutputName, nix_utils::StorePath>,
-    pub metrics: Vec<BuildMetric>,
+    pub outputs: BTreeMap<OutputName, StorePath>,
+    pub metrics: BTreeMap<String, BuildMetric>,
+}
+
+/// Everything that can go wrong constructing a [`BuildOutput`], whether
+/// parsing an incoming `BuildResultInfo`/db row or reading from the store.
+#[derive(Debug, thiserror::Error)]
+pub enum BuildOutputError {
+    #[error("buildstatus missing")]
+    BuildStatusMissing,
+
+    #[error("buildstatus value did not map to a known status")]
+    BuildStatusUnknown,
+
+    #[error("output missing path")]
+    OutputMissingPath,
+
+    #[error("invalid output name")]
+    OutputName(#[from] harmonia_store_path::StorePathNameError),
+
+    #[error("nix daemon error")]
+    Daemon(#[from] harmonia_store_remote::DaemonError),
+
+    #[error("reading build output")]
+    Io(#[from] std::io::Error),
 }
 
 impl TryFrom<db::models::BuildOutput> for BuildOutput {
-    type Error = anyhow::Error;
+    type Error = BuildOutputError;
 
-    fn try_from(v: db::models::BuildOutput) -> anyhow::Result<Self> {
-        let build_status = BuildStatus::from_i32(
-            v.buildstatus
-                .ok_or_else(|| anyhow::anyhow!("buildstatus missing"))?,
-        )
-        .ok_or_else(|| anyhow::anyhow!("buildstatus did not map"))?;
+    fn try_from(v: db::models::BuildOutput) -> Result<Self, Self::Error> {
+        let build_status =
+            BuildStatus::from_i32(v.buildstatus.ok_or(BuildOutputError::BuildStatusMissing)?)
+                .ok_or(BuildOutputError::BuildStatusUnknown)?;
         Ok(Self {
             failed: build_status != BuildStatus::Success,
             timings: BuildTimings::default(),
@@ -515,86 +425,76 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
             size: v.size.unwrap_or_default() as u64,
             products: vec![],
             outputs: BTreeMap::new(),
-            metrics: Vec::with_capacity(10),
+            metrics: BTreeMap::new(),
         })
     }
 }
 
 impl BuildOutput {
-    pub fn from_grpc(
-        store_dir: &nix_utils::StoreDir,
-        v: crate::server::grpc::runner_v1::BuildResultInfo,
-    ) -> anyhow::Result<Self> {
+    pub fn from_grpc(v: hydra_proto::BuildResultInfo) -> Result<Self, BuildOutputError> {
         let mut outputs = BTreeMap::new();
         let mut closure_size = 0;
         let mut nar_size = 0;
+        let mut merged = nix_support::NixSupport::default();
 
-        for o in v.outputs {
-            match o.output {
-                Some(crate::server::grpc::runner_v1::output::Output::Nameonly(_)) => {
-                    // We dont care about outputs that dont have a path,
-                }
-                Some(crate::server::grpc::runner_v1::output::Output::Withpath(o)) => {
-                    let path = o
-                        .path
-                        .ok_or_else(|| anyhow::anyhow!("output missing path"))?
-                        .0;
-                    outputs.insert(o.name.parse()?, path);
-                    closure_size += o.closure_size;
-                    nar_size += o.nar_size;
-                }
-                None => (),
+        for (name, info) in v.output_infos {
+            let path = info.path.ok_or(BuildOutputError::OutputMissingPath)?.0;
+            closure_size += info.closure_size;
+            nar_size += info.nar_size;
+            outputs.insert(name.parse()?, path);
+            if let Some(ns) = info.nix_support {
+                let ns: nix_support::NixSupport = ns.into();
+                merged.combine(ns);
             }
         }
-        let (failed, release_name, products, metrics) = if let Some(nix_support) = v.nix_support {
-            (
-                nix_support.failed,
-                nix_support.hydra_release_name,
-                nix_support.products,
-                nix_support.metrics,
-            )
-        } else {
-            (false, None, vec![], vec![])
-        };
 
         Ok(Self {
-            failed,
+            failed: merged.failed,
             timings: BuildTimings::new(v.import_time_ms, v.build_time_ms, v.upload_time_ms),
-            release_name,
+            release_name: merged.hydra_release_name,
             closure_size,
             size: nar_size,
-            products: products
-                .into_iter()
-                .map(|p| BuildProduct::from_grpc(store_dir, p))
-                .collect::<anyhow::Result<Vec<_>>>()?,
+            products: merged.products,
             outputs,
-            metrics: metrics
-                .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
-                })
-                .collect(),
+            metrics: merged.metrics,
         })
     }
 }
 
 impl BuildOutput {
-    #[tracing::instrument(skip(store, outputs), err)]
+    #[tracing::instrument(skip(store, connector, real_store_dir, outputs), err)]
     pub async fn new(
-        store: &nix_utils::LocalStore,
-        outputs: BTreeMap<nix_utils::OutputName, Option<nix_utils::StorePath>>,
-    ) -> anyhow::Result<Self> {
+        store: &daemon_client_utils::DaemonStoreReader,
+        connector: &daemon_client_utils::DaemonConnector,
+        real_store_dir: &std::path::Path,
+        outputs: BTreeMap<OutputName, Option<StorePath>>,
+    ) -> Result<Self, BuildOutputError> {
         let resolved: BTreeMap<_, _> = outputs
             .iter()
             .filter_map(|(name, path)| Some((name.clone(), path.as_ref()?.clone())))
             .collect();
-        let pathinfos = store
-            .query_path_infos(&resolved.values().collect::<Vec<_>>())
-            .await;
-        let nix_support =
-            Box::pin(shared::parse_nix_support_from_outputs(store, &resolved)).await?;
+        // Reuse one daemon connection across both query loops below.
+        let mut conn = store.connect().await?;
+        let mut pathinfos = BTreeMap::new();
+        for path in resolved.values() {
+            if let Some(info) = daemon_client_utils::query_path_info(&mut conn, path).await? {
+                pathinfos.insert(path.clone(), info.info);
+            }
+        }
+        let fs = nix_support::FilesystemOperations {
+            real_store_dir: real_store_dir.to_owned(),
+        };
+        let per_output = Box::pin(nix_support::parse_nix_support_from_outputs(
+            connector.store_dir(),
+            &fs,
+            &resolved,
+        ))
+        .await?;
+
+        let mut merged = nix_support::NixSupport::default();
+        for ns in per_output.into_values() {
+            merged.combine(ns);
+        }
 
         let mut outputs_map = BTreeMap::new();
         let mut closure_size = 0;
@@ -602,39 +502,26 @@ impl BuildOutput {
 
         for (name, path) in resolved {
             if let Some(info) = pathinfos.get(&path) {
-                closure_size += store.compute_closure_size(&path).await;
+                closure_size += daemon_client_utils::compute_closure_size(&mut conn, &path).await;
                 nar_size += info.nar_size;
                 outputs_map.insert(name, path);
             }
         }
 
         Ok(Self {
-            failed: nix_support.failed,
+            failed: merged.failed,
             timings: BuildTimings::default(),
-            release_name: nix_support.hydra_release_name,
+            release_name: merged.hydra_release_name,
             closure_size,
             size: nar_size,
-            products: nix_support
-                .products
-                .into_iter()
-                .map(|p| BuildProduct::from_shared(store.store_dir(), p))
-                .collect::<anyhow::Result<Vec<_>>>()?,
+            products: merged.products,
             outputs: outputs_map,
-            metrics: nix_support
-                .metrics
-                .into_iter()
-                .map(|v| BuildMetric {
-                    name: v.name,
-                    unit: v.unit,
-                    value: v.value,
-                })
-                .collect(),
+            metrics: merged.metrics,
         })
     }
 }
 
 pub(super) fn get_mark_build_sccuess_data<'a>(
-    store: &nix_utils::LocalStore,
     b: &'a Arc<Build>,
     res: &'a BuildOutput,
 ) -> db::models::MarkBuildSuccessData<'a> {
@@ -654,28 +541,8 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
             .iter()
             .map(|(name, path)| (name.clone(), path.clone()))
             .collect(),
-        products: res
-            .products
-            .iter()
-            .map(|v| db::models::BuildProduct {
-                r#type: &v.r#type,
-                subtype: &v.subtype,
-                filesize: v.file_size.and_then(|v| i64::try_from(v).ok()),
-                sha256hash: v.sha256hash.as_deref(),
-                path: v.path.as_ref().map(|p| p.print(store.store_dir())),
-                name: &v.name,
-                defaultpath: v.default_path.as_deref(),
-            })
-            .collect(),
-        metrics: res
-            .metrics
-            .iter()
-            .map(|m| db::models::BuildMetric {
-                name: &m.name,
-                unit: m.unit.as_deref(),
-                value: m.value,
-            })
-            .collect(),
+        products: res.products.clone(),
+        metrics: res.metrics.clone(),
     }
 }
 
@@ -741,5 +608,70 @@ impl Builds {
     pub fn remove_by_id(&self, id: BuildID) {
         let mut builds = self.inner.write();
         builds.remove(&id);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn propagate_priorities_visits_shared_diamond_dep() {
+        use crate::state::step::Steps;
+
+        fn drv(name: &str) -> StorePath {
+            StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv"))
+                .unwrap()
+        }
+
+        // Diamond: bottom is reachable from two parents, so the walk hits it
+        // twice and must still apply the priority.
+        let steps = Steps::new();
+        let (top, _) = steps.create(&drv("top"), None, None);
+        let (left, _) = steps.create(&drv("left"), None, None);
+        let (right, _) = steps.create(&drv("right"), None, None);
+        let (bottom, _) = steps.create(&drv("bottom"), None, None);
+        let (bottom_again, is_new) = steps.create(&drv("bottom"), None, None);
+        assert!(!is_new, "bottom must be the same shared allocation");
+        assert!(Arc::ptr_eq(&bottom, &bottom_again));
+
+        top.add_dep(left.clone());
+        top.add_dep(right.clone());
+        left.add_dep(bottom.clone());
+        right.add_dep(bottom.clone());
+
+        let build = Build::new_debug(&drv("top"));
+        build.set_toplevel_step(top.clone());
+        build.propagate_priorities();
+
+        let prio = build.global_priority.load(Ordering::Relaxed);
+        assert!(prio > 0);
+        for step in [&top, &left, &right, &bottom] {
+            assert_eq!(
+                step.atomic_state
+                    .highest_global_priority
+                    .load(Ordering::Relaxed),
+                prio,
+                "step {} not propagated",
+                step.get_drv_path()
+            );
+        }
+    }
+
+    #[test]
+    fn transient_completed_failures_are_recorded_as_aborted() {
+        for state in [
+            hydra_proto::BuildResultState::PreparingFailure,
+            hydra_proto::BuildResultState::ImportFailure,
+            hydra_proto::BuildResultState::UploadFailure,
+            hydra_proto::BuildResultState::PostProcessingFailure,
+        ] {
+            let mut result = RemoteBuild::new();
+            result.step_status = BuildStatus::Failed;
+            result.update_with_result_state(BuildResultState::Completed(state));
+            assert!(result.can_retry);
+            assert_eq!(result.step_status, BuildStatus::Aborted, "{state:?}");
+        }
     }
 }

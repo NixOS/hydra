@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package nix.store.derivation.v1;
+
+import "v1/store.proto";
+
+// Mirrors harmonia_store_core::derivation::DerivationOutput.
+message Output {
+  oneof output {
+    // InputAddressed: statically-known output path.
+    nix.store.v1.StorePath input_addressed = 1;
+    // CAFixed: content-addressed fixed-output (e.g. fetchurl).
+    nix.store.v1.ContentAddress ca_fixed = 2;
+    // Deferred: no statically-known output path.
+    Unit deferred = 3;
+    // CAFloating: content-addressed with floating output path.
+    nix.store.v1.ContentAddressMethodAlgorithm ca_floating = 4;
+    // Impure: like CAFloating but not reproducible.
+    nix.store.v1.ContentAddressMethodAlgorithm impure = 5;
+  }
+}
+
+// A force-resolved BasicDerivation ready to be built.
+// All inputs are concrete store paths (no Built references).
+//
+// Mirrors harmonia_store_core::derivation::BasicDerivation.
+message Basic {
+  string name = 1;
+  map<string, Output> outputs = 2;
+  repeated nix.store.v1.StorePath inputs = 3;
+  bytes platform = 4;
+  bytes builder = 5;
+  repeated bytes args = 6;
+  map<string, bytes> env = 7;
+  // Optional structured attributes (JSON-encoded).
+  optional string structured_attrs = 8;
+}
+
+// Empty message used as a unit type.
+message Unit {}
