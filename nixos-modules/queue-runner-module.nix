@@ -141,6 +141,25 @@ in
               type = lib.types.bool;
               default = false;
             };
+            overflowStore = lib.mkOption {
+              description = "Overflow S3 store. Steps referenced only by the listed jobsets are uploaded there instead of the default store. Requires usePresignedUploads.";
+              default = null;
+              type = lib.types.nullOr (
+                lib.types.submodule {
+                  options = {
+                    store = lib.mkOption {
+                      description = "S3 store URI of the overflow bucket, e.g. `s3://overflow?region=eu-west-1`.";
+                      type = lib.types.singleLineStr;
+                    };
+                    jobsets = lib.mkOption {
+                      description = "Jobsets (`project:jobset`) whose exclusive steps go to the overflow store.";
+                      type = lib.types.listOf lib.types.singleLineStr;
+                      default = [ ];
+                    };
+                  };
+                }
+              );
+            };
             forcedSubstituters = lib.mkOption {
               description = "Force a list of substituters per builder. Builder will no longer be accepted if they don't have `useSubstitutes` with the substituters listed here.";
               type = lib.types.listOf lib.types.singleLineStr;

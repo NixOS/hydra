@@ -7,6 +7,9 @@ pub enum ConfigError {
     #[error("missing option: {0}")]
     MissingOption(&'static str),
 
+    #[error("invalid option: {0}")]
+    InvalidOption(&'static str),
+
     #[error("environment variable `{0}` is missing")]
     MissingEnvVar(&'static str),
 
@@ -222,6 +225,31 @@ pub enum StepSortFn {
     WithCriticalPath,
 }
 
+/// Overflow S3 store.
+/// Steps referenced only by the listed jobsets,
+/// upload there instead of the default store.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct OverflowStore {
+    pub store: String,
+    pub jobsets: Vec<String>,
+}
+
+impl OverflowStore {
+    fn validate(&self, use_presigned_uploads: bool) -> Result<(), ConfigError> {
+        if !self.store.starts_with("s3://") {
+            return Err(ConfigError::InvalidOption(
+                "overflowStore.store must be an s3:// store URI",
+            ));
+        }
+        if !use_presigned_uploads {
+            tracing::warn!("overflowStore has no effect without usePresignedUploads");
+        }
+        Ok(())
+    }
+}
+
 /// Main configuration of the application
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -312,6 +340,8 @@ struct AppConfig {
 
     #[serde(default)]
     forced_substituters: Vec<String>,
+
+    overflow_store: Option<OverflowStore>,
 }
 
 /// Prepared configuration of the application
@@ -346,6 +376,7 @@ pub struct PreparedApp {
     pub build_timeout: i32,
     pub max_log_size: u64,
     pub forced_substituters: Vec<String>,
+    pub overflow_store: Option<OverflowStore>,
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
@@ -378,6 +409,10 @@ impl TryFrom<AppConfig> for PreparedApp {
 
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");
         let lockfile = val.hydra_data_dir.join("queue-runner/lock");
+
+        if let Some(overflow) = &val.overflow_store {
+            overflow.validate(val.use_presigned_uploads)?;
+        }
 
         let token_list = val.token_paths.and_then(|l| {
             l.iter()
@@ -446,6 +481,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             build_timeout: val.build_timeout,
             max_log_size: val.max_log_size,
             forced_substituters: val.forced_substituters,
+            overflow_store: val.overflow_store,
         })
     }
 }
@@ -652,6 +688,12 @@ impl App {
     pub fn get_forced_substituters(&self) -> Vec<String> {
         let inner = self.inner.load();
         inner.forced_substituters.clone()
+    }
+
+    #[must_use]
+    pub fn get_overflow_store(&self) -> Option<OverflowStore> {
+        let inner = self.inner.load();
+        inner.overflow_store.clone()
     }
 }
 
