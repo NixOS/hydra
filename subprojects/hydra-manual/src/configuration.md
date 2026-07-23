@@ -131,6 +131,27 @@ $ hydra-queue-runner --prometheus-address 127.0.0.1:9198
 $ hydra-queue-runner --prometheus-address [::]:9198
 ```
 
+Overflow binary cache (optional)
+--------------------------------
+
+The queue runner can upload builds of selected jobsets to a separate "overflow"
+S3 bucket, for example to keep large staging rebuilds out of the main cache.
+A step is uploaded to the overflow bucket only when every jobset referencing it
+is listed. Shared steps go to the default bucket.
+
+This requires `usePresignedUploads`. Both buckets must live on the same S3
+endpoint and use static credentials: when a later build from a regular jobset
+needs outputs that only exist in the overflow bucket, the queue runner copies
+them back to the default bucket server-side instead of rebuilding.
+
+Configured in `queue-runner.toml`:
+
+```toml
+[overflowStore]
+store = "s3://hydra-overflow?region=eu-west-1"
+jobsets = ["nixpkgs:staging-next"]
+```
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 
