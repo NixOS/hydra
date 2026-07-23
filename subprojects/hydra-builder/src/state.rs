@@ -1198,6 +1198,7 @@ struct GrpcMoreParts {
     build_id: String,
     machine_id: String,
     object_key: String,
+    bucket: Option<String>,
 }
 
 impl MorePartsSource for GrpcMoreParts {
@@ -1215,6 +1216,7 @@ impl MorePartsSource for GrpcMoreParts {
                 upload_id: upload_id.to_owned(),
                 start_part_number: start_part,
                 num_parts: count,
+                bucket: self.bucket.clone(),
             };
             let parts = self
                 .client
@@ -1322,6 +1324,7 @@ async fn upload_single_nar_presigned(
         build_id: build_id.to_owned(),
         machine_id: machine_id.to_owned(),
         object_key,
+        bucket: presigned_response.bucket.clone(),
     };
     let (updated_narinfo, completion, nar_already_present) = upload_client
         .process_presigned_request(store.store_dir(), narinfo, presigned_request, &more_parts)
@@ -1338,6 +1341,7 @@ async fn upload_single_nar_presigned(
         let completion_msg = hydra_proto::PresignedUploadComplete {
             build_id: build_id.to_owned(),
             machine_id: machine_id.to_owned(),
+            bucket: presigned_response.bucket.clone(),
             nar_info: Some((&updated_narinfo).into()),
             multipart: completion.map(|c| hydra_proto::MultipartCompletion {
                 object_key: c.key,

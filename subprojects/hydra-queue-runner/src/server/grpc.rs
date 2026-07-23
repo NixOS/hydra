@@ -41,6 +41,27 @@ fn multipart_to_proto(mp: binary_cache::PresignedMultipart) -> hydra_proto::Mult
     }
 }
 
+/// Overflow store when `bucket` matches it, default S3 store otherwise.
+fn select_upload_store(
+    state: &State,
+    bucket: Option<&str>,
+) -> Result<Box<binary_cache::S3BinaryCacheClient>, tonic::Status> {
+    if let Some(bucket) = bucket
+        && let Some(overflow) = state.overflow_store.read().clone()
+        && overflow.cfg.client_config.bucket == bucket
+    {
+        return Ok(Box::new((*overflow).clone()));
+    }
+    let remote_stores = state.remote_stores.read();
+    remote_stores
+        .iter()
+        .find_map(|s| match s {
+            crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
+            crate::state::RemoteStoreBackend::NixCopy(_) => None,
+        })
+        .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))
+}
+
 type BuilderResult<T> = Result<tonic::Response<T>, tonic::Status>;
 type OpenTunnelResponseStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = Result<RunnerRequest, tonic::Status>> + Send>>;
@@ -639,20 +660,31 @@ impl RunnerService for Server {
             .machines
             .get_machine_by_id(machine_id)
             .ok_or_else(|| tonic::Status::not_found("Machine not found"))?;
-        machine
+        let drv_path = machine
             .get_job_drv_for_build_id(build_id)
             .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
 
-        let remote_store = {
-            let remote_stores = state.remote_stores.read();
-            remote_stores
-                .iter()
-                .find_map(|s| match s {
-                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
-                })
-                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
+        // Overflow-only steps upload to the overflow store.
+        let overflow_jobsets = state
+            .config
+            .get_overflow_store()
+            .map(|o| o.jobsets)
+            .unwrap_or_default();
+        let bucket = if !overflow_jobsets.is_empty()
+            && state
+                .steps
+                .get(&drv_path)
+                .is_some_and(|s| s.wants_overflow(&overflow_jobsets))
+        {
+            state
+                .overflow_store
+                .read()
+                .as_ref()
+                .map(|o| o.cfg.client_config.bucket.clone())
+        } else {
+            None
         };
+        let remote_store = select_upload_store(&state, bucket.as_deref())?;
 
         let requests = req
             .request
@@ -700,6 +732,7 @@ impl RunnerService for Server {
                 })?;
 
             responses.push(hydra_proto::PresignedNarResponse {
+                bucket: bucket.clone(),
                 store_path: store_path.to_string(),
                 nar_url: presigned_response.nar_url,
                 nar_upload: Some(hydra_proto::PresignedUpload {
@@ -761,16 +794,7 @@ impl RunnerService for Server {
             ));
         }
 
-        let remote_store = {
-            let remote_stores = self.state.remote_stores.read();
-            remote_stores
-                .iter()
-                .find_map(|s| match s {
-                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
-                })
-                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
-        };
+        let remote_store = select_upload_store(&self.state, req.bucket.as_deref())?;
 
         let parts = remote_store
             .presign_more_multipart_parts(
@@ -827,16 +851,7 @@ impl RunnerService for Server {
             .get_job_drv_for_build_id(build_id)
             .ok_or_else(|| tonic::Status::not_found("Job not found for this build_id"))?;
 
-        let remote_store = {
-            let remote_stores = state.remote_stores.read();
-            remote_stores
-                .iter()
-                .find_map(|s| match s {
-                    crate::state::RemoteStoreBackend::S3(s) => Some(s.clone()),
-                    crate::state::RemoteStoreBackend::NixCopy(_) => None,
-                })
-                .ok_or_else(|| tonic::Status::failed_precondition("No remote store configured"))?
-        };
+        let remote_store = select_upload_store(&state, req.bucket.as_deref())?;
 
         let proto_nar_info = req
             .nar_info
