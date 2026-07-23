@@ -525,6 +525,20 @@ impl Step {
             .store(state.rdeps.len() as u64, Ordering::Relaxed);
     }
 
+    /// Like [`make_rdep`](Self::make_rdep), but records the given dynamic
+    /// output relation on the reverse dependency instead of an empty chain.
+    pub fn make_rdep_with_relation(self: &Arc<Self>, dep: &Arc<Self>, relation: OutputNameChain) {
+        dep.add_dep(self.clone());
+        let mut state = self.state.write();
+        state.rdeps.push(ReverseDep {
+            step: Arc::downgrade(dep),
+            relation,
+        });
+        self.atomic_state
+            .rdeps_len
+            .store(state.rdeps.len() as u64, Ordering::Relaxed);
+    }
+
     pub fn clone_rdeps(&self) -> Vec<ReverseDep> {
         let state = self.state.read();
         state.rdeps.clone()

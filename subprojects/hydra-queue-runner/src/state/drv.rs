@@ -22,6 +22,24 @@ impl OutputNameChain {
     }
 }
 
+/// Walk down the nesting of `sdp`, appending each output name onto `chain`.
+/// Descending visits outermost names first, so plain pushes produce
+/// [`OutputNameChain`]'s stack order.
+fn flatten_into(
+    mut sdp: &SingleDerivedPath,
+    mut chain: OutputNameChain,
+) -> (StorePath, OutputNameChain) {
+    loop {
+        match sdp {
+            SingleDerivedPath::Opaque(p) => return (p.clone(), chain),
+            SingleDerivedPath::Built { drv_path, output } => {
+                chain.0.push(output.clone());
+                sdp = drv_path;
+            }
+        }
+    }
+}
+
 /// Flatten a [`SingleDerivedPath`] into `(root_drv_path, chain)`.
 ///
 /// The output chain is in stack order (outermost first) matching
@@ -29,13 +47,10 @@ impl OutputNameChain {
 /// returns `(A, ["foo"])`. For `Opaque(A)`, returns `(A, [])`.
 #[must_use]
 pub fn flatten_path(sdp: &SingleDerivedPath) -> (StorePath, OutputNameChain) {
-    match sdp {
-        SingleDerivedPath::Opaque(p) => (p.clone(), OutputNameChain::default()),
-        SingleDerivedPath::Built { drv_path, output } => flatten_chain(drv_path, output),
-    }
+    flatten_into(sdp, OutputNameChain::default())
 }
 
-/// Like [`flatten_path`] but appends an additional output name.
+/// Like [`flatten_path`] but adds the outermost output name.
 ///
 /// For `Built { Opaque(A), "foo" }` with output `"bar"`,
 /// returns `(A, ["bar", "foo"])`.
@@ -44,9 +59,7 @@ pub fn flatten_chain(
     drv_path: &SingleDerivedPath,
     output_name: &OutputName,
 ) -> (StorePath, OutputNameChain) {
-    let (root, mut chain) = flatten_path(drv_path);
-    chain.0.push(output_name.clone());
-    (root, chain)
+    flatten_into(drv_path, OutputNameChain(vec![output_name.clone()]))
 }
 
 /// Extract `Built` input dependencies from a derivation.
