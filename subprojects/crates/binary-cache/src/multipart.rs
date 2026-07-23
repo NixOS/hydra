@@ -14,9 +14,11 @@ use std::time::{Duration, SystemTime};
 
 use aws_credential_types::Credentials;
 use aws_sigv4::http_request::{
-    SignableBody, SignableRequest, SignatureLocation, SigningSettings, sign,
+    PayloadChecksumKind, SignableBody, SignableRequest, SignatureLocation, SigningParams,
+    SigningSettings, sign,
 };
 use aws_sigv4::sign::v4;
+use aws_smithy_runtime_api::client::identity::Identity;
 use secrecy::ExposeSecret as _;
 
 use crate::CacheError;
@@ -24,6 +26,11 @@ use crate::cfg::{S3ClientConfig, S3Scheme};
 
 const MIN_PART_SIZE: u64 = 10 * 1024 * 1024;
 const MAX_PART_SIZE: u64 = 5 * 1024 * 1024 * 1024;
+/// Largest object a single server-side `CopyObject` may cover.
+/// Larger objects are copied with multipart `UploadPartCopy`.
+const MAX_COPY_OBJECT_SIZE: u64 = 5 * 1024 * 1024 * 1024;
+/// Source range covered by one `UploadPartCopy` request.
+const COPY_PART_SIZE: u64 = 1024 * 1024 * 1024;
 /// S3 allows at most 10 000 parts. Aim for 9000 so an incompressible NAR that
 /// zstd grows slightly still fits the presigned part count without a refill.
 const TARGET_MAX_PARTS: u64 = 9000;
@@ -164,6 +171,49 @@ impl MultipartPresigner {
         )
     }
 
+    fn signing_params<'a>(
+        &'a self,
+        identity: &'a Identity,
+        settings: SigningSettings,
+        url: &str,
+    ) -> Result<SigningParams<'a>, CacheError> {
+        Ok(v4::SigningParams::builder()
+            .identity(identity)
+            .region(&self.region)
+            .name("s3")
+            .time(SystemTime::now())
+            .settings(settings)
+            .build()
+            .map_err(|e| presign_err(url, e))?
+            .into())
+    }
+
+    // Returns (URL to sign, URL to send): raw query values for aws-sigv4 to
+    // encode, and the same encoding applied ourselves, so the two match.
+    fn query_urls(&self, key: &str, query: &[(&str, &str)]) -> (String, String) {
+        let object_url = self.object_url(key);
+        if query.is_empty() {
+            return (object_url.clone(), object_url);
+        }
+        let join = |encode: bool| {
+            query
+                .iter()
+                .map(|(k, v)| {
+                    if encode {
+                        format!("{k}={}", sigv4_encode(v))
+                    } else {
+                        format!("{k}={v}")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("&")
+        };
+        (
+            format!("{object_url}?{}", join(false)),
+            format!("{object_url}?{}", join(true)),
+        )
+    }
+
     // Payload is signed as UNSIGNED-PAYLOAD so bodies can stream / be omitted.
     fn presign(
         &self,
@@ -176,17 +226,8 @@ impl MultipartPresigner {
         settings.signature_location = SignatureLocation::QueryParams;
         settings.expires_in = Some(expires);
 
-        let identity: aws_smithy_runtime_api::client::identity::Identity =
-            self.credentials.clone().into();
-        let signing_params: aws_sigv4::http_request::SigningParams = v4::SigningParams::builder()
-            .identity(&identity)
-            .region(&self.region)
-            .name("s3")
-            .time(SystemTime::now())
-            .settings(settings)
-            .build()
-            .map_err(|e| presign_err(url, e))?
-            .into();
+        let identity: Identity = self.credentials.clone().into();
+        let signing_params = self.signing_params(&identity, settings, url)?;
 
         // Sign with raw operation values; aws-sigv4 percent-encodes them for the
         // canonical request exactly as we do when building the final URL below.
@@ -221,6 +262,151 @@ impl MultipartPresigner {
             .collect::<Vec<_>>()
             .join("&");
         Ok(format!("{url}?{pairs}"))
+    }
+
+    /// Bucket this presigner writes to.
+    #[must_use]
+    pub fn bucket(&self) -> &str {
+        &self.bucket
+    }
+
+    /// Whether one signed request can address both buckets,
+    /// i.e. a server-side copy from `source` into this bucket is possible.
+    #[must_use]
+    pub fn same_endpoint(&self, source: &Self) -> bool {
+        self.host == source.host && self.scheme == source.scheme
+    }
+
+    /// Sign a request with header-based `SigV4` auth for the queue runner executes itself.
+    /// Returns extra plus signing headers to apply.
+    fn sign_headers(
+        &self,
+        method: &str,
+        url: &str,
+        extra_headers: &[(&str, String)],
+    ) -> Result<Vec<(String, String)>, CacheError> {
+        let mut settings = SigningSettings::default();
+        // S3 requires the payload checksum header for header-auth requests.
+        settings.payload_checksum_kind = PayloadChecksumKind::XAmzSha256;
+
+        let identity: Identity = self.credentials.clone().into();
+        let signing_params = self.signing_params(&identity, settings, url)?;
+
+        let signable = SignableRequest::new(
+            method,
+            url,
+            extra_headers.iter().map(|(k, v)| (*k, v.as_str())),
+            SignableBody::UnsignedPayload,
+        )
+        .map_err(|e| presign_err(url, e))?;
+        let (instructions, _signature) = sign(signable, &signing_params)
+            .map_err(|e| presign_err(url, e))?
+            .into_parts();
+        let (signed, _params) = instructions.into_parts();
+
+        Ok(extra_headers
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), v.clone()))
+            .chain(
+                signed
+                    .into_iter()
+                    .map(|h| (h.name().to_owned(), h.value().to_owned())),
+            )
+            .collect())
+    }
+
+    /// Send a directly signed, empty-body S3 request and return the response body.
+    async fn send_signed(
+        &self,
+        method: reqwest::Method,
+        key: &str,
+        query: &[(&str, &str)],
+        extra_headers: &[(&str, String)],
+    ) -> Result<String, CacheError> {
+        let (url_for_signing, url_to_send) = self.query_urls(key, query);
+        let headers = self.sign_headers(method.as_str(), &url_for_signing, extra_headers)?;
+        let mut request = self.http_client.request(method, &url_to_send);
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+        let body = request
+            .send()
+            .await
+            .map_err(|e| presign_err(key, e))?
+            .error_for_status()
+            .map_err(|e| presign_err(key, e))?
+            .text()
+            .await
+            .map_err(|e| presign_err(key, e))?;
+        // Copy operations may return 200 OK with an <Error> element in the body.
+        if let Ok(error) = quick_xml::de::from_str::<S3ErrorResponse>(&body) {
+            return Err(CacheError::Other(format!(
+                "S3 request for {key} failed: {} ({})",
+                error.message, error.code
+            )));
+        }
+        Ok(body)
+    }
+
+    /// Server-side copy of `key` from `source_bucket` (same endpoint) into this
+    /// bucket: `CopyObject`, or `UploadPartCopy` above the single-copy limit.
+    #[tracing::instrument(skip(self, content_type, content_encoding), err)]
+    pub async fn copy_object_from(
+        &self,
+        source_bucket: &str,
+        key: &str,
+        size: u64,
+        content_type: &str,
+        content_encoding: &str,
+    ) -> Result<(), CacheError> {
+        let copy_source = format!("/{source_bucket}/{key}");
+
+        if size <= MAX_COPY_OBJECT_SIZE {
+            self.send_signed(
+                reqwest::Method::PUT,
+                key,
+                &[],
+                &[("x-amz-copy-source", copy_source)],
+            )
+            .await?;
+            return Ok(());
+        }
+
+        let upload_id = self
+            .initiate_upload(key, content_type, content_encoding)
+            .await?;
+        let mut parts = Vec::new();
+        let mut start = 0u64;
+        let mut part_number = 1u32;
+        while start < size {
+            let end = start.saturating_add(COPY_PART_SIZE).min(size) - 1;
+            let part_number_str = part_number.to_string();
+            let body = self
+                .send_signed(
+                    reqwest::Method::PUT,
+                    key,
+                    &[
+                        ("partNumber", part_number_str.as_str()),
+                        ("uploadId", upload_id.as_str()),
+                    ],
+                    &[
+                        ("x-amz-copy-source", copy_source.clone()),
+                        ("x-amz-copy-source-range", format!("bytes={start}-{end}")),
+                    ],
+                )
+                .await?;
+            let result: CopyResult = quick_xml::de::from_str(&body).map_err(|e| {
+                CacheError::Other(format!("invalid UploadPartCopy response for {key}: {e}"))
+            })?;
+            parts.push(CompletedPart {
+                part_number,
+                etag: result.etag,
+            });
+            start = end + 1;
+            part_number += 1;
+        }
+        self.complete(key, &upload_id, parts).await?;
+        Ok(())
     }
 
     /// Initiate a multipart upload and presign the part URLs the builder needs.
@@ -370,6 +556,22 @@ struct InitiateMultipartUploadResult {
     upload_id: String,
 }
 
+/// `CopyObjectResult` / `CopyPartResult` response body.
+#[derive(Debug, serde::Deserialize)]
+struct CopyResult {
+    #[serde(rename = "ETag")]
+    etag: String,
+}
+
+/// S3 `<Error>` body, which copy operations may return with a 200 status.
+#[derive(Debug, serde::Deserialize)]
+struct S3ErrorResponse {
+    #[serde(rename = "Code")]
+    code: String,
+    #[serde(rename = "Message", default)]
+    message: String,
+}
+
 fn signable_request<'a>(method: &'a str, url: &'a str) -> Result<SignableRequest<'a>, CacheError> {
     SignableRequest::new(
         method,
@@ -468,6 +670,29 @@ mod tests {
         assert_eq!(sigv4_encode("ab+cd/ef=gh"), "ab%2Bcd%2Fef%3Dgh");
         // Unreserved characters pass through untouched.
         assert_eq!(sigv4_encode("AZaz09-_.~"), "AZaz09-_.~");
+    }
+
+    #[test]
+    fn parses_copy_result() {
+        let xml = r"<CopyObjectResult><LastModified>t</LastModified><ETag>&quot;abc&quot;</ETag></CopyObjectResult>";
+        let result: CopyResult = quick_xml::de::from_str(xml).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.etag, "\"abc\"");
+        assert!(quick_xml::de::from_str::<CopyResult>("<nope/>").is_err());
+    }
+
+    #[test]
+    fn parses_error_response() {
+        let xml = r"<Error><Code>AccessDenied</Code><Message>nope</Message></Error>";
+        let error: S3ErrorResponse = quick_xml::de::from_str(xml).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(error.code, "AccessDenied");
+        assert_eq!(error.message, "nope");
+        // Copy results must not be mistaken for errors.
+        assert!(
+            quick_xml::de::from_str::<S3ErrorResponse>(
+                r"<CopyPartResult><ETag>x</ETag></CopyPartResult>"
+            )
+            .is_err()
+        );
     }
 
     #[test]
