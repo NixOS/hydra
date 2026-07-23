@@ -32,6 +32,8 @@ in
     }
   );
 
+  s3-overflow = forEachSystem (system: import ./s3-overflow.nix { inherit system nixpkgs common; });
+
   validate-openapi = forEachSystem (
     system:
     let
