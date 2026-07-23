@@ -86,15 +86,15 @@ pub struct Cli {
     pub domain_name: Option<String>,
 
     /// List of supported systems, defaults to systems from nix and extra-platforms
-    #[clap(long, default_value = None)]
+    #[clap(long, value_delimiter = ' ', default_value = None)]
     pub systems: Option<Vec<String>>,
 
     /// List of supported features, defaults to configured system features
-    #[clap(long, default_value = None)]
+    #[clap(long, value_delimiter = ' ', default_value = None)]
     pub supported_features: Option<Vec<String>>,
 
     /// List of mandatory features
-    #[clap(long, default_value = None)]
+    #[clap(long, value_delimiter = ' ', default_value = None)]
     pub mandatory_features: Option<Vec<String>>,
 
     /// Use substitution over pulling inputs via queue runner
