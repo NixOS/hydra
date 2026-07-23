@@ -125,9 +125,15 @@ impl StepInfo {
                                         None
                                     })
                                     .or_else(|| resolve_from_drv_file(store_dir, &key.0, &key.1));
-                                memo.insert(key, r.clone());
+                                memo.insert(key.clone(), r.clone());
                                 r
                             };
+                            tracing::debug!(
+                                "chain hop: {current} -> {}!{} => {:?}",
+                                key.0,
+                                key.1,
+                                result.as_ref().map(ToString::to_string),
+                            );
                             current = result?;
                         }
                         Some(current)
