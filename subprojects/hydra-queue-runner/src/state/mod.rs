@@ -1680,14 +1680,15 @@ impl State {
                             })
                             .collect()
                     };
+                    let overflow_store = self.overflow_store.read().as_deref().cloned();
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
                         self.uploader
-                            .upload_once(store, local_store, s3_stores)
+                            .upload_once(store, local_store, s3_stores, overflow_store)
                             .await;
                     } else {
                         self.uploader
-                            .upload_many(store, local_store, s3_stores, limit)
+                            .upload_many(store, local_store, s3_stores, overflow_store, limit)
                             .await;
                     }
                 }
@@ -2016,6 +2017,7 @@ impl State {
                         outputs_to_upload,
                         format!("log/{}", job.path),
                         job.result.log_file.clone(),
+                        self.step_wants_overflow(&item.step_info.step),
                         None,
                     )
                     .await;
@@ -2033,15 +2035,24 @@ impl State {
         {
             let has_ca_floating = item.step_info.step.has_ca_floating_outputs();
             if has_ca_floating {
-                let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
-                    let r = self.remote_stores.read();
-                    r.iter()
-                        .filter_map(|s| match s {
-                            RemoteStoreBackend::S3(s) => Some((**s).clone()),
-                            RemoteStoreBackend::NixCopy(_) => None,
-                        })
-                        .collect()
-                };
+                // Overflow-only steps write their realisations to the overflow store.
+                let s3_stores: Vec<binary_cache::S3BinaryCacheClient> =
+                    if self.step_wants_overflow(&item.step_info.step) {
+                        self.overflow_store
+                            .read()
+                            .as_deref()
+                            .cloned()
+                            .into_iter()
+                            .collect()
+                    } else {
+                        let r = self.remote_stores.read();
+                        r.iter()
+                            .filter_map(|s| match s {
+                                RemoteStoreBackend::S3(s) => Some((**s).clone()),
+                                RemoteStoreBackend::NixCopy(_) => None,
+                            })
+                            .collect()
+                    };
                 for (output_name, out_path) in &output.outputs {
                     let realisation = Realisation {
                         key: DrvOutput {
@@ -2901,6 +2912,7 @@ impl State {
                         paths,
                         format!("log/{drv_path}"),
                         log_file,
+                        self.step_wants_overflow(&step),
                         Some(drv_path.clone()),
                     )
                     .await;
@@ -2938,6 +2950,7 @@ impl State {
                         paths,
                         format!("log/{drv_path}"),
                         log_file,
+                        self.step_wants_overflow(&step),
                         gated.then(|| drv_path.clone()),
                     )
                     .await;
@@ -3020,12 +3033,17 @@ impl State {
                         // Builders import inputs from the queue runner's local
                         // Local validity is enough; the upload only fills
                         // the cache.
+                        let use_overflow = self
+                            .config
+                            .get_overflow_store()
+                            .is_some_and(|o| o.jobsets.contains(&build.jobset.full_name()));
                         let log_file = self.construct_log_file_path(drv_path).await;
                         self.uploader
                             .schedule_upload(
                                 missing_paths,
                                 format!("log/{drv_path}"),
                                 log_file,
+                                use_overflow,
                                 None,
                             )
                             .await;
@@ -3224,6 +3242,16 @@ impl State {
             RemoteStoreBackend::S3(s) => Some((**s).clone()),
             RemoteStoreBackend::NixCopy(_) => None,
         })
+    }
+
+    /// Whether this step's uploads go to the overflow store.
+    pub fn step_wants_overflow(&self, step: &Step) -> bool {
+        let jobsets = self
+            .config
+            .get_overflow_store()
+            .map(|o| o.jobsets)
+            .unwrap_or_default();
+        !jobsets.is_empty() && step.wants_overflow(&jobsets)
     }
 
     /// Returns the subset of `output_paths` missing from the binary cache, or

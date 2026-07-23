@@ -29,6 +29,9 @@ struct Message {
     store_paths: Arc<Vec<StorePath>>,
     log_remote_path: Arc<String>,
     log_local_path: Arc<std::path::PathBuf>,
+    /// Upload to the overflow store instead of the default stores.
+    #[serde(default)]
+    use_overflow: bool,
     /// Drv path to report on the completion channel once the upload was
     /// attempted. Set for steps whose finished flag is gated on the upload.
     #[serde(default)]
@@ -101,6 +104,7 @@ impl Uploader {
         store_paths: Vec<StorePath>,
         log_remote_path: String,
         log_local_path: std::path::PathBuf,
+        use_overflow: bool,
         notify_drv: Option<StorePath>,
     ) {
         tracing::info!("Scheduling new path upload: {:?}", store_paths);
@@ -109,20 +113,22 @@ impl Uploader {
             store_paths: Arc::new(store_paths),
             log_remote_path: Arc::new(log_remote_path),
             log_local_path: Arc::new(log_local_path),
+            use_overflow,
             notify_drv,
         });
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
     async fn upload_msg(
         &self,
         store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        overflow_store: Option<binary_cache::S3BinaryCacheClient>,
         msg: Message,
     ) {
-        self.upload_msg_inner(store, local_store, remote_stores, &msg)
+        self.upload_msg_inner(store, local_store, remote_stores, overflow_store, &msg)
             .await;
         if let Some(drv) = &msg.notify_drv {
             // Reported even when the upload failed: the gated step then
@@ -132,17 +138,24 @@ impl Uploader {
         }
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
     async fn upload_msg_inner(
         &self,
         store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        overflow_store: Option<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
     ) {
         let span = tracing::info_span!("upload_msg", msg = ?msg);
         let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
+
+        // Overflow-only steps upload to the overflow store.
+        let remote_stores = match overflow_store {
+            Some(overflow) if msg.use_overflow => vec![overflow],
+            _ => remote_stores,
+        };
 
         let closure = match store.query_closure_infos(msg.store_paths.to_vec()).await {
             Ok(c) => c,
@@ -253,12 +266,13 @@ impl Uploader {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
     pub async fn upload_once(
         &self,
         store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        overflow_store: Option<binary_cache::S3BinaryCacheClient>,
     ) {
         let Some(msg) = self.queue.recv().await else {
             return;
@@ -269,7 +283,7 @@ impl Uploader {
             current_tasks.push(msg.clone());
         }
 
-        self.upload_msg(store, local_store, remote_stores, msg)
+        self.upload_msg(store, local_store, remote_stores, overflow_store, msg)
             .await;
 
         {
@@ -279,12 +293,13 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores))]
+    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
     pub async fn upload_many(
         self: &Arc<Self>,
         store: daemon_client_utils::DaemonStoreReader,
         local_store: daemon_client_utils::DaemonConnector,
         remote_stores: Vec<binary_cache::S3BinaryCacheClient>,
+        overflow_store: Option<binary_cache::S3BinaryCacheClient>,
         limit: usize,
     ) {
         let messages = self.queue.recv_many(limit).await;
@@ -306,8 +321,9 @@ impl Uploader {
             let store = store.clone();
             let local_store = local_store.clone();
             let remote_stores = remote_stores.clone();
+            let overflow_store = overflow_store.clone();
             jobs.spawn(async move {
-                this.upload_msg(store, local_store, remote_stores, msg)
+                this.upload_msg(store, local_store, remote_stores, overflow_store, msg)
                     .await;
             });
         }
