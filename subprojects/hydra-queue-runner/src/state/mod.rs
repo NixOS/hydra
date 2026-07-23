@@ -1075,9 +1075,10 @@ impl State {
                 // original step's drv path differs from the resolved one, so
                 // completing the resolved step wouldn't clear the dep).
                 for rdep in step_info.step.clone_rdeps() {
-                    if let Some(rdep) = rdep.step.upgrade() {
-                        rdep.remove_dep(&step_info.step);
-                        resolved_step.make_rdep(&rdep);
+                    if let Some(dep_step) = rdep.step.upgrade() {
+                        dep_step.remove_dep(&step_info.step);
+                        // relation must survive the swap or pop_dynamic_rdeps never fires
+                        resolved_step.make_rdep_with_relation(&dep_step, rdep.relation);
                     }
                 }
 
