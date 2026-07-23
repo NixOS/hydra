@@ -454,6 +454,7 @@ dependencies = [
  "object_store",
  "parking_lot",
  "percent-encoding",
+ "quick-xml",
  "reqwest",
  "secrecy",
  "serde",

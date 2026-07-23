@@ -29,6 +29,7 @@ futures.workspace = true
 hashbrown.workspace = true
 object_store = { workspace = true, features = [ "aws" ] }
 parking_lot.workspace = true
+quick-xml.workspace = true
 reqwest.workspace = true
 secrecy.workspace = true
 serde.workspace = true

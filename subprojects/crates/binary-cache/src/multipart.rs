@@ -354,11 +354,20 @@ impl MultipartPresigner {
             .await
             .map_err(|e| presign_err(key, e))?;
 
-        extract_upload_id(&body).ok_or_else(|| CacheError::PresignedUrlError {
-            path: key.to_owned(),
-            reason: "CreateMultipartUpload response did not contain an UploadId".to_owned(),
-        })
+        let result: InitiateMultipartUploadResult =
+            quick_xml::de::from_str(&body).map_err(|e| CacheError::PresignedUrlError {
+                path: key.to_owned(),
+                reason: format!("invalid CreateMultipartUpload response: {e}"),
+            })?;
+        Ok(result.upload_id)
     }
+}
+
+/// `CreateMultipartUpload` response body.
+#[derive(Debug, serde::Deserialize)]
+struct InitiateMultipartUploadResult {
+    #[serde(rename = "UploadId")]
+    upload_id: String,
 }
 
 fn signable_request<'a>(method: &'a str, url: &'a str) -> Result<SignableRequest<'a>, CacheError> {
@@ -415,14 +424,6 @@ fn complete_multipart_xml(parts: &[CompletedPart]) -> String {
     xml
 }
 
-/// Extract `<UploadId>` from the fixed-shape `CreateMultipartUpload` XML
-/// response, avoiding an XML-parser dependency.
-fn extract_upload_id(xml: &str) -> Option<String> {
-    let start = xml.find("<UploadId>")? + "<UploadId>".len();
-    let end = xml[start..].find("</UploadId>")? + start;
-    Some(xml[start..end].to_owned())
-}
-
 fn resolve_static_credentials(
     cfg: &S3ClientConfig,
 ) -> Result<(String, secrecy::SecretString), CacheError> {
@@ -472,8 +473,10 @@ mod tests {
     #[test]
     fn parses_upload_id() {
         let xml = r#"<?xml version="1.0"?><InitiateMultipartUploadResult><Bucket>b</Bucket><Key>k</Key><UploadId>abc123==</UploadId></InitiateMultipartUploadResult>"#;
-        assert_eq!(extract_upload_id(xml).as_deref(), Some("abc123=="));
-        assert_eq!(extract_upload_id("<nope/>"), None);
+        let result: InitiateMultipartUploadResult =
+            quick_xml::de::from_str(xml).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(result.upload_id, "abc123==");
+        assert!(quick_xml::de::from_str::<InitiateMultipartUploadResult>("<nope/>").is_err());
     }
 
     #[test]
