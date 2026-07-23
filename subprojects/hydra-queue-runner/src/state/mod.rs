@@ -45,6 +45,9 @@ pub enum StateError {
     #[error("binary cache error")]
     Cache(#[from] binary_cache::CacheError),
 
+    #[error("invalid overflow store URI")]
+    OverflowStoreUri(#[from] binary_cache::UrlParseError),
+
     #[error("integer conversion error")]
     IntConversion(#[from] std::num::TryFromIntError),
 
@@ -290,12 +293,34 @@ fn presence_cache_file(uri: &str) -> String {
     format!("narinfo-presence-{digest:x}.db")
 }
 
+/// Build the S3 client for the configured overflow store, if any.
+async fn new_overflow_store(
+    overflow: Option<&crate::config::OverflowStore>,
+    presence_cache_dir: &std::path::Path,
+) -> Result<Option<Arc<binary_cache::S3BinaryCacheClient>>, StateError> {
+    let Some(overflow) = overflow else {
+        return Ok(None);
+    };
+    let cfg = overflow
+        .store
+        .parse::<binary_cache::S3CacheConfig>()?
+        .with_presence_cache(
+            Some(presence_cache_dir.join(presence_cache_file(&overflow.store))),
+            None,
+        );
+    Ok(Some(Arc::new(
+        binary_cache::S3BinaryCacheClient::new(cfg).await?,
+    )))
+}
+
 #[allow(missing_debug_implementations)]
 pub struct State {
     pub connector: daemon_client_utils::DaemonConnector,
     /// Reads store validity and path info through the nix-daemon.
     pub store: daemon_client_utils::DaemonStoreReader,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
+    /// Overflow S3 store for steps only referenced by the configured jobsets.
+    pub overflow_store: parking_lot::RwLock<Option<Arc<binary_cache::S3BinaryCacheClient>>>,
     pub config: App,
     pub cli: Cli,
     pub db: db::Database,
@@ -427,6 +452,9 @@ impl State {
             }
         }
 
+        let overflow_store =
+            new_overflow_store(config.get_overflow_store().as_ref(), &presence_cache_dir).await?;
+
         let fod_checker = if config.get_enable_fod_checker() {
             Some(Arc::new(FodChecker::new(connector.clone(), None)))
         } else {
@@ -441,6 +469,7 @@ impl State {
             connector,
             store,
             remote_stores: parking_lot::RwLock::new(remote_stores),
+            overflow_store: parking_lot::RwLock::new(overflow_store),
             cli,
             db,
             machines: Machines::new(),
@@ -514,6 +543,12 @@ impl State {
         }
         if curr_remote_stores != new_config.remote_store_addr {
             *self.remote_stores.write() = new_remote_stores;
+        }
+
+        if self.config.get_overflow_store() != new_config.overflow_store {
+            let overflow_store =
+                new_overflow_store(new_config.overflow_store.as_ref(), &presence_cache_dir).await?;
+            *self.overflow_store.write() = overflow_store;
         }
 
         if curr_enable_fod_checker != new_config.enable_fod_checker {

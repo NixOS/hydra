@@ -36,7 +36,7 @@ mod presence_cache;
 mod presigned;
 mod streaming_hash;
 
-pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
+pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme, UrlParseError};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 pub use crate::multipart::{

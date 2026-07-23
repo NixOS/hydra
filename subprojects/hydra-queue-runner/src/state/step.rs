@@ -470,6 +470,16 @@ impl Step {
             .unwrap_or(1e9)
     }
 
+    /// True if all of this step's jobsets (at least one) are in `overflow_jobsets` (`project:jobset` names).
+    pub fn wants_overflow(&self, overflow_jobsets: &[String]) -> bool {
+        let state = self.state.read();
+        !state.jobsets.is_empty()
+            && state
+                .jobsets
+                .iter()
+                .all(|j| overflow_jobsets.contains(&j.full_name()))
+    }
+
     pub fn add_jobset(&self, jobset: Arc<Jobset>) {
         let mut state = self.state.write();
         state.jobsets.insert(jobset);
