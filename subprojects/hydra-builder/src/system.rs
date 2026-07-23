@@ -113,7 +113,7 @@ pub fn read_pressure_state() -> Option<PressureState> {
         return None;
     }
 
-    let cpu_psi = procfs_core::CpuPressure::from_file("proc/pressure/cpu").ok();
+    let cpu_psi = procfs_core::CpuPressure::from_file("/proc/pressure/cpu").ok();
     let mem_psi = procfs_core::MemoryPressure::from_file("/proc/pressure/memory").ok();
     let io_psi = procfs_core::IoPressure::from_file("/proc/pressure/io").ok();
     let irq_psi_full = fs_err::read_to_string("/proc/pressure/irq")
