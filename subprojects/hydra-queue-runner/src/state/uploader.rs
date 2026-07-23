@@ -2,7 +2,40 @@ use std::sync::Arc;
 
 use backon::ExponentialBuilder;
 use backon::Retryable as _;
+use harmonia_file_core::{FileSystemObject, FileTree};
 use harmonia_store_path::StorePath;
+
+/// Build ids under `lib/debug/.build-id/<xx>/<rest>.debug` in a NAR listing,
+/// as `<xx><rest>`, matching the `debuginfo/<build-id>` object keys.
+fn listing_debug_build_ids<C>(tree: &FileTree<C>) -> Vec<String> {
+    fn dir<'a, C>(tree: &'a FileTree<C>, name: &str) -> Option<&'a FileTree<C>> {
+        match &tree.0 {
+            FileSystemObject::Directory(d) => d.entries.get(name).map(AsRef::as_ref),
+            _ => None,
+        }
+    }
+    let Some(build_id_dir) = dir(tree, "lib")
+        .and_then(|t| dir(t, "debug"))
+        .and_then(|t| dir(t, ".build-id"))
+    else {
+        return Vec::new();
+    };
+    let FileSystemObject::Directory(prefixes) = &build_id_dir.0 else {
+        return Vec::new();
+    };
+    let mut ids = Vec::new();
+    for (prefix, entry) in &prefixes.entries {
+        let FileSystemObject::Directory(files) = &entry.as_ref().0 else {
+            continue;
+        };
+        for name in files.entries.keys() {
+            if let Some(rest) = name.strip_suffix(".debug") {
+                ids.push(format!("{prefix}{rest}"));
+            }
+        }
+    }
+    ids
+}
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum UploaderError {
@@ -35,13 +68,27 @@ struct Message {
     notify_drv: Option<StorePath>,
 }
 
+/// Copy of a closure from the overflow store into the default store.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct CopyMessage {
+    store_paths: Vec<StorePath>,
+    log_remote_path: String,
+    /// Realisation object keys to copy alongside, best effort.
+    realisation_keys: Vec<String>,
+    /// Drv path to report on the completion channel once the copy was
+    /// attempted. Set for steps whose finished flag is gated on the copy.
+    notify_drv: Option<StorePath>,
+}
+
 #[derive(Debug)]
 pub struct Uploader {
     queue: super::InspectableChannel<Message>,
     current_tasks: parking_lot::RwLock<Vec<Message>>,
+    copy_queue: super::InspectableChannel<CopyMessage>,
     completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
 
     state_file_path: std::path::PathBuf,
+    copy_state_file_path: std::path::PathBuf,
 }
 
 impl Uploader {
@@ -49,17 +96,27 @@ impl Uploader {
         state_file_path: std::path::PathBuf,
         completion_tx: tokio::sync::mpsc::UnboundedSender<StorePath>,
     ) -> Self {
+        let copy_state_file_path = state_file_path.with_file_name("copier_state.json");
         let uploader = Self {
             queue: super::InspectableChannel::with_capacity(1000),
             current_tasks: parking_lot::RwLock::new(Vec::with_capacity(10)),
+            copy_queue: super::InspectableChannel::with_capacity(1000),
             completion_tx,
             state_file_path,
+            copy_state_file_path,
         };
 
         if let Err(e) = uploader.load_state().await {
             tracing::warn!(
                 "Failed to load uploader state from {}: {}",
                 uploader.state_file_path.display(),
+                e
+            );
+        }
+        if let Err(e) = uploader.load_copy_state().await {
+            tracing::warn!(
+                "Failed to load copier state from {}: {}",
+                uploader.copy_state_file_path.display(),
                 e
             );
         }
@@ -93,6 +150,130 @@ impl Uploader {
             self.queue.len()
         );
         Ok(())
+    }
+
+    async fn save_copy_state(&self) -> Result<(), UploaderError> {
+        let json = serde_json::to_string(&self.copy_queue.inspect())?;
+        fs_err::tokio::write(&self.copy_state_file_path, json).await?;
+        Ok(())
+    }
+
+    async fn load_copy_state(&self) -> Result<(), UploaderError> {
+        if !self.copy_state_file_path.exists() {
+            return Ok(());
+        }
+        let content = fs_err::tokio::read_to_string(&self.copy_state_file_path).await?;
+        self.copy_queue
+            .load_vec_into(serde_json::from_str(&content)?);
+        tracing::info!(
+            "Loaded {} pending copies from {}",
+            self.copy_queue.len(),
+            self.copy_state_file_path.display()
+        );
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self))]
+    pub async fn schedule_copy(
+        &self,
+        store_paths: Vec<StorePath>,
+        log_remote_path: String,
+        realisation_keys: Vec<String>,
+        notify_drv: Option<StorePath>,
+    ) {
+        tracing::info!("Scheduling copy from overflow store: {store_paths:?}");
+        self.copy_queue.send(CopyMessage {
+            store_paths,
+            log_remote_path,
+            realisation_keys,
+            notify_drv,
+        });
+        let _ = self.save_copy_state().await;
+    }
+
+    /// Process one queued overflow→default copy: the closure of its store
+    /// paths, the build log and any realisations. Returns `None` when the
+    /// queue is empty, otherwise whether all objects were copied.
+    pub async fn copy_once(
+        &self,
+        source: &binary_cache::S3BinaryCacheClient,
+        dest: &binary_cache::S3BinaryCacheClient,
+    ) -> Option<bool> {
+        let msg = self.copy_queue.recv().await?;
+        let mut ok = true;
+        let mut queue: Vec<StorePath> = msg.store_paths.clone();
+        let mut seen: hashbrown::HashSet<StorePath> = queue.iter().cloned().collect();
+
+        while let Some(path) = queue.pop() {
+            match self.copy_store_path(source, dest, &path).await {
+                Ok(Some(references)) => {
+                    for r in references {
+                        if seen.insert(r.clone()) {
+                            queue.push(r);
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    tracing::error!("failed to copy {path} from overflow store: {e:#}");
+                    ok = false;
+                }
+            }
+        }
+
+        for key in std::iter::once(&msg.log_remote_path)
+            .chain(msg.realisation_keys.iter())
+            .map(String::as_str)
+        {
+            if let Err(e) = dest.copy_object_from(source, key).await {
+                tracing::error!("failed to copy {key} from overflow store: {e:#}");
+                ok = false;
+            }
+        }
+
+        if let Some(drv) = &msg.notify_drv {
+            // Reported even on failure: the gated step then finishes anyway
+            // and dependents fall back to substituting or rebuilding.
+            let _ = self.completion_tx.send(drv.clone());
+        }
+        let _ = self.save_copy_state().await;
+        Some(ok)
+    }
+
+    /// Copy one store path's objects (NAR, listing, debug-info links, narinfo
+    /// last). Returns its references for closure traversal, or `None` when the
+    /// destination already has it or the source does not.
+    async fn copy_store_path(
+        &self,
+        source: &binary_cache::S3BinaryCacheClient,
+        dest: &binary_cache::S3BinaryCacheClient,
+        path: &StorePath,
+    ) -> Result<Option<Vec<StorePath>>, UploaderError> {
+        if dest.download_narinfo(path).await?.is_some() {
+            return Ok(None);
+        }
+        let Some(narinfo) = source.download_narinfo(path).await? else {
+            tracing::warn!("{path} is missing from the overflow store, skipping copy");
+            return Ok(None);
+        };
+
+        if let Some(nar_url) = &narinfo.info.url {
+            dest.copy_object_from(source, nar_url).await?;
+        }
+        dest.copy_object_from(source, &binary_cache::get_ls_path(&narinfo))
+            .await?;
+        if dest.cfg.write_debug_info
+            && let Some(listing) = source.download_listing(path).await?
+        {
+            for build_id in listing_debug_build_ids(&listing) {
+                dest.copy_object_from(source, &format!("debuginfo/{build_id}"))
+                    .await?;
+            }
+        }
+        dest.copy_object_from(source, &format!("{}.narinfo", path.hash()))
+            .await?;
+
+        Ok(Some(narinfo.info.info.references.iter().cloned().collect()))
     }
 
     #[tracing::instrument(skip(self))]
