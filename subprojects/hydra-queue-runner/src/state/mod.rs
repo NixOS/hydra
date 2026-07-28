@@ -619,7 +619,7 @@ impl State {
         step_nr: i32,
         status: BuildStatus,
     ) -> Result<(), db::Error> {
-        let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+        let stop_time = jiff::Timestamp::now().as_second();
         let mut db = self.db.get().await?;
         db.clear_busy_step(build_id, step_nr, stop_time, status)
             .await?;
@@ -726,7 +726,7 @@ impl Drop for StepGuard {
             tracing::warn!(
                 "step guard dropped while armed; reconciling build_id={build_id} step_nr={step_nr} drv={drv}"
             );
-            let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+            let stop_time = jiff::Timestamp::now().as_second();
             match db.get().await {
                 Ok(mut conn) => {
                     if let Err(e) = conn
@@ -955,7 +955,7 @@ impl State {
                     let mut tx = db.begin_transaction().await?;
                     tx.create_build_step(
                         self.connector.store_dir(),
-                        Some(job.result.get_start_time_as_i32()?),
+                        Some(job.result.get_start_time_as_i64()),
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
@@ -1078,7 +1078,7 @@ impl State {
             let step_nr = tx
                 .create_build_step(
                     self.connector.store_dir(),
-                    Some(job.result.get_start_time_as_i32()?),
+                    Some(job.result.get_start_time_as_i64()),
                     build_id,
                     step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
@@ -2040,8 +2040,8 @@ impl State {
         }
 
         {
-            let start_time = job.result.get_start_time_as_i32()?;
-            let stop_time = job.result.get_stop_time_as_i32()?;
+            let start_time = job.result.get_start_time_as_i64();
+            let stop_time = job.result.get_stop_time_as_i64();
             crate::utils::with_serialization_retry("succeed_step", || async {
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
@@ -2385,8 +2385,8 @@ impl State {
                     }
 
                     tracing::info!("marking build {} as failed", b.id);
-                    let start_time = job.result.get_start_time_as_i32()?;
-                    let stop_time = job.result.get_stop_time_as_i32()?;
+                    let start_time = job.result.get_start_time_as_i64();
+                    let stop_time = job.result.get_stop_time_as_i64();
                     tx.update_build_after_failure(
                         b.id,
                         if &b.drv_path != step.get_drv_path()
@@ -3249,7 +3249,7 @@ impl State {
 
         {
             tracing::info!("marking build {} as succeeded (cached)", build.id);
-            let now = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
+            let now = jiff::Timestamp::now().as_second();
             crate::utils::with_serialization_retry("handle_cached_build", || async {
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;

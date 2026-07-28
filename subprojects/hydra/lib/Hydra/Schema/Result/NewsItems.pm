@@ -71,7 +71,7 @@ __PACKAGE__->add_columns(
   "contents",
   { data_type => "text", is_nullable => 0 },
   "createtime",
-  { data_type => "integer", is_nullable => 0 },
+  { data_type => "bigint", is_nullable => 0 },
   "author",
   { data_type => "text", is_foreign_key => 1, is_nullable => 0 },
 );
