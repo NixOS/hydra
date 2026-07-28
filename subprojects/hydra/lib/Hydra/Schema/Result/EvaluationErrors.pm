@@ -65,7 +65,7 @@ __PACKAGE__->add_columns(
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY

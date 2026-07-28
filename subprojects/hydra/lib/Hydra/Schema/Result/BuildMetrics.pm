@@ -96,7 +96,7 @@ __PACKAGE__->add_columns(
   "job",
   { data_type => "text", is_nullable => 0 },
   "timestamp",
-  { data_type => "integer", is_nullable => 0 },
+  { data_type => "bigint", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
