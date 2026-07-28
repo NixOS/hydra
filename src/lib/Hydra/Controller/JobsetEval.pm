@@ -82,9 +82,35 @@ sub view_GET {
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
+    # Expose the buildDiff result in the JSON entity too. Each build is
+    # reduced to {id, job} — see api.md for the field contract.
+    #
+    # Gated on the explicit compare param: without it, eval2 may still be
+    # set (the controller defaults to the previous eval), but the default
+    # JSON response has never included a diff and we keep it that way.
+    my $entity = { %{$eval->TO_JSON} };
+    if (defined $compare) {
+        my $summarize_builds = sub {
+            [ map { +{ id => $_->get_column('id'), job => $_->get_column('job') } } @{$_[0]} ]
+        };
+        $entity->{diff} = {
+            stillSucceed => $summarize_builds->($diff->{stillSucceed}),
+            stillFail    => $summarize_builds->($diff->{stillFail}),
+            nowSucceed   => $summarize_builds->($diff->{nowSucceed}),
+            nowFail      => $summarize_builds->($diff->{nowFail}),
+            new          => $summarize_builds->($diff->{new}),
+            aborted      => $summarize_builds->($diff->{aborted}),
+            unfinished   => $summarize_builds->($diff->{unfinished}),
+            removed      => $diff->{removed},
+            totalAborted => $diff->{totalAborted},
+            totalFailed  => $diff->{totalFailed},
+            totalQueued  => $diff->{totalQueued},
+        };
+    }
+
     $self->status_ok(
         $c,
-        entity => $eval
+        entity => $entity
     );
 }
 

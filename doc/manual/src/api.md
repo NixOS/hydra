@@ -195,6 +195,55 @@ To list the `evaluations` of a `job set` by identifier:
       "last": "?page=1"
     }
 
+Get a single evaluation
+-----------------------
+
+To get details about a single `evaluation` by ID, including the categorized
+build diff against a previous evaluation:
+
+    GET /eval/:eval-id?compare=:other-eval-id
+    Accept: application/json
+
+Without `compare`, the response contains the eval's columns and its build IDs.
+With `compare`, a `diff` field is added that categorizes all builds into
+`stillSucceed`, `stillFail`, `nowSucceed`, `nowFail`, `new`, `aborted`,
+`unfinished`, and `removed`. Each build entry includes `id` and `job`; the
+job name encodes both the attrpath and the system (e.g.
+`nixpkgs.python3.x86_64-linux`). The `removed` category contains only
+`{job, system}` since those jobs no longer exist in the current eval.
+
+Unlike the HTML view, the `diff` field is not truncated — every build is
+returned, matching what `buildDiff` computes internally.
+
+**Example**
+
+    curl -i -H 'Accept: application/json' \
+        'https://hydra.nixos.org/eval/1827224?compare=1827222'
+
+    GET https://hydra.nixos.org/eval/1827224?compare=1827222
+    HTTP/1.1 200 OK
+    Content-Type: application/json
+
+    {
+      "id": 1827224,
+      "builds": [336650910],
+      "diff": {
+        "stillSucceed": [
+          {"id": 336650910, "job": "tests/api.x86_64-linux"}
+        ],
+        "stillFail": [],
+        "nowSucceed": [],
+        "nowFail": [],
+        "new": [],
+        "aborted": [],
+        "unfinished": [],
+        "removed": [],
+        "totalAborted": 0,
+        "totalFailed": 0,
+        "totalQueued": 0
+      }
+    }
+
 Get a single build
 ------------------
 
