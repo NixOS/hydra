@@ -8,17 +8,21 @@
 
 - `schemas/hydra-<n>.sql` — historical snapshot of `hydra.sql` at version N
 
+  This should include every historical schema but need not include the current one.
+
 - `schemas/commit-<n>.txt` — the git commit each snapshot was extracted from
+
+  This allows us to make sure the snapshots match the actual git history of `hydra.sql`.
 
 - `check-migrations.nix` — Nix derivations that test each migration step
 
 ## Making a schema change
 
-1. Update `hydra.sql` to reflect the desired end state.
+1. Copy the current `hydra.sql` to `schemas/hydra-<n-1>.sql`.
 
-2. Create `migrations/upgrade-<n>.sql` with the migration SQL.
+2. Update `hydra.sql` to reflect the desired end state.
 
-3. Copy `hydra.sql` to `schemas/hydra-<n>.sql`.
+3. Create `migrations/upgrade-<n>.sql` with the migration SQL.
 
 4. Run the migration check to verify:
 
