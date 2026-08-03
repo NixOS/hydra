@@ -76,7 +76,7 @@
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project=step.project jobset=step.jobset job=step.job %]</tt></td>
             <td><a [% HTML.attributes(href => c.uri_for('/build' step.build)) %]>[% HTML.escape(step.build) %]</a></td>
-            <td><tt>[% IF step.busy >= 30 %]<a class="row-link" [% HTML.attributes(href => c.uri_for('/build' step.build 'nixlog' step.stepnr 'tail')) %]>[% step.drvpath.match('-(.*)').0 | html %]</a>[% ELSE; step.drvpath.match('-(.*)').0 | html; END %]</tt></td>
+            <td><tt>[% IF step.busy >= 30 %]<a class="row-link" [% HTML.attributes(href => c.uri_for('/build' step.build 'step' step.stepnr 'log' 'tail')) %]>[% step.drvpath.match('-(.*)').0 | html %]</a>[% ELSE; step.drvpath.match('-(.*)').0 | html; END %]</tt></td>
             <td>[% INCLUDE renderBusyStatus %]</td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
