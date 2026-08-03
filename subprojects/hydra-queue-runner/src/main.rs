@@ -43,6 +43,7 @@ fn start_task_loops(state: &std::sync::Arc<State>, cli: &Cli) -> Vec<tokio::task
         spawn_config_reloader(state.clone(), state.config.clone(), &cli.config_path),
         state.clone().start_dispatch_loop(),
         state.clone().start_uploader_queue(),
+        state.clone().start_copier_queue(),
         state.clone().start_upload_completion_loop(),
     ];
     if !cli.disable_queue_monitor_loop {

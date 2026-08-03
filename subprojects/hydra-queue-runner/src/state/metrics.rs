@@ -54,6 +54,9 @@ pub struct PromMetrics {
     pub machines_total: prometheus::IntGauge,              // hydraqueuerunner_machines_total
     pub machines_in_use: prometheus::IntGauge,             // hydraqueuerunner_machines_in_use
     pub s3_uploads_pending: prometheus::IntGauge,          // hydraqueuerunner_s3_uploads_pending
+    pub nr_overflow_copies_queued: prometheus::IntCounter, // hydraqueuerunner_overflow_copies_queued
+    pub nr_overflow_copies_succeeded: prometheus::IntCounter, // hydraqueuerunner_overflow_copies_succeeded
+    pub nr_overflow_copies_failed: prometheus::IntCounter, // hydraqueuerunner_overflow_copies_failed
 
     // Per-machine-type metrics
     pub runnable_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_runnable
@@ -302,6 +305,19 @@ impl PromMetrics {
         let s3_uploads_pending = prometheus::IntGauge::with_opts(prometheus::Opts::new(
             "hydraqueuerunner_s3_uploads_pending",
             "Pending upload count to all remote stores.",
+        ))?;
+        let nr_overflow_copies_queued = prometheus::IntCounter::with_opts(prometheus::Opts::new(
+            "hydraqueuerunner_overflow_copies_queued_total",
+            "Copies from the overflow store to the default store queued",
+        ))?;
+        let nr_overflow_copies_succeeded =
+            prometheus::IntCounter::with_opts(prometheus::Opts::new(
+                "hydraqueuerunner_overflow_copies_succeeded_total",
+                "Copies from the overflow store to the default store that succeeded",
+            ))?;
+        let nr_overflow_copies_failed = prometheus::IntCounter::with_opts(prometheus::Opts::new(
+            "hydraqueuerunner_overflow_copies_failed_total",
+            "Copies from the overflow store to the default store that failed",
         ))?;
 
         // Per-machine-type metrics
@@ -675,6 +691,9 @@ impl PromMetrics {
         r.register(Box::new(machines_total.clone()))?;
         r.register(Box::new(machines_in_use.clone()))?;
         r.register(Box::new(s3_uploads_pending.clone()))?;
+        r.register(Box::new(nr_overflow_copies_queued.clone()))?;
+        r.register(Box::new(nr_overflow_copies_succeeded.clone()))?;
+        r.register(Box::new(nr_overflow_copies_failed.clone()))?;
 
         // Per-machine-type metrics
         r.register(Box::new(runnable_per_machine_type.clone()))?;
@@ -786,6 +805,9 @@ impl PromMetrics {
             machines_total,
             machines_in_use,
             s3_uploads_pending,
+            nr_overflow_copies_queued,
+            nr_overflow_copies_succeeded,
+            nr_overflow_copies_failed,
 
             // Per-machine-type metrics
             runnable_per_machine_type,
