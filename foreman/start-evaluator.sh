@@ -2,7 +2,7 @@
 
 . ./foreman/common.sh
 
-export HYDRA_DBI
+export HYDRA_DATABASE_URL
 export HYDRA_DATA
 
 wait_for_postgres

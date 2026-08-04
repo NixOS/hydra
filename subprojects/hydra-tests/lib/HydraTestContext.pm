@@ -95,7 +95,6 @@ sub new {
     my $pgsql = Test::PostgreSQL->new(
         extra_initdb_args => "--locale C.UTF-8"
     );
-    $central->{hydra_dbi} = $pgsql->dsn;
     $central->{hydra_database_url} = $pgsql->uri;
 
     my $jobsdir = "$dir/jobs";
@@ -128,7 +127,6 @@ sub new {
         central_env => {
             'HYDRA_DATA'         => $central->{hydra_data},
             'HYDRA_CONFIG'       => $central->{hydra_config_file},
-            'HYDRA_DBI'          => $central->{hydra_dbi},
             'HYDRA_DATABASE_URL' => $central->{hydra_database_url},
             'NIX_CONF_DIR'       => $central->{nix_conf_dir},
             'NIX_REMOTE'         => $central->{nix_store_uri},
@@ -166,7 +164,7 @@ sub db {
 
     if (!defined $self->{_db}) {
         require Hydra::Schema;
-        $self->{_db} = Hydra::Schema->connect($self->{central}{hydra_dbi});
+        $self->{_db} = Hydra::Schema->connect($self->{db_handle}->dsn);
 
         if (!(defined $setup && $setup == 0)) {
             $self->{_db}->resultset('Users')->create({

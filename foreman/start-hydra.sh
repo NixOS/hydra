@@ -4,7 +4,7 @@
 
 export HYDRA_HOME
 export HYDRA_DATA
-export HYDRA_DBI
+export HYDRA_DATABASE_URL
 
 wait_for_postgres
 

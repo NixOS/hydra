@@ -16,10 +16,15 @@ let
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   hydraEnv = {
-    HYDRA_DBI = cfg.dbi;
+    HYDRA_DATABASE_URL = cfg.dbUrl;
     HYDRA_CONFIG = "${baseDir}/hydra.conf";
     HYDRA_DATA = "${baseDir}";
   };
+
+  # The database URL with an `application_name` query parameter added, to
+  # distinguish where queries come from in Postgres statistics.
+  dbUrlWithAppName =
+    name: "${cfg.dbUrl}${if hasInfix "?" cfg.dbUrl then "&" else "?"}application_name=${name}";
 
   env = {
     NIX_REMOTE = "daemon";
@@ -41,9 +46,9 @@ let
     }
     // (optionalAttrs cfg.debugServer { DBIC_TRACE = "1"; });
 
-  localDB = "dbi:Pg:dbname=hydra;user=hydra;";
+  localDBUrl = "postgres://hydra@%2Frun%2Fpostgresql:5432/hydra";
 
-  haveLocalDB = cfg.dbi == localDB;
+  haveLocalDB = cfg.dbUrl == localDBUrl;
 
 in
 
@@ -52,6 +57,9 @@ in
     ./postgresql.nix
     (mkRemovedOptionModule [ "services" "hydra-dev" "buildMachinesFiles" ]
       "The queue runner no longer reads Nix build machines files. Builders now connect to the queue runner via gRPC."
+    )
+    (mkRemovedOptionModule [ "services" "hydra-dev" "dbi" ]
+      "Hydra services are now configured with a postgres:// URL via `services.hydra-dev.dbUrl` instead of a Perl DBI string."
     )
   ];
   ###### interface
@@ -67,17 +75,18 @@ in
         '';
       };
 
-      dbi = mkOption {
+      dbUrl = mkOption {
         type = types.str;
-        default = localDB;
-        example = "dbi:Pg:dbname=hydra;host=postgres.example.org;user=foo;";
+        default = localDBUrl;
+        example = "postgres://foo@postgres.example.org/hydra";
         description = ''
-          The DBI string for Hydra database connection.
+          The `postgres://` URL for the Hydra database connection, used
+          by all Hydra services (Perl services convert it to a DBI string
+          internally).
 
-          NOTE: Attempts to set `application_name` will be overridden by
-          `hydra-TYPE` (where TYPE is e.g. `evaluator`, `queue-runner`,
-          etc.) in all hydra services to more easily distinguish where
-          queries are coming from.
+          NOTE: an `application_name` query parameter is appended per
+          service (e.g. `hydra-evaluator`) to more easily distinguish
+          where queries are coming from, so do not set one here.
         '';
       };
 
@@ -256,7 +265,7 @@ in
         "hydra-server.socket"
       ];
       environment = serverEnv // {
-        HYDRA_DBI = "${serverEnv.HYDRA_DBI};application_name=hydra-server";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-server";
       };
       restartTriggers = [ hydraConf ];
       serviceConfig = {
@@ -303,7 +312,7 @@ in
         cfg.package
       ];
       environment = env // {
-        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-evaluator";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
@@ -324,7 +333,7 @@ in
       requires = [ "hydra-init.service" ];
       after = [ "hydra-init.service" ];
       environment = env // {
-        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-update-gc-roots";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-update-gc-roots";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
@@ -340,7 +349,7 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "hydra-init.service" ];
       environment = env // {
-        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-send-stats";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-send-stats";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
@@ -359,7 +368,7 @@ in
       path = [ pkgs.zstd ];
       environment = env // {
         PGPASSFILE = "${baseDir}/pgpass-notify";
-        HYDRA_DBI = "${env.HYDRA_DBI};application_name=hydra-notify";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-notify";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
