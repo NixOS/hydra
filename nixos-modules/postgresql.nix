@@ -11,9 +11,9 @@ let
 
   baseDir = "/var/lib/hydra";
 
-  localDB = "dbi:Pg:dbname=hydra;user=hydra;";
+  localDBUrl = "postgres://hydra@%2Frun%2Fpostgresql:5432/hydra";
 
-  haveLocalDB = cfg.dbi == localDB;
+  haveLocalDB = cfg.dbUrl == localDBUrl;
 
 in
 
@@ -50,7 +50,9 @@ in
         "postgresql.service"
       ];
       environment = {
-        HYDRA_DBI = "${cfg.dbi};application_name=hydra-init";
+        HYDRA_DATABASE_URL = "${cfg.dbUrl}${
+          if lib.hasInfix "?" cfg.dbUrl then "&" else "?"
+        }application_name=hydra-init";
         HYDRA_CONFIG = "${baseDir}/hydra.conf";
         HYDRA_DATA = baseDir;
         PGPASSFILE = "${baseDir}/pgpass";

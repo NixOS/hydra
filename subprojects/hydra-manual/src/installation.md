@@ -66,7 +66,7 @@ Hydra uses an environment variable to know which database should be used, and a 
 To set these variables for a PostgreSQL database, add the following to the file `~/.profile` of the user running the Hydra services.
 
 ```console
-export HYDRA_DBI="dbi:Pg:dbname=hydra;host=dbserver.example.org;user=hydra;"
+export HYDRA_DATABASE_URL="postgres://hydra@dbserver.example.org/hydra"
 export HYDRA_DATA=/var/lib/hydra
 ```
 

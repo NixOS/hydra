@@ -124,6 +124,7 @@ let
         TestPostgreSQL
         TextDiff
         TextTable
+        URIdb
         UUID4Tiny
         YAML
         XMLSimple
