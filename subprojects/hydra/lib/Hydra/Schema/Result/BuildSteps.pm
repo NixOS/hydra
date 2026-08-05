@@ -225,6 +225,52 @@ __PACKAGE__->belongs_to(
 # Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-07-15 11:41:43
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BzGi6sOIZ8K602dlsYEiag
 
+use File::Basename ();
+
+# Find the step that this Resolved (status=13) step was resolved to, or
+# undef if it hasn't been scheduled yet. Resolution is one-shot: a resolved
+# derivation is basic (all inputs realized), so it can never itself be
+# resolved again — there are no chains to follow. Corrupt resolveddrvpath
+# values (a slash, a self-reference) simply match nothing here — the
+# status filter below excludes Resolved rows, and the equality search is
+# inert — so they render as "not scheduled" without special-casing.
+sub resolved_terminal {
+    my ($self) = @_;
+    return undef unless (($self->status // -1) == 13) && $self->resolveddrvpath;
+    # Resolution stays within the build that requested the work.
+    # resolveddrvpath is a store-path basename, not a path; it lives in the
+    # same store as this step's own drvpath, so derive the store dir from
+    # that rather than global Nix state.
+    return $self->result_source->resultset->search(
+        {
+            build   => $self->get_column('build'),
+            drvpath => File::Basename::dirname($self->drvpath) . "/" . $self->resolveddrvpath,
+            # A real terminal is never itself Resolved.
+            status  => [ undef, { '!=' => 13 } ],
+        },
+        # A drv may have been attempted more than once; prefer succeeded
+        # steps (lowest status), newest first. Busy steps have NULL
+        # status and sort last.
+        { order_by => [{ -asc => 'status' }, { -desc => 'stoptime' }],
+          rows     => 1,
+        }
+    )->single;
+}
+
+# Every Resolved step in the same build that was resolved to this step's
+# derivation.
+sub resolution_origins {
+    my ($self) = @_;
+    return [ $self->result_source->resultset->search(
+        {
+            build           => $self->get_column('build'),
+            status          => 13,
+            resolveddrvpath => File::Basename::basename($self->drvpath),
+        },
+        { order_by => [{ -asc => 'stepnr' }] }
+    )->all ];
+}
+
 my %hint = (
     columns => [
         "machine",

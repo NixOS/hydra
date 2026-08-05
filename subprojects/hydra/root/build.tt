@@ -28,14 +28,20 @@ END;
     <tbody>
       [% FOREACH step IN steps %]
         [% IF ( type == "All" ) || ( type == "Failed" && step.busy == 0 && step.status != 0 ) || ( type == "Running" && step.busy != 0 ) %]
-          [% has_log = seen.${step.drvpath} ? 0 : buildStepLogExists(step);
+          [%# Resolved steps never build, so they never have a log. %]
+          [% has_log = (step.status == 13 || seen.${step.drvpath}) ? 0 : buildStepLogExists(step);
              seen.${step.drvpath} = 1;
              stepUrl = c.uri_for('/build' build.id 'step' step.stepnr);
              logUrl = c.uri_for('/build' build.id 'step' step.stepnr 'log'); %]
           <tr>
             <td><a class="row-link" [% HTML.attributes(href => stepUrl) %]>[% HTML.escape(step.stepnr) %]</a></td>
             <td>
-              [% IF step.type == 0 %]
+              [% IF step.status == 13 %]
+                [%# Resolved steps never ran: buildstepoutputs is empty, so %]
+                [%# "Build of" would render with nothing after it. Show the %]
+                [%# drv that was resolved instead. %]
+                Resolution of <tt>[% HTML.escape(step.drvpath) %]</tt>
+              [% ELSIF step.type == 0 %]
                 Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
               [% ELSE %]
                 Substitution of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
