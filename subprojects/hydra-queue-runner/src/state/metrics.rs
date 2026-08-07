@@ -59,6 +59,9 @@ pub struct PromMetrics {
     pub machines_in_use: prometheus::IntGauge,             // hydraqueuerunner_machines_in_use
     pub s3_uploads_pending: prometheus::IntGauge,          // hydraqueuerunner_s3_uploads_pending
 
+    pub ofborg_build_event_subscribers: prometheus::IntGauge, // hydraqueuerunner_ofborg_build_event_subscribers
+    pub ofborg_build_events_dropped: prometheus::IntCounter, // hydraqueuerunner_ofborg_build_events_dropped_total
+
     // Per-machine-type metrics
     pub runnable_per_machine_type: prometheus::IntGaugeVec, // hydraqueuerunner_machine_type_runnable
     pub running_per_machine_type: prometheus::IntGaugeVec,  // hydraqueuerunner_machine_type_running
@@ -307,6 +310,17 @@ impl PromMetrics {
             "hydraqueuerunner_s3_uploads_pending",
             "Pending upload count to all remote stores.",
         ))?;
+
+        let ofborg_build_event_subscribers =
+            prometheus::IntGauge::with_opts(prometheus::Opts::new(
+                "hydraqueuerunner_ofborg_build_event_subscribers",
+                "Number of clients subscribed to the ofborg build event stream.",
+            ))?;
+        let ofborg_build_events_dropped =
+            prometheus::IntCounter::with_opts(prometheus::Opts::new(
+                "hydraqueuerunner_ofborg_build_events_dropped_total",
+                "Number of ofborg build events dropped because a subscriber fell behind.",
+            ))?;
 
         // Per-machine-type metrics
         let runnable_per_machine_type = prometheus::IntGaugeVec::new(
@@ -679,6 +693,8 @@ impl PromMetrics {
         r.register(Box::new(machines_total.clone()))?;
         r.register(Box::new(machines_in_use.clone()))?;
         r.register(Box::new(s3_uploads_pending.clone()))?;
+        r.register(Box::new(ofborg_build_event_subscribers.clone()))?;
+        r.register(Box::new(ofborg_build_events_dropped.clone()))?;
 
         // Per-machine-type metrics
         r.register(Box::new(runnable_per_machine_type.clone()))?;
@@ -790,6 +806,8 @@ impl PromMetrics {
             machines_total,
             machines_in_use,
             s3_uploads_pending,
+            ofborg_build_event_subscribers,
+            ofborg_build_events_dropped,
 
             // Per-machine-type metrics
             runnable_per_machine_type,

@@ -23,6 +23,9 @@ type OpenTunnelResponseStream =
 type FetchPathsResponseStream = std::pin::Pin<
     Box<dyn futures::Stream<Item = Result<hydra_proto::AddToStoreRequest, tonic::Status>> + Send>,
 >;
+type SubscribeBuildEventsResponseStream = std::pin::Pin<
+    Box<dyn futures::Stream<Item = Result<hydra_proto::BuildEvent, tonic::Status>> + Send>,
+>;
 type CompressionDecoder<R> = async_compression::tokio::bufread::ZstdDecoder<R>;
 
 // there is no reason to make this configurable, it only exists so we ensure the channel is not
@@ -182,10 +185,51 @@ impl Server {
     }
 }
 
+fn check_build_injection(req: &tonic::Request<impl Sized>) -> Result<(), tonic::Status> {
+    match req.extensions().get::<TokenEntry>() {
+        None => Ok(()),
+        Some(entry) if entry.allow_build_injection => Ok(()),
+        Some(_) => Err(tonic::Status::permission_denied(
+            "token is not allowed to inject builds",
+        )),
+    }
+}
+
+/// Convert an internal event into its wire form.
+fn build_event_to_proto(event: &crate::state::BuildEvent) -> hydra_proto::BuildEvent {
+    use crate::state::BuildEventKind;
+    use hydra_proto::build_event::Event;
+
+    let inner = match &event.kind {
+        BuildEventKind::Queued => Event::Queued(hydra_proto::BuildQueued {}),
+        BuildEventKind::Running {
+            machine,
+            step_status,
+        } => Event::Running(hydra_proto::BuildRunning {
+            machine: machine.clone(),
+            step_status: hydra_proto::StepStatus::from(*step_status).into(),
+        }),
+        BuildEventKind::Finished { status, machine } => {
+            Event::Finished(hydra_proto::BuildFinished {
+                status: hydra_proto::build_finished::Status::from(*status).into(),
+                machine: machine.clone().unwrap_or_default(),
+            })
+        }
+    };
+
+    hydra_proto::BuildEvent {
+        build_id: event.build_id,
+        jobset_id: event.jobset_id,
+        drv_path: event.drv_path.clone(),
+        event: Some(inner),
+    }
+}
+
 #[tonic::async_trait]
 impl RunnerService for Server {
     type OpenTunnelStream = OpenTunnelResponseStream;
     type FetchPathsStream = FetchPathsResponseStream;
+    type SubscribeBuildEventsStream = SubscribeBuildEventsResponseStream;
 
     #[tracing::instrument(skip(self, req), err)]
     async fn check_version(
@@ -813,6 +857,8 @@ impl RunnerService for Server {
     ) -> BuilderResult<hydra_proto::CreateBuildResponse> {
         use std::collections::HashMap;
 
+        check_build_injection(&req)?;
+
         let req = req.into_inner();
         let paths: Vec<_> = req.drv_paths.into_iter().map(|p| p.0).collect();
         let build_ids = self
@@ -826,5 +872,74 @@ impl RunnerService for Server {
         Ok(tonic::Response::new(hydra_proto::CreateBuildResponse {
             build_ids: build_ids.into_iter().collect::<HashMap<_, _>>(),
         }))
+    }
+
+    #[tracing::instrument(skip(self, req), err)]
+    async fn subscribe_build_events(
+        &self,
+        req: tonic::Request<hydra_proto::SubscribeBuildEventsRequest>,
+    ) -> BuilderResult<Self::SubscribeBuildEventsStream> {
+        check_build_injection(&req)?;
+
+        let jobset_ids = req.into_inner().jobset_ids;
+        let mut rx = self.state.build_events.subscribe();
+        let state = self.state.clone();
+
+        state
+            .metrics
+            .ofborg_build_event_subscribers
+            .set(i64::try_from(state.build_events.subscriber_count()).unwrap_or(i64::MAX));
+        tracing::info!(
+            "new build event subscriber jobset_ids={jobset_ids:?} total={}",
+            state.build_events.subscriber_count()
+        );
+
+        let (tx, out_rx) = mpsc::channel::<Result<hydra_proto::BuildEvent, tonic::Status>>(128);
+
+        tokio::spawn(async move {
+            loop {
+                let msg = match rx.recv().await {
+                    Ok(event) => {
+                        if !jobset_ids.is_empty() && !jobset_ids.contains(&event.jobset_id) {
+                            continue;
+                        }
+                        Ok(build_event_to_proto(&event))
+                    }
+                    // The subscriber is too slow. Tell it so it can reconcile,
+                    // rather than tearing the stream down or — worse — letting
+                    // it believe it saw everything.
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(dropped)) => {
+                        tracing::warn!("build event subscriber lagged, dropped={dropped}");
+                        state.metrics.ofborg_build_events_dropped.inc_by(dropped);
+                        Ok(hydra_proto::BuildEvent {
+                            build_id: 0,
+                            jobset_id: 0,
+                            drv_path: String::new(),
+                            event: Some(hydra_proto::build_event::Event::Lagged(
+                                hydra_proto::BuildEventsLagged { dropped },
+                            )),
+                        })
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                };
+
+                // A send error means the client hung up.
+                if tx.send(msg).await.is_err() {
+                    break;
+                }
+            }
+
+            // `subscriber_count()` still counts this receiver until it drops at
+            // the end of this task, hence the -1.
+            state.metrics.ofborg_build_event_subscribers.set(
+                i64::try_from(state.build_events.subscriber_count().saturating_sub(1)).unwrap_or(0),
+            );
+            tracing::info!("build event subscriber disconnected");
+        });
+
+        Ok(tonic::Response::new(
+            Box::pin(tokio_stream::wrappers::ReceiverStream::new(out_rx))
+                as Self::SubscribeBuildEventsStream,
+        ))
     }
 }

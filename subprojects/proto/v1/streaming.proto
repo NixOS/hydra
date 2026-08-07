@@ -22,6 +22,7 @@ service RunnerService {
   rpc RequestPresignedUrl(PresignedUrlRequest) returns (PresignedUrlResponse) {}
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
   rpc CreateBuild(CreateBuildRequest) returns (CreateBuildResponse) {}
+  rpc SubscribeBuildEvents(SubscribeBuildEventsRequest) returns (stream BuildEvent) {}
 }
 
 message Empty {}
@@ -260,4 +261,63 @@ message CreateBuildRequest {
 
 message CreateBuildResponse {
   map<string, int32> build_ids = 1;
+}
+
+message SubscribeBuildEventsRequest {
+  // Restrict the stream to these jobsets. Empty means every ofborg jobset the
+  // runner is configured with. Only ofborg jobsets are ever streamed.
+  repeated int32 jobset_ids = 1;
+}
+
+message BuildQueued {}
+
+message BuildRunning {
+  // Hostname of the builder the step was scheduled on.
+  string machine = 1;
+  StepStatus step_status = 2;
+}
+
+message BuildFinished {
+  // Terminal state of the build, mirroring hydra's `builds.buildstatus`
+  // column. Numbering is this enum's own; the runner converts.
+  enum Status {
+    UNSPECIFIED = 0;
+    SUCCESS = 1;
+    FAILED = 2;
+    DEP_FAILED = 3;
+    ABORTED = 4;
+    CANCELLED = 5;
+    FAILED_WITH_OUTPUT = 6;
+    TIMED_OUT = 7;
+    CACHED_FAILURE = 8;
+    UNSUPPORTED = 9;
+    LOG_LIMIT_EXCEEDED = 10;
+    NAR_SIZE_LIMIT_EXCEEDED = 11;
+    NOT_DETERMINISTIC = 12;
+    RESOLVED = 13;
+    BUSY = 14;
+  }
+  Status status = 1;
+  // Hostname of the builder. Empty when no builder was involved, e.g. for a
+  // build satisfied from the cache or one failed by a dependency.
+  string machine = 2;
+}
+
+// The subscriber did not keep up and events were dropped. Its view of the
+// affected builds may be stale until their next event.
+message BuildEventsLagged {
+  uint64 dropped = 1;
+}
+
+message BuildEvent {
+  // The build id handed out by CreateBuild.
+  int32 build_id = 1;
+  int32 jobset_id = 2;
+  string drv_path = 3;
+  oneof event {
+    BuildQueued queued = 4;
+    BuildRunning running = 5;
+    BuildFinished finished = 6;
+    BuildEventsLagged lagged = 7;
+  }
 }

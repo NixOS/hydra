@@ -429,3 +429,40 @@ impl From<StepStatus> for db::models::StepStatus {
         }
     }
 }
+
+#[cfg(feature = "db")]
+impl From<db::models::StepStatus> for StepStatus {
+    fn from(item: db::models::StepStatus) -> Self {
+        match item {
+            db::models::StepStatus::Preparing => Self::Preparing,
+            db::models::StepStatus::Connecting => Self::Connecting,
+            db::models::StepStatus::SendingInputs => Self::SeningInputs,
+            db::models::StepStatus::Building => Self::Building,
+            db::models::StepStatus::WaitingForLocalSlot => Self::WaitingForLocalSlot,
+            db::models::StepStatus::ReceivingOutputs => Self::ReceivingOutputs,
+            db::models::StepStatus::PostProcessing => Self::PostProcessing,
+        }
+    }
+}
+
+#[cfg(feature = "db")]
+impl From<db::models::BuildStatus> for build_finished::Status {
+    fn from(item: db::models::BuildStatus) -> Self {
+        match item {
+            db::models::BuildStatus::Success => Self::Success,
+            db::models::BuildStatus::Failed => Self::Failed,
+            db::models::BuildStatus::DepFailed => Self::DepFailed,
+            db::models::BuildStatus::Aborted => Self::Aborted,
+            db::models::BuildStatus::Cancelled => Self::Cancelled,
+            db::models::BuildStatus::FailedWithOutput => Self::FailedWithOutput,
+            db::models::BuildStatus::TimedOut => Self::TimedOut,
+            db::models::BuildStatus::CachedFailure => Self::CachedFailure,
+            db::models::BuildStatus::Unsupported => Self::Unsupported,
+            db::models::BuildStatus::LogLimitExceeded => Self::LogLimitExceeded,
+            db::models::BuildStatus::NarSizeLimitExceeded => Self::NarSizeLimitExceeded,
+            db::models::BuildStatus::NotDeterministic => Self::NotDeterministic,
+            db::models::BuildStatus::Resolved => Self::Resolved,
+            db::models::BuildStatus::Busy => Self::Busy,
+        }
+    }
+}

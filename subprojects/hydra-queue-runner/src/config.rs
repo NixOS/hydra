@@ -278,6 +278,8 @@ pub struct TokenEntry {
     pub allowed_supported_features: Option<Vec<String>>,
     #[serde(default)]
     pub allowed_mandatory_features: Option<Vec<String>>,
+    #[serde(default)]
+    pub allow_build_injection: bool,
 }
 
 /// Prepared configuration of the application
@@ -336,6 +338,7 @@ fn load_tokens(paths: Option<Vec<std::path::PathBuf>>) -> Option<Vec<TokenEntry>
                     token,
                     allowed_supported_features: None,
                     allowed_mandatory_features: None,
+                    allow_build_injection: false,
                 })
             })
             .collect();

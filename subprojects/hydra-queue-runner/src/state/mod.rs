@@ -1,5 +1,6 @@
 mod atomic;
 mod build;
+pub mod build_events;
 pub mod drv;
 mod fod_checker;
 mod inspectable_channel;
@@ -14,6 +15,7 @@ mod uploader;
 use anyhow::Context as _;
 pub use atomic::AtomicDateTime;
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
+pub use build_events::{BuildEvent, BuildEventKind, BuildEvents};
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
@@ -99,6 +101,10 @@ pub struct State {
     pub metrics: metrics::PromMetrics,
     pub notify_dispatch: tokio::sync::Notify,
     pub uploader: uploader::Uploader,
+
+    /// Build lifecycle events for ofborg jobsets, served by
+    /// `RunnerService::SubscribeBuildEvents`.
+    pub build_events: BuildEvents,
 }
 
 impl State {
@@ -155,6 +161,7 @@ impl State {
             started_at: jiff::Timestamp::now(),
             metrics: metrics::PromMetrics::new()?,
             notify_dispatch: tokio::sync::Notify::new(),
+            build_events: BuildEvents::new(),
             uploader: uploader::Uploader::new(
                 config.get_hydra_data_dir().join("uploader_state.json"),
             )
@@ -787,6 +794,24 @@ impl State {
         tx.notify_builds_added().await?;
         tx.commit().await?;
 
+        // The `Jobset` object does not exist yet at this point — it is created
+        // when the queue monitor picks these builds up — so ask the config the
+        // same question `Jobsets::create` does.
+        if self
+            .config
+            .get_ofborg_config()
+            .is_some_and(|c| c.jobset_id == jobset_id)
+        {
+            for (drv_path, build_id) in &build_ids {
+                self.build_events.emit(BuildEvent {
+                    build_id: *build_id,
+                    jobset_id,
+                    drv_path: drv_path.clone(),
+                    kind: BuildEventKind::Queued,
+                });
+            }
+        }
+
         Ok(build_ids)
     }
 
@@ -1116,7 +1141,8 @@ impl State {
         machine_id: uuid::Uuid,
         step_status: db::models::StepStatus,
     ) -> anyhow::Result<()> {
-        let build_id_and_step_nr = self.machines.get_machine_by_id(machine_id).and_then(|m| {
+        let machine = self.machines.get_machine_by_id(machine_id);
+        let build_id_and_step_nr = machine.as_ref().and_then(|m| {
             tracing::debug!(
                 "get job from machine by build_id: build_id={build_id} m={}",
                 m.id
@@ -1139,6 +1165,20 @@ impl State {
                 status: step_status,
             })
             .await?;
+
+        // This is the only place that knows which machine an ofborg build
+        // ended up on, which is the whole point of the event for ofborg.
+        if let Some(build) = self.builds.get_by_id(build_id) {
+            self.build_events.emit_for_build(
+                &build,
+                &self.store,
+                BuildEventKind::Running {
+                    machine: machine.map(|m| m.hostname.clone()).unwrap_or_default(),
+                    step_status,
+                },
+            );
+        }
+
         Ok(())
     }
 
@@ -1360,6 +1400,17 @@ impl State {
             }
 
             tx.commit().await?;
+        }
+
+        for b in &direct {
+            self.build_events.emit_for_build(
+                b,
+                &self.store,
+                BuildEventKind::Finished {
+                    status: BuildStatus::Success,
+                    machine: Some(item.machine.hostname.clone()),
+                },
+            );
         }
 
         // Process dynamic rdeps first, as we must add new step dependencies for dynamically
@@ -1607,6 +1658,10 @@ impl State {
                 break;
             }
 
+            // Collected here and emitted once the transaction below committed,
+            // so we never tell ofborg about a failure the database rolled back.
+            let mut failed = Vec::new();
+
             // Create failed build steps for every build that depends on this, except when this
             // step is cached and is the top-level of that build (since then it's redundant with
             // the build's isCachedBuild field).
@@ -1658,21 +1713,24 @@ impl State {
                     tracing::info!("marking build {} as failed", b.id);
                     let start_time = job.result.get_start_time_as_i32()?;
                     let stop_time = job.result.get_stop_time_as_i32()?;
+                    let build_status = if &b.drv_path != step.get_drv_path()
+                        && job.result.step_status == BuildStatus::Failed
+                    {
+                        BuildStatus::DepFailed
+                    } else {
+                        job.result.step_status
+                    };
                     tx.update_build_after_failure(
                         b.id,
-                        if &b.drv_path != step.get_drv_path()
-                            && job.result.step_status == BuildStatus::Failed
-                        {
-                            BuildStatus::DepFailed
-                        } else {
-                            job.result.step_status
-                        },
+                        build_status,
                         start_time,
                         stop_time,
                         job.result.step_status == BuildStatus::CachedFailure,
                     )
                     .await?;
                     self.metrics.nr_builds_done.inc();
+
+                    failed.push((b.clone(), build_status));
                 }
 
                 // Remember failed paths in the database so that they won't be built again.
@@ -1689,6 +1747,17 @@ impl State {
                 }
 
                 tx.commit().await?;
+            }
+
+            for (b, status) in failed {
+                self.build_events.emit_for_build(
+                    &b,
+                    &self.store,
+                    BuildEventKind::Finished {
+                        status,
+                        machine: machine.as_ref().map(|m| m.hostname.clone()),
+                    },
+                );
             }
 
             step_finished = true;
@@ -1804,21 +1873,30 @@ impl State {
                 .collect(),
         )
         .await?;
-        tx.update_build_after_previous_failure(
-            build.id,
-            if step.get_drv_path() == &build.drv_path {
-                BuildStatus::Failed
-            } else {
-                BuildStatus::DepFailed
-            },
-        )
-        .await?;
+        let build_status = if step.get_drv_path() == &build.drv_path {
+            BuildStatus::Failed
+        } else {
+            BuildStatus::DepFailed
+        };
+        tx.update_build_after_previous_failure(build.id, build_status)
+            .await?;
 
         let _ = tx.notify_build_finished(build.id, &[]).await;
         tx.commit().await?;
 
         build.set_finished_in_db(true);
         self.metrics.nr_builds_done.inc();
+
+        // No builder ran: this is a failure remembered from an earlier build.
+        self.build_events.emit_for_build(
+            &build,
+            &self.store,
+            BuildEventKind::Finished {
+                status: build_status,
+                machine: None,
+            },
+        );
+
         Ok(())
     }
 
@@ -2294,6 +2372,16 @@ impl State {
             tx.commit().await?;
         }
         build.set_finished_in_db(true);
+
+        // Satisfied from the cache, so no builder was involved.
+        self.build_events.emit_for_build(
+            &build,
+            &self.store,
+            BuildEventKind::Finished {
+                status: BuildStatus::Success,
+                machine: None,
+            },
+        );
 
         Ok(())
     }

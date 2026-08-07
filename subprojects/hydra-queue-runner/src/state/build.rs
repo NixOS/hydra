@@ -543,6 +543,11 @@ impl Builds {
         builds.values().map(|v| v.clone().into()).collect()
     }
 
+    #[must_use]
+    pub fn get_by_id(&self, id: BuildID) -> Option<Arc<Build>> {
+        self.inner.read().get(&id).cloned()
+    }
+
     pub fn update_priorities(&self, curr_ids: &HashMap<BuildID, i32>) {
         let mut builds = self.inner.write();
         builds.retain(|k, _| curr_ids.contains_key(k));
