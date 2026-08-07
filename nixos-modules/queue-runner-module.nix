@@ -145,6 +145,20 @@ in
               type = lib.types.listOf lib.types.singleLineStr;
               default = [ ];
             };
+            ofborg = lib.mkOption {
+              description = "Marks one jobset as ofborg's. Its builds are scheduled through a separate queue, and their lifecycle is streamed to subscribers of the `SubscribeBuildEvents` rpc.";
+              type = lib.types.nullOr (
+                lib.types.submodule {
+                  options = {
+                    jobsetId = lib.mkOption {
+                      description = "Id of the jobset ofborg injects its builds into.";
+                      type = lib.types.int;
+                    };
+                  };
+                }
+              );
+              default = null;
+            };
           };
         };
         default = { };
