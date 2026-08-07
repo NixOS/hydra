@@ -7,6 +7,90 @@
 let
   cfg = config.services.hydra-queue-builder-dev;
   user = config.users.users.hydra-queue-builder;
+
+  suffix = name: lib.optionalString (name != "default") "-${name}";
+
+  mkDaemon = _name: icfg: {
+    script = ''
+      exec ${
+        lib.escapeShellArgs (
+          [
+            "${icfg.package}/bin/hydra-builder"
+            "--gateway-endpoint"
+            icfg.queueRunnerAddr
+            "--ping-interval"
+            cfg.pingInterval
+            "--speed-factor"
+            cfg.speedFactor
+            "--max-jobs"
+            icfg.maxJobs
+            "--build-dir-avail-threshold"
+            cfg.buildDirAvailThreshold
+            "--store-avail-threshold"
+            cfg.storeAvailThreshold
+            "--load1-threshold"
+            cfg.load1Threshold
+            "--cpu-psi-threshold"
+            cfg.cpuPsiThreshold
+            "--mem-psi-threshold"
+            cfg.memPsiThreshold
+          ]
+          ++ lib.optionals (cfg.ioPsiThreshold != null) [
+            "--io-psi-threshold"
+            cfg.ioPsiThreshold
+          ]
+          ++ (builtins.concatMap (v: [
+            "--systems"
+            v
+          ]) cfg.systems)
+          ++ (builtins.concatMap (v: [
+            "--supported-features"
+            v
+          ]) cfg.supportedFeatures)
+          ++ (builtins.concatMap (v: [
+            "--mandatory-features"
+            v
+          ]) cfg.mandatoryFeatures)
+          ++ lib.optionals (cfg.useSubstitutes != null) [
+            "--use-substitutes"
+          ]
+          ++ lib.optionals (icfg.authorizationFile != null) [
+            "--authorization-file"
+            icfg.authorizationFile
+          ]
+          ++ lib.optionals (icfg.mtls != null) [
+            "--server-root-ca-cert-path"
+            icfg.mtls.serverRootCaCertPath
+            "--client-cert-path"
+            icfg.mtls.clientCertPath
+            "--client-key-path"
+            icfg.mtls.clientKeyPath
+            "--domain-name"
+            icfg.mtls.domainName
+          ]
+        )
+      }
+    '';
+
+    environment = {
+      RUST_BACKTRACE = "1";
+      NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+      # The builder execs `nix build` to realise derivations.  The linux
+      # module sets `path = [ config.nix.package ]` on the systemd service;
+      # launchd has no equivalent, so we set PATH explicitly.
+      PATH = "${config.nix.package}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+    };
+
+    serviceConfig = {
+      KeepAlive = true;
+      StandardErrorPath = icfg.logFile;
+      StandardOutPath = icfg.logFile;
+
+      GroupName = "hydra";
+      UserName = "hydra-queue-builder";
+      WorkingDirectory = user.home;
+    };
+  };
 in
 {
   options = {
@@ -142,91 +226,111 @@ in
         default = "/var/log/hydra-queue-builder.log";
         description = "The logfile to use for the hydra-queue-builder service.";
       };
+
+      instances = lib.mkOption {
+        description = ''
+          Additional queue builders, one per further queue runner this machine
+          serves. ofborg runs its own Hydra alongside the staging one.
+
+          Each entry gets a `hydra-queue-builder-dev-<name>` daemon next to the
+          one the options above configure, which is left untouched. Anything an
+          instance does not set falls back to the value above it, since those
+          describe the machine rather than the queue runner it talks to.
+
+          Instances do not know about each other, so their `maxJobs` add up.
+        '';
+        default = { };
+        type = lib.types.attrsOf (
+          lib.types.submodule (
+            { name, ... }:
+            {
+              options = {
+                queueRunnerAddr = lib.mkOption {
+                  description = "Queue Runner address to the grpc server";
+                  type = lib.types.singleLineStr;
+                };
+
+                maxJobs = lib.mkOption {
+                  description = "Maximum allowed of jobs for this instance.";
+                  type = lib.types.ints.positive;
+                  default = cfg.maxJobs;
+                  defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.maxJobs";
+                };
+
+                authorizationFile = lib.mkOption {
+                  description = "Path to token authorization file if token auth should be used.";
+                  type = lib.types.nullOr lib.types.path;
+                  default = cfg.authorizationFile;
+                  defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.authorizationFile";
+                };
+
+                mtls = lib.mkOption {
+                  description = "mtls options";
+                  type = lib.types.nullOr (
+                    lib.types.submodule {
+                      options = {
+                        serverRootCaCertPath = lib.mkOption {
+                          description = "Server root ca certificate path";
+                          type = lib.types.path;
+                        };
+                        clientCertPath = lib.mkOption {
+                          description = "Client certificate path";
+                          type = lib.types.path;
+                        };
+                        clientKeyPath = lib.mkOption {
+                          description = "Client key path";
+                          type = lib.types.path;
+                        };
+                        domainName = lib.mkOption {
+                          description = "Domain name for mtls";
+                          type = lib.types.singleLineStr;
+                        };
+                      };
+                    }
+                  );
+                  default = cfg.mtls;
+                  defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.mtls";
+                };
+
+                package = lib.mkOption {
+                  type = lib.types.package;
+                  default = cfg.package;
+                  defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.package";
+                };
+
+                logFile = lib.mkOption {
+                  type = lib.types.path;
+                  default = "/var/log/hydra-queue-builder${suffix name}.log";
+                  defaultText = lib.literalExpression ''"/var/log/hydra-queue-builder-''${name}.log"'';
+                  description = "The logfile to use for this instance.";
+                };
+              };
+            }
+          )
+        );
+      };
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    launchd.daemons.hydra-queue-builder-dev = {
-      script = ''
-        exec ${
-          lib.escapeShellArgs (
-            [
-              "${cfg.package}/bin/hydra-builder"
-              "--gateway-endpoint"
-              cfg.queueRunnerAddr
-              "--ping-interval"
-              cfg.pingInterval
-              "--speed-factor"
-              cfg.speedFactor
-              "--max-jobs"
-              cfg.maxJobs
-              "--build-dir-avail-threshold"
-              cfg.buildDirAvailThreshold
-              "--store-avail-threshold"
-              cfg.storeAvailThreshold
-              "--load1-threshold"
-              cfg.load1Threshold
-              "--cpu-psi-threshold"
-              cfg.cpuPsiThreshold
-              "--mem-psi-threshold"
-              cfg.memPsiThreshold
-            ]
-            ++ lib.optionals (cfg.ioPsiThreshold != null) [
-              "--io-psi-threshold"
-              cfg.ioPsiThreshold
-            ]
-            ++ (builtins.concatMap (v: [
-              "--systems"
-              v
-            ]) cfg.systems)
-            ++ (builtins.concatMap (v: [
-              "--supported-features"
-              v
-            ]) cfg.supportedFeatures)
-            ++ (builtins.concatMap (v: [
-              "--mandatory-features"
-              v
-            ]) cfg.mandatoryFeatures)
-            ++ lib.optionals (cfg.useSubstitutes != null) [
-              "--use-substitutes"
-            ]
-            ++ lib.optionals (cfg.authorizationFile != null) [
-              "--authorization-file"
-              cfg.authorizationFile
-            ]
-            ++ lib.optionals (cfg.mtls != null) [
-              "--server-root-ca-cert-path"
-              cfg.mtls.serverRootCaCertPath
-              "--client-cert-path"
-              cfg.mtls.clientCertPath
-              "--client-key-path"
-              cfg.mtls.clientKeyPath
-              "--domain-name"
-              cfg.mtls.domainName
-            ]
-          )
-        }
-      '';
+  config = lib.mkIf (cfg.enable || cfg.instances != { }) {
+    assertions = [
+      {
+        assertion = !(cfg.enable && cfg.instances ? default);
+        message = ''
+          services.hydra-queue-builder-dev: `enable` and `instances.default` both
+          configure the `hydra-queue-builder-dev` daemon. Use one or the other.
+        '';
+      }
+    ];
 
-      environment = {
-        RUST_BACKTRACE = "1";
-        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-        # The builder execs `nix build` to realise derivations.  The linux
-        # module sets `path = [ config.nix.package ]` on the systemd service;
-        # launchd has no equivalent, so we set PATH explicitly.
-        PATH = "${config.nix.package}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-      };
+    launchd.daemons =
+      # The options outside `instances` keep driving the historically named
+      # daemon, so existing configurations are unaffected.
+      lib.optionalAttrs cfg.enable { hydra-queue-builder-dev = mkDaemon "default" cfg; }
+      // lib.mapAttrs' (
+        name: icfg: lib.nameValuePair "hydra-queue-builder-dev${suffix name}" (mkDaemon name icfg)
+      ) cfg.instances;
 
-      serviceConfig = {
-        KeepAlive = true;
-        StandardErrorPath = cfg.logFile;
-        StandardOutPath = cfg.logFile;
-
-        GroupName = "hydra";
-        UserName = "hydra-queue-builder";
-        WorkingDirectory = user.home;
-      };
-    };
     users = {
       users.hydra-queue-builder = {
         uid = lib.mkDefault 535;
@@ -246,8 +350,11 @@ in
     # FIXME: create logfiles automatically if defined.
     system.activationScripts.preActivation.text = ''
       mkdir -p '${user.home}'
-      touch '${cfg.logFile}'
-      chown ${toString user.uid}:${toString user.gid} '${user.home}' '${cfg.logFile}'
+      chown ${toString user.uid}:${toString user.gid} '${user.home}'
+      ${lib.concatMapStringsSep "\n" (f: ''
+        touch '${f}'
+        chown ${toString user.uid}:${toString user.gid} '${f}'
+      '') (lib.optional cfg.enable cfg.logFile ++ map (i: i.logFile) (lib.attrValues cfg.instances))}
 
       # create gcroots
       mkdir -p /nix/var/nix/gcroots/per-user/hydra-queue-builder

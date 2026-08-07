@@ -7,6 +7,139 @@
 let
   cfg = config.services.hydra-queue-builder-dev;
   user = "hydra-queue-builder";
+
+  suffix = name: lib.optionalString (name != "default") "-${name}";
+
+  mkService = name: icfg: {
+    description = "Hydra Queue Builder main service${
+      lib.optionalString (name != "default") " (${name})"
+    }";
+
+    requires = [ "nix-daemon.socket" ];
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+
+    environment = {
+      NIX_REMOTE = "daemon";
+      LIBEV_FLAGS = "4"; # go ahead and mandate epoll(2)
+      RUST_BACKTRACE = "1";
+
+      # Note: it's important to set this for nix-store, because it wants to use
+      # $HOME in order to use a temporary cache dir. bizarre failures will occur
+      # otherwise
+      HOME = "/run/hydra-queue-builder${suffix name}";
+    };
+
+    path = [ config.nix.package ];
+
+    serviceConfig = {
+      Type = "notify";
+      Restart = "always";
+      RestartSec = "5s";
+
+      ExecStart = lib.escapeShellArgs (
+        [
+          "${icfg.package}/bin/hydra-builder"
+          "--gateway-endpoint"
+          icfg.queueRunnerAddr
+          "--ping-interval"
+          cfg.pingInterval
+          "--speed-factor"
+          cfg.speedFactor
+          "--max-jobs"
+          icfg.maxJobs
+          "--build-dir-avail-threshold"
+          cfg.buildDirAvailThreshold
+          "--store-avail-threshold"
+          cfg.storeAvailThreshold
+          "--load1-threshold"
+          cfg.load1Threshold
+          "--cpu-psi-threshold"
+          cfg.cpuPsiThreshold
+          "--mem-psi-threshold"
+          cfg.memPsiThreshold
+        ]
+        ++ lib.optionals (cfg.ioPsiThreshold != null) [
+          "--io-psi-threshold"
+          cfg.ioPsiThreshold
+        ]
+        ++ (builtins.concatMap (v: [
+          "--systems"
+          v
+        ]) cfg.systems)
+        ++ (builtins.concatMap (v: [
+          "--supported-features"
+          v
+        ]) cfg.supportedFeatures)
+        ++ (builtins.concatMap (v: [
+          "--mandatory-features"
+          v
+        ]) cfg.mandatoryFeatures)
+        ++ lib.optionals (cfg.useSubstitutes != null) [
+          "--use-substitutes"
+        ]
+        ++ lib.optionals (icfg.authorizationFile != null) [
+          "--authorization-file"
+          icfg.authorizationFile
+        ]
+        ++ lib.optionals (icfg.mtls != null) [
+          "--server-root-ca-cert-path"
+          icfg.mtls.serverRootCaCertPath
+          "--client-cert-path"
+          icfg.mtls.clientCertPath
+          "--client-key-path"
+          icfg.mtls.clientKeyPath
+          "--domain-name"
+          icfg.mtls.domainName
+        ]
+      );
+
+      User = user;
+      Group = "hydra";
+
+      PrivateNetwork = false;
+      SystemCallFilter = [
+        "@system-service"
+        "~@privileged"
+        "~@resources"
+      ];
+
+      ReadWritePaths = [
+        "/nix/var/nix/gcroots/"
+        "/nix/var/nix/daemon-socket/socket"
+      ];
+      ReadOnlyPaths = [ "/nix/" ];
+      RuntimeDirectory = "hydra-queue-builder${suffix name}";
+
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      PrivateTmp = true;
+      PrivateDevices = true;
+      ProtectKernelTunables = true;
+      ProtectControlGroups = true;
+      RestrictSUIDSGID = true;
+      PrivateMounts = true;
+      RemoveIPC = true;
+      UMask = "0077";
+
+      CapabilityBoundingSet = "";
+      NoNewPrivileges = true;
+
+      ProtectKernelModules = true;
+      SystemCallArchitectures = "native";
+      ProtectKernelLogs = true;
+      ProtectClock = true;
+
+      RestrictAddressFamilies = "";
+
+      LockPersonality = true;
+      ProtectHostname = true;
+      RestrictRealtime = true;
+      MemoryDenyWriteExecute = true;
+      PrivateUsers = true;
+      RestrictNamespaces = true;
+    };
+  };
 in
 {
   options = {
@@ -136,138 +269,105 @@ in
         type = lib.types.package;
         default = pkgs.callPackage ./. { };
       };
+
+      instances = lib.mkOption {
+        description = ''
+          Additional queue builders, one per further queue runner this machine
+          serves. ofborg runs its own Hydra alongside the staging one.
+
+          Each entry gets a `hydra-queue-builder-dev-<name>` unit next to the
+          one the options above configure, which is left untouched. Anything an
+          instance does not set falls back to the value above it, since those
+          describe the machine rather than the queue runner it talks to.
+
+          Instances do not know about each other, so their `maxJobs` add up.
+
+          All instances run the same binary by default. That matters: the queue
+          runner rejects a builder whose `PROTO_API_VERSION` differs from its
+          own, so serving two runners built from different trees needs a
+          per-instance `package`.
+        '';
+        default = { };
+        type = lib.types.attrsOf (
+          lib.types.submodule {
+            options = {
+              queueRunnerAddr = lib.mkOption {
+                description = "Queue Runner address to the grpc server";
+                type = lib.types.singleLineStr;
+              };
+
+              maxJobs = lib.mkOption {
+                description = "Maximum allowed of jobs for this instance.";
+                type = lib.types.ints.positive;
+                default = cfg.maxJobs;
+                defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.maxJobs";
+              };
+
+              authorizationFile = lib.mkOption {
+                description = "Path to token authorization file if token auth should be used.";
+                type = lib.types.nullOr lib.types.path;
+                default = cfg.authorizationFile;
+                defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.authorizationFile";
+              };
+
+              mtls = lib.mkOption {
+                description = "mtls options";
+                type = lib.types.nullOr (
+                  lib.types.submodule {
+                    options = {
+                      serverRootCaCertPath = lib.mkOption {
+                        description = "Server root ca certificate path";
+                        type = lib.types.path;
+                      };
+                      clientCertPath = lib.mkOption {
+                        description = "Client certificate path";
+                        type = lib.types.path;
+                      };
+                      clientKeyPath = lib.mkOption {
+                        description = "Client key path";
+                        type = lib.types.path;
+                      };
+                      domainName = lib.mkOption {
+                        description = "Domain name for mtls";
+                        type = lib.types.singleLineStr;
+                      };
+                    };
+                  }
+                );
+                default = cfg.mtls;
+                defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.mtls";
+              };
+
+              package = lib.mkOption {
+                type = lib.types.package;
+                default = cfg.package;
+                defaultText = lib.literalExpression "config.services.hydra-queue-builder-dev.package";
+              };
+            };
+          }
+        );
+      };
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    systemd.services.hydra-queue-builder-dev = {
-      description = "Hydra Queue Builder main service";
+  config = lib.mkIf (cfg.enable || cfg.instances != { }) {
+    assertions = [
+      {
+        assertion = !(cfg.enable && cfg.instances ? default);
+        message = ''
+          services.hydra-queue-builder-dev: `enable` and `instances.default` both
+          configure the `hydra-queue-builder-dev` unit. Use one or the other.
+        '';
+      }
+    ];
 
-      requires = [ "nix-daemon.socket" ];
-      after = [ "network.target" ];
-      wantedBy = [ "multi-user.target" ];
-
-      environment = {
-        NIX_REMOTE = "daemon";
-        LIBEV_FLAGS = "4"; # go ahead and mandate epoll(2)
-        RUST_BACKTRACE = "1";
-
-        # Note: it's important to set this for nix-store, because it wants to use
-        # $HOME in order to use a temporary cache dir. bizarre failures will occur
-        # otherwise
-        HOME = "/run/hydra-queue-builder";
-      };
-
-      path = [ config.nix.package ];
-
-      serviceConfig = {
-        Type = "notify";
-        Restart = "always";
-        RestartSec = "5s";
-
-        ExecStart = lib.escapeShellArgs (
-          [
-            "${cfg.package}/bin/hydra-builder"
-            "--gateway-endpoint"
-            cfg.queueRunnerAddr
-            "--ping-interval"
-            cfg.pingInterval
-            "--speed-factor"
-            cfg.speedFactor
-            "--max-jobs"
-            cfg.maxJobs
-            "--build-dir-avail-threshold"
-            cfg.buildDirAvailThreshold
-            "--store-avail-threshold"
-            cfg.storeAvailThreshold
-            "--load1-threshold"
-            cfg.load1Threshold
-            "--cpu-psi-threshold"
-            cfg.cpuPsiThreshold
-            "--mem-psi-threshold"
-            cfg.memPsiThreshold
-          ]
-          ++ lib.optionals (cfg.ioPsiThreshold != null) [
-            "--io-psi-threshold"
-            cfg.ioPsiThreshold
-          ]
-          ++ (builtins.concatMap (v: [
-            "--systems"
-            v
-          ]) cfg.systems)
-          ++ (builtins.concatMap (v: [
-            "--supported-features"
-            v
-          ]) cfg.supportedFeatures)
-          ++ (builtins.concatMap (v: [
-            "--mandatory-features"
-            v
-          ]) cfg.mandatoryFeatures)
-          ++ lib.optionals (cfg.useSubstitutes != null) [
-            "--use-substitutes"
-          ]
-          ++ lib.optionals (cfg.authorizationFile != null) [
-            "--authorization-file"
-            cfg.authorizationFile
-          ]
-          ++ lib.optionals (cfg.mtls != null) [
-            "--server-root-ca-cert-path"
-            cfg.mtls.serverRootCaCertPath
-            "--client-cert-path"
-            cfg.mtls.clientCertPath
-            "--client-key-path"
-            cfg.mtls.clientKeyPath
-            "--domain-name"
-            cfg.mtls.domainName
-          ]
-        );
-
-        User = user;
-        Group = "hydra";
-
-        PrivateNetwork = false;
-        SystemCallFilter = [
-          "@system-service"
-          "~@privileged"
-          "~@resources"
-        ];
-
-        ReadWritePaths = [
-          "/nix/var/nix/gcroots/"
-          "/nix/var/nix/daemon-socket/socket"
-        ];
-        ReadOnlyPaths = [ "/nix/" ];
-        RuntimeDirectory = "hydra-queue-builder";
-
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        PrivateDevices = true;
-        ProtectKernelTunables = true;
-        ProtectControlGroups = true;
-        RestrictSUIDSGID = true;
-        PrivateMounts = true;
-        RemoveIPC = true;
-        UMask = "0077";
-
-        CapabilityBoundingSet = "";
-        NoNewPrivileges = true;
-
-        ProtectKernelModules = true;
-        SystemCallArchitectures = "native";
-        ProtectKernelLogs = true;
-        ProtectClock = true;
-
-        RestrictAddressFamilies = "";
-
-        LockPersonality = true;
-        ProtectHostname = true;
-        RestrictRealtime = true;
-        MemoryDenyWriteExecute = true;
-        PrivateUsers = true;
-        RestrictNamespaces = true;
-      };
-    };
+    systemd.services =
+      # The options outside `instances` keep driving the historically named
+      # unit, so existing configurations are unaffected.
+      lib.optionalAttrs cfg.enable { hydra-queue-builder-dev = mkService "default" cfg; }
+      // lib.mapAttrs' (
+        name: icfg: lib.nameValuePair "hydra-queue-builder-dev${suffix name}" (mkService name icfg)
+      ) cfg.instances;
 
     systemd.tmpfiles.rules = [
       "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"
