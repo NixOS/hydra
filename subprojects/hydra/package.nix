@@ -125,7 +125,7 @@ let
         TextDiff
         TextTable
         URIdb
-        UUID4Tiny
+        UUIDURandom
         YAML
         XMLSimple
       ])
