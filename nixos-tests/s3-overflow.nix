@@ -113,7 +113,7 @@ in
 
   nodes.builder = {
     imports = [ common.builderConfig ];
-    services.hydra-queue-builder-dev.useSubstitutes = lib.mkForce false;
+    services.hydra-queue-builder-dev.settings.useSubstitutes = lib.mkForce false;
     nix.settings.substituters = lib.mkForce [ ];
   };
 

@@ -174,7 +174,7 @@ in
     imports = [ common.builderConfig ];
     # Presigned uploads require the builder to advertise the forced
     # substituter with substitution enabled, or the queue runner rejects it.
-    services.hydra-queue-builder-dev.useSubstitutes = lib.mkForce presigned;
+    services.hydra-queue-builder-dev.settings.useSubstitutes = lib.mkForce presigned;
     nix.settings.substituters = lib.mkForce (lib.optionals presigned [ s3StoreUri ]);
   };
 
