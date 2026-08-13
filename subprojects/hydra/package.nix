@@ -210,7 +210,7 @@ stdenv.mkDerivation (finalAttrs: {
       breezy
       nix-eval-jobs
     ]
-    ++ lib.optionals stdenv.isLinux [
+    ++ lib.optionals stdenv.hostPlatform.isLinux [
       rpm
       dpkg
       cdrkit
