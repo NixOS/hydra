@@ -50,9 +50,11 @@ in
         "postgresql.service"
       ];
       environment = {
-        HYDRA_DATABASE_URL = "${cfg.dbUrl}${
-          if lib.hasInfix "?" cfg.dbUrl then "&" else "?"
-        }application_name=hydra-init";
+        # See the comment on `dbUrlWithAppName` in web-app.nix for why `%`
+        # has to be doubled here.
+        HYDRA_DATABASE_URL =
+          lib.replaceStrings [ "%" ] [ "%%" ]
+            "${cfg.dbUrl}${if lib.hasInfix "?" cfg.dbUrl then "&" else "?"}application_name=hydra-init";
         HYDRA_CONFIG = "${baseDir}/hydra.conf";
         HYDRA_DATA = baseDir;
         PGPASSFILE = "${baseDir}/pgpass";
