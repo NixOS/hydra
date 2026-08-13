@@ -24,7 +24,7 @@ pub enum BuildStatus {
     LogLimitExceeded = 10,
     NarSizeLimitExceeded = 11,
     NotDeterministic = 12,
-    /// step was resolved to a CA derivation
+    /// step was resolved to a CA derivation, see resolvedTo FK
     Resolved = 13,
     /// not stored
     Busy = 100,
@@ -150,6 +150,22 @@ pub struct InsertBuildStep<'a> {
     pub propagated_from: Option<i32>,
     pub error_msg: Option<&'a str>,
     pub machine: &'a str,
+}
+
+/// A build step recording that its derivation was resolved to
+/// `resolved_drv_path`, i.e. `status` is
+/// [`Resolved`](BuildStatus::Resolved). Kept separate from
+/// [`InsertBuildStep`] because the two cases are semantically disjoint:
+/// a check constraint requires `resolvedDrvPath` to be set exactly for
+/// resolved steps.
+#[derive(Debug)]
+pub struct InsertResolvedBuildStep<'a> {
+    pub build_id: BuildID,
+    pub drv_path: &'a StorePath,
+    pub start_time: i32,
+    pub platform: Option<&'a str>,
+    pub machine: &'a str,
+    pub resolved_drv_path: &'a StorePath,
 }
 
 #[derive(Debug)]

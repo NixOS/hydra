@@ -280,6 +280,8 @@ message MultipartPartsRequest {
   string upload_id = 4;
   uint32 start_part_number = 5;
   uint32 num_parts = 6;
+  // Bucket echoed from PresignedNarResponse.
+  optional string bucket = 7;
 }
 
 message MultipartPartsResponse {
@@ -292,6 +294,9 @@ message PresignedNarResponse {
   PresignedUpload nar_upload = 3;
   optional PresignedUpload ls_upload = 4;
   repeated PresignedUpload debug_info_upload = 5;
+  // Bucket the URLs point at.
+  // Echoed back in follow-up requests.
+  optional string bucket = 6;
 }
 
 message PresignedUrlResponse {
@@ -309,4 +314,6 @@ message PresignedUploadComplete {
   // narinfo's FileHash/FileSize from the stored object rather than from this
   // upload's (discarded) compression.
   bool nar_already_present = 15;
+  // Bucket echoed from PresignedNarResponse.
+  optional string bucket = 16;
 }

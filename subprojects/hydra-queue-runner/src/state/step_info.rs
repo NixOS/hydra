@@ -67,7 +67,6 @@ impl StepInfo {
         store_dir: &StoreDir,
         db: &db::Database,
         drv: &Derivation,
-        resolved_drv_map: &hashbrown::HashMap<StorePath, StorePath>,
     ) -> Option<BasicDerivation> {
         // If there are no Built inputs, the derivation is already resolved.
         let has_built_inputs = drv
@@ -88,49 +87,65 @@ impl StepInfo {
 
         let mut conn = db.get().await.ok()?;
 
-        // Memoize depth-1 lookups across all chains resolved in this call.
-        let mut memo =
-            std::collections::HashMap::<(StorePath, OutputName), Option<StorePath>>::new();
-
         drv.try_resolve_force(store_dir, &mut |inputs| {
             tokio::task::block_in_place(|| {
-                let rt = tokio::runtime::Handle::current();
-
+                // Flatten each SingleDerivedPath chain into (root, [outputs...])
+                // and resolve everything in a single recursive SQL query.
                 let chains: Vec<_> = inputs
                     .iter()
                     .map(|(drv_path, output_name)| flatten_chain(drv_path, output_name))
                     .collect();
 
-                // Resolve each chain one level at a time, translating
-                // through the in-memory resolved-drv map between levels.
-                chains
+                // SQL needs forward order; OutputNameChain stores reversed.
+                let chain_refs: Vec<_> = chains
                     .iter()
-                    .map(|(root, chain)| {
-                        let mut current = root.clone();
-                        // OutputNameChain is in stack order; iterate
-                        // reversed for forward (root-to-leaf) order.
-                        for output_name in chain.0.iter().rev() {
-                            let translated = resolved_drv_map
-                                .get(&current)
-                                .cloned()
-                                .unwrap_or_else(|| current.clone());
-                            let key = (translated, output_name.clone());
-                            let result = if let Some(cached) = memo.get(&key) {
-                                cached.clone()
-                            } else {
-                                let r = rt
-                                    .block_on(conn.resolve_drv_output(store_dir, &key.0, &key.1))
+                    .map(|(root, chain)| (root, chain.0.iter().rev().collect::<Vec<_>>()))
+                    .collect();
+
+                let sql_input: Vec<_> = chain_refs
+                    .iter()
+                    .map(|(root, outputs)| (*root, outputs.as_slice()))
+                    .collect();
+
+                let rt = tokio::runtime::Handle::current();
+                let results = rt
+                    .block_on(conn.resolve_drv_output_chains(store_dir, &sql_input))
+                    .unwrap_or_else(|e| {
+                        tracing::warn!("resolve_drv_output_chains failed: {e}");
+                        vec![None; inputs.len()]
+                    });
+
+                // The build-history lookup can miss outputs that never got
+                // a successful build step row. For chains the SQL couldn't
+                // resolve, retry link by link, falling back to reading the
+                // `.drv` file, which is authoritative for input-addressed
+                // derivations. The per-link DB lookup matters too: a chain
+                // can mix links known only to the DB with links whose drv
+                // only exists on disk, and the recursive SQL stops at the
+                // first miss.
+                results
+                    .into_iter()
+                    .zip(&chain_refs)
+                    .map(|(result, (root, outputs))| {
+                        result.or_else(|| {
+                            let mut current = (*root).clone();
+                            for output_name in outputs {
+                                current = rt
+                                    .block_on(conn.resolve_drv_output(
+                                        store_dir,
+                                        &current,
+                                        output_name,
+                                    ))
                                     .unwrap_or_else(|e| {
                                         tracing::warn!("resolve_drv_output failed: {e}");
                                         None
                                     })
-                                    .or_else(|| resolve_from_drv_file(store_dir, &key.0, &key.1));
-                                memo.insert(key, r.clone());
-                                r
-                            };
-                            current = result?;
-                        }
-                        Some(current)
+                                    .or_else(|| {
+                                        resolve_from_drv_file(store_dir, &current, output_name)
+                                    })?;
+                            }
+                            Some(current)
+                        })
                     })
                     .collect()
             })
