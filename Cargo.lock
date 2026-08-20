@@ -999,6 +999,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "daemon-server"
+version = "0.1.0"
+dependencies = [
+ "db",
+ "fs-err",
+ "futures",
+ "harmonia-protocol",
+ "harmonia-store-content-address",
+ "harmonia-store-derivation",
+ "harmonia-store-path",
+ "harmonia-store-remote",
+ "harmonia-utils-io",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "dashmap"
 version = "6.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
