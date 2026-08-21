@@ -11,8 +11,10 @@ use NixDaemon qw(start_nix_daemon);
 use ProcessGroup;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    start_builder
     start_queue_runner
     wait_for_builds
+    wait_for_socket
     wait_for_url
 );
 
@@ -28,6 +30,14 @@ sub wait_for_url {
     return 0;
 }
 
+sub wait_for_socket {
+    my ($path) = @_;
+    for my $i (1..60) {
+        return 1 if -S $path;
+        select(undef, undef, undef, 0.5);
+    }
+    return 0;
+}
 
 # Start a queue runner process using systemd socket activation.
 # We bind TCP sockets ourselves (port 0 for OS-assigned ports), then
@@ -35,6 +45,13 @@ sub wait_for_url {
 # Returns ($process_group, $rest_url, $grpc_addr).
 # The ProcessGroup has the nix daemon and queue-runner registered.
 # Caller is responsible for calling $pg->stop when done.
+#
+# Options:
+#   rust_log: RUST_LOG value, default "hydra_queue_runner=debug,info".
+#   queue_monitor_loop: 1 to leave the queue-monitor-loop running so
+#     the queue runner picks up new Builds rows on its own (the
+#     drv-daemon's ad-hoc flow needs this). Default 0 (disabled), which
+#     matches QueueRunnerBuildOne's manual /build_one driver.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
@@ -96,24 +113,27 @@ sub start_queue_runner {
 
     my ($qr_in, $qr_out, $qr_err) = ("", "", "");
 
+    my @args = (
+        "hydra-queue-runner",
+        "--config-path", $config_file,
+        "--rest-bind", "-",
+        "--grpc-bind", "-",
+    );
+    push @args, "--disable-queue-monitor-loop" unless $opts{queue_monitor_loop};
+
     # Start the queue runner, connecting to the nix daemon via unix://.
     my $qr_harness;
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         local $ENV{NIX_REMOTE} = $ctx->{central}{nix_daemon_uri};
-        local $ENV{RUST_LOG} = "hydra_queue_runner=debug,info";
+        local $ENV{RUST_LOG} = $opts{rust_log} // "hydra_queue_runner=debug,info";
         local $ENV{NO_COLOR} = "1";
         local $ENV{LISTEN_FDS} = "2";
         local $ENV{LISTEN_FDNAMES} = "rest:grpc";
         # Don't set LISTEN_PID — listenfd skips the PID check when it's unset.
         delete $ENV{LISTEN_PID};
         $qr_harness = IPC::Run::start(
-            ["hydra-queue-runner",
-                "--config-path", $config_file,
-                "--rest-bind", "-",
-                "--grpc-bind", "-",
-                "--disable-queue-monitor-loop",
-            ],
+            \@args,
             \$qr_in, \$qr_out, \$qr_err,
             init => sub {
                 # In the child: place sockets at fd 3 and 4.
@@ -172,6 +192,32 @@ sub wait_for_builds {
         sleep 2;
     }
     die "timed out waiting for builds to finish\n";
+}
+
+# Start a hydra-builder against an already-running queue runner, plus the
+# nix daemon it builds through. Both are registered in $pg under the keys
+# wait_for_builds looks for.
+#
+# Options:
+#   rust_log: RUST_LOG value, default "hydra_builder=debug,info".
+sub start_builder {
+    my ($ctx, $grpc_addr, $pg, %opts) = @_;
+    ref $ctx eq 'HydraTestContext' or die "start_builder requires a HydraTestContext\n";
+
+    start_nix_daemon($ctx->{builder}, $pg, "builder daemon");
+
+    return $pg->spawn("builder",
+        ["hydra-builder", "--gateway-endpoint", "http://$grpc_addr"],
+        env => {
+            NIX_REMOTE    => $ctx->{builder}{nix_daemon_uri},
+            NIX_CONF_DIR  => $ctx->{builder}{nix_conf_dir},
+            NIX_STATE_DIR => $ctx->{builder}{nix_state_dir},
+            # TODO: hydra-builder reads NIX_STORE_DIR to report its store
+            # dir to the queue runner; should use the store URI instead.
+            NIX_STORE_DIR => $ctx->{builder}{nix_store_dir},
+            RUST_LOG      => $opts{rust_log} // "hydra_builder=debug,info",
+        },
+    );
 }
 
 1;

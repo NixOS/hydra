@@ -4,14 +4,11 @@
 
   rustPlatform,
 
-  protobuf,
   pkg-config,
-  rust-jemalloc-sys,
-  withOtel ? false,
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "hydra-builder";
+  pname = "hydra-drv-daemon";
   inherit version;
 
   src = lib.fileset.toSource {
@@ -20,10 +17,10 @@ rustPlatform.buildRustPackage {
       ../../Cargo.toml
       ../../Cargo.lock
       ../../.cargo
-      ../../subprojects/hydra-builder/Cargo.toml
-      ../../subprojects/hydra-builder/src
+      ../../.sqlx
+      ../../subprojects/hydra-drv-daemon/Cargo.toml
+      ../../subprojects/hydra-drv-daemon/src
       ../../subprojects/crates
-      # For unit tests which want to spin up a fresh database
       ../../subprojects/hydra/sql/hydra.sql
       ../../subprojects/proto
     ];
@@ -38,24 +35,16 @@ rustPlatform.buildRustPackage {
   # are excluded from the fileset above, so cargo would otherwise fail
   # trying to load their (absent) manifests.
   postPatch = ''
-    sed -i '/hydra-builder/!{/"subprojects\/hydra-/d;}' Cargo.toml
+    sed -i '/hydra-drv-daemon/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
-  buildAndTestSubdir = "subprojects/hydra-builder";
-  buildFeatures = lib.optional withOtel "otel";
+  buildAndTestSubdir = "subprojects/hydra-drv-daemon";
 
   nativeBuildInputs = [
     pkg-config
-    protobuf
   ];
 
-  buildInputs = [
-    protobuf
-    rust-jemalloc-sys
-  ];
-
-  # FIXME: get these passing in a prod build
   doCheck = false;
 
-  meta.description = "Hydra builder (Rust)";
+  meta.description = "Hydra drv-daemon: spawn ad-hoc Hydra builds via the nix daemon protocol";
 }

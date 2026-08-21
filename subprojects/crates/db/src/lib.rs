@@ -19,7 +19,7 @@ pub mod models;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{Connection, FinishedBuild, Transaction};
 pub use error::{DataError, Error, Result};
 pub use harmonia_store_path::StoreDir;
 pub use sqlx::postgres::PgNotification as Notification;
@@ -73,6 +73,25 @@ where
     }
 }
 
+/// Environment variable holding the `PostgreSQL` connection URL for Hydra
+/// services.
+pub const URL_ENV_VAR: &str = "HYDRA_DATABASE_URL";
+
+/// Connection URL used when [`URL_ENV_VAR`] is unset: the local-socket
+/// database that the NixOS module provisions by default.
+pub const DEFAULT_LOCAL_URL: &str = "postgres://hydra@%2Frun%2Fpostgresql:5432/hydra";
+
+/// Connection options parsed from [`URL_ENV_VAR`], or [`DEFAULT_LOCAL_URL`]
+/// if unset.
+///
+/// Private so a URL with an embedded password cannot end up in callers'
+/// logs; use [`Database::from_env`] instead. (`PgConnectOptions` itself
+/// redacts the password in its `Debug` output.)
+fn options_from_env() -> Result<sqlx::postgres::PgConnectOptions> {
+    let url = std::env::var(URL_ENV_VAR).unwrap_or_else(|_| DEFAULT_LOCAL_URL.to_owned());
+    Ok(sqlx::postgres::PgConnectOptions::from_str(&url)?)
+}
+
 #[derive(Debug, Clone)]
 pub struct Database {
     pool: sqlx::PgPool,
@@ -85,6 +104,17 @@ const ACQUIRE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const ACQUIRE_ATTEMPTS: u32 = 6;
 
 impl Database {
+    /// Connect using [`URL_ENV_VAR`] (or the local-socket default).
+    pub async fn from_env(max_connections: u32) -> Result<Self> {
+        Ok(Self {
+            pool: sqlx::postgres::PgPoolOptions::new()
+                .max_connections(max_connections)
+                .acquire_timeout(ACQUIRE_TIMEOUT)
+                .connect_with(options_from_env()?)
+                .await?,
+        })
+    }
+
     pub async fn new(url: &str, max_connections: u32) -> Result<Self> {
         Ok(Self {
             pool: sqlx::postgres::PgPoolOptions::new()
@@ -126,6 +156,12 @@ impl Database {
         + Unpin,
     > {
         let mut listener = sqlx::postgres::PgListener::connect_with(&self.pool).await?;
+        // With eager reconnect (the default), sqlx silently swallows
+        // connection loss and NOTIFYs sent during the gap are dropped
+        // without the stream ever yielding an item — callers can neither
+        // resync nor exit. Surface disconnects as stream errors instead;
+        // the stream still reconnects lazily on the next poll.
+        listener.eager_reconnect(false);
         listener.listen_all(channels).await?;
         Ok(listener.into_stream())
     }

@@ -6,9 +6,12 @@
   hydra,
   hydra-queue-runner,
   hydra-builder,
+  hydra-drv-daemon,
+  hydra-evaluator,
 
   meson,
   ninja,
+  socat,
 
   perl,
   nixComponents,
@@ -59,6 +62,8 @@ stdenv.mkDerivation (finalAttrs: {
     hydra
     hydra-queue-runner
     hydra-builder
+    hydra-drv-daemon
+    hydra-evaluator
     hydra.perlDeps
     perl
     nixComponents.nix-cli
@@ -72,6 +77,7 @@ stdenv.mkDerivation (finalAttrs: {
     postgresql_17
     pixz
     nix-eval-jobs
+    socat
     curl
   ];
 
