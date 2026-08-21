@@ -81,6 +81,9 @@
           };
           hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix {
           };
+          hydra-ws = self'.callPackage ./subprojects/hydra-ws/package.nix {
+            inherit nixComponents;
+          };
         });
       mkHydraBuilder =
         { pkgs, nixComponents }:

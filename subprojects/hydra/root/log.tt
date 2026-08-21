@@ -38,12 +38,66 @@
   [% END %]
 </p>
 
-<div class="card bg-light"><div class="card-body"><pre class="log" id="contents">
+<div class="card bg-light" style="position: relative">
+  <div class="card-body" style="padding: 0">
+    <pre class="log" id="contents" style="max-height: 70vh; overflow-y: auto; margin: 0; padding: 1rem">
 <em>Loading...</em>
-</pre></div></div>
+    </pre>
+  </div>
+  <button id="scrollBtn" title="Scroll to bottom"
+    style="display: none; position: absolute; bottom: 1rem; right: 1.5rem;
+           border-radius: 50%; width: 2rem; height: 2rem; cursor: pointer;
+           background: #333; color: #fff; border: none; font-size: 1rem; line-height: 1">
+    ↓
+  </button>
+</div>
 
 <script type="text/javascript">
-  $(document).ready(function() {
+  let loaded = false;
+  let autoScroll = true;
+  const MAX_LOG_LINES = 5000;
+
+  function ensureLoaded() {
+    if (!loaded) {
+      $("#contents").empty();
+      loaded = true;
+    }
+  }
+
+  function scrollToLatest() {
+    if (!autoScroll) return;
+    const pre = $("#contents")[0];
+    pre.scrollTop = pre.scrollHeight;
+  }
+
+  function appendEntry(node) {
+    ensureLoaded();
+    const pre = $("#contents")[0];
+    while (pre.childNodes.length >= MAX_LOG_LINES) {
+      pre.removeChild(pre.firstChild);
+    }
+    pre.appendChild(node);
+    scrollToLatest();
+  }
+
+  function appendStatus(message, color) {
+    const span = $("<span>").css({ color: color, userSelect: "none" }).text(message + '\n')[0];
+    appendEntry(span);
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return '';
+    const cleaned = ts.replace(/\.(\d{3})\d*Z$/, '.$1Z');
+    const d = new Date(cleaned);
+    if (isNaN(d.getTime())) return ts;
+    const pad = n => String(n).padStart(2, '0');
+    const h = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    const s = pad(d.getSeconds());
+    return `${h}:${mi}:${s}`;
+  }
+
+  function plainLoadFileContent() {
     requestPlainFile({
       url: "[% HTML.escape(log_uri) %]",
       dataType: "text",
@@ -63,6 +117,96 @@
         $("#contents").text("(Unavailable)");
       }
     });
+  }
+
+  $(document).ready(function() {
+    $("#contents").on("scroll", function() {
+      const atBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 32;
+      autoScroll = atBottom;
+      $("#scrollBtn").toggle(!atBottom);
+    });
+
+    $("#scrollBtn").on("click", function() {
+      const pre = $("#contents")[0];
+      pre.scrollTop = pre.scrollHeight;
+      autoScroll = true;
+      $(this).hide();
+    });
+
+    [% UNLESS live %]
+      plainLoadFileContent();
+    [% ELSE %]
+      let connected = false;
+      const socket = new WebSocket("[% HTML.escape(ws_endpoint) %]");
+      const wsTimeout = setTimeout(() => {
+        if (!connected) {
+          socket.close();
+          plainLoadFileContent();
+        }
+      }, 5000);
+
+      socket.addEventListener("open", (event) => {
+        connected = true;
+        clearTimeout(wsTimeout);
+        const msg = {
+          "type":"logsStart",
+          "buildId": [% build.id %],
+        };
+        [% IF step %]msg.stepId = [% step.stepnr %];[% END %]
+        socket.send(JSON.stringify(msg));
+      });
+
+      socket.addEventListener("error", (event) => {
+        if (!connected) {
+          plainLoadFileContent();
+        }
+      });
+
+      socket.addEventListener("close", (event) => {
+        if (connected) {
+          appendStatus("Connection to server closed", "green");
+        }
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case "logsStart":
+            if (data.success) {
+              appendStatus("Connected", "green");
+            } else {
+              appendStatus(data.details || "Failed to open log", "red");
+            }
+            break;
+          case "logsEnd":
+            if (data.success === false) {
+              appendStatus(data.details || "Log stream failed", "red");
+            } else {
+              appendStatus("Logs closed by server", "green");
+            }
+            break;
+          case "stepFinished":
+            appendStatus("Step finished", "green");
+            break;
+          case "buildFinished":
+            appendStatus("Build finished", "green");
+            break;
+          case "logLine":
+            const ts = $("<span>").css({ userSelect: "none" });
+            if (data.timestamp) {
+              ts.css({ color: "#888" }).text(formatTimestamp(data.timestamp) + ' ');
+            } else {
+              ts.css({ color: "transparent" }).text('\u00a0'.repeat(9));
+            }
+            const entry = document.createElement("span");
+            entry.appendChild(ts[0]);
+            entry.appendChild(document.createTextNode(data.line.trimEnd() + '\n'));
+            appendEntry(entry);
+            break;
+        }
+      });
+    [% END %]
   });
 </script>
 
