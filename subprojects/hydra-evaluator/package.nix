@@ -7,11 +7,10 @@
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
-  withOtel ? false,
 }:
 
 rustPlatform.buildRustPackage {
-  pname = "hydra-builder";
+  pname = "hydra-evaluator";
   inherit version;
 
   src = lib.fileset.toSource {
@@ -20,8 +19,9 @@ rustPlatform.buildRustPackage {
       ../../Cargo.toml
       ../../Cargo.lock
       ../../.cargo
-      ../../subprojects/hydra-builder/Cargo.toml
-      ../../subprojects/hydra-builder/src
+      ../../.sqlx
+      ../../subprojects/hydra-evaluator/Cargo.toml
+      ../../subprojects/hydra-evaluator/src
       ../../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../../subprojects/hydra/sql/hydra.sql
@@ -38,11 +38,10 @@ rustPlatform.buildRustPackage {
   # are excluded from the fileset above, so cargo would otherwise fail
   # trying to load their (absent) manifests.
   postPatch = ''
-    sed -i '/hydra-builder/!{/"subprojects\/hydra-/d;}' Cargo.toml
+    sed -i '/hydra-evaluator/!{/"subprojects\/hydra-/d;}' Cargo.toml
   '';
 
-  buildAndTestSubdir = "subprojects/hydra-builder";
-  buildFeatures = lib.optional withOtel "otel";
+  buildAndTestSubdir = "subprojects/hydra-evaluator";
 
   nativeBuildInputs = [
     pkg-config
@@ -57,5 +56,5 @@ rustPlatform.buildRustPackage {
   # FIXME: get these passing in a prod build
   doCheck = false;
 
-  meta.description = "Hydra builder (Rust)";
+  meta.description = "Hydra evaluator (Rust)";
 }

@@ -19,7 +19,7 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **`hydra-server`** (Perl, Catalyst)
     - web frontend and REST API
     - user authentication (built-in or LDAP)
-- **`hydra-evaluator`** (C++)
+- **`hydra-evaluator`** (Rust)
     - periodically evaluates jobsets by invoking the Nix evaluator
     - writes `.drv` files into the coordinator's Nix store
     - adds new builds to the queue when evaluation results change
@@ -128,14 +128,14 @@ The repository is organized into subprojects:
 - [`subprojects/hydra-manual/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-manual)
   — this manual (mdbook)
 
-The build system uses Meson for the C++ and Perl components and Cargo for the Rust workspace.
+The build system uses Meson for the Perl components and Cargo for the Rust workspace.
 
 ## Database Schema
 
 The canonical schema lives in [`subprojects/hydra/sql/hydra.sql`](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/hydra.sql).
 Incremental migrations are in `migrations/upgrade-N.sql`; see the [SQL README](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/README.md) for details on making schema changes.
 
-The database is accessed by all three language runtimes: Perl (DBI/DBIx::Class), C++ (libpqxx), and Rust (SQLx).
+The database is accessed by both language runtimes: Perl (DBI/DBIx::Class) and Rust (SQLx).
 
 Key tables:
 

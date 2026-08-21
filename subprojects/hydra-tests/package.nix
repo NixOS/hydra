@@ -6,6 +6,7 @@
   hydra,
   hydra-queue-runner,
   hydra-builder,
+  hydra-evaluator,
 
   meson,
   ninja,
@@ -59,6 +60,7 @@ stdenv.mkDerivation (finalAttrs: {
     hydra
     hydra-queue-runner
     hydra-builder
+    hydra-evaluator
     hydra.perlDeps
     perl
     nixComponents.nix-cli
