@@ -165,4 +165,13 @@ sub valid_roles {
     ];
 }
 
+# Some OIDC identity provider implementations (e.g. kanidm) have restrictions on what values can
+# be put in custom claims. We look for the roles to add users to based on the hydra_roles claim,
+# and e.g. kanidm does not allow dashes in this claim. So accept underscores in place of dashes
+# in the role names.
+sub normalize_role_name {
+    my ($role) = @_;
+    return $role =~ s/_/-/gr;
+}
+
 1;

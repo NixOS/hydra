@@ -7,6 +7,7 @@ use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
 use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Helper::OIDC qw(resolveOIDCConfig);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
                 Static::Simple
@@ -17,10 +18,12 @@ use Catalyst qw/ConfigLoader
                 Session::Store::FastMmap
                 Session::State::Cookie
                 Captcha
+                Cache
                 PrometheusTiny/,
                 '-Log=warn,fatal,error';
 use CatalystX::RoleApplicator;
 use Path::Class 'file';
+use Cache::FastMmap;
 
 our $VERSION = '0.01';
 
@@ -65,6 +68,13 @@ __PACKAGE__->config(
         storage => Hydra::Model::DB::getHydraPath . "/www/session_data",
         unlink_on_exit => 0
     },
+    'Plugin::Cache' => {
+        backend => {
+            class => 'Cache::FastMmap',
+            unlink_on_exit => 1,
+            init_file => 1,
+        },
+    },
     'Plugin::Captcha' => {
         session_name => 'hydra-captcha',
         new => {
@@ -93,6 +103,15 @@ has 'hydra_plugins' => (
     is => 'ro',
     default => sub { return $plugins; }
 );
+
+# Load OIDC secrets from disk and validate static config. Discovery
+# endpoints are resolved lazily on first login (see Hydra::Helper::OIDC),
+# so this does no network I/O and a misconfiguration here is a genuine
+# deployment error worth dying for.
+after setup_finalize => sub {
+    my $class = shift;
+    resolveOIDCConfig($class->config->{oidc});
+};
 
 after setup_finalize => sub {
     my $class = shift;
