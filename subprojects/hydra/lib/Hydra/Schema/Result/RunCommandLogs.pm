@@ -174,7 +174,7 @@ __PACKAGE__->belongs_to(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZVpYU6k3d/k/nitjpdgf/A
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
-use UUID4::Tiny qw(create_uuid_string);
+use UUID::URandom qw(create_uuid_string);
 
 
 =head2 new

@@ -1,3 +1,4 @@
+#[cfg(target_os = "linux")]
 #[derive(Debug, thiserror::Error)]
 pub enum CgroupError {
     #[error("reading cgroup file")]
@@ -54,6 +55,7 @@ pub struct MemoryStats {
     zswap_current_bytes: u64,
 }
 
+#[cfg(target_os = "linux")]
 impl MemoryStats {
     #[tracing::instrument(err)]
     fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
@@ -97,6 +99,7 @@ pub struct IoStats {
     total_write_bytes: u64,
 }
 
+#[cfg(target_os = "linux")]
 impl IoStats {
     #[tracing::instrument(err)]
     fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
@@ -138,6 +141,7 @@ pub struct CpuStats {
     system_usec: u128,
 }
 
+#[cfg(target_os = "linux")]
 impl CpuStats {
     #[tracing::instrument(err)]
     fn new(cgroups_path: &std::path::Path) -> Result<Self, CgroupError> {
@@ -176,6 +180,7 @@ impl CpuStats {
     }
 }
 
+#[cfg(target_os = "linux")]
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CgroupStats {
@@ -184,6 +189,7 @@ pub struct CgroupStats {
     cpu: CpuStats,
 }
 
+#[cfg(target_os = "linux")]
 impl CgroupStats {
     #[tracing::instrument(err)]
     fn new(me: &procfs::process::Process) -> Result<Self, CgroupError> {
@@ -212,13 +218,18 @@ impl CgroupStats {
 #[serde(rename_all = "camelCase")]
 pub struct Process {
     pid: i32,
+    #[cfg(target_os = "linux")]
     vsize_bytes: u64,
+    #[cfg(target_os = "linux")]
     rss_bytes: u64,
+    #[cfg(target_os = "linux")]
     shared_bytes: u64,
+    #[cfg(target_os = "linux")]
     cgroup: Option<CgroupStats>,
 }
 
 impl Process {
+    #[cfg(target_os = "linux")]
     pub fn new() -> Option<Self> {
         let me = procfs::process::Process::myself().ok()?;
         let page_size = procfs::page_size();
@@ -238,6 +249,13 @@ impl Process {
                     None
                 }
             },
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn new() -> Option<Self> {
+        Some(Self {
+            pid: std::process::id().try_into().ok()?,
         })
     }
 }
