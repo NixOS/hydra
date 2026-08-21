@@ -695,7 +695,6 @@ create index IndexBuildsJobsetIdCurrent on Builds(jobset_id) where isCurrent = 1
 create index IndexBuildsOnTimestamp on Builds(timestamp);
 create index IndexBuildsOnFinishedStopTime on Builds(finished, stoptime DESC);
 create index IndexBuildsOnJobsetIdFinishedId on Builds(jobset_id, job, finished, id DESC);
-create index IndexBuildsOnJobsetIdJobStopTimeId on Builds(jobset_id, job, stoptime DESC, id DESC) where finished = 1;
 create index IndexFinishedSuccessfulBuilds on Builds(jobset_id, job, finished, buildstatus, id DESC) where buildstatus = 0 and finished = 1;
 create index IndexBuildsOnDrvPath on Builds(drvPath);
 create index IndexCachedHgInputsOnHash on CachedHgInputs(uri, branch, sha256hash);
