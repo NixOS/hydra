@@ -185,6 +185,35 @@ in
         description = "Extra lines for the Hydra configuration.";
       };
 
+      buildsDuringEvaluation = mkOption {
+        type = types.enum [
+          "disallowed"
+          "via-evaluator"
+          "via-hydra"
+        ];
+        default = "disallowed";
+        description = ''
+          What an evaluation may do when it needs a derivation built
+          before it can proceed — when it has to read a derivation's
+          output in order to produce the jobs.
+
+          `disallowed` fails the evaluation instead of building, which
+          is the default because it lets an untrusted Nix expression run
+          builders while it is merely being read.
+
+          `via-evaluator` builds on whichever machine runs the
+          evaluator: the one machine in the deployment with no build
+          capacity budgeted for it, and none of the logging, scheduling
+          or machine selection the queue runner provides.
+
+          `via-hydra` files the build in Hydra instead. The evaluator
+          serves a nix-daemon socket for the duration of each evaluation
+          and points that evaluation at it, so the build becomes a Build
+          in the jobset being evaluated and the queue runner places it
+          like any other.
+        '';
+      };
+
       extraEnv = mkOption {
         type = types.attrsOf types.str;
         default = { };
@@ -249,6 +278,7 @@ in
       ''}
       gc_roots_dir = ${cfg.gcRootsDir}
       use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
+      builds_during_evaluation = ${cfg.buildsDuringEvaluation}
 
       ${optionalString (cfg.tracker != null) (
         let

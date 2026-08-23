@@ -14,6 +14,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod config;
+mod eval_builds;
 mod evaluator;
 mod queries;
 

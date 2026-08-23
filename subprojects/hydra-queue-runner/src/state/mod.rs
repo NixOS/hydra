@@ -2791,13 +2791,15 @@ impl State {
             // To be clear, builds that go through gRPC do not need this. The
             // builder will push the info to the queue runner so there is no
             // polling race condition. It is likely that this case happened
-            // because IFD in the evaluator was causing builds on the host, and
-            // *those* were subject to the race condition --- build-relevant
-            // store objects shouldn't be unexpected appearing in the host store
-            // otherwise.
+            // because an evaluation that had to build something built it on
+            // the host, and *those* were subject to the race condition ---
+            // build-relevant store objects shouldn't be unexpectedly
+            // appearing in the host store otherwise.
             //
-            // TODO once we properly feed IFD builds in to Hydra to be
-            // distributed, remove this hack.
+            // TODO remove this hack once evaluations can no longer build on
+            // the host at all. `builds_during_evaluation = via-hydra` feeds
+            // those builds to Hydra instead, and they arrive over gRPC like
+            // any other; it is `via-evaluator` that still needs this.
             if step.get_finished() {
                 return CreateStepResult::None;
             }

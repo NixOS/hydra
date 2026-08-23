@@ -60,6 +60,8 @@ struct State {
 pub(crate) struct Evaluator {
     db: db::Database,
     max_evals: usize,
+    /// `Some` when builds an evaluation needs should go through Hydra.
+    eval_builds: Option<crate::eval_builds::EvalBuildsConfig>,
     eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
@@ -76,6 +78,7 @@ impl Evaluator {
         Self {
             db,
             max_evals,
+            eval_builds: crate::eval_builds::EvalBuildsConfig::from_hydra_config(config),
             eval_one,
             state: Arc::new(Mutex::new(State::default())),
             notify_work: Arc::new(Notify::new()),
@@ -445,11 +448,31 @@ impl Evaluator {
             .await
             .wrap_err("failed to set startTime")?;
 
-        let child = match Command::new("hydra-eval-jobset")
-            .arg(&project)
-            .arg(&jobset_name)
-            .spawn()
-        {
+        // Failing to start the daemon must not fail the evaluation: an
+        // The build would then happen on the evaluator host, which is what
+        // happens with the routing switched off anyway.
+        let eval_daemon = match &self.eval_builds {
+            None => None,
+            Some(config) => {
+                match crate::eval_builds::EvalDaemon::start(config, &self.db, jobset_id).await {
+                    Ok(daemon) => Some((daemon, config.store_params.clone())),
+                    Err(e) => {
+                        tracing::warn!(
+                            "not scheduling builds for {jobset_display} through Hydra: {e}"
+                        );
+                        None
+                    }
+                }
+            }
+        };
+
+        let mut command = Command::new("hydra-eval-jobset");
+        command.arg(&project).arg(&jobset_name);
+        if let Some((daemon, store_params)) = &eval_daemon {
+            command.env("NIX_REMOTE", daemon.nix_remote(store_params));
+        }
+
+        let child = match command.spawn() {
             Ok(child) => child,
             Err(e) => {
                 tracing::error!("failed to spawn hydra-eval-jobset for {jobset_display}: {e}");
@@ -484,6 +507,8 @@ impl Evaluator {
         let state_arc = Arc::clone(&self.state);
         let notify_work = Arc::clone(&self.notify_work);
 
+        let eval_daemon = eval_daemon.map(|(daemon, _)| daemon);
+
         tokio::spawn(async move {
             reap_child(
                 child,
@@ -495,6 +520,7 @@ impl Evaluator {
                 db,
                 state_arc,
                 notify_work,
+                eval_daemon,
             )
             .await;
         });
@@ -524,6 +550,9 @@ async fn reap_child(
     db: db::Database,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    // Dropped when the evaluation is over, which shuts the daemon down
+    // and unlinks its socket.
+    eval_daemon: Option<crate::eval_builds::EvalDaemon>,
 ) {
     let status = tokio::select! {
         s = child.wait() => s,
@@ -544,6 +573,13 @@ async fn reap_child(
     };
 
     tracing::info!("evaluation of jobset '{}' {}", jobset_display, status_str);
+
+    // Before the bookkeeping below, while the evaluation this daemon
+    // served is the newest one this jobset has: its row exists only now
+    // that hydra-eval-jobset has finished writing it.
+    if let Some(daemon) = &eval_daemon {
+        daemon.record_members(&db).await;
+    }
 
     let now = now_epoch();
 

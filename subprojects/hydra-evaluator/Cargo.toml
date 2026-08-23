@@ -11,8 +11,11 @@ color-eyre.workspace = true
 fs-err.workspace     = true
 futures.workspace    = true
 sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+thiserror.workspace  = true
 tokio                = { workspace = true, features = [ "full" ] }
 tracing.workspace    = true
 
-db            = { path = "../crates/db" }
-hydra-tracing = { path = "../crates/tracing" }
+daemon-server.workspace       = true
+db                            = { path = "../crates/db" }
+harmonia-store-path.workspace = true
+hydra-tracing                 = { path = "../crates/tracing" }

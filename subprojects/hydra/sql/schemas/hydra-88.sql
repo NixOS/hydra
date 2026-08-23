@@ -526,16 +526,7 @@ create table JobsetEvalMembers (
     eval          integer not null references JobsetEvals(id) on delete cascade,
     build         integer not null references Builds(id) on delete cascade,
     isNew         integer not null,
-    -- Whether this build is one of the evaluation's jobs (0), or a build
-    -- the evaluation itself needed in order to produce them (1) — one
-    -- whose output had to be read before the jobs could be known. Such a
-    -- build is not a job: nothing in the jobset names it, and it exists
-    -- only because evaluation could not proceed without it, so it must
-    -- not be listed among the jobs.
-    forEvaluation integer not null default 0,
     primary key   (eval, build)
-    -- TODO use multicolumn primary key to make sure the eval and build
-    -- agree on jobset.
 );
 
 

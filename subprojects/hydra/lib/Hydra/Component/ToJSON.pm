@@ -35,9 +35,16 @@ sub TO_JSON {
         $json{$column} = $self->get_column($column) ? JSON::MaybeXS::true : JSON::MaybeXS::false;
     }
 
+    # A relation is normally emitted under its own name, as
+    # `relname => column`. Passing `relname => { via => ..., key => ... }`
+    # instead reads a differently-named relation, for when the JSON field
+    # is named for its meaning rather than for the accessor behind it.
     foreach my $relname (keys %{$hint->{relations}}) {
-        my $key = $hint->{relations}->{$relname};
-        $json{$relname} = [ map { $_->$key } $self->$relname ];
+        my $spec = $hint->{relations}->{$relname};
+        my ($key, $via) = ref $spec eq 'HASH'
+            ? ($spec->{key}, $spec->{via})
+            : ($spec, $relname);
+        $json{$relname} = [ map { $_->$key } $self->$via ];
     }
 
     foreach my $relname (keys %{$hint->{eager_relations}}) {

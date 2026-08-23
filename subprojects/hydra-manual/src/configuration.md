@@ -84,6 +84,54 @@ This example uses [Zstandard](https://github.com/facebook/zstd) compression on d
 
 See [`nix help stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html) for a description of the store URI format.
 
+Builds during evaluation
+------------------------
+
+Evaluating a jobset can require a derivation to be built first: the
+expression reads that derivation's output in order to say what the jobs
+are. `builds_during_evaluation` decides what happens then.
+
+    builds_during_evaluation = disallowed    # the default
+
+`disallowed` fails the evaluation rather than building. It is the
+default because an untrusted Nix expression could otherwise run
+builders merely by being read.
+
+    builds_during_evaluation = via-evaluator
+
+`via-evaluator` builds on whichever machine runs the evaluator — the one
+machine in the deployment with no build capacity budgeted for it, and
+without the logging, scheduling or machine selection the queue runner
+provides.
+
+    builds_during_evaluation = via-hydra
+
+`via-hydra` files the build with Hydra instead. `hydra-evaluator` serves
+a nix-daemon socket for the duration of each evaluation and points that
+evaluation at it, so the build lands in the `Builds` table under the
+jobset being evaluated and the queue runner places it like any other.
+The socket exists for exactly one evaluation, which is what lets the
+build be attributed to the right jobset. Such builds appear under the
+evaluation as "Builds for Evaluation", kept apart from its jobs.
+
+Two further settings apply to `via-hydra`. The sockets are created under
+`HYDRA_DATA`; set `evaluation_daemon_socket_dir` to put them elsewhere.
+Reads and store uploads are proxied to a nix-daemon, by default
+`unix:///nix/var/nix/daemon-socket/socket?store=/nix/store`, overridable
+with `evaluation_upstream_daemon`. The `?store=` parameter is required: a
+`unix://` daemon does not say which store it serves, and paths it
+returns cannot be read against the wrong store directory.
+
+NixOS users can set this through the module instead:
+
+```nix
+services.hydra-dev.buildsDuringEvaluation = "via-hydra";
+```
+
+Content-addressed derivations are not supported on the `via-hydra` path
+— the daemon does not surface output realisations, so the evaluator
+cannot read their outputs back. Input-addressed ones work end-to-end.
+
 Statsd Configuration
 --------------------
 

@@ -2015,11 +2015,14 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
+ "daemon-server",
  "db",
  "fs-err",
  "futures",
+ "harmonia-store-path",
  "hydra-tracing",
  "sqlx",
+ "thiserror",
  "tokio",
  "tracing",
 ]

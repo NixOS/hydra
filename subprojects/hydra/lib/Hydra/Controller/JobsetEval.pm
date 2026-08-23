@@ -64,8 +64,8 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
-    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+    my @builds = $eval->jobs->search($filter, { columns => [@buildListColumns] });
+    my @builds2 = defined $eval2 ? $eval2->jobs->search($filter, { columns => [@buildListColumns] }) : ();
 
     my $diff = buildDiff([@builds], [@builds2]);
     $c->stash->{stillSucceed} = $diff->{stillSucceed};
@@ -79,6 +79,11 @@ sub view_GET {
     $c->stash->{totalAborted} = $diff->{totalAborted};
     $c->stash->{totalFailed} = $diff->{totalFailed};
     $c->stash->{totalQueued} = $diff->{totalQueued};
+
+    # Not part of the diff: a build the evaluation needed is not a job, so
+    # it cannot appear or disappear between evaluations the way a job can.
+    $c->stash->{buildsForEvaluation} =
+        [ $eval->buildsForEvaluation->search({}, { columns => [@buildListColumns] }) ];
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
@@ -114,7 +119,7 @@ sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
 sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
     my ($self, $c) = @_;
     requireCancelBuildPrivileges($c, $c->stash->{project});
-    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->builds->search_rs({}));
+    my $n = cancelBuilds($c->model('DB')->schema, $c->stash->{eval}->jobs->search_rs({}));
     $c->flash->{successMsg} = "$n builds have been cancelled.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
 }
@@ -123,7 +128,7 @@ sub cancel : Chained('evalChain') PathPart('cancel') Args(0) {
 sub restart {
     my ($self, $c, $condition) = @_;
     requireRestartPrivileges($c, $c->stash->{project});
-    my $builds = $c->stash->{eval}->builds->search_rs({ finished => 1, buildstatus => $condition });
+    my $builds = $c->stash->{eval}->jobs->search_rs({ finished => 1, buildstatus => $condition });
     my $n = restartBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been restarted.";
     $c->res->redirect($c->uri_for($c->controller('JobsetEval')->action_for('view'), $c->req->captures));
@@ -145,7 +150,7 @@ sub restart_failed : Chained('evalChain') PathPart('restart-failed') Args(0) {
 sub bump : Chained('evalChain') PathPart('bump') Args(0) {
     my ($self, $c) = @_;
     requireBumpPrivileges($c, $c->stash->{project}); # FIXME: require admin?
-    my $builds = $c->stash->{eval}->builds->search({ finished => 0 });
+    my $builds = $c->stash->{eval}->jobs->search({ finished => 0 });
     my $n = $builds->count();
     $c->model('DB')->schema->txn_do(sub {
         $builds->update({globalpriority => time()});
@@ -159,7 +164,7 @@ sub bump : Chained('evalChain') PathPart('bump') Args(0) {
 sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
     my ($self, $c) = @_;
     $c->stash->{channelName} = $c->stash->{project}->name . "-" . $c->stash->{jobset}->name . "-latest";
-    $c->stash->{channelBuilds} = $c->stash->{eval}->builds
+    $c->stash->{channelBuilds} = $c->stash->{eval}->jobs
         ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
         ->search({ finished => 1, buildstatus => 0 },
                  { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
@@ -172,7 +177,7 @@ sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
 sub job : Chained('evalChain') PathPart('job') {
     my ($self, $c, $job, @rest) = @_;
 
-    my $build = $c->stash->{eval}->builds->find({job => $job});
+    my $build = $c->stash->{eval}->jobs->find({job => $job});
 
     notFound($c, "This evaluation has no job with the specified name.") unless defined $build;
 
@@ -185,7 +190,7 @@ sub job : Chained('evalChain') PathPart('job') {
 sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
     my ($self, $c) = @_;
 
-    my @builds = $c->stash->{eval}->builds
+    my @builds = $c->stash->{eval}->jobs
         ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
         ->search({ finished => 1, buildstatus => 0 },
                  { columns => [], join => ["buildoutputs"]
@@ -201,7 +206,7 @@ sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
 # Return full info about all the builds in this evaluation.
 sub all_builds : Chained('evalChain') PathPart('builds') Args(0) {
     my ($self, $c) = @_;
-    my @builds = $c->stash->{eval}->builds;
+    my @builds = $c->stash->{eval}->allBuilds;
     $self->status_ok(
         $c,
         entity => [@builds],
