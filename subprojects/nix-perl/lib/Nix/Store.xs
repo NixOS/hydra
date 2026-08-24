@@ -195,18 +195,6 @@ StoreWrapper::topoSortPaths(...)
         }
 
 
-SV *
-StoreWrapper::followLinksToStorePath(char * path)
-    CODE:
-        try {
-            RETVAL = newSVpv(THIS->store->printStorePath(THIS->store->followLinksToStorePath(path)).c_str(), 0);
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-    OUTPUT:
-        RETVAL
-
-
 SV * convertHash(char * algo, char * s, int toBase32)
     PPCODE:
         try {
@@ -244,49 +232,11 @@ StoreWrapper::addToStore(char * srcPath, int recursive, char * algo)
 
 
 SV *
-StoreWrapper::derivationFromPath(char * drvPath)
-    PREINIT:
-        HV *hash;
+StoreWrapper::derivationSystem(char * drvPath)
     CODE:
         try {
             Derivation drv = THIS->store->derivationFromPath(THIS->store->parseStorePath(drvPath));
-            hash = newHV();
-
-            HV * outputs = newHV();
-            for (auto & i : drv.outputsAndOptPaths(*THIS->store)) {
-                hv_store(
-                    outputs, i.first.c_str(), i.first.size(),
-                    !i.second.second
-                        ? newSV(0) /* null value */
-                        : newSVpv(THIS->store->printStorePath(*i.second.second).c_str(), 0),
-                    0);
-            }
-            hv_stores(hash, "outputs", newRV((SV *) outputs));
-
-            AV * inputDrvs = newAV();
-            for (auto & i : drv.inputDrvs.map)
-                av_push(inputDrvs, newSVpv(THIS->store->printStorePath(i.first).c_str(), 0)); // !!! ignores i->second
-            hv_stores(hash, "inputDrvs", newRV((SV *) inputDrvs));
-
-            AV * inputSrcs = newAV();
-            for (auto & i : drv.inputSrcs)
-                av_push(inputSrcs, newSVpv(THIS->store->printStorePath(i).c_str(), 0));
-            hv_stores(hash, "inputSrcs", newRV((SV *) inputSrcs));
-
-            hv_stores(hash, "platform", newSVpv(drv.platform.c_str(), 0));
-            hv_stores(hash, "builder", newSVpv(drv.builder.c_str(), 0));
-
-            AV * args = newAV();
-            for (auto & i : drv.args)
-                av_push(args, newSVpv(i.c_str(), 0));
-            hv_stores(hash, "args", newRV((SV *) args));
-
-            HV * env = newHV();
-            for (auto & i : drv.env)
-                hv_store(env, i.first.c_str(), i.first.size(), newSVpv(i.second.c_str(), 0), 0);
-            hv_stores(hash, "env", newRV((SV *) env));
-
-            RETVAL = newRV_noinc((SV *)hash);
+            RETVAL = newSVpv(drv.platform.c_str(), 0);
         } catch (Error & e) {
             croak("%s", e.what());
         }

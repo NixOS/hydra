@@ -30,8 +30,7 @@ sub process {
     if (defined $deriver) {
         $info .= "Deriver: " . basename $deriver . "\n";
         if ($MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            my $drv = $MACHINE_LOCAL_STORE->derivationFromPath($deriver);
-            $info .= "System: $drv->{platform}\n";
+            $info .= "System: " . $MACHINE_LOCAL_STORE->derivationSystem($deriver) . "\n";
         }
     }
 

@@ -96,7 +96,7 @@ sub buildFinished {
         my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($path, 0);
         my $system;
         if (defined $deriver and $MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            $system = derivationFromPath($deriver)->{platform};
+            $system = $MACHINE_LOCAL_STORE->derivationSystem($deriver);
         }
         foreach my $reference (@{$refs}) {
             push @needed_paths, $reference;
