@@ -19,18 +19,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         output_name: "debug".parse().unwrap(),
     };
     tracing::info!(
-        "has realisation before: {}",
-        client.has_realisation(&id).await?
+        "has build trace before: {}",
+        client.has_build_trace_entry(&id).await?
     );
-    // TODO put back after we add back `query_raw_realisation` with Nix 2.35.
 
-    // let raw = local.query_raw_realisation(&id)?;
-    // let realisation = raw.as_rust()?;
-    // client.write_realisation(realisation).await?;
-    // tracing::info!(
-    //     "has realisation after: {}",
-    //     client.has_realisation(&id).await?
-    // );
+    // A build trace entry is just the output path that a derivation's output
+    // resolved to, so make one up rather than asking a store for it. The
+    // client signs it on the way out.
+    client
+        .write_build_trace_entry(harmonia_store_derivation::realisation::Realisation {
+            key: id.clone(),
+            value: harmonia_store_derivation::realisation::UnkeyedRealisation {
+                out_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37"
+                    .parse()
+                    .unwrap(),
+                signatures: Default::default(),
+            },
+        })
+        .await?;
+    tracing::info!(
+        "has build trace after: {}",
+        client.has_build_trace_entry(&id).await?
+    );
 
     let stats = client.s3_stats();
     tracing::info!(
