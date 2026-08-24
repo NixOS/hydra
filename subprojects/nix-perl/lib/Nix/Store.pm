@@ -22,7 +22,6 @@ our @EXPORT = qw(
     StoreWrapper::addTempRoot
     StoreWrapper::queryRawRealisation
 
-    convertHash
     signString
     getStoreDir
 );

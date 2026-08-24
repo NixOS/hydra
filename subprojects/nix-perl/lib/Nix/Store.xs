@@ -195,17 +195,6 @@ StoreWrapper::topoSortPaths(...)
         }
 
 
-SV * convertHash(char * algo, char * s, int toBase32)
-    PPCODE:
-        try {
-            auto h = Hash::parseAny(s, parseHashAlgo(algo));
-            auto s = h.to_string(toBase32 ? HashFormat::Nix32 : HashFormat::Base16, false);
-            XPUSHs(sv_2mortal(newSVpv(s.c_str(), 0)));
-        } catch (Error & e) {
-            croak("%s", e.what());
-        }
-
-
 SV * signString(char * secretKey_, char * msg)
     PPCODE:
         try {
