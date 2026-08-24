@@ -124,6 +124,7 @@ let
         TestPostgreSQL
         TextDiff
         TextTable
+        URIdb
         UUID4Tiny
         YAML
         XMLSimple
@@ -209,7 +210,7 @@ stdenv.mkDerivation (finalAttrs: {
       breezy
       nix-eval-jobs
     ]
-    ++ lib.optionals stdenv.isLinux [
+    ++ lib.optionals stdenv.hostPlatform.isLinux [
       rpm
       dpkg
       cdrkit

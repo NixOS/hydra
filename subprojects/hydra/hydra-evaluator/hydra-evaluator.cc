@@ -19,21 +19,8 @@ using namespace nix;
 
 struct Connection : pqxx::connection
 {
-    Connection() : pqxx::connection(getFlags()) { };
-
-    std::string getFlags()
-    {
-        auto s = getEnv("HYDRA_DBI").value_or("dbi:Pg:dbname=hydra;");
-
-        std::string lower_prefix = "dbi:Pg:";
-        std::string upper_prefix = "DBI:Pg:";
-
-        if (hasPrefix(s, lower_prefix) || hasPrefix(s, upper_prefix)) {
-            return concatStringsSep(" ", tokenizeString<Strings>(std::string(s, lower_prefix.size()), ";"));
-        }
-
-        throw Error("$HYDRA_DBI does not denote a PostgreSQL database");
-    }
+    // libpq accepts a postgres:// URL directly as the connection string.
+    Connection() : pqxx::connection(getEnv("HYDRA_DATABASE_URL").value_or("postgres:///hydra")) { };
 };
 
 

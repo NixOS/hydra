@@ -14,7 +14,7 @@ HYDRA_HOME=$(pwd)/subprojects/hydra
 HYDRA_PG_SOCKET_DIR=$HYDRA_DATA/postgres
 
 # Connection strings
-HYDRA_DBI="dbi:Pg:dbname=hydra;host=localhost;port=$HYDRA_PG_PORT"
+HYDRA_DATABASE_URL="postgres://localhost:$HYDRA_PG_PORT/hydra"
 
 # Cargo target dir picked from the meson build type set in the dev shell.
 if [ "${mesonBuildType:-}" = "debug" ]; then

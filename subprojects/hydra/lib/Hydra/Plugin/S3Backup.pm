@@ -12,7 +12,6 @@ use IPC::Run3;
 use Net::Amazon::S3;
 use Net::Amazon::S3::Client;
 use Digest::SHA;
-use Nix::Config;
 use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
@@ -27,14 +26,6 @@ my $client;
 my %compressors = ();
 
 $compressors{"none"} = "";
-
-if (defined($Nix::Config::bzip2)) {
-    $compressors{"bzip2"} = "$Nix::Config::bzip2",
-}
-
-if (defined($Nix::Config::xz)) {
-    $compressors{"xz"} = "$Nix::Config::xz",
-}
 
 my $lockfile = Hydra::Model::DB::getHydraPath . "/.hydra-s3backup.lock";
 
@@ -96,7 +87,7 @@ sub buildFinished {
         my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($path, 0);
         my $system;
         if (defined $deriver and $MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            $system = derivationFromPath($deriver)->{platform};
+            $system = $MACHINE_LOCAL_STORE->derivationSystem($deriver);
         }
         foreach my $reference (@{$refs}) {
             push @needed_paths, $reference;
@@ -115,11 +106,11 @@ sub buildFinished {
             my $compressor = $compressors{$compression_type};
             if ($compressor eq "") {
                 # No compression - use IPC::Run3 to redirect stdout to file
-                run3(["$Nix::Config::binDir/nix-store", "--dump", $path],
+                run3(["nix-store", "--dump", $path],
                      \undef, "$tempdir/nar", \undef) or die "nix-store --dump failed: $!";
             } else {
                 # With compression - use IPC::Run to pipe nix-store output to compressor
-                my $dump_cmd = ["$Nix::Config::binDir/nix-store", "--dump", $path];
+                my $dump_cmd = ["nix-store", "--dump", $path];
                 my $compress_cmd = [$compressor];
                 run($dump_cmd, '|', $compress_cmd, '>', "$tempdir/nar") or die "Pipeline failed: $?";
             }
