@@ -21,12 +21,6 @@ endforeach
 # Targets
 #---------------------------------------------------
 
-nix_perl_scripts += configure_file(
-  output : 'Config.pm',
-  input : 'Config.pm.in',
-  configuration : nix_perl_conf,
-)
-
 nix_perl_store_cc = custom_target(
   'Store.cc',
   output : 'Store.cc',

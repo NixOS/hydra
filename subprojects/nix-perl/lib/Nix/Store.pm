@@ -23,7 +23,7 @@ our @EXPORT = qw(
     StoreWrapper::queryRawRealisation
 
     signString
-    getStoreDir
+    StoreWrapper::storeDir
 );
 
 our $VERSION = '0.15';

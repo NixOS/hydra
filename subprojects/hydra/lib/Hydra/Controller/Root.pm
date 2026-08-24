@@ -8,7 +8,6 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
-use Nix::Config;
 use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
@@ -341,7 +340,7 @@ sub nar :Local :Args(1) {
     }
 
     else {
-        $path = $Nix::Config::storeDir . "/$path";
+        $path = $MACHINE_LOCAL_STORE->storeDir . "/$path";
 
         gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
 
@@ -361,7 +360,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     else {
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} =
-            "StoreDir: $Nix::Config::storeDir\n" .
+            "StoreDir: " . $MACHINE_LOCAL_STORE->storeDir . "\n" .
             "WantMassQuery: 0\n" .
             # Give Hydra binary caches a very low priority (lower than the
             # static binary cache http://nixos.org/binary-cache).

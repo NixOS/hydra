@@ -243,6 +243,7 @@ StoreWrapper::addTempRoot(char * storePath)
         }
 
 
-SV * getStoreDir()
+SV *
+StoreWrapper::storeDir()
     PPCODE:
-        XPUSHs(sv_2mortal(newSVpv(resolveStoreConfig(StoreReference{settings.storeUri.get()})->storeDir.c_str(), 0)));
+        XPUSHs(sv_2mortal(newSVpv(THIS->store->storeDir.c_str(), 0)));

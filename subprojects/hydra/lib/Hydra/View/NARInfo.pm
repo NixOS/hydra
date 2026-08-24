@@ -5,7 +5,6 @@ use warnings;
 use File::Basename;
 use Hydra::Helper::CatalystUtils;
 use MIME::Base64;
-use Nix::Config;
 use Nix::Store;
 use Hydra::Helper::Nix;
 use base qw/Catalyst::View/;
@@ -24,12 +23,13 @@ sub readFile {
 # the contents of the path, and the references.
 sub fingerprintPath {
     my ($storePath, $narHash, $narSize, $references) = @_;
-    die if substr($storePath, 0, length($Nix::Config::storeDir)) ne $Nix::Config::storeDir;
+    my $storeDir = $MACHINE_LOCAL_STORE->storeDir;
+    die if substr($storePath, 0, length($storeDir)) ne $storeDir;
     die if substr($narHash, 0, 7) ne "sha256:";
     # Base-32, i.e. queryPathInfo's base32 argument was set.
     die if length($narHash) != 59;
     foreach my $ref (@{$references}) {
-        die if substr($ref, 0, length($Nix::Config::storeDir)) ne $Nix::Config::storeDir;
+        die if substr($ref, 0, length($storeDir)) ne $storeDir;
     }
     return "1;" . $storePath . ";" . $narHash . ";" . $narSize . ";" . join(",", @{$references});
 }

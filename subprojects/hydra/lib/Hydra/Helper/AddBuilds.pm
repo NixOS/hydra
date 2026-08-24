@@ -6,7 +6,6 @@ use utf8;
 use Encode;
 use JSON::MaybeXS;
 use Nix::Store;
-use Nix::Config;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
 use Digest::SHA qw(sha256_hex);
