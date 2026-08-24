@@ -16,15 +16,14 @@ our @EXPORT = qw(
     StoreWrapper::new
     StoreWrapper::isValidPath StoreWrapper::queryReferences StoreWrapper::queryPathInfo StoreWrapper::queryPathHash
     StoreWrapper::queryPathFromHashPart
-    StoreWrapper::topoSortPaths StoreWrapper::computeFSClosure followLinksToStorePath
+    StoreWrapper::topoSortPaths StoreWrapper::computeFSClosure
     StoreWrapper::addToStore
-    StoreWrapper::derivationFromPath
+    StoreWrapper::derivationSystem
     StoreWrapper::addTempRoot
     StoreWrapper::queryRawRealisation
 
-    convertHash
     signString
-    getStoreDir
+    StoreWrapper::storeDir
 );
 
 our $VERSION = '0.15';

@@ -21,8 +21,8 @@ my ($build) = grep { $_->nixname eq "empty-dir" } @builds;
 ok(defined $build, "got a build out of the jobset");
 
 my $resolvedBasename = "00000000000000000000000000000001-resolved.drv";
-# Not $Nix::Config::storeDir: loading Nix::Config initializes Nix::Store
-# from the ambient environment, which at compile time does not yet point at
+# Not $MACHINE_LOCAL_STORE->storeDir: that store is opened from the ambient
+# environment when Hydra::Helper::Nix is loaded, which does not yet point at
 # the test's chroot store (and in the build sandbox touching the real
 # /nix/var/nix is a hard failure). The build's own drvpath is in the right
 # store, and resolved_terminal derives the store dir the same way.

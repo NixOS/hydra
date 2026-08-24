@@ -180,7 +180,7 @@ sub defaultUriForProduct {
 
 sub checkPath {
     my ($self, $c, $path) = @_;
-    my $p = pathIsInsidePrefix($path, $Nix::Config::storeDir);
+    my $p = pathIsInsidePrefix($path, $MACHINE_LOCAL_STORE->storeDir);
     error($c, "Build product refers outside of the Nix store.") unless defined $p;
     return $p;
 }
@@ -256,7 +256,8 @@ sub download : Chained('buildChain') PathPart {
     }
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
-    if ($product->path !~ /^($Nix::Config::storeDir\/[^\/]+)/) {
+    my $storeDir = $MACHINE_LOCAL_STORE->storeDir;
+    if ($product->path !~ /^($storeDir\/[^\/]+)/) {
         die "Invalid store path '" . $product->path . "'.\n";
     }
     my $storePath = $1;

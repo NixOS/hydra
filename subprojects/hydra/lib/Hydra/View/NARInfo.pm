@@ -5,11 +5,34 @@ use warnings;
 use File::Basename;
 use Hydra::Helper::CatalystUtils;
 use MIME::Base64;
-use Nix::Manifest;
 use Nix::Store;
-use Nix::Utils;
 use Hydra::Helper::Nix;
 use base qw/Catalyst::View/;
+
+sub readFile {
+    local $/ = undef;
+    my ($fn) = @_;
+    open my $fh, "<", $fn or die "cannot open file '$fn': $!";
+    my $s = <$fh>;
+    close $fh or die;
+    return $s;
+}
+
+# Return a fingerprint of a store path to be used in binary cache
+# signatures. It contains the store path, the base-32 SHA-256 hash of
+# the contents of the path, and the references.
+sub fingerprintPath {
+    my ($storePath, $narHash, $narSize, $references) = @_;
+    my $storeDir = $MACHINE_LOCAL_STORE->storeDir;
+    die if substr($storePath, 0, length($storeDir)) ne $storeDir;
+    die if substr($narHash, 0, 7) ne "sha256:";
+    # Base-32, i.e. queryPathInfo's base32 argument was set.
+    die if length($narHash) != 59;
+    foreach my $ref (@{$references}) {
+        die if substr($ref, 0, length($storeDir)) ne $storeDir;
+    }
+    return "1;" . $storePath . ";" . $narHash . ";" . $narSize . ";" . join(",", @{$references});
+}
 
 sub process {
     my ($self, $c) = @_;
@@ -30,8 +53,7 @@ sub process {
     if (defined $deriver) {
         $info .= "Deriver: " . basename $deriver . "\n";
         if ($MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            my $drv = $MACHINE_LOCAL_STORE->derivationFromPath($deriver);
-            $info .= "System: $drv->{platform}\n";
+            $info .= "System: " . $MACHINE_LOCAL_STORE->derivationSystem($deriver) . "\n";
         }
     }
 
