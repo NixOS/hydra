@@ -311,6 +311,13 @@ create table BuildSteps (
 );
 
 
+-- Joined with BuildSteps.drvPath this makes the build trace: which
+-- output path a derivation's output actually resolved to. Hydra serves
+-- the corresponding `build-trace-v2/` routes as part of its on-the-fly
+-- binary cache.
+--
+-- TODO: signatures. We should store signatures in the database,
+-- otherwise these build trace entries cannot be used safely.
 create table BuildStepOutputs (
     build         integer not null,
     stepnr        integer not null,

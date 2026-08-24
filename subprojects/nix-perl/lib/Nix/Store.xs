@@ -7,11 +7,9 @@
 #undef do_close
 
 #include "nix/store/derivations.hh"
-#include "nix/store/realisation.hh"
 #include "nix/store/globals.hh"
 #include "nix/store/store-open.hh"
 #include "nix/util/source-accessor.hh"
-#include <nlohmann/json.hpp>
 
 using namespace nix;
 
@@ -141,19 +139,6 @@ StoreWrapper::queryPathInfo(char * path, int base32)
         } catch (Error & e) {
             croak("%s", e.what());
         }
-
-SV *
-StoreWrapper::queryRawRealisation(char * outputId)
-    PPCODE:
-      try {
-        auto realisation = THIS->store->queryRealisation(DrvOutput::parse(*THIS->store, outputId));
-        if (realisation)
-            XPUSHs(sv_2mortal(newSVpv(static_cast<nlohmann::json>(*realisation).dump().c_str(), 0)));
-        else
-            XPUSHs(sv_2mortal(newSVpv("", 0)));
-      } catch (Error & e) {
-        croak("%s", e.what());
-      }
 
 
 SV *

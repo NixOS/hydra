@@ -19,7 +19,7 @@ pub struct S3CacheConfig {
     pub compression: Compression,
     pub write_nar_listing: bool,
     pub write_debug_info: bool,
-    pub write_realisation: bool,
+    pub write_build_trace: bool,
     pub secret_key_files: SmallVec<[std::path::PathBuf; 4]>,
     pub parallel_compression: bool,
     pub compression_level: Option<i32>,
@@ -47,7 +47,7 @@ impl S3CacheConfig {
             compression: Compression::Xz,
             write_nar_listing: false,
             write_debug_info: false,
-            write_realisation: false,
+            write_build_trace: false,
             secret_key_files: SmallVec::default(),
             parallel_compression: false,
             compression_level: Option::default(),
@@ -102,10 +102,10 @@ impl S3CacheConfig {
     }
 
     #[must_use]
-    pub fn with_write_realisation(mut self, write_realisation: Option<&str>) -> Self {
-        if let Some(write_realisation) = write_realisation {
-            let s = write_realisation.trim().to_ascii_lowercase();
-            self.write_realisation = s.as_str() == "1" || s.as_str() == "true";
+    pub fn with_write_build_trace(mut self, write_build_trace: Option<&str>) -> Self {
+        if let Some(write_build_trace) = write_build_trace {
+            let s = write_build_trace.trim().to_ascii_lowercase();
+            self.write_build_trace = s.as_str() == "1" || s.as_str() == "true";
         }
         self
     }
@@ -715,7 +715,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.compression, Compression::Xz);
         assert!(!config.write_nar_listing);
         assert!(!config.write_debug_info);
-        assert!(!config.write_realisation);
+        assert!(!config.write_build_trace);
         assert!(config.secret_key_files.is_empty());
         assert!(!config.parallel_compression);
         assert_eq!(config.compression_level, None);
@@ -766,15 +766,15 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         let config = S3CacheConfig::new(client_config.clone()).with_write_debug_info(None);
         assert!(!config.write_debug_info);
 
-        let config = S3CacheConfig::new(client_config.clone()).with_write_realisation(Some("TRUE"));
-        assert!(config.write_realisation);
+        let config = S3CacheConfig::new(client_config.clone()).with_write_build_trace(Some("TRUE"));
+        assert!(config.write_build_trace);
 
         let config =
-            S3CacheConfig::new(client_config.clone()).with_write_realisation(Some("  True  "));
-        assert!(config.write_realisation);
+            S3CacheConfig::new(client_config.clone()).with_write_build_trace(Some("  True  "));
+        assert!(config.write_build_trace);
 
-        let config = S3CacheConfig::new(client_config.clone()).with_write_realisation(None);
-        assert!(!config.write_realisation);
+        let config = S3CacheConfig::new(client_config.clone()).with_write_build_trace(None);
+        assert!(!config.write_build_trace);
 
         let secret_keys = vec![
             std::path::PathBuf::from("/path/to/key1"),
@@ -1083,7 +1083,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             .with_compression(Some(Compression::Zstd))
             .with_write_nar_listing(Some("true"))
             .with_write_debug_info(Some("1"))
-            .with_write_realisation(Some("1"))
+            .with_write_build_trace(Some("1"))
             .with_parallel_compression(Some("true"))
             .with_compression_level(Some(6))
             .with_narinfo_compression(Some(Compression::Bzip2))
@@ -1100,7 +1100,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.compression, Compression::Zstd);
         assert!(config.write_nar_listing);
         assert!(config.write_debug_info);
-        assert!(config.write_realisation);
+        assert!(config.write_build_trace);
         assert!(config.parallel_compression);
         assert_eq!(config.compression_level, Some(6));
         assert_eq!(config.narinfo_compression, Compression::Bzip2);

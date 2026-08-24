@@ -20,7 +20,6 @@ our @EXPORT = qw(
     StoreWrapper::addToStore
     StoreWrapper::derivationSystem
     StoreWrapper::addTempRoot
-    StoreWrapper::queryRawRealisation
 
     signString
     StoreWrapper::storeDir
