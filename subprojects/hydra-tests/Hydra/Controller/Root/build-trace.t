@@ -1,7 +1,6 @@
 use strict;
 use warnings;
 use Setup;
-use File::Basename ();
 use JSON::MaybeXS qw(decode_json);
 
 my %ctx = test_init(
@@ -33,8 +32,9 @@ my ($build) = grep { $_->nixname eq "empty-dir" } @builds;
 $build->discard_changes();
 is($build->buildstatus, 0, "The content-addressed build succeeded");
 
-my $drv = File::Basename::basename($build->drvpath);
-my $outPath = File::Basename::basename($build->buildoutputs->find({ name => "out" })->path);
+# Both are store paths already: no store directory to strip.
+my $drv = $build->drvpath;
+my $outPath = $build->buildoutputs->find({ name => "out" })->path;
 
 subtest "serving a build trace" => sub {
     my $response = request(GET "/build-trace-v2/$drv/out.doi");
@@ -43,7 +43,7 @@ subtest "serving a build trace" => sub {
     # A build trace entry, whose `outPath` carries no store directory:
     # https://nix.dev/manual/nix/2.35/protocols/json/build-trace-entry
     is(decode_json($response->content),
-        { outPath => $outPath, signatures => [] },
+        { outPath => $outPath->to_string, signatures => [] },
         "naming the output it resolved to");
 };
 

@@ -602,4 +602,7 @@ sub project {
   return $self->jobset->project;
 }
 
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_store_paths(qw/drvpath/);
+
 1;

@@ -22,6 +22,7 @@ use LWP::UserAgent;
 use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use File::Temp;
 use POSIX qw(strftime);
 

@@ -107,4 +107,7 @@ sub json_hint {
     return \%hint;
 }
 
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_store_paths(qw/path/);
+
 1;

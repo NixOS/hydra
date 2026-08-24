@@ -3,6 +3,8 @@ package Nix::Store;
 use strict;
 use warnings;
 
+use Nix::StorePath;
+
 require Exporter;
 
 our @ISA = qw(Exporter);

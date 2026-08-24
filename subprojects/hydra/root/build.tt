@@ -40,7 +40,7 @@ END;
                 [%# Resolved steps never ran: buildstepoutputs is empty, so %]
                 [%# "Build of" would render with nothing after it. Show the %]
                 [%# drv that was resolved instead. %]
-                Resolution of <tt>[% HTML.escape(step.drvpath) %]</tt>
+                Resolution of <tt>[% HTML.escape(printStorePath(step.drvpath)) %]</tt>
               [% ELSIF step.type == 0 %]
                 Build of <tt>[% INCLUDE renderOutputs outputs=step.buildstepoutputs %]</tt>
               [% ELSE %]
@@ -322,7 +322,7 @@ END;
       </tr>
       <tr>
         <th>Derivation store path:</th>
-        <td><tt>[% build.drvpath | html %]</tt></td>
+        <td><tt>[% printStorePath(build.drvpath) | html %]</tt></td>
       </tr>
       <tr>
         <th>Output store paths:</th>
