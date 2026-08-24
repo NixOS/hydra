@@ -7,7 +7,6 @@ use Fcntl;
 use IO::File;
 use Net::Amazon::S3;
 use Net::Amazon::S3::Client;
-use Nix::Config;
 use Nix::Store;
 use Hydra::Config;
 use Hydra::Model::DB;
@@ -34,7 +33,7 @@ closedir $dir;
 my @actual_roots = ();
 foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
-    push @actual_roots, $Nix::Config::storeDir . "/" . $link;
+    push @actual_roots, $MACHINE_LOCAL_STORE->storeDir . "/" . $link;
 }
 
 # Don't delete a nix-cache-info file, if present

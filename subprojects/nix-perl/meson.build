@@ -16,8 +16,6 @@ project(
 #-------------------------------------------------
 fs = import('fs')
 cpp = meson.get_compiler('cpp')
-nix_perl_conf = configuration_data()
-nix_perl_conf.set('PACKAGE_VERSION', meson.project_version())
 
 
 # set error arguments

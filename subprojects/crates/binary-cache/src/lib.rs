@@ -36,7 +36,7 @@ mod presence_cache;
 mod presigned;
 mod streaming_hash;
 
-pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme};
+pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme, UrlParseError};
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 pub use crate::multipart::{
@@ -775,6 +775,58 @@ impl S3BinaryCacheClient {
         self.upsert_file(&format!("realisations/{id}.doi"), json, "application/json")
             .await?;
         Ok(())
+    }
+
+    /// Server-side copy of one object from `source` into this cache.
+    /// Requires the same endpoint and static credentials with read access to the source bucket.
+    /// Returns `false` if the source object does not exist.
+    #[tracing::instrument(skip(self, source), err)]
+    pub async fn copy_object_from(&self, source: &Self, key: &str) -> Result<bool, CacheError> {
+        let (Some(dst), Some(src)) = (&self.multipart, &source.multipart) else {
+            return Err(CacheError::ConfigurationError {
+                message: "copying between buckets requires static S3 credentials".to_owned(),
+            });
+        };
+        if !dst.same_endpoint(src) {
+            return Err(CacheError::ConfigurationError {
+                message: "copying between buckets requires both behind the same S3 endpoint"
+                    .to_owned(),
+            });
+        }
+
+        // HEAD via get_opts to learn size and content type/encoding without the body.
+        let head = match source
+            .s3
+            .get_opts(
+                &object_store::path::Path::from(key),
+                object_store::GetOptions {
+                    head: true,
+                    ..Default::default()
+                },
+            )
+            .await
+        {
+            Ok(v) => v,
+            Err(object_store::Error::NotFound { .. }) => return Ok(false),
+            Err(e) => return Err(CacheError::ObjectStore(e)),
+        };
+        source.s3_stats.head.fetch_add(1, Ordering::Relaxed);
+        let attr = |a: object_store::Attribute| {
+            head.attributes
+                .get(&a)
+                .map(|v| v.as_ref().to_owned())
+                .unwrap_or_default()
+        };
+
+        dst.copy_object_from(
+            src.bucket(),
+            key,
+            head.meta.size,
+            &attr(object_store::Attribute::ContentType),
+            &attr(object_store::Attribute::ContentEncoding),
+        )
+        .await?;
+        Ok(true)
     }
 
     #[tracing::instrument(skip(self), err)]

@@ -9,9 +9,7 @@
 nix_perl_store_xs = files('Store.xs')
 
 nix_perl_scripts = files(
-  'Manifest.pm',
   'Store.pm',
-  'Utils.pm',
 )
 
 nix_perl_scripts_copy_tgts = []
@@ -22,12 +20,6 @@ endforeach
 
 # Targets
 #---------------------------------------------------
-
-nix_perl_scripts += configure_file(
-  output : 'Config.pm',
-  input : 'Config.pm.in',
-  configuration : nix_perl_conf,
-)
 
 nix_perl_store_cc = custom_target(
   'Store.cc',

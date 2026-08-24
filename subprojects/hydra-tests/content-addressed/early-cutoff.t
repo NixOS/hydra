@@ -61,6 +61,22 @@ my $downstream2_out = $downstream2->buildoutputs->find({ name => "out" });
 is($downstream1_out->path, $downstream2_out->path,
     "Both downstream builds should create the same content-addressed output path");
 
+my $downstream1_step = $db->resultset('BuildSteps')->find({
+    build => $downstream1->id,
+    drvPath => $downstream1->drvpath,
+});
+
+my $downstream2_step = $db->resultset('BuildSteps')->find({
+    build => $downstream2->id,
+    drvPath => $downstream2->drvpath,
+});
+
+ok(length($downstream1_step->resolveddrvpath) > 32,
+    "Downstream build should resolve to a valid store path");
+
+is($downstream1_step->resolveddrvpath, $downstream2_step->resolveddrvpath,
+    "Both downstream builds should resolve to the same derivation");
+
 # Skip this for now because it is currently possible for neither to be marked
 # cached. Further investigation is needed. Note that it is not clear that the
 # derivation is being built twice in the neither-marked-cached case either!

@@ -45,6 +45,9 @@ pub enum StateError {
     #[error("binary cache error")]
     Cache(#[from] binary_cache::CacheError),
 
+    #[error("invalid overflow store URI")]
+    OverflowStoreUri(#[from] binary_cache::UrlParseError),
+
     #[error("integer conversion error")]
     IntConversion(#[from] std::num::TryFromIntError),
 
@@ -135,7 +138,7 @@ use harmonia_store_derivation::realisation::{DrvOutput, Realisation, UnkeyedReal
 use inspectable_channel::InspectableChannel;
 use sha2::{Digest as _, Sha256};
 
-use crate::config::{App, Cli};
+use crate::config::{App, MtlsConfig};
 use crate::state::build::get_mark_build_sccuess_data;
 pub use crate::state::fod_checker::FodChecker;
 use crate::state::machine::Machines;
@@ -190,6 +193,9 @@ enum OutputAvailability {
     /// missing there. The step must not count as finished before the upload
     /// completed.
     PendingUpload(Vec<StorePath>),
+    /// All outputs are in the overflow store but missing from the default
+    /// store. The step must not count as finished before the copy completed.
+    PendingCopy(Vec<StorePath>),
     /// Outputs are missing; the step has to be built.
     Incomplete,
 }
@@ -208,6 +214,8 @@ enum AttachOutcome {
     /// Created but gated: the caller must schedule an upload of these paths
     /// and finish the step via [`complete_step`] once it is done.
     PendingUpload(Vec<StorePath>),
+    /// Created but gated on a copy from the overflow store.
+    PendingCopy(Vec<StorePath>),
     Attached,
 }
 
@@ -243,6 +251,10 @@ fn attach_step(
             // wait for the upload before they may be dispatched.
             step.atomic_state.set_created(true);
             AttachOutcome::PendingUpload(paths)
+        }
+        OutputAvailability::PendingCopy(paths) => {
+            step.atomic_state.set_created(true);
+            AttachOutcome::PendingCopy(paths)
         }
         OutputAvailability::Incomplete => {
             for dep in deps {
@@ -290,14 +302,36 @@ fn presence_cache_file(uri: &str) -> String {
     format!("narinfo-presence-{digest:x}.db")
 }
 
+/// Build the S3 client for the configured overflow store, if any.
+async fn new_overflow_store(
+    overflow: Option<&crate::config::OverflowStore>,
+    presence_cache_dir: &std::path::Path,
+) -> Result<Option<Arc<binary_cache::S3BinaryCacheClient>>, StateError> {
+    let Some(overflow) = overflow else {
+        return Ok(None);
+    };
+    let cfg = overflow
+        .store
+        .parse::<binary_cache::S3CacheConfig>()?
+        .with_presence_cache(
+            Some(presence_cache_dir.join(presence_cache_file(&overflow.store))),
+            None,
+        );
+    Ok(Some(Arc::new(
+        binary_cache::S3BinaryCacheClient::new(cfg).await?,
+    )))
+}
+
 #[allow(missing_debug_implementations)]
 pub struct State {
     pub connector: daemon_client_utils::DaemonConnector,
     /// Reads store validity and path info through the nix-daemon.
     pub store: daemon_client_utils::DaemonStoreReader,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
+    /// Overflow S3 store for steps only referenced by the configured jobsets.
+    pub overflow_store: parking_lot::RwLock<Option<Arc<binary_cache::S3BinaryCacheClient>>>,
     pub config: App,
-    pub cli: Cli,
+    pub mtls: MtlsConfig,
     pub db: db::Database,
 
     pub machines: Machines,
@@ -308,15 +342,6 @@ pub struct State {
     pub jobsets: Jobsets,
     pub steps: Steps,
     pub queues: Queues,
-
-    /// In-memory mapping from unresolved CA drv path to resolved drv
-    /// path. Used to translate drv paths before SQL output lookups,
-    /// temporarily avoiding the need for a `resolvedDrvPath` column in
-    /// the database.
-    ///
-    /// FIXME: Replace this with proper persisted column, so we don't have to re-resolve on
-    /// restart.
-    pub resolved_drv_map: parking_lot::RwLock<HashMap<StorePath, StorePath>>,
 
     pub fod_checker: Option<Arc<FodChecker>>,
 
@@ -387,7 +412,7 @@ impl State {
     }
 
     #[tracing::instrument(err)]
-    pub async fn new() -> Result<Arc<Self>, StateError> {
+    pub async fn new(mtls: MtlsConfig, config: App) -> Result<Arc<Self>, StateError> {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
         let store_dir = nix_config.store_dir.clone();
@@ -396,9 +421,6 @@ impl State {
 
         tracing::info!("LocalStore dir={store_dir}");
 
-        let cli = Cli::new();
-
-        let config = App::init(&cli.config_path)?;
         let log_dir = config.get_hydra_log_dir();
         let max_db_connections = config.get_max_db_connections();
         let db = db::Database::new(config.get_db_url().expose_secret(), max_db_connections).await?;
@@ -427,6 +449,9 @@ impl State {
             }
         }
 
+        let overflow_store =
+            new_overflow_store(config.get_overflow_store().as_ref(), &presence_cache_dir).await?;
+
         let fod_checker = if config.get_enable_fod_checker() {
             Some(Arc::new(FodChecker::new(connector.clone(), None)))
         } else {
@@ -441,10 +466,10 @@ impl State {
             connector,
             store,
             remote_stores: parking_lot::RwLock::new(remote_stores),
-            cli,
+            overflow_store: parking_lot::RwLock::new(overflow_store),
+            mtls,
             db,
             machines: Machines::new(),
-            resolved_drv_map: parking_lot::RwLock::new(HashMap::new()),
             log_dir,
             builds: Builds::new(),
             jobsets: Jobsets::new(),
@@ -514,6 +539,12 @@ impl State {
         }
         if curr_remote_stores != new_config.remote_store_addr {
             *self.remote_stores.write() = new_remote_stores;
+        }
+
+        if self.config.get_overflow_store() != new_config.overflow_store {
+            let overflow_store =
+                new_overflow_store(new_config.overflow_store.as_ref(), &presence_cache_dir).await?;
+            *self.overflow_store.write() = overflow_store;
         }
 
         if curr_enable_fod_checker != new_config.enable_fod_checker {
@@ -879,15 +910,10 @@ impl State {
             let drv_ref = &full_drv;
 
             // Resolve `Built` input references to concrete store paths.
-            let resolved_map = self.resolved_drv_map.read().clone();
-            let mut basic_drv = StepInfo::try_resolve_force(
-                self.connector.store_dir(),
-                &self.db,
-                drv_ref,
-                &resolved_map,
-            )
-            .await
-            .ok_or_else(|| ResolutionError::ResolveFailed(drv.clone()))?;
+            let mut basic_drv =
+                StepInfo::try_resolve_force(self.connector.store_dir(), &self.db, drv_ref)
+                    .await
+                    .ok_or_else(|| ResolutionError::ResolveFailed(drv.clone()))?;
 
             // Input-addressed outputs that transitively depend on a CA
             // derivation come out of eval as `Deferred` because the IA
@@ -942,27 +968,21 @@ impl State {
             if &resolved_path != drv {
                 tracing::info!("resolved CA derivation {drv} -> {resolved_path}");
 
-                // Record the resolved drv path in memory so future
-                // output lookups can translate through it.
-                self.resolved_drv_map
-                    .write()
-                    .insert(drv.clone(), resolved_path.clone());
-
-                // Record the original step directly as Resolved.
+                // Record the original step directly as Resolved, with
+                // `resolvedDrvPath` set so future output lookups can
+                // follow the chain.
                 step_info.step.set_finished(true);
                 {
                     let _step_lock = self.build_step_lock(build_id).lock().await;
                     let mut tx = db.begin_transaction().await?;
-                    tx.create_build_step(
+                    tx.create_resolved_build_step(
                         self.connector.store_dir(),
-                        Some(job.result.get_start_time_as_i32()?),
+                        job.result.get_start_time_as_i32()?,
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
                         machine.hostname.clone(),
-                        BuildStatus::Resolved,
-                        None,
-                        None,
+                        &resolved_path,
                         step_info
                             .step
                             .get_output_paths()
@@ -1648,16 +1668,37 @@ impl State {
                             })
                             .collect()
                     };
+                    let overflow_store = self.overflow_store.read().as_deref().cloned();
                     let limit = self.config.get_concurrent_upload_limit();
                     if limit < 2 {
                         self.uploader
-                            .upload_once(store, local_store, s3_stores)
+                            .upload_once(store, local_store, s3_stores, overflow_store)
                             .await;
                     } else {
                         self.uploader
-                            .upload_many(store, local_store, s3_stores, limit)
+                            .upload_many(store, local_store, s3_stores, overflow_store, limit)
                             .await;
                     }
+                }
+            }
+        });
+        task.abort_handle()
+    }
+
+    /// Process queued copies from the overflow store to the default store.
+    #[tracing::instrument(skip(self))]
+    pub fn start_copier_queue(self: Arc<Self>) -> tokio::task::AbortHandle {
+        let task = tokio::task::spawn(async move {
+            loop {
+                let overflow = self.overflow_store.read().clone();
+                let (Some(source), Some(dest)) = (overflow, self.first_s3_remote_store()) else {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    continue;
+                };
+                match self.uploader.copy_once(&source, &dest).await {
+                    Some(true) => self.metrics.nr_overflow_copies_succeeded.inc(),
+                    Some(false) => self.metrics.nr_overflow_copies_failed.inc(),
+                    None => {}
                 }
             }
         });
@@ -1984,6 +2025,7 @@ impl State {
                         outputs_to_upload,
                         format!("log/{}", job.path),
                         job.result.log_file.clone(),
+                        self.step_wants_overflow(&item.step_info.step),
                         None,
                     )
                     .await;
@@ -2001,15 +2043,24 @@ impl State {
         {
             let has_ca_floating = item.step_info.step.has_ca_floating_outputs();
             if has_ca_floating {
-                let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
-                    let r = self.remote_stores.read();
-                    r.iter()
-                        .filter_map(|s| match s {
-                            RemoteStoreBackend::S3(s) => Some((**s).clone()),
-                            RemoteStoreBackend::NixCopy(_) => None,
-                        })
-                        .collect()
-                };
+                // Overflow-only steps write their realisations to the overflow store.
+                let s3_stores: Vec<binary_cache::S3BinaryCacheClient> =
+                    if self.step_wants_overflow(&item.step_info.step) {
+                        self.overflow_store
+                            .read()
+                            .as_deref()
+                            .cloned()
+                            .into_iter()
+                            .collect()
+                    } else {
+                        let r = self.remote_stores.read();
+                        r.iter()
+                            .filter_map(|s| match s {
+                                RemoteStoreBackend::S3(s) => Some((**s).clone()),
+                                RemoteStoreBackend::NixCopy(_) => None,
+                            })
+                            .collect()
+                    };
                 for (output_name, out_path) in &output.outputs {
                     let realisation = Realisation {
                         key: DrvOutput {
@@ -2858,6 +2909,35 @@ impl State {
                 ctx.finished_drvs.write().insert(drv_path.clone());
                 CreateStepResult::None
             }
+            AttachOutcome::PendingCopy(paths) => {
+                tracing::info!(
+                    "create_step: {drv_path} outputs in overflow store, awaiting copy to default store"
+                );
+                step.try_mark_upload_scheduled();
+                let realisation_keys = step
+                    .get_output_paths()
+                    .unwrap_or_default()
+                    .into_keys()
+                    .map(|output_name| {
+                        let id = DrvOutput {
+                            drv_path: drv_path.clone(),
+                            output_name,
+                        };
+                        format!("realisations/{id}.doi")
+                    })
+                    .collect();
+                self.metrics.nr_overflow_copies_queued.inc();
+                self.uploader
+                    .schedule_copy(
+                        paths,
+                        format!("log/{drv_path}"),
+                        realisation_keys,
+                        Some(drv_path.clone()),
+                    )
+                    .await;
+                new_steps.write().insert(step.clone());
+                CreateStepResult::Valid(step)
+            }
             AttachOutcome::PendingUpload(paths) => {
                 tracing::info!(
                     "create_step: {drv_path} outputs valid locally, awaiting upload to remote store"
@@ -2869,6 +2949,7 @@ impl State {
                         paths,
                         format!("log/{drv_path}"),
                         log_file,
+                        self.step_wants_overflow(&step),
                         Some(drv_path.clone()),
                     )
                     .await;
@@ -2906,6 +2987,7 @@ impl State {
                         paths,
                         format!("log/{drv_path}"),
                         log_file,
+                        self.step_wants_overflow(&step),
                         gated.then(|| drv_path.clone()),
                     )
                     .await;
@@ -2968,14 +3050,30 @@ impl State {
 
         // Handle paths that aren't in the remote store (for pushing).
         let mut pending_upload: Option<Vec<StorePath>> = None;
+        let mut pending_copy: Option<Vec<StorePath>> = None;
         let missing_outputs = match self
             .query_missing_remote_outputs(output_paths.clone())
             .await
         {
             Some(mut missing) => {
-                if !missing.is_empty() && missing_local_outputs.is_empty() {
-                    // We have all paths locally, so we can just upload them to
-                    // the remote store.
+                if !missing.is_empty()
+                    && !missing_local_outputs.is_empty()
+                    && let Some(present) = self.outputs_present_in_overflow(&missing).await
+                {
+                    // Only the overflow store has the outputs.
+                    // Overflow jobsets use them as is.
+                    // Anything else waits for a copy to the default store instead of rebuilding.
+                    let overflow_jobsets = self
+                        .config
+                        .get_overflow_store()
+                        .map(|o| o.jobsets)
+                        .unwrap_or_default();
+                    if !overflow_jobsets.contains(&build.jobset.full_name()) {
+                        pending_copy = Some(present);
+                    }
+                    missing.clear();
+                } else if !missing.is_empty() && missing_local_outputs.is_empty() {
+                    // We have all paths locally, so we can just upload them to the remote store.
                     let missing_paths: Vec<StorePath> =
                         missing.values().filter_map(Clone::clone).collect();
                     if self.config.use_presigned_uploads() {
@@ -2988,12 +3086,17 @@ impl State {
                         // Builders import inputs from the queue runner's local
                         // Local validity is enough; the upload only fills
                         // the cache.
+                        let use_overflow = self
+                            .config
+                            .get_overflow_store()
+                            .is_some_and(|o| o.jobsets.contains(&build.jobset.full_name()));
                         let log_file = self.construct_log_file_path(drv_path).await;
                         self.uploader
                             .schedule_upload(
                                 missing_paths,
                                 format!("log/{drv_path}"),
                                 log_file,
+                                use_overflow,
                                 None,
                             )
                             .await;
@@ -3039,7 +3142,9 @@ impl State {
             missing_outputs.is_empty()
         };
 
-        let availability = if let Some(paths) = pending_upload {
+        let availability = if let Some(paths) = pending_copy {
+            OutputAvailability::PendingCopy(paths)
+        } else if let Some(paths) = pending_upload {
             OutputAvailability::PendingUpload(paths)
         } else if finished {
             OutputAvailability::Complete
@@ -3194,6 +3299,31 @@ impl State {
         })
     }
 
+    /// Whether this step's uploads go to the overflow store.
+    pub fn step_wants_overflow(&self, step: &Step) -> bool {
+        let jobsets = self
+            .config
+            .get_overflow_store()
+            .map(|o| o.jobsets)
+            .unwrap_or_default();
+        !jobsets.is_empty() && step.wants_overflow(&jobsets)
+    }
+
+    /// All of `missing`'s paths if the overflow store has every one of them,
+    /// `None` otherwise.
+    async fn outputs_present_in_overflow(
+        &self,
+        missing: &BTreeMap<OutputName, Option<StorePath>>,
+    ) -> Option<Vec<StorePath>> {
+        let overflow = self.overflow_store.read().clone()?;
+        if missing.values().any(Option::is_none) {
+            return None;
+        }
+        let paths: Vec<StorePath> = missing.values().flatten().cloned().collect();
+        let still_missing = overflow.query_missing_paths(paths.clone()).await;
+        still_missing.is_empty().then_some(paths)
+    }
+
     /// Returns the subset of `output_paths` missing from the binary cache, or
     /// `None` when no S3 store is configured.
     ///
@@ -3331,12 +3461,27 @@ impl State {
         // disk). Fall back to the local store only when no S3 cache is
         // configured.
         let build_output = if let Some(store) = self.first_s3_remote_store() {
-            Box::pin(cached_output::build_output_from_cache(
+            let overflow = self.overflow_store.read().clone();
+            let from_default = Box::pin(cached_output::build_output_from_cache(
                 &store,
                 self.connector.store_dir(),
                 &output_paths,
             ))
-            .await?
+            .await;
+            match (from_default, overflow) {
+                (Ok(v), _) => v,
+                (Err(e), None) => return Err(e.into()),
+                // Outputs of overflow-only builds may exist only in the
+                // overflow store.
+                (Err(_), Some(overflow)) => {
+                    Box::pin(cached_output::build_output_from_cache(
+                        &overflow,
+                        self.connector.store_dir(),
+                        &output_paths,
+                    ))
+                    .await?
+                }
+            }
         } else {
             let default_store: std::path::PathBuf = self.connector.store_dir().to_string().into();
             let real_dir = self.real_store_dir.as_deref().unwrap_or(&default_store);

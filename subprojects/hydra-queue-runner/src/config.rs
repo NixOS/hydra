@@ -1,11 +1,12 @@
-use std::{net::SocketAddr, sync::Arc};
-
-use clap::Parser;
+use std::sync::Arc;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("missing option: {0}")]
     MissingOption(&'static str),
+
+    #[error("invalid option: {0}")]
+    InvalidOption(&'static str),
 
     #[error("environment variable `{0}` is missing")]
     MissingEnvVar(&'static str),
@@ -27,88 +28,34 @@ pub enum ConfigError {
     Prepare(#[source] Box<ConfigError>),
 }
 
-#[derive(Debug, Clone)]
-pub enum BindSocket {
-    Tcp(SocketAddr),
-    Unix(std::path::PathBuf),
-    ListenFd,
-}
-
-impl std::str::FromStr for BindSocket {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse::<SocketAddr>().map(BindSocket::Tcp).or_else(|_| {
-            if s == "-" {
-                Ok(Self::ListenFd)
-            } else {
-                Ok(Self::Unix(s.into()))
-            }
-        })
-    }
-}
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-pub struct Cli {
-    /// REST server bind, either a `SocketAddr` or `-` to use `ListenFD` (systemd socket activation)
-    #[clap(short, long, default_value = "[::1]:8080")]
-    pub rest_bind: BindSocket,
-
-    /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-` to use `ListenFD` (systemd socket activation)
-    #[clap(short, long, default_value = "[::1]:50051")]
-    pub grpc_bind: BindSocket,
-
-    /// Config path
-    #[clap(short, long, default_value = "config.toml")]
-    pub config_path: String,
-
-    /// Path to Server cert
-    #[clap(long)]
+/// mTLS material the gRPC server needs. The binary builds this from its
+/// CLI arguments; keeping it clap-free is what lets the library compile
+/// without depending on argument parsing.
+#[derive(Debug, Clone, Default)]
+pub struct MtlsConfig {
     pub server_cert_path: Option<std::path::PathBuf>,
-
-    /// Path to Server key
-    #[clap(long)]
     pub server_key_path: Option<std::path::PathBuf>,
-
-    /// Path to Client ca cert
-    #[clap(long)]
     pub client_ca_cert_path: Option<std::path::PathBuf>,
-
-    /// Dangerous to disable this, this is only implemented so we can manually trigger only one build
-    #[clap(long, default_value_t = false)]
-    pub disable_queue_monitor_loop: bool,
 }
 
-impl Default for Cli {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Cli {
+impl MtlsConfig {
     #[must_use]
-    pub fn new() -> Self {
-        Self::parse()
-    }
-
-    #[must_use]
-    pub const fn mtls_enabled(&self) -> bool {
+    pub const fn enabled(&self) -> bool {
         self.server_cert_path.is_some()
             && self.server_key_path.is_some()
             && self.client_ca_cert_path.is_some()
     }
 
     #[must_use]
-    pub const fn mtls_configured_correctly(&self) -> bool {
-        self.mtls_enabled()
+    pub const fn configured_correctly(&self) -> bool {
+        self.enabled()
             || (self.server_cert_path.is_none()
                 && self.server_key_path.is_none()
                 && self.client_ca_cert_path.is_none())
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_mtls(
+    pub async fn get(
         &self,
     ) -> Result<(tonic::transport::Certificate, tonic::transport::Identity), ConfigError> {
         let server_cert_path = self
@@ -222,6 +169,28 @@ pub enum StepSortFn {
     WithCriticalPath,
 }
 
+/// Overflow S3 store.
+/// Steps referenced only by the listed jobsets,
+/// upload there instead of the default store.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct OverflowStore {
+    pub store: String,
+    pub jobsets: Vec<String>,
+}
+
+impl OverflowStore {
+    fn validate(&self) -> Result<(), ConfigError> {
+        if !self.store.starts_with("s3://") {
+            return Err(ConfigError::InvalidOption(
+                "overflowStore.store must be an s3:// store URI",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// Main configuration of the application
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -312,6 +281,8 @@ struct AppConfig {
 
     #[serde(default)]
     forced_substituters: Vec<String>,
+
+    overflow_store: Option<OverflowStore>,
 }
 
 /// Prepared configuration of the application
@@ -346,6 +317,7 @@ pub struct PreparedApp {
     pub build_timeout: i32,
     pub max_log_size: u64,
     pub forced_substituters: Vec<String>,
+    pub overflow_store: Option<OverflowStore>,
 }
 
 impl TryFrom<AppConfig> for PreparedApp {
@@ -378,6 +350,10 @@ impl TryFrom<AppConfig> for PreparedApp {
 
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");
         let lockfile = val.hydra_data_dir.join("queue-runner/lock");
+
+        if let Some(overflow) = &val.overflow_store {
+            overflow.validate()?;
+        }
 
         let token_list = val.token_paths.and_then(|l| {
             l.iter()
@@ -446,6 +422,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             build_timeout: val.build_timeout,
             max_log_size: val.max_log_size,
             forced_substituters: val.forced_substituters,
+            overflow_store: val.overflow_store,
         })
     }
 }
@@ -652,6 +629,12 @@ impl App {
     pub fn get_forced_substituters(&self) -> Vec<String> {
         let inner = self.inner.load();
         inner.forced_substituters.clone()
+    }
+
+    #[must_use]
+    pub fn get_overflow_store(&self) -> Option<OverflowStore> {
+        let inner = self.inner.load();
+        inner.overflow_store.clone()
     }
 }
 

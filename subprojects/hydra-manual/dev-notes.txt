@@ -93,7 +93,7 @@
 
 * Using PostgreSQL (version 9.2 or newer is required): 
 
-  $ HYDRA_DBI="dbi:Pg:dbname=hydra;" hydra-server
+  $ HYDRA_DATABASE_URL="postgres:///hydra" hydra-server
 
 
 * Find the builds with the highest number of build steps:

@@ -454,7 +454,8 @@ dependencies = [
  "object_store",
  "parking_lot",
  "percent-encoding",
- "reqwest",
+ "quick-xml",
+ "reqwest 0.12.28",
  "secrecy",
  "serde",
  "serde_json",
@@ -954,14 +955,14 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.3"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
+checksum = "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
 dependencies = [
  "cfg-if",
- "cpufeatures 0.2.17",
+ "cpufeatures 0.3.0",
  "curve25519-dalek-derive",
- "digest 0.10.7",
+ "digest 0.11.3",
  "fiat-crypto",
  "rustc_version",
  "subtle",
@@ -1106,24 +1107,22 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "ed25519"
-version = "2.2.3"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
+checksum = "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
 dependencies = [
- "pkcs8",
- "signature",
+ "signature 3.0.0",
 ]
 
 [[package]]
 name = "ed25519-dalek"
-version = "2.2.0"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
+checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "serde",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "subtle",
  "zeroize",
 ]
@@ -1159,7 +1158,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1202,9 +1201,9 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "fiat-crypto"
-version = "0.2.9"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "find-msvc-tools"
@@ -1481,8 +1480,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-file-core"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "serde",
  "serde_json",
@@ -1491,8 +1490,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-file-nar"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "bstr",
  "bytes",
@@ -1515,8 +1514,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-protocol"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "async-stream",
  "bstr",
@@ -1549,18 +1548,18 @@ dependencies = [
 
 [[package]]
 name = "harmonia-protocol-derive"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.3",
 ]
 
 [[package]]
 name = "harmonia-store-aterm"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "bytes",
  "harmonia-store-content-address",
@@ -1575,8 +1574,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-build-result"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "harmonia-store-derivation",
  "num_enum",
@@ -1586,8 +1585,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-content-address"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "derive_more",
  "harmonia-store-path",
@@ -1599,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-derivation"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1617,8 +1616,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-nar-info"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "harmonia-store-content-address",
  "harmonia-store-path",
@@ -1631,8 +1630,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-path"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "derive_more",
  "harmonia-utils-base-encoding",
@@ -1644,8 +1643,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-path-info"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "harmonia-store-content-address",
  "harmonia-store-path",
@@ -1656,8 +1655,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-store-remote"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "async-stream",
  "futures-core",
@@ -1677,7 +1676,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1687,7 +1686,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-hash"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "blake3",
  "data-encoding",
@@ -1705,7 +1704,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-io"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1717,8 +1716,8 @@ dependencies = [
 
 [[package]]
 name = "harmonia-utils-signature"
-version = "3.1.0"
-source = "git+https://github.com/nix-community/harmonia.git#be940def673a5a2da6aa51be8dc8fd8600cfcbf9"
+version = "3.2.0"
+source = "git+https://github.com/nix-community/harmonia.git#b438172545da3af37998d0995b6440f1412ae14d"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
@@ -1956,6 +1955,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "toml",
  "tonic",
  "tonic-prost",
  "tower",
@@ -2063,11 +2063,11 @@ version = "0.1.0"
 dependencies = [
  "color-eyre",
  "http 1.4.0",
- "opentelemetry 0.31.0",
+ "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
- "opentelemetry_sdk 0.32.1",
+ "opentelemetry_sdk",
  "thiserror",
  "tonic",
  "tracing",
@@ -2344,7 +2344,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2783,7 +2783,7 @@ dependencies = [
  "percent-encoding",
  "quick-xml",
  "rand 0.10.1",
- "reqwest",
+ "reqwest 0.12.28",
  "ring",
  "serde",
  "serde_json",
@@ -2817,20 +2817,6 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "opentelemetry"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84bcd6ae87133e903af7ef497404dda70c60d0ea14895fc8a5e6722754fc2a0"
-dependencies = [
- "futures-core",
- "futures-sink",
- "js-sys",
- "pin-project-lite",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "opentelemetry"
 version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0142c63252a9e054e68a4c61a5778f7b14f576274d593f8ce883d191a099682"
@@ -2845,44 +2831,44 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-http"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7a6d09a73194e6b66df7c8f1b680f156d916a1a942abf2de06823dd02b7855d"
+checksum = "5683015d09e2df236ef005b17f6f196f0d5f6313c4fa43a7b6a53b52776e4331"
 dependencies = [
  "async-trait",
  "bytes",
  "http 1.4.0",
- "opentelemetry 0.31.0",
- "reqwest",
+ "opentelemetry",
+ "reqwest 0.13.4",
 ]
 
 [[package]]
 name = "opentelemetry-otlp"
-version = "0.31.1"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f69cd6acbb9af919df949cd1ec9e5e7fdc2ef15d234b6b795aaa525cc02f71f"
+checksum = "9966929966d17620d7c316c643ba62631826e10021409357772d5eea84f62c35"
 dependencies = [
  "http 1.4.0",
- "opentelemetry 0.31.0",
+ "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-proto",
- "opentelemetry_sdk 0.31.0",
+ "opentelemetry_sdk",
  "prost",
- "reqwest",
+ "reqwest 0.13.4",
  "thiserror",
  "tokio",
  "tonic",
- "tracing",
+ "tonic-types",
 ]
 
 [[package]]
 name = "opentelemetry-proto"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7175df06de5eaee9909d4805a3d07e28bb752c34cab57fa9cff549da596b30f"
+checksum = "56d658ba1faf63f7b9c492cfbe6e0ec365440a16132d3270c1065f7b33f1b638"
 dependencies = [
- "opentelemetry 0.31.0",
- "opentelemetry_sdk 0.31.0",
+ "opentelemetry",
+ "opentelemetry_sdk",
  "prost",
  "tonic",
  "tonic-prost",
@@ -2890,24 +2876,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-semantic-conventions"
-version = "0.31.0"
+version = "0.32.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e62e29dfe041afb8ed2a6c9737ab57db4907285d999ef8ad3a59092a36bdc846"
-
-[[package]]
-name = "opentelemetry_sdk"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e14ae4f5991976fd48df6d843de219ca6d31b01daaab2dad5af2badeded372bd"
-dependencies = [
- "futures-channel",
- "futures-executor",
- "futures-util",
- "opentelemetry 0.31.0",
- "percent-encoding",
- "rand 0.9.4",
- "thiserror",
-]
+checksum = "c913ac17a6c451661ee255f4625d143e51647ae78ebd969b75e41c4442f4fe47"
 
 [[package]]
 name = "opentelemetry_sdk"
@@ -2918,7 +2889,7 @@ dependencies = [
  "futures-channel",
  "futures-executor",
  "futures-util",
- "opentelemetry 0.32.0",
+ "opentelemetry",
  "percent-encoding",
  "portable-atomic",
  "rand 0.9.4",
@@ -3534,7 +3505,6 @@ dependencies = [
  "base64",
  "bytes",
  "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
@@ -3569,6 +3539,37 @@ dependencies = [
  "wasm-streams",
  "web-sys",
  "webpki-roots 1.0.7",
+]
+
+[[package]]
+name = "reqwest"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
+dependencies = [
+ "base64",
+ "bytes",
+ "futures-channel",
+ "futures-core",
+ "futures-util",
+ "http 1.4.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "js-sys",
+ "log",
+ "percent-encoding",
+ "pin-project-lite",
+ "sync_wrapper",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tower-service",
+ "url",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -3628,7 +3629,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "rand_core 0.6.4",
- "signature",
+ "signature 2.2.0",
  "spki",
  "subtle",
  "zeroize",
@@ -3695,7 +3696,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3990,6 +3991,12 @@ dependencies = [
  "digest 0.10.7",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "signature"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
 
 [[package]]
 name = "simd-adler32"
@@ -4314,6 +4321,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "syn"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
 name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4384,7 +4402,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4711,6 +4729,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic-types"
+version = "0.14.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ab1b02061f83d519bba3caa167f88f261ef05720ab8ebc954ade70de3348e8"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+]
+
+[[package]]
 name = "tower"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4816,12 +4845,12 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.32.1"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ac28f2d093c6c477eaa76b23525478f38de514fa9aeb1285738d4b97a9552fc"
+checksum = "adbc64cba7137545b8044cb1fe9814f7aacf3c6b5f9b45be8bb5db538befdb26"
 dependencies = [
  "js-sys",
- "opentelemetry 0.31.0",
+ "opentelemetry",
  "smallvec",
  "tracing",
  "tracing-core",
@@ -5198,7 +5227,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
