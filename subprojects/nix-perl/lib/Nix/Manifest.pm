@@ -17,9 +17,7 @@ sub fingerprintPath {
     my ($storePath, $narHash, $narSize, $references) = @_;
     die if substr($storePath, 0, length($Nix::Config::storeDir)) ne $Nix::Config::storeDir;
     die if substr($narHash, 0, 7) ne "sha256:";
-    # Convert hash from base-16 to base-32, if necessary.
-    $narHash = "sha256:" . convertHash("sha256", substr($narHash, 7), 1)
-        if length($narHash) == 71;
+    # Base-32, i.e. queryPathInfo's base32 argument was set.
     die if length($narHash) != 59;
     foreach my $ref (@{$references}) {
         die if substr($ref, 0, length($Nix::Config::storeDir)) ne $Nix::Config::storeDir;
