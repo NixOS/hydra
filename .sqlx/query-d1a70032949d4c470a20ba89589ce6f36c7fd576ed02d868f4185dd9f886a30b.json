@@ -12,7 +12,7 @@
         "Text",
         "Text",
         "Text",
-        "Int8"
+        "Int4"
       ]
     },
     "nullable": []

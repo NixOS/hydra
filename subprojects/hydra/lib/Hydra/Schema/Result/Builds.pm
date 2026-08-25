@@ -193,7 +193,7 @@ __PACKAGE__->add_columns(
   "finished",
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "job",
@@ -225,9 +225,9 @@ __PACKAGE__->add_columns(
   "globalpriority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "starttime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "stoptime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "iscachedbuild",
   { data_type => "integer", is_nullable => 1 },
   "buildstatus",
@@ -241,7 +241,7 @@ __PACKAGE__->add_columns(
   "keep",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "notificationpendingsince",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY

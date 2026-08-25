@@ -86,7 +86,7 @@ __PACKAGE__->add_columns(
   "attempts",
   { data_type => "integer", is_nullable => 0 },
   "retry_at",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY

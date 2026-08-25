@@ -290,10 +290,13 @@ impl RemoteBuild {
         self.start_time.is_some()
     }
 
-    pub fn get_start_time_as_i64(&self) -> i64 {
-        self.start_time
-            .map(jiff::Timestamp::as_second)
-            .unwrap_or_default()
+    pub fn get_start_time_as_i32(&self) -> Result<i32, std::num::TryFromIntError> {
+        // TODO: migrate to 64 bit timestamps
+        i32::try_from(
+            self.start_time
+                .map(jiff::Timestamp::as_second)
+                .unwrap_or_default(),
+        )
     }
 
     #[must_use]
@@ -301,10 +304,13 @@ impl RemoteBuild {
         self.stop_time.is_some()
     }
 
-    pub fn get_stop_time_as_i64(&self) -> i64 {
-        self.stop_time
-            .map(jiff::Timestamp::as_second)
-            .unwrap_or_default()
+    pub fn get_stop_time_as_i32(&self) -> Result<i32, std::num::TryFromIntError> {
+        // TODO: migrate to 64 bit timestamps
+        i32::try_from(
+            self.stop_time
+                .map(jiff::Timestamp::as_second)
+                .unwrap_or_default(),
+        )
     }
 
     #[must_use]

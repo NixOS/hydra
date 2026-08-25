@@ -52,7 +52,6 @@ hydra.overrideAttrs (
       pkgs.nixfmt
       pkgs.rustfmt
       pkgs.taplo
-      pkgs.sqlx-cli
     ];
     buildInputs = collectInputs "buildInputs";
 

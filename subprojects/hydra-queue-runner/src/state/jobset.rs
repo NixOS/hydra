@@ -199,7 +199,7 @@ impl Jobsets {
             let Some(stoptime) = step.stoptime else {
                 continue;
             };
-            jobset.add_step(starttime, stoptime - starttime);
+            jobset.add_step(i64::from(starttime), i64::from(stoptime - starttime));
         }
 
         let jobset = Arc::new(jobset);

@@ -6,12 +6,12 @@
       {
         "ordinal": 0,
         "name": "starttime",
-        "type_info": "Int8"
+        "type_info": "Int4"
       },
       {
         "ordinal": 1,
         "name": "stoptime",
-        "type_info": "Int8"
+        "type_info": "Int4"
       }
     ],
     "parameters": {
