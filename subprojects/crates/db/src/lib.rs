@@ -26,7 +26,14 @@ pub use error::{DataError, Error, Result};
 ///
 /// Named rather than spelled out at every column, so that changing the width
 /// is one edit here instead of a hunt for which `i64`s happened to be times.
-pub type Timestamp = i64;
+pub type Timestamp = i32;
+
+/// We would like to switch to 64-bit time already. Some things use it already?
+///
+/// Not columns — nothing in the schema is `bigint` yet. This is epoch seconds
+/// as computed in memory (`jiff` hands out `i64` whatever the schema says),
+/// narrowed to [`Timestamp`] at the database boundary.
+pub type FutureTimestamp = i64;
 pub use harmonia_store_path::StoreDir;
 pub use sqlx::postgres::PgNotification as Notification;
 

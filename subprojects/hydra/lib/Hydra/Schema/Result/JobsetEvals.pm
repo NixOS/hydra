@@ -56,7 +56,7 @@ __PACKAGE__->table("jobsetevals");
 
 =head2 timestamp
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 checkouttime
@@ -135,7 +135,7 @@ __PACKAGE__->add_columns(
   "evaluationerror_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "timestamp",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
   "checkouttime",
   { data_type => "integer", is_nullable => 0 },
   "evaltime",
@@ -262,8 +262,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 05:00:28
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PeB/2DGJ3QnQa4iuRetvNg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 16:38:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:At88o3NDvxJjLDtUo1k+Dg
 
 __PACKAGE__->has_many(
   "buildIds",

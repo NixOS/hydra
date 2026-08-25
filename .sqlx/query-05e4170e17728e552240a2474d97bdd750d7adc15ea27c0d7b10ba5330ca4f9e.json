@@ -46,7 +46,7 @@
       {
         "ordinal": 8,
         "name": "timestamp",
-        "type_info": "Int8"
+        "type_info": "Int4"
       },
       {
         "ordinal": 9,

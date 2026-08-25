@@ -21,12 +21,12 @@
       {
         "ordinal": 3,
         "name": "lastcheckedtime",
-        "type_info": "Int8"
+        "type_info": "Int4"
       },
       {
         "ordinal": 4,
         "name": "triggertime",
-        "type_info": "Int8"
+        "type_info": "Int4"
       },
       {
         "ordinal": 5,

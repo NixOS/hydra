@@ -1,40 +1,23 @@
-ALTER TABLE Jobsets ALTER COLUMN errorTime TYPE bigint;
-ALTER TABLE Jobsets ALTER COLUMN lastCheckedTime TYPE bigint;
+-- The build that performed an evaluation, when evaluation ran as a build.
+-- Nullable with no default, so this is a metadata-only change: no table
+-- rewrite, and existing evaluations are legitimately null.
+ALTER TABLE JobsetEvals ADD COLUMN eval_build integer;
 
--- recreate trigger
-DROP TRIGGER IF EXISTS JobsetSchedulingChanged ON Jobsets;
-ALTER TABLE Jobsets ALTER COLUMN triggerTime TYPE bigint;
-create trigger JobsetSchedulingChanged after update on Jobsets for each row
-  when (((old.triggerTime is distinct from new.triggerTime) and (new.triggerTime is not null))
-        or (old.checkInterval != new.checkInterval)
-        or (old.enabled != new.enabled))
-  execute procedure notifyJobsetSchedulingChanged();
+-- `set null`, never cascade: evaluation builds live in a high-churn jobset
+-- that is garbage collected aggressively, and losing an evaluation because
+-- its evaluator aged out would be far worse than losing the provenance.
+ALTER TABLE JobsetEvals
+  ADD CONSTRAINT jobsetevals_eval_build_fkey
+  FOREIGN KEY (eval_build) REFERENCES Builds(id) ON DELETE SET NULL;
 
-ALTER TABLE Jobsets ALTER COLUMN startTime TYPE bigint;
+-- Whether a tentative evaluation has been filled in from its build yet. See
+-- the comment in hydra.sql for why this cannot be inferred from the other
+-- columns. Nullable with no default, so metadata-only like the above: rows
+-- that predate evaluation-as-a-build have no eval_build either, and the two
+-- nulls together mean "written in one shot, the old way".
+ALTER TABLE JobsetEvals ADD COLUMN completed bigint;
 
-ALTER TABLE Builds ALTER COLUMN timestamp TYPE bigint;
-ALTER TABLE Builds ALTER COLUMN startTime TYPE bigint;
-ALTER TABLE Builds ALTER COLUMN stopTime TYPE bigint;
-ALTER TABLE Builds ALTER COLUMN notificationPendingSince TYPE bigint;
-
-ALTER TABLE BuildSteps ALTER COLUMN startTime TYPE bigint;
-ALTER TABLE BuildSteps ALTER COLUMN stopTime TYPE bigint;
-
-ALTER TABLE BuildMetrics ALTER COLUMN timestamp TYPE bigint;
-
-ALTER TABLE CachedPathInputs ALTER COLUMN timestamp TYPE bigint;
-ALTER TABLE CachedPathInputs ALTER COLUMN lastSeen TYPE bigint;
-
-ALTER TABLE CachedCVSInputs ALTER COLUMN timestamp TYPE bigint;
-ALTER TABLE CachedCVSInputs ALTER COLUMN lastSeen TYPE bigint;
-
-ALTER TABLE EvaluationErrors ALTER COLUMN errorTime TYPE bigint;
-
-ALTER TABLE JobsetEvals ALTER COLUMN timestamp TYPE bigint;
-
-ALTER TABLE NewsItems ALTER COLUMN createTime TYPE bigint;
-
-ALTER TABLE TaskRetries ALTER COLUMN retry_at TYPE bigint;
-
-ALTER TABLE RunCommandLogs ALTER COLUMN start_time TYPE bigint;
-ALTER TABLE RunCommandLogs ALTER COLUMN end_time TYPE bigint;
+-- Correlates the notifications of one evaluation across the two processes
+-- that now perform it. See the comment in hydra.sql. Metadata-only like the
+-- rest: nullable, no default.
+ALTER TABLE JobsetEvals ADD COLUMN trace_id text;

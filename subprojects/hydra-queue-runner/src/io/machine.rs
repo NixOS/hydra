@@ -47,12 +47,12 @@ pub struct MachineStats {
     total_step_import_time_ms: u64,
     total_step_build_time_ms: u64,
     total_step_upload_time_ms: u64,
-    idle_since: db::Timestamp,
+    idle_since: db::FutureTimestamp,
 
-    last_failure: db::Timestamp,
-    disabled_until: db::Timestamp,
+    last_failure: db::FutureTimestamp,
+    disabled_until: db::FutureTimestamp,
     consecutive_failures: u64,
-    last_ping: db::Timestamp,
+    last_ping: db::FutureTimestamp,
     since_last_ping: i64,
 
     load1: f32,

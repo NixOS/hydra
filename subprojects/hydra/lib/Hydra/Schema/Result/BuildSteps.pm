@@ -73,12 +73,12 @@ __PACKAGE__->table("buildsteps");
 
 =head2 starttime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 stoptime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 machine
@@ -136,9 +136,9 @@ __PACKAGE__->add_columns(
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "starttime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "stoptime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "machine",
   { data_type => "text", default_value => "", is_nullable => 0 },
   "system",
@@ -222,8 +222,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qId9Fo+ZRwiSBRXAi3IB+w
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-07-15 11:41:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BzGi6sOIZ8K602dlsYEiag
 
 use File::Basename ();
 # Below the marker, not up with the other `use` lines: everything above it is

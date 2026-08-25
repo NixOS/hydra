@@ -76,7 +76,7 @@ impl Build {
             outputs: BTreeMap::new(),
             jobset_id: v.jobset_id,
             name: v.job,
-            timestamp: jiff::Timestamp::from_second(v.timestamp)?,
+            timestamp: jiff::Timestamp::from_second(db::FutureTimestamp::from(v.timestamp))?,
             max_silent_time: v.maxsilent,
             timeout: v.timeout,
             local_priority: v.priority,
@@ -290,10 +290,13 @@ impl RemoteBuild {
         self.start_time.is_some()
     }
 
-    pub fn get_start_time_as_i64(&self) -> i64 {
-        self.start_time
-            .map(jiff::Timestamp::as_second)
-            .unwrap_or_default()
+    pub fn get_start_time_as_i32(&self) -> Result<db::Timestamp, std::num::TryFromIntError> {
+        // TODO: migrate to 64 bit timestamps
+        db::Timestamp::try_from(
+            self.start_time
+                .map(jiff::Timestamp::as_second)
+                .unwrap_or_default(),
+        )
     }
 
     #[must_use]
@@ -301,10 +304,13 @@ impl RemoteBuild {
         self.stop_time.is_some()
     }
 
-    pub fn get_stop_time_as_i64(&self) -> i64 {
-        self.stop_time
-            .map(jiff::Timestamp::as_second)
-            .unwrap_or_default()
+    pub fn get_stop_time_as_i32(&self) -> Result<db::Timestamp, std::num::TryFromIntError> {
+        // TODO: migrate to 64 bit timestamps
+        db::Timestamp::try_from(
+            self.stop_time
+                .map(jiff::Timestamp::as_second)
+                .unwrap_or_default(),
+        )
     }
 
     #[must_use]

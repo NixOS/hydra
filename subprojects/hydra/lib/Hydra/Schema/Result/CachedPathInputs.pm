@@ -42,12 +42,12 @@ __PACKAGE__->table("cachedpathinputs");
 
 =head2 timestamp
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 lastseen
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 sha256hash
@@ -66,9 +66,9 @@ __PACKAGE__->add_columns(
   "srcpath",
   { data_type => "text", is_nullable => 0 },
   "timestamp",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
   "lastseen",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
   "sha256hash",
   { data_type => "text", is_nullable => 0 },
   "storepath",
@@ -90,8 +90,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:HoWHS3rwjazKa5VWDwSimw
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PZAkRje22dqftpqfU2jyGg
 
 __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/storepath/);

@@ -35,14 +35,14 @@ pub async fn finish_build_step(
     tracing::info!(
         "Writing buildstep result in db. step_status={:?} start_time={:?} stop_time={:?}",
         res.step_status,
-        res.get_start_time_as_i64(),
-        res.get_stop_time_as_i64(),
+        res.get_start_time_as_i32(),
+        res.get_stop_time_as_i32(),
     );
     debug_assert!(!res.log_file.as_os_str().is_empty());
     debug_assert!(!res.log_file.as_os_str().as_bytes().contains(&b'\t'));
 
-    let start_time = res.get_start_time_as_i64();
-    let stop_time = res.get_stop_time_as_i64();
+    let start_time = res.get_start_time_as_i32()?;
+    let stop_time = res.get_stop_time_as_i32()?;
     let log_file = res.log_file.to_str().ok_or(StateError::LogPathNotUtf8)?;
 
     with_serialization_retry("finish_build_step", || async {
@@ -97,7 +97,7 @@ pub async fn substitute_output(
     };
 
     let store_dir = connector.store_dir();
-    let starttime = jiff::Timestamp::now().as_second();
+    let starttime = db::Timestamp::try_from(jiff::Timestamp::now().as_second())?; // TODO
     let mut conn = connector.connect().await?;
     if let Err(e) = daemon_client_utils::ensure_path(&mut conn, &path).await {
         tracing::debug!("Path not found, can't import={e}");
@@ -128,7 +128,7 @@ pub async fn substitute_output(
             );
         });
     }
-    let stoptime = jiff::Timestamp::now().as_second();
+    let stoptime = db::Timestamp::try_from(jiff::Timestamp::now().as_second())?; // TODO
 
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
@@ -154,7 +154,7 @@ pub async fn make_local_step(
     drv_path: &StorePath,
     missing: &BTreeMap<OutputName, Option<StorePath>>,
 ) -> Result<(), StateError> {
-    let time = jiff::Timestamp::now().as_second();
+    let time = db::Timestamp::try_from(jiff::Timestamp::now().as_second())?;
 
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;

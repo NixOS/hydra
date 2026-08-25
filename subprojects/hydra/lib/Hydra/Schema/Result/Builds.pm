@@ -49,7 +49,7 @@ __PACKAGE__->table("builds");
 
 =head2 timestamp
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 jobset_id
@@ -136,12 +136,12 @@ __PACKAGE__->table("builds");
 
 =head2 starttime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 stoptime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 iscachedbuild
@@ -177,7 +177,7 @@ __PACKAGE__->table("builds");
 
 =head2 notificationpendingsince
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =cut
@@ -193,7 +193,7 @@ __PACKAGE__->add_columns(
   "finished",
   { data_type => "integer", is_nullable => 0 },
   "timestamp",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
   "jobset_id",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "job",
@@ -225,9 +225,9 @@ __PACKAGE__->add_columns(
   "globalpriority",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "starttime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "stoptime",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
   "iscachedbuild",
   { data_type => "integer", is_nullable => 1 },
   "buildstatus",
@@ -241,7 +241,7 @@ __PACKAGE__->add_columns(
   "keep",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "notificationpendingsince",
-  { data_type => "bigint", is_nullable => 1 },
+  { data_type => "integer", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -512,8 +512,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 03:32:27
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9pWt3KztpBKbz1APGDT9nQ
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 16:38:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:x0tw0dI9+9uwxN/eiEQrLA
 
 __PACKAGE__->has_many(
   "dependents",

@@ -40,8 +40,8 @@ struct Jobset {
     project: String,
     name: String,
     evaluation_style: Option<EvaluationStyle>,
-    last_checked_time: db::Timestamp,
-    trigger_time: Option<db::Timestamp>,
+    last_checked_time: db::FutureTimestamp,
+    trigger_time: Option<db::FutureTimestamp>,
     check_interval: i64,
 }
 
@@ -315,8 +315,8 @@ impl Evaluator {
 
             jobset.project.clone_from(&row.project);
             jobset.name.clone_from(&row.name);
-            jobset.last_checked_time = row.lastcheckedtime.unwrap_or(0);
-            jobset.trigger_time = row.triggertime;
+            jobset.last_checked_time = row.lastcheckedtime.map_or(0, db::FutureTimestamp::from);
+            jobset.trigger_time = row.triggertime.map(db::FutureTimestamp::from);
             jobset.check_interval = row.checkinterval.into();
             jobset.evaluation_style = evaluation_style;
         }
@@ -421,7 +421,8 @@ impl Evaluator {
 
     async fn start_evals(&self, state: &mut State) -> eyre::Result<()> {
         // Collect eligible jobset IDs with their sort keys
-        let mut candidates: Vec<(i32, Option<db::Timestamp>, db::Timestamp)> = Vec::new();
+        let mut candidates: Vec<(i32, Option<db::FutureTimestamp>, db::FutureTimestamp)> =
+            Vec::new();
 
         for jobset in state.jobsets.values() {
             // Checked here as well as in should_evaluate so that eval-one
@@ -489,7 +490,7 @@ impl Evaluator {
         self.db
             .get()
             .await?
-            .set_jobset_start_time(jobset_id, now)
+            .set_jobset_start_time(jobset_id, epoch_i32(now))
             .await
             .wrap_err("failed to set startTime")?;
 
@@ -567,7 +568,7 @@ async fn reap_child(
     mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     jobset_id: i32,
     jobset_display: String,
-    start_time: db::Timestamp,
+    start_time: db::FutureTimestamp,
     eval_one: bool,
     db: db::Database,
     state: Arc<Mutex<State>>,
@@ -641,22 +642,28 @@ async fn update_db_after_eval(
     jobset_id: i32,
     exit_ok: bool,
     status_str: &str,
-    now: db::Timestamp,
+    now: db::FutureTimestamp,
 ) -> eyre::Result<()> {
     let error_msg = (!exit_ok).then(|| format!("evaluation {status_str}"));
     db.get()
         .await?
-        .update_jobset_after_eval(jobset_id, error_msg.as_deref(), now)
+        .update_jobset_after_eval(jobset_id, error_msg.as_deref(), epoch_i32(now))
         .await?;
     Ok(())
 }
 
-fn now_epoch() -> db::Timestamp {
+fn now_epoch() -> db::FutureTimestamp {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .ok()
         .and_then(|d| i64::try_from(d.as_secs()).ok())
         .unwrap_or(0)
+}
+
+/// Narrow an epoch to the INT4 width used by Hydra's schema.
+/// Saturates at `i32::MAX` (the schema has a pre-existing Y2038 limit).
+fn epoch_i32(epoch: db::FutureTimestamp) -> db::Timestamp {
+    db::Timestamp::try_from(epoch).unwrap_or(db::Timestamp::MAX)
 }
 
 fn is_broken_connection(e: &eyre::Report) -> bool {

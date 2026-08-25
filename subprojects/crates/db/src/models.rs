@@ -327,7 +327,7 @@ pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_path::StorePath> 
     pub project_name: &'a str,
     pub jobset_name: &'a str,
     pub finished_in_db: bool,
-    pub timestamp: crate::Timestamp,
+    pub timestamp: crate::FutureTimestamp,
 
     pub failed: bool,
     pub closure_size: u64,

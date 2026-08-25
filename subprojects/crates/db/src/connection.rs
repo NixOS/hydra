@@ -146,11 +146,13 @@ impl Connection {
     // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
+        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
-            jiff::Timestamp::now().as_second(),
+            // TODO migrate to 64bit timestamp
+            jiff::Timestamp::now().as_second() as crate::Timestamp,
         )
         .execute(&mut *self.conn)
         .await?;
@@ -249,7 +251,7 @@ impl Connection {
               keep
             ) VALUES (
               0,
-              EXTRACT(EPOCH FROM NOW())::INT8,
+              EXTRACT(EPOCH FROM NOW())::INT4,
               $1,
               'debug',
               'debug',
@@ -538,6 +540,7 @@ impl Transaction<'_> {
         build_id: i32,
         status: BuildStatus,
     ) -> crate::Result<()> {
+        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -551,7 +554,8 @@ impl Transaction<'_> {
               id = $1 AND finished = 0"#,
             build_id,
             status as i32,
-            jiff::Timestamp::now().as_second(),
+            // TODO migrate to 64bit timestamp
+            jiff::Timestamp::now().as_second() as crate::Timestamp,
         )
         .execute(&mut *self.tx)
         .await?;
@@ -1335,7 +1339,7 @@ impl Transaction<'_> {
                 project: build.project_name,
                 jobset: build.jobset_name,
                 job: build.name,
-                timestamp: build.timestamp,
+                timestamp: crate::Timestamp::try_from(build.timestamp)?, // TODO
             })
             .await?;
         }

@@ -89,7 +89,7 @@ impl Jobset {
         self.seconds.load(Ordering::Relaxed)
     }
 
-    pub fn add_step(&self, start_time: db::Timestamp, duration: i64) {
+    pub fn add_step(&self, start_time: db::FutureTimestamp, duration: i64) {
         self.steps.write().insert(start_time, duration);
         self.seconds.fetch_add(duration, Ordering::Relaxed);
     }
@@ -199,7 +199,10 @@ impl Jobsets {
             let Some(stoptime) = step.stoptime else {
                 continue;
             };
-            jobset.add_step(starttime, stoptime - starttime);
+            jobset.add_step(
+                db::FutureTimestamp::from(starttime),
+                i64::from(stoptime - starttime),
+            );
         }
 
         let jobset = Arc::new(jobset);

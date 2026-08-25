@@ -64,7 +64,7 @@ __PACKAGE__->table("taskretries");
 
 =head2 retry_at
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =cut
@@ -86,7 +86,7 @@ __PACKAGE__->add_columns(
   "attempts",
   { data_type => "integer", is_nullable => 0 },
   "retry_at",
-  { data_type => "bigint", is_nullable => 0 },
+  { data_type => "integer", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -102,8 +102,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("id");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:u1dj69abdIa6l7bHb9LlVA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 16:30:59
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4MC8UnsgrvJVRrIURvSH5A
 
 use Hydra::Math qw(exponential_backoff);
 
