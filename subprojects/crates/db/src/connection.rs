@@ -398,7 +398,9 @@ impl Connection {
                       AND o.name = i.chain[r.step]
                       AND o.path IS NOT NULL
                       AND (s.status = 0 OR s.status = 13)
-                    ORDER BY s.build DESC
+                    -- `+ 0`: otherwise the planner walks buildsteps_pkey
+                    -- backwards instead of using IndexBuildStepsOnDrvPath.
+                    ORDER BY s.build + 0 DESC
                     LIMIT 1
                 ) sub
                 WHERE r.step <= array_length(i.chain, 1)
