@@ -137,13 +137,11 @@ impl Connection {
     // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
-        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
-            // TODO migrate to 64bit timestamp
-            jiff::Timestamp::now().as_second() as i32,
+            jiff::Timestamp::now().as_second(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -169,7 +167,7 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn clear_busy(&mut self, stop_time: i32) -> crate::Result<()> {
+    pub async fn clear_busy(&mut self, stop_time: i64) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
@@ -187,7 +185,7 @@ impl Connection {
         &mut self,
         build_id: crate::models::BuildID,
         step_nr: i32,
-        stop_time: i32,
+        stop_time: i64,
         status: BuildStatus,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -242,7 +240,7 @@ impl Connection {
               keep
             ) VALUES (
               0,
-              EXTRACT(EPOCH FROM NOW())::INT4,
+              EXTRACT(EPOCH FROM NOW())::INT8,
               $1,
               'debug',
               'debug',
@@ -497,8 +495,8 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         status: BuildStatus,
-        start_time: i32,
-        stop_time: i32,
+        start_time: i64,
+        stop_time: i64,
         is_cached_build: bool,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -529,7 +527,6 @@ impl Transaction<'_> {
         build_id: i32,
         status: BuildStatus,
     ) -> crate::Result<()> {
-        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -543,8 +540,7 @@ impl Transaction<'_> {
               id = $1 AND finished = 0"#,
             build_id,
             status as i32,
-            // TODO migrate to 64bit timestamp
-            jiff::Timestamp::now().as_second() as i32,
+            jiff::Timestamp::now().as_second(),
         )
         .execute(&mut *self.tx)
         .await?;
@@ -1024,7 +1020,7 @@ impl Transaction<'_> {
     pub async fn create_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: Option<i32>,
+        start_time: Option<i64>,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1092,7 +1088,7 @@ impl Transaction<'_> {
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
+        start_time: i64,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1144,8 +1140,8 @@ impl Transaction<'_> {
     pub async fn create_local_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
-        stop_time: i32,
+        start_time: i64,
+        stop_time: i64,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
@@ -1198,8 +1194,8 @@ impl Transaction<'_> {
     pub async fn create_substitution_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
-        stop_time: i32,
+        start_time: i64,
+        stop_time: i64,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
@@ -1250,8 +1246,8 @@ impl Transaction<'_> {
         &mut self,
         build: crate::models::MarkBuildSuccessData<'_>,
         is_cached_build: bool,
-        start_time: i32,
-        stop_time: i32,
+        start_time: i64,
+        stop_time: i64,
         store_dir: &StoreDir,
     ) -> crate::Result<()> {
         if build.finished_in_db {
@@ -1313,7 +1309,7 @@ impl Transaction<'_> {
                 project: build.project_name,
                 jobset: build.jobset_name,
                 job: build.name,
-                timestamp: i32::try_from(build.timestamp)?, // TODO
+                timestamp: build.timestamp,
             })
             .await?;
         }
