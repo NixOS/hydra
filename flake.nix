@@ -150,7 +150,9 @@
           }
         );
         hydraComponents = mkHydraComponents {
-          pkgs = final;
+          # Base package set should still use Nix's deps, so things that
+          # link Nix agree on libraries.
+          pkgs = final.nixDependenciesForHydra;
           nixComponents = final.nixComponentsForHydra;
         };
         inherit (final.hydraComponents)
