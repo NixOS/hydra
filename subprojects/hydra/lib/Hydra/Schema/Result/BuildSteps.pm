@@ -73,12 +73,12 @@ __PACKAGE__->table("buildsteps");
 
 =head2 starttime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 stoptime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 machine
@@ -222,8 +222,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-07-15 11:41:43
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BzGi6sOIZ8K602dlsYEiag
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qId9Fo+ZRwiSBRXAi3IB+w
 
 use File::Basename ();
 
