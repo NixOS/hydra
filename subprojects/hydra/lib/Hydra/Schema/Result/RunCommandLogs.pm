@@ -113,9 +113,9 @@ __PACKAGE__->add_columns(
   "command",
   { data_type => "text", is_nullable => 0 },
   "start_time",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "end_time",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "error_number",
   { data_type => "integer", is_nullable => 1 },
   "exit_code",
@@ -174,7 +174,7 @@ __PACKAGE__->belongs_to(
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZVpYU6k3d/k/nitjpdgf/A
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
-use UUID4::Tiny qw(create_uuid_string);
+use UUID::URandom qw(create_uuid_string);
 
 
 =head2 new

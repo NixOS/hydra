@@ -1,0 +1,27 @@
+name: Cache GC
+concurrency:
+  group: hestia-gc
+  cancel-in-progress: false
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Plan only; do not delete anything.
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  gc:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: Mic92/hestia@v2
+      - run: |
+          "$HESTIA_BIN" gc ${{ inputs.dry-run && '--dry-run' || '' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

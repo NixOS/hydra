@@ -15,7 +15,6 @@ use IPC::Run;
 use IPC::Run3;
 use LWP::UserAgent;
 use JSON::MaybeXS;
-use UUID4::Tiny qw(is_uuid4_string);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -589,7 +588,7 @@ sub constructRunCommandLogPath {
     my ($runlog) = @_;
     my $uuid = $runlog->uuid;
 
-    if (!is_uuid4_string($uuid)) {
+    if ($uuid !~ qr/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/is) {
         die "UUID was invalid."
     }
 

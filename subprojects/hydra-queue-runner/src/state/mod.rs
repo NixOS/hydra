@@ -650,7 +650,7 @@ impl State {
         step_nr: i32,
         status: BuildStatus,
     ) -> Result<(), db::Error> {
-        let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+        let stop_time = jiff::Timestamp::now().as_second();
         let mut db = self.db.get().await?;
         db.clear_busy_step(build_id, step_nr, stop_time, status)
             .await?;
@@ -757,7 +757,7 @@ impl Drop for StepGuard {
             tracing::warn!(
                 "step guard dropped while armed; reconciling build_id={build_id} step_nr={step_nr} drv={drv}"
             );
-            let stop_time = i32::try_from(jiff::Timestamp::now().as_second()).unwrap_or(0);
+            let stop_time = jiff::Timestamp::now().as_second();
             match db.get().await {
                 Ok(mut conn) => {
                     if let Err(e) = conn
@@ -977,7 +977,7 @@ impl State {
                     let mut tx = db.begin_transaction().await?;
                     tx.create_resolved_build_step(
                         self.connector.store_dir(),
-                        job.result.get_start_time_as_i32()?,
+                        job.result.get_start_time_as_i64(),
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
@@ -1098,7 +1098,7 @@ impl State {
             let step_nr = tx
                 .create_build_step(
                     self.connector.store_dir(),
-                    Some(job.result.get_start_time_as_i32()?),
+                    Some(job.result.get_start_time_as_i64()),
                     build_id,
                     step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
@@ -2032,18 +2032,19 @@ impl State {
             }
         }
 
-        // Write realisations for CA floating outputs to binary caches.
-        // This maps (resolved_drv_path, output_name) -> concrete_output_path,
+        // Write build trace entries for CA floating outputs to binary caches.
+        // These map (resolved_drv_path, output_name) -> concrete_output_path,
         // allowing clients to look up outputs by derivation path.
         //
-        // TODO: also write realisations to the local store's SQLite
-        // `Realisations` table (for non-S3 / FFI stores) once nix is
-        // updated to 2.35, which uses path-based DrvOutput matching
-        // the harmonia types.
+        // TODO: this only reaches S3 caches, so a Hydra backed by anything
+        // else has no build trace entries to offer. `BuildStepOutputs` in the
+        // database already records the same mapping and is what the
+        // `build-trace-v2/` route serves from; what is missing there is the
+        // signature, which is computed just below.
         {
             let has_ca_floating = item.step_info.step.has_ca_floating_outputs();
             if has_ca_floating {
-                // Overflow-only steps write their realisations to the overflow store.
+                // Overflow-only steps write their build trace entries to the overflow store.
                 let s3_stores: Vec<binary_cache::S3BinaryCacheClient> =
                     if self.step_wants_overflow(&item.step_info.step) {
                         self.overflow_store
@@ -2062,7 +2063,7 @@ impl State {
                             .collect()
                     };
                 for (output_name, out_path) in &output.outputs {
-                    let realisation = Realisation {
+                    let entry = Realisation {
                         key: DrvOutput {
                             drv_path: drv_path.clone(),
                             output_name: output_name.clone(),
@@ -2073,9 +2074,9 @@ impl State {
                         },
                     };
                     for s3 in &s3_stores {
-                        if let Err(e) = s3.write_realisation(realisation.clone()).await {
+                        if let Err(e) = s3.write_build_trace_entry(entry.clone()).await {
                             tracing::warn!(
-                                "Failed to write realisation for {drv_path}^{output_name}: {e}"
+                                "Failed to write build trace entry for {drv_path}^{output_name}: {e}"
                             );
                         }
                     }
@@ -2091,8 +2092,8 @@ impl State {
         }
 
         {
-            let start_time = job.result.get_start_time_as_i32()?;
-            let stop_time = job.result.get_stop_time_as_i32()?;
+            let start_time = job.result.get_start_time_as_i64();
+            let stop_time = job.result.get_stop_time_as_i64();
             crate::utils::with_serialization_retry("succeed_step", || async {
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
@@ -2436,8 +2437,8 @@ impl State {
                     }
 
                     tracing::info!("marking build {} as failed", b.id);
-                    let start_time = job.result.get_start_time_as_i32()?;
-                    let stop_time = job.result.get_stop_time_as_i32()?;
+                    let start_time = job.result.get_start_time_as_i64();
+                    let stop_time = job.result.get_stop_time_as_i64();
                     tx.update_build_after_failure(
                         b.id,
                         if &b.drv_path != step.get_drv_path()
@@ -2914,7 +2915,7 @@ impl State {
                     "create_step: {drv_path} outputs in overflow store, awaiting copy to default store"
                 );
                 step.try_mark_upload_scheduled();
-                let realisation_keys = step
+                let build_trace_entry_keys = step
                     .get_output_paths()
                     .unwrap_or_default()
                     .into_keys()
@@ -2923,7 +2924,7 @@ impl State {
                             drv_path: drv_path.clone(),
                             output_name,
                         };
-                        format!("realisations/{id}.doi")
+                        binary_cache::build_trace_entry_key(&id)
                     })
                     .collect();
                 self.metrics.nr_overflow_copies_queued.inc();
@@ -2931,7 +2932,7 @@ impl State {
                     .schedule_copy(
                         paths,
                         format!("log/{drv_path}"),
-                        realisation_keys,
+                        build_trace_entry_keys,
                         Some(drv_path.clone()),
                     )
                     .await;
@@ -3379,7 +3380,7 @@ impl State {
 
         {
             tracing::info!("marking build {} as succeeded (cached)", build.id);
-            let now = i32::try_from(jiff::Timestamp::now().as_second())?; // TODO
+            let now = jiff::Timestamp::now().as_second();
             crate::utils::with_serialization_retry("handle_cached_build", || async {
                 let mut db = self.db.get().await?;
                 let mut tx = db.begin_transaction().await?;
