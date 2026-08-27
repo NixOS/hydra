@@ -1,21 +1,22 @@
 # The scope holding every component hydra itself builds, on top of a Nix
-# component set. `flake.nix` instantiates it once per package set.
+# component set. Like Nix's own `packaging/components.nix`, this is the scope
+# function; the caller applies `makeScope`.
 {
   version,
   releaseVersion,
-  crane,
+  craneLib,
   # Source of the `nix-eval-jobs` flake input, which carries its own package.nix.
   nix-eval-jobs-src,
   # The flake itself, which `hydra` wants unfiltered for its version stamp.
   rawSrc,
+  nixComponents,
 }:
-
-{ pkgs, nixComponents }:
 
 self': {
   inherit version releaseVersion;
-  craneLib = crane.mkLib pkgs;
-  rustWorkspace = self'.callPackage ./rust-workspace.nix { };
+  rustWorkspace = self'.callPackage ./rust-workspace.nix {
+    inherit craneLib;
+  };
   hydra-cargo-deps = self'.rustWorkspace.cargoArtifacts;
   nix-eval-jobs = self'.callPackage nix-eval-jobs-src {
     inherit nixComponents;

@@ -66,7 +66,6 @@
         "packages"
         "version"
         "releaseVersion"
-        "craneLib"
         "rustWorkspace"
       ];
 
@@ -96,25 +95,40 @@
         );
 
       mkNixComponents =
-        { pkgs, nixDependencies }:
-        pkgs.lib.makeScope nixDependencies.newScope (
+        {
+          lib,
+          pkgs,
+          # From a scope with dependencies for Nix
+          newScope,
+        }:
+        lib.makeScope newScope (
           import (nix + "/packaging/components.nix") {
             officialRelease = true;
-            inherit (pkgs) lib;
-            inherit pkgs;
+            inherit lib pkgs;
             src = nix;
             maintainers = [ ];
           }
         );
 
       mkHydraComponents =
-        { pkgs, nixComponents }:
-        pkgs.lib.makeScope pkgs.newScope (
+        {
+          lib,
+          # From a scope with dependencies for Nix
+          newScope,
+          craneLib,
+          nixComponents,
+        }:
+        lib.makeScope newScope (
           import ./packaging/components.nix {
-            inherit version releaseVersion crane;
+            inherit
+              version
+              releaseVersion
+              craneLib
+              nixComponents
+              ;
             nix-eval-jobs-src = nix-eval-jobs;
             rawSrc = self;
-          } { inherit pkgs nixComponents; }
+          }
         );
 
       treefmtConfig =
@@ -134,15 +148,18 @@
     rec {
 
       overlays.default = final: prev: {
+        craneLib = crane.mkLib final;
         nixDependenciesForHydra = mkNixDependencies final;
         nixComponentsForHydra = mkNixComponents {
+          inherit (final) lib;
           pkgs = final;
-          nixDependencies = final.nixDependenciesForHydra;
+          inherit (final.nixDependenciesForHydra) newScope;
         };
         hydraComponents = mkHydraComponents {
+          inherit (final) lib craneLib;
           # Base package set should still use Nix's deps, so things that
           # link Nix agree on libraries.
-          pkgs = final.nixDependenciesForHydra;
+          inherit (final.nixDependenciesForHydra) newScope;
           nixComponents = final.nixComponentsForHydra;
         };
         inherit (final.hydraComponents)
@@ -216,8 +233,17 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           nixDependencies = mkNixDependencies pkgs;
-          nixComponents = mkNixComponents { inherit pkgs nixDependencies; };
-          hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
+          nixComponents = mkNixComponents {
+            inherit (pkgs) lib;
+            inherit pkgs;
+            inherit (nixDependencies) newScope;
+          };
+          hydraComponents = mkHydraComponents {
+            inherit (pkgs) lib;
+            craneLib = crane.mkLib pkgs;
+            inherit (pkgs) newScope;
+            inherit nixComponents;
+          };
         in
         removeAttrs hydraComponents nonPackageAttrs
         // {
