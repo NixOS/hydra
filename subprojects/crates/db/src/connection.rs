@@ -34,6 +34,15 @@ impl Connection {
         Ok(Transaction { tx })
     }
 
+    /// Raw access to the underlying connection, for components whose
+    /// schema knowledge deliberately lives outside this crate: they keep
+    /// their own compile-time-checked queries next to the code that owns
+    /// that slice of the schema, while still acquiring connections
+    /// through [`Database::get`](crate::Database::get) and its retry.
+    pub fn raw(&mut self) -> &mut sqlx::PgConnection {
+        &mut self.conn
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_not_finished_builds_fast(&mut self) -> crate::Result<Vec<BuildSmall>> {
         Ok(sqlx::query_as!(
@@ -874,7 +883,7 @@ impl Transaction<'_> {
         )
         .fetch_optional(&mut *self.tx)
         .await?
-        .and_then(|v| v.drvpath)
+        .map(|v| v.drvpath)
         .map(|p| store_dir.parse(&p))
         .transpose()
         .map_err(crate::Error::from)

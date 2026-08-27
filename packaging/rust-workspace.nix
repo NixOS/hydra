@@ -27,6 +27,8 @@ let
       ../subprojects/hydra-queue-runner/examples
       ../subprojects/hydra-builder/Cargo.toml
       ../subprojects/hydra-builder/src
+      ../subprojects/hydra-evaluator/Cargo.toml
+      ../subprojects/hydra-evaluator/src
       ../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../subprojects/hydra/sql/hydra.sql
@@ -109,5 +111,10 @@ in
   hydra-queue-runner = mkCrate {
     pname = "hydra-queue-runner";
     meta.description = "Hydra queue runner (Rust)";
+  };
+
+  hydra-evaluator = mkCrate {
+    pname = "hydra-evaluator";
+    meta.description = "Hydra evaluator (Rust)";
   };
 }

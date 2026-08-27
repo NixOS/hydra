@@ -7,6 +7,7 @@
   hydra-linters,
   hydra-queue-runner,
   hydra-builder,
+  hydra-evaluator,
   hydra-cargo-deps,
   foreman,
 }:
@@ -22,6 +23,7 @@ let
     hydra-linters
     hydra-queue-runner
     hydra-builder
+    hydra-evaluator
     # The Rust crates are thin `runCommand`s that copy a binary out of the
     # shared workspace build, so they carry no build inputs of their own.
     # This is where cargo and rustc come from.
