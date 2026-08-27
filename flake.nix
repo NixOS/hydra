@@ -114,8 +114,7 @@
           };
           hydra-manual = self'.callPackage ./subprojects/hydra-manual/package.nix { };
           hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix { };
-          hydra-queue-runner = self'.callPackage ./subprojects/hydra-queue-runner/package.nix { };
-          hydra-builder = self'.callPackage ./subprojects/hydra-builder/package.nix { };
+          inherit (self'.rustWorkspace) hydra-queue-runner hydra-builder;
         });
       treefmtConfig =
         { ... }:

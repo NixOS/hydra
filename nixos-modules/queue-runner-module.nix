@@ -330,8 +330,11 @@ in
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ./. { withOtel = cfg.otel.enable; };
-        defaultText = lib.literalExpression "pkgs.callPackage ./. { withOtel = cfg.otel.enable; }";
+        # `withOtel` is a knob on the rust workspace, not on this crate: cargo
+        # resolves features once for the whole workspace build.
+        default =
+          (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-queue-runner;
+        defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-queue-runner";
       };
     };
   };
