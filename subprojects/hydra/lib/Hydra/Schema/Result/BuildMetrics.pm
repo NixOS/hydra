@@ -75,7 +75,7 @@ __PACKAGE__->table("buildmetrics");
 
 =head2 timestamp
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 0
 
 =cut
@@ -161,8 +161,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yp/kl6bkrm/CSEle7Y3How
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Y1uOKTcckVm5KfEf9MYcSg
 
 sub json_hint {
     return { columns => ['value', 'unit'] };
