@@ -70,6 +70,28 @@
         "rustWorkspace"
       ];
 
+      mkNixDependencies =
+        pkgs:
+        pkgs.lib.makeScope pkgs.newScope (
+          import (nix + "/packaging/dependencies.nix") {
+            inherit pkgs;
+            inherit (pkgs) stdenv;
+            inputs = { };
+          }
+        );
+
+      mkNixComponents =
+        { pkgs, nixDependencies }:
+        pkgs.lib.makeScope nixDependencies.newScope (
+          import (nix + "/packaging/components.nix") {
+            officialRelease = true;
+            inherit (pkgs) lib;
+            inherit pkgs;
+            src = nix;
+            maintainers = [ ];
+          }
+        );
+
       mkHydraComponents =
         { pkgs, nixComponents }:
         pkgs.lib.makeScope pkgs.newScope (self': {
@@ -112,22 +134,11 @@
     rec {
 
       overlays.default = final: prev: {
-        nixDependenciesForHydra = final.lib.makeScope final.newScope (
-          import (nix + "/packaging/dependencies.nix") {
-            pkgs = final;
-            inherit (final) stdenv;
-            inputs = { };
-          }
-        );
-        nixComponentsForHydra = final.lib.makeScope final.nixDependenciesForHydra.newScope (
-          import (nix + "/packaging/components.nix") {
-            officialRelease = true;
-            inherit (final) lib;
-            pkgs = final;
-            src = nix;
-            maintainers = [ ];
-          }
-        );
+        nixDependenciesForHydra = mkNixDependencies final;
+        nixComponentsForHydra = mkNixComponents {
+          pkgs = final;
+          nixDependencies = final.nixDependenciesForHydra;
+        };
         hydraComponents = mkHydraComponents {
           # Base package set should still use Nix's deps, so things that
           # link Nix agree on libraries.
@@ -203,23 +214,9 @@
       packages = forEachSystem (
         system:
         let
-          inherit (nixpkgs) lib;
           pkgs = nixpkgs.legacyPackages.${system};
-          nixDependencies = lib.makeScope pkgs.newScope (
-            import (nix + "/packaging/dependencies.nix") {
-              inherit pkgs;
-              inherit (pkgs) stdenv;
-              inputs = { };
-            }
-          );
-          nixComponents = lib.makeScope nixDependencies.newScope (
-            import (nix + "/packaging/components.nix") {
-              officialRelease = true;
-              inherit lib pkgs;
-              src = nix;
-              maintainers = [ ];
-            }
-          );
+          nixDependencies = mkNixDependencies pkgs;
+          nixComponents = mkNixComponents { inherit pkgs nixDependencies; };
           hydraComponents = mkHydraComponents { inherit pkgs nixComponents; };
         in
         removeAttrs hydraComponents nonPackageAttrs
