@@ -94,28 +94,14 @@
 
       mkHydraComponents =
         { pkgs, nixComponents }:
-        pkgs.lib.makeScope pkgs.newScope (self': {
-          inherit version releaseVersion;
-          craneLib = crane.mkLib pkgs;
-          rustWorkspace = self'.callPackage ./packaging/rust-workspace.nix { };
-          hydra-cargo-deps = self'.rustWorkspace.cargoArtifacts;
-          nix-eval-jobs = self'.callPackage nix-eval-jobs {
-            inherit nixComponents;
-          };
-          nix-perl = self'.callPackage ./subprojects/nix-perl/package.nix {
-            inherit (nixComponents) nix-store;
-          };
-          hydra = self'.callPackage ./subprojects/hydra/package.nix {
-            inherit nixComponents;
+        pkgs.lib.makeScope pkgs.newScope (
+          import ./packaging/components.nix {
+            inherit version releaseVersion crane;
+            nix-eval-jobs-src = nix-eval-jobs;
             rawSrc = self;
-          };
-          hydra-tests = self'.callPackage ./subprojects/hydra-tests/package.nix {
-            inherit nixComponents;
-          };
-          hydra-manual = self'.callPackage ./subprojects/hydra-manual/package.nix { };
-          hydra-linters = self'.callPackage ./subprojects/hydra-linters/package.nix { };
-          inherit (self'.rustWorkspace) hydra-queue-runner hydra-builder;
-        });
+          } { inherit pkgs nixComponents; }
+        );
+
       treefmtConfig =
         { ... }:
         {
