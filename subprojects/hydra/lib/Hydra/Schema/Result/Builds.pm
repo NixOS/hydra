@@ -49,7 +49,7 @@ __PACKAGE__->table("builds");
 
 =head2 timestamp
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 jobset_id
@@ -136,12 +136,12 @@ __PACKAGE__->table("builds");
 
 =head2 starttime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 stoptime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 iscachedbuild
@@ -177,7 +177,7 @@ __PACKAGE__->table("builds");
 
 =head2 notificationpendingsince
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =cut
@@ -497,8 +497,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zdVjPMNm2VbjX5ZLTd5FLg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-10 09:43:38
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:DQF8KRinnf0imJOP+lvH9Q
 
 __PACKAGE__->has_many(
   "dependents",

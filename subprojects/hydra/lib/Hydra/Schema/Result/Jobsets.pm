@@ -75,17 +75,17 @@ __PACKAGE__->table("jobsets");
 
 =head2 errortime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 lastcheckedtime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 triggertime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 enabled
@@ -141,7 +141,7 @@ __PACKAGE__->table("jobsets");
 
 =head2 starttime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =head2 type
@@ -362,8 +362,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GUkeslZbzaUbhsMtLXmxXg
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-24 14:17:33
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7wPE5ebeVTkenMCWG9Sgcg
 
 use JSON::MaybeXS;
 

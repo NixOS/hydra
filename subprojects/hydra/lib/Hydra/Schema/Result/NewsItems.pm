@@ -49,7 +49,7 @@ __PACKAGE__->table("newsitems");
 
 =head2 createtime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 author
@@ -106,7 +106,7 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:8uvuWIbTUjGnbPXCXE74XQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:pJsP4RptP4rTmM2j4B5+oA
 
 1;

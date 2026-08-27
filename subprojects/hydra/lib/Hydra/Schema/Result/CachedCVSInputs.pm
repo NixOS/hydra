@@ -47,12 +47,12 @@ __PACKAGE__->table("cachedcvsinputs");
 
 =head2 timestamp
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 lastseen
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 0
 
 =head2 sha256hash
@@ -99,8 +99,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "module", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:P39lrMYqIdEvqXxGrkSYZA
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:yQt8poWCs/wI6WbE4/YdxA
 
 # You can replace this text with custom content, and it will be preserved on regeneration
 1;

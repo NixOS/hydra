@@ -49,7 +49,7 @@ __PACKAGE__->table("evaluationerrors");
 
 =head2 errortime
 
-  data_type: 'bigint'
+  data_type: 'integer'
   is_nullable: 1
 
 =cut
@@ -98,8 +98,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:TEGVJGAgshRNZj/iLy97AQ
+# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QA8C+0TfW7unnM4xzOHXdA
 
 __PACKAGE__->add_column(
     "+id" => { retrieve_on_insert => 1 }
