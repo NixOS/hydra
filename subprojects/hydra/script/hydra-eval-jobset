@@ -434,9 +434,26 @@ sub nixString {
     return '"' . $s . '"';
 }
 
+# The Nix settings to hand the evaluation, as `NIX_CONFIG` contents.
+#
+# Read back out of this process's own Nix rather than guessed, so that the
+# evaluation sees what the evaluator sees -- which is what it saw when the
+# evaluator ran it directly. `nix-command` is force-enabled just to ask the
+# question; it ends up in the answer, which is harmless.
+sub evaluationNixConfig {
+    my ($out, $err);
+    IPC::Run::run([ "nix", "--extra-experimental-features", "nix-command",
+                    "config", "show", "experimental-features" ],
+                  \undef, \$out, \$err)
+        or die "cannot read the evaluator's experimental features:\n$err";
+    chomp $out;
+    return $out eq "" ? "" : "experimental-features = $out";
+}
+
+
 sub evalDrvExpr {
     my ($jobsetName, $storePaths, $cmd, $streamPath, $systemFeatures, $tee,
-        $storeDir, $storeUri) = @_;
+        $storeDir, $storeUri, $nixConfig) = @_;
 
     my $name = $jobsetName;
     $name =~ s/[^a-zA-Z0-9._-]/-/g;
@@ -494,6 +511,16 @@ sub evalDrvExpr {
     # normally unset: in production `recursive-nix` does this job.
     $expr .= "  NIX_REMOTE = " . nixString($storeUri) . ";\n"
         if defined $storeUri && $storeUri ne "";
+    # Nix settings the evaluation needs, chiefly which experimental features
+    # are on: a flake jobset cannot be evaluated without `flakes`, and a
+    # content-addressed one without `ca-derivations`. Evaluation used to
+    # inherit these from the Hydra host's `nix.conf`; inside a build there is
+    # no such file, so they have to be carried in.
+    #
+    # Part of the derivation, and so of its hash, which is right -- the same
+    # inputs evaluated with different features are not the same evaluation.
+    $expr .= "  NIX_CONFIG = " . nixString($nixConfig) . ";\n"
+        if defined $nixConfig && $nixConfig ne "";
     # Referenced so the inputs are inputs of this derivation, and so appear
     # in the sandbox rather than merely being named by the arguments.
     $expr .= "  jobsetInputs = [ $inputs ];\n";
@@ -727,7 +754,8 @@ sub scheduleEvaluationBuild {
     my $expr = evalDrvExpr($jobsetName, \@storePaths, \@cmd, $EVAL_STREAM_PATH,
                            \@systemFeatures, $tee,
                            machineLocalStore()->storeDir,
-                           $config->{evaluation_build_store_uri});
+                           $config->{evaluation_build_store_uri},
+                           evaluationNixConfig());
 
     print STDERR "evaluation derivation:\n$expr" if defined $ENV{'HYDRA_DEBUG'};
 

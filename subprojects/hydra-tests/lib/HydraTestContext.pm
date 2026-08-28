@@ -102,8 +102,14 @@ sub new {
         # Without `recursive-nix` the build gets no Nix configuration of its
         # own, and an unsandboxed build can see the host's real daemon socket
         # -- which it would then use, with the wrong store dir.
+        #
+        # The *central* store, not the builder's: evaluation instantiates the
+        # derivations of the jobs it finds, and the queue runner then has to
+        # find them. Instantiating into the builder's store would leave the
+        # queue runner looking at paths that are not in the store it reads,
+        # and aborting every build it queued as garbage collected.
         $hydra_config =
-            "evaluation_build_store_uri = $builder->{nix_daemon_uri}\n" . $hydra_config;
+            "evaluation_build_store_uri = $central->{nix_daemon_uri}\n" . $hydra_config;
         if ($opts{'use_external_destination_store'} // 1) {
             $deststoredir = "$dir/nix/dest-store";
             $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
