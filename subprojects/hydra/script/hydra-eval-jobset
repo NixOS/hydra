@@ -1370,7 +1370,71 @@ sub checkJobset {
 }
 
 
-die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
+# Finish an evaluation whose evaluation build has completed: read the jobs
+# from the build's output and turn them into the evaluation's members and
+# their builds.
+#
+# The output is read rather than any live stream, because it is the only
+# source that is always there. An evaluation whose derivation was built
+# before is not rebuilt, so nothing streams, and the output remains.
+sub finishScheduledEvaluation {
+    my ($evalId) = @_;
+
+    my $ev = $db->resultset('JobsetEvals')->find($evalId)
+        or die "$0: evaluation $evalId does not exist\n";
+    my $build = $ev->eval_build
+        or die "$0: evaluation $evalId was not performed by a build\n";
+
+    die "$0: evaluation build " . $build->id . " has not finished\n"
+        unless $build->finished;
+
+    if ($build->buildstatus != 0) {
+        # Leave no tentative evaluation behind: its hash would otherwise say
+        # these inputs had been evaluated, and the jobset would never retry.
+        my $msg = "evaluation build " . $build->id . " failed";
+        my $eventTime = time;
+        my $jobset = $ev->jobset;
+        $db->txn_do(sub {
+            $ev->delete;
+            setJobsetError($jobset, "$msg\n", $eventTime);
+        });
+        print STDERR "$msg\n";
+        return 1;
+    }
+
+    my ($output) = $build->buildoutputs;
+    die "$0: evaluation build " . $build->id . " produced no output\n"
+        unless defined $output;
+
+    open(my $fh, "<", $output->path)
+        or die "$0: cannot read the evaluation's jobs from " . $output->path . ": $!\n";
+
+    my $jobsIter = jobsIterFromLines(sub {
+        my $line = <$fh>;
+        if (!defined $line) {
+            close $fh;
+            return undef;
+        }
+        chomp $line;
+        return $line;
+    });
+
+    my $jobset = $ev->jobset;
+    my $project = $jobset->project;
+    my $tmpId = clock_gettime(CLOCK_MONOTONIC) . ".$$";
+
+    finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
+                     clock_gettime(CLOCK_MONOTONIC), $tmpId, 0);
+    return 0;
+}
+
+
+if (@ARGV == 2 && $ARGV[0] eq "--finish-evaluation") {
+    exit finishScheduledEvaluation($ARGV[1]);
+}
+
+die "syntax: $0 <PROJECT> <JOBSET>\n       $0 --finish-evaluation <EVAL-ID>\n"
+    unless @ARGV == 2;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];

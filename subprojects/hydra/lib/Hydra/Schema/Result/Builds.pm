@@ -453,6 +453,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 jobsetevals
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Result::JobsetEvals>
+
+=cut
+
+__PACKAGE__->has_many(
+  "jobsetevals",
+  "Hydra::Schema::Result::JobsetEvals",
+  { "foreign.eval_build" => "self.id" },
+  undef,
+);
+
 =head2 runcommandlogs
 
 Type: has_many
@@ -497,8 +512,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zdVjPMNm2VbjX5ZLTd5FLg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 03:10:48
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YbjIHRhyNoIS4ycNeXxNiw
 
 __PACKAGE__->has_many(
   "dependents",
