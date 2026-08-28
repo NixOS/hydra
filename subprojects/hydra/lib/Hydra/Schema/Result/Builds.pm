@@ -453,7 +453,7 @@ __PACKAGE__->has_many(
   undef,
 );
 
-=head2 jobsetevals
+=head2 performed_evaluations
 
 Type: has_many
 
@@ -462,7 +462,7 @@ Related object: L<Hydra::Schema::Result::JobsetEvals>
 =cut
 
 __PACKAGE__->has_many(
-  "jobsetevals",
+  "performed_evaluations",
   "Hydra::Schema::Result::JobsetEvals",
   { "foreign.eval_build" => "self.id" },
   undef,
@@ -512,8 +512,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 03:10:48
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:YbjIHRhyNoIS4ycNeXxNiw
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 03:32:27
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:9pWt3KztpBKbz1APGDT9nQ
 
 __PACKAGE__->has_many(
   "dependents",

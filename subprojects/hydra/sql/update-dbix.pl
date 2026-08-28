@@ -48,5 +48,13 @@ make_schema_at("Hydra::Schema", {
         "users" => "Users",
     } , #sub { return "$_"; },
     components => [ "+Hydra::Component::ToJSON" ],
-    rel_name_map => { buildsteps_builds => "buildsteps" }
+    # `JobsetEvals.eval_build` gives Builds a has_many back to JobsetEvals,
+    # which the loader would call `jobsetevals` -- the name the existing
+    # many-to-many through JobsetEvalMembers already uses. That one means
+    # "evaluations this build is a member of"; this one means "evaluations
+    # this build performed", so it needs a name of its own.
+    rel_name_map => {
+        buildsteps_builds => "buildsteps",
+        Builds => { jobsetevals => "performed_evaluations" },
+    }
 }, [$ARGV[0]]);
