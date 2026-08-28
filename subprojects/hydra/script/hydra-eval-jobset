@@ -14,6 +14,7 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use Hydra::Model::DB;
 use Hydra::Plugin;
 use Hydra::Schema;
@@ -85,15 +86,17 @@ sub attrsToSQL {
 
 # Fetch a store path from 'eval_substituter' if not already present.
 sub getPath {
-    my ($path) = @_;
-    return 1 if $MACHINE_LOCAL_STORE->isValidPath($path);
+    my ($storePath) = @_;
+    return 1 if machineLocalStore()->isValidPath($storePath);
 
     my $substituter = $config->{eval_substituter};
 
-    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--", $path)
+    # `nix copy` is given a full path.
+    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--",
+        printStorePath(machineLocalStore()->storeDir, $storePath))
         if defined $substituter;
 
-    return $MACHINE_LOCAL_STORE->isValidPath($path);
+    return machineLocalStore()->isValidPath($storePath);
 }
 
 
@@ -144,7 +147,7 @@ sub fetchInputBuild {
         , version => $version
         , outputName => $mainOutput->name
         };
-    if ($MACHINE_LOCAL_STORE->isValidPath($prevBuild->drvpath)) {
+    if (machineLocalStore()->isValidPath($prevBuild->drvpath)) {
         $result->{drvPath} = $prevBuild->drvpath;
     }
 
@@ -234,7 +237,7 @@ sub fetchInputEval {
         my $out = $build->buildoutputs->find({ name => "out" });
         next unless defined $out;
         # FIXME: Should we fail if the path is not valid?
-        next unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
+        next unless machineLocalStore()->isValidPath($out->path);
         $jobs->{$build->get_column('job')} = $out->path;
     }
 
@@ -294,8 +297,11 @@ sub booleanToString {
 
 sub buildInputToString {
     my ($input) = @_;
+    my $storeDir = machineLocalStore()->storeDir;
+    # `builtins.storePath` takes a full path, as does `-I` below: these are
+    # Nix's vocabulary, not Hydra's.
     return
-        "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+        "{ outPath = builtins.storePath " . printStorePath($storeDir, $input->{storePath}) . "" .
         "; inputType = \"" . $input->{type} . "\"" .
         (defined $input->{uri} ? "; uri = \"" . $input->{uri} . "\"" : "") .
         (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
@@ -305,7 +311,7 @@ sub buildInputToString {
         (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
         (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
         (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
-        (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
+        (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . printStorePath($storeDir, $input->{drvPath}) . "" : "") .
         ";}";
 }
 
@@ -315,7 +321,9 @@ sub inputsToArgs {
     my @res = ();
 
     foreach my $input (sort keys %{$inputInfo}) {
-        push @res, "-I", "$input=$inputInfo->{$input}->[0]->{storePath}"
+        push @res, "-I",
+            "$input=" . printStorePath(machineLocalStore()->storeDir,
+                $inputInfo->{$input}->[0]->{storePath})
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
 
@@ -336,7 +344,8 @@ sub inputsToArgs {
         elsif ($alt->{type} eq "eval") {
             my $s = "{ ";
             # FIXME: escape $_.  But dots should not be escaped.
-            $s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
+            $s .= "$_ = builtins.storePath "
+                . printStorePath(machineLocalStore()->storeDir, $alt->{jobs}->{$_}) . "; "
                 foreach keys %{$alt->{jobs}};
             $s .= "}";
             push @res, "--arg", $input, $s;
@@ -429,6 +438,17 @@ sub evalJobs {
                 };
                 undef $out;
                 if (defined $job) {
+                    # nix-eval-jobs speaks full paths. Strip the store directory
+                    # here, where its output enters Hydra, so that everything
+                    # downstream compares and keys on store paths -- notably
+                    # the `ne` against a build's inflated drvpath, and the
+                    # constituent lookups, which would otherwise never match.
+                    my $storeDir = machineLocalStore()->storeDir;
+                    $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
+                        if defined $job->{drvPath};
+                    $job->{constituents} = [
+                        map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
+                    ] if defined $job->{constituents};
                     return $job;
                 }
             }
@@ -722,7 +742,8 @@ sub checkJobsetWrapped {
         my $declInput = $declInputs[0] or die "cannot find the input containing the declarative project specification\n";
         die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
-        my $declFile = $declInput->{storePath} . "/" . $project->declfile;
+        my $declFile = printStorePath(machineLocalStore()->storeDir, $declInput->{storePath})
+            . "/" . $project->declfile;
         # Use `nix store cat` so the physical store location is resolved
         # by the store itself (handles root= stores where physical != logical).
         my ($res, $declText, $catErr) = captureStdoutStderr(
@@ -827,7 +848,8 @@ sub checkJobsetWrapped {
         while (defined(my $job = $jobsIter->())) {
             my $name = $job->{attr};
             if (defined $job->{drvPath}) {
-                print STDERR "good job $name: $job->{drvPath}\n";
+                print STDERR "good job $name: "
+                    . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
             } else {
                 print STDERR "failed job $name: $job->{error}\n";
             }
@@ -890,6 +912,9 @@ sub checkJobsetWrapped {
         }
 
         # Bulk-insert the outputs of all new builds in one statement.
+        # `populate` in void context goes through insert_bulk, which bypasses
+        # inflation and deflation, so these paths stay as nix-eval-jobs gave
+        # them: full path strings, or undef for a not-yet-built CA output.
         my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
         $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
 
@@ -956,7 +981,7 @@ sub checkJobsetWrapped {
                         , shortrevlength => length($input->{shortRev})
                         , value => $input->{value}
                         , dependency => $input->{id}
-                        , path => $input->{storePath} || "" # !!! temporary hack
+                        , path => $input->{storePath} // "" # !!! temporary hack
                         , sha256hash => $input->{sha256hash}
                         });
                 }

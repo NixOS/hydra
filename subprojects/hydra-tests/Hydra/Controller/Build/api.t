@@ -5,6 +5,7 @@ use JSON::MaybeXS qw(decode_json encode_json);
 use Data::Dumper;
 use URI;
 use Test2::V0;
+use Hydra::StorePath;
 use HTTP::Request::Common;
 
 my %ctx = test_init();
@@ -23,6 +24,8 @@ my @builds = queuedBuildsForJobset($jobset);
 ok(runBuilds($ctx{context}, @builds), "Building jobs/aggregate.nix should exit with return code 0");
 my ($aggregateBuild) = grep { $_->nixname eq "aggregate" } @builds;
 $aggregateBuild->discard_changes();
+my $aggregateOut = $aggregateBuild->buildoutputs->find({ name => "out" });
+my $storeDir = $db->storeDir;
 
 my $build_redirect = request(GET '/job/tests/aggregate/aggregate/latest-finished');
 my $build_url = URI->new($build_redirect->header('location'))->path;
@@ -46,18 +49,20 @@ subtest "validating the JSON representation of a build" => sub {
         project => "tests",
         jobset => "aggregate",
         buildmetrics => {},
-        buildoutputs => { out => { path => $aggregateBuild->buildoutputs->find({ name => "out" })->path }},
+        # The JSON carries full paths, so print the store directory back on
+        # rather than reaching past the inflation with get_column.
+        buildoutputs => { out => { path => printStorePath($storeDir, $aggregateOut->path) }},
         buildproducts => { 1 => { 
             defaultpath => "",
             filesize => undef,
             name => "aggregate",
-            path => $aggregateBuild->buildoutputs->find({ name => "out" })->path,
+            path => printStorePath($storeDir, $aggregateOut->path),
             sha256hash => undef,
             subtype => "",
             type => "nix-build",
          }},
         buildstatus => 0,
-        drvpath => $aggregateBuild->drvpath,
+        drvpath => printStorePath($storeDir, $aggregateBuild->drvpath),
         finished => 1,
         id => $aggregateBuild->id,
         job => "aggregate",

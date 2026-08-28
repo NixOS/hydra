@@ -3,6 +3,7 @@ use warnings;
 use Setup;
 use Test2::V0;
 use Hydra::Plugin::RunCommand;
+use Hydra::StorePath;
 
 my $ctx = test_context();
 
@@ -89,7 +90,9 @@ subtest "fanoutToCommandsWithDynamicRunCommandSupport" => sub {
             },
             {
                 matcher => "DynamicRunCommand(runCommandHook.example)",
-                command => $build->buildoutputs->find({name => "out"})->path
+                # The plugin hands the command a real path to run.
+                command => printStorePath($ctx->db->storeDir,
+                    $build->buildoutputs->find({name => "out"})->path)
             }
         ],
         "fanoutToCommands returns a command per matching job"

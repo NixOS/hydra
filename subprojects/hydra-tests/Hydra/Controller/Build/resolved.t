@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Setup;
-use File::Basename ();
+use Nix::StorePath;
 use JSON::MaybeXS qw(decode_json);
 use Test2::V0;
 use HTTP::Request::Common;
@@ -21,13 +21,11 @@ my ($build) = grep { $_->nixname eq "empty-dir" } @builds;
 ok(defined $build, "got a build out of the jobset");
 
 my $resolvedBasename = "00000000000000000000000000000001-resolved.drv";
-# Not $MACHINE_LOCAL_STORE->storeDir: that store is opened from the ambient
-# environment when Hydra::Helper::Nix is loaded, which does not yet point at
-# the test's chroot store (and in the build sandbox touching the real
-# /nix/var/nix is a hard failure). The build's own drvpath is in the right
-# store, and resolved_terminal derives the store dir the same way.
-my $storeDir = File::Basename::dirname($build->drvpath);
-my $unresolvedDrv = "$storeDir/00000000000000000000000000000000-unresolved.drv";
+# These rows are synthetic, and no store directory is needed to write them:
+# drvpath is an inflated column, so a Nix::StorePath deflates using whatever
+# store directory the schema has -- the same one `resolved_terminal` prints
+# with when it looks the row back up.
+my $unresolvedDrv = Nix::StorePath->new("00000000000000000000000000000000-unresolved.drv");
 
 # Step 101: Resolved with terminal at step 102 (Succeeded).
 $db->resultset('BuildSteps')->create({
@@ -45,7 +43,7 @@ $db->resultset('BuildSteps')->create({
     build     => $build->id,
     stepnr    => 102,
     type      => 0,
-    drvpath   => "$storeDir/$resolvedBasename",
+    drvpath   => Nix::StorePath->new($resolvedBasename),
     busy      => 0,
     status    => 0,
     stoptime  => 1000,
@@ -57,7 +55,7 @@ $db->resultset('BuildSteps')->create({
     build           => $build->id,
     stepnr          => 103,
     type            => 0,
-    drvpath         => "$storeDir/00000000000000000000000000000002-unresolved2.drv",
+    drvpath         => Nix::StorePath->new("00000000000000000000000000000002-unresolved2.drv"),
     busy            => 0,
     status          => 13,
     machine         => "",
@@ -119,7 +117,7 @@ subtest "self-referential resolveddrvpath is treated as corrupt (pending copy)" 
         build           => $build->id,
         stepnr          => 104,
         type            => 0,
-        drvpath         => "$storeDir/$cycleBasename",
+        drvpath         => Nix::StorePath->new($cycleBasename),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -150,7 +148,7 @@ subtest "page with running terminal shows Running status" => sub {
         build           => $build->id,
         stepnr          => 200,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000020-pending-orig.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000020-pending-orig.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -160,7 +158,7 @@ subtest "page with running terminal shows Running status" => sub {
         build     => $build->id,
         stepnr    => 201,
         type      => 0,
-        drvpath   => "$storeDir/00000000000000000000000000000021-busy-terminal.drv",
+        drvpath   => Nix::StorePath->new("00000000000000000000000000000021-busy-terminal.drv"),
         busy      => 1,
         status    => undef,
         machine   => "builder-a",
@@ -184,7 +182,7 @@ subtest "cross-build scoping: chain does not reach into other builds" => sub {
         jobset_id   => $build->jobset_id,
         job         => "empty-dir",
         nixname     => "empty-dir",
-        drvpath     => "$storeDir/00000000000000000000000000000040-other-unresolved.drv",
+        drvpath     => Nix::StorePath->new("00000000000000000000000000000040-other-unresolved.drv"),
         system      => "x86_64-linux",
         starttime   => 1, stoptime => 1,
         buildstatus => 0, iscurrent => 0,
@@ -194,7 +192,7 @@ subtest "cross-build scoping: chain does not reach into other builds" => sub {
         build           => $build->id,
         stepnr          => 301,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000040-origA.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000040-origA.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -205,7 +203,7 @@ subtest "cross-build scoping: chain does not reach into other builds" => sub {
         build     => $buildB->id,
         stepnr    => 500,
         type      => 0,
-        drvpath   => "$storeDir/00000000000000000000000000000041-collide.drv",
+        drvpath   => Nix::StorePath->new("00000000000000000000000000000041-collide.drv"),
         busy      => 0,
         status    => 0,
         stoptime  => 1000,
@@ -223,7 +221,7 @@ subtest "sibling steps with shared terminal both link there; terminal page shows
         build           => $build->id,
         stepnr          => 400,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000050-first.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000050-first.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -233,7 +231,7 @@ subtest "sibling steps with shared terminal both link there; terminal page shows
         build           => $build->id,
         stepnr          => 401,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000060-second.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000060-second.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -243,7 +241,7 @@ subtest "sibling steps with shared terminal both link there; terminal page shows
         build     => $build->id,
         stepnr    => 402,
         type      => 0,
-        drvpath   => "$storeDir/00000000000000000000000000000051-shared.drv",
+        drvpath   => Nix::StorePath->new("00000000000000000000000000000051-shared.drv"),
         busy      => 0,
         status    => 0,
         stoptime  => 1000,
@@ -270,7 +268,7 @@ subtest "corrupt resolveddrvpath does not crash or chase" => sub {
         build           => $build->id,
         stepnr          => 500,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000070-corrupt.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000070-corrupt.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -287,7 +285,7 @@ subtest "a Resolved step pointing at another Resolved step is not followed" => s
         build           => $build->id,
         stepnr          => 600,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000080-cycle-a.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000080-cycle-a.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",
@@ -297,7 +295,7 @@ subtest "a Resolved step pointing at another Resolved step is not followed" => s
         build           => $build->id,
         stepnr          => 601,
         type            => 0,
-        drvpath         => "$storeDir/00000000000000000000000000000081-cycle-b.drv",
+        drvpath         => Nix::StorePath->new("00000000000000000000000000000081-cycle-b.drv"),
         busy            => 0,
         status          => 13,
         machine         => "",

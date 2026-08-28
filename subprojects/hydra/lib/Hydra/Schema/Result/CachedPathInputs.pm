@@ -93,4 +93,7 @@ __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 # Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
 # DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:HoWHS3rwjazKa5VWDwSimw
 
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_store_paths(qw/storepath/);
+
 1;
