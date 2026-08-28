@@ -1,8 +1,13 @@
 Design: evaluation as a build
 =============================
 
-Status: planning notes only. Nothing here is implemented. This is the
-detail behind step 4 of `roadmap-recursive-nix.md`.
+Status: implemented on this branch, and the only way evaluation
+happens -- there is no toggle back to the old path. This is the detail
+behind step 4 of `roadmap-recursive-nix.md`.
+
+The parts that remain open are marked as such below; the ones settled
+during implementation have been folded into the prose rather than left
+as questions.
 
 The idea is that evaluating a jobset stops being something the
 `hydra-evaluator` service *does* and becomes something it *schedules*:
@@ -168,6 +173,14 @@ Evaluation as a build needs none of that. It needs `addToStore` and
 reaches the queue runner" at all — that is a prerequisite for builds
 during evaluation, not for evaluation in a build.
 
+A named pipe bound through `extra-sandbox-paths` is writable from
+inside a build on stock Nix -- verified rather than assumed, since the
+sandbox mounts the store read-only and the question was whether that
+extends to a bound FIFO. It does not: Linux exempts FIFOs from the
+read-only-mount check in `may_open`. `extra-sandbox-paths` is also
+overridable by a trusted user, which `system-features` is not, so the
+builder can bind the stream without a daemon config change.
+
 `nix-eval-jobs` is used unmodified, talking to the recursive-Nix daemon
 socket like any other client. The build script does the plumbing:
 
@@ -240,6 +253,23 @@ constraint validates against an all-null column. Nothing is rewritten,
 and `JobsetEvalMembers` — a row per build per evaluation, the table you
 least want to migrate — is untouched.
 
+A second one, for the same reason and at the same cost:
+
+    ALTER TABLE JobsetEvals ADD COLUMN completed bigint;
+
+`evalTime` and `hasNewBuilds` are `not null` but unknown until the
+evaluation finishes, so a tentative row carries placeholders. Every
+listing filtered on `hasNewBuilds`, which read the placeholder `0` as
+"finished, found nothing" and hid the evaluation for exactly as long as
+it was interesting; `completed` is what distinguishes a placeholder from
+an answer.
+
+It is also what tells the evaluator which evaluations still need reading
+back. That cannot be inferred: an evaluation build finishing and its
+results being consumed are separate events, and no other column
+distinguishes them -- an evaluation may legitimately find no jobs and
+legitimately take no measurable time.
+
 `ON DELETE SET NULL`, never cascade. Evaluation builds live in a
 high-churn jobset that will be garbage collected aggressively; a
 cascading delete would remove the `JobsetEval` an aged-out build
@@ -307,16 +337,18 @@ Open questions
 - Scheduling and priority: the evaluation build holds a slot while its
   nested builds run. This must not deadlock. (Carried over from the
   roadmap's open questions; still unanswered.)
-- Are `extra-sandbox-paths` entries connectable from inside the sandbox?
-  A socket may sidestep the read-only-mount question since connecting is
-  not a filesystem write, but this should be checked against the Nix
-  sandbox implementation rather than assumed.
+- Whether the *streamed* JSONL, rather than the completed output, can
+  drive the UI. The tentative evaluation is visible while it runs, but
+  its jobs still all appear at once when it completes; populating it
+  incrementally means a consumer that tails the stream file the queue
+  runner writes beside the log, and reconciling that with the
+  output-reading path so the two cannot drift. `hydra-ws` (PR 1773) is
+  the natural carrier, since it already tails log files.
 - Evaluation that fetches has no network in a sandbox. Pre-fetching
   every input is the principled answer and overlaps with materializing
   inputs as store paths above.
-- `evalTime` and `hasNewBuilds` are `not null` but unknown until the
-  evaluation finishes, so the row is created with placeholders and
-  updated on completion. Check that nothing reads `hasNewBuilds` on an
-  in-flight evaluation and concludes there were no new builds.
+- Retention of the evaluations jobset. Still the default, which for a
+  jobset that gains a build per evaluation across the whole instance is
+  not an answer.
 - How much of `nix-eval-jobs` survives when evaluation is a build?
   (Carried over from the roadmap.)
