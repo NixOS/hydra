@@ -14,13 +14,28 @@ evaluation competing for the Hydra host.
 What each component knows
 -------------------------
 
-Scheduler (what is left of `hydra-evaluator`):
+Scheduler (`hydra-eval-jobset`, which no longer evaluates anything):
 
 - fetch the jobset's inputs and materialize them as store paths
 - hash the inputs; if the hash is already in `JobsetEvals`, stop here
 - instantiate the evaluation derivation
-- create the `JobsetEval` row and the evaluation build
-- point `JobsetEvals.eval_build` at that build
+- create the `JobsetEval` row, and its `JobsetEvalInputs` -- the inputs are
+  recorded here because this is where they are known; the run that finishes
+  the evaluation is a different process, and re-fetching could see a newer
+  revision than the one actually evaluated
+- queue the evaluation build and point `JobsetEvals.eval_build` at it
+- return. It deliberately does not wait: the queue runner is what dispatches
+  builds, so blocking would hold an evaluator slot for as long as the build
+  sat in the queue
+
+Finisher (`hydra-eval-jobset --finish-evaluation <id>`, run when the
+evaluation build completes):
+
+- read the jobs from the build's *output*
+- fill in the evaluation that already exists, rather than making a second one
+- on a failed evaluation build, delete the tentative evaluation. Leaving it
+  would record its inputs hash as evaluated, and the jobset would never
+  retry those inputs
 
 Builder: gains exactly one capability, and it is not evaluation-shaped —
 bind-mount a FIFO (or unix socket) at a fixed path in the build sandbox
