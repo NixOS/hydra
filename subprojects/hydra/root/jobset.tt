@@ -96,17 +96,12 @@
           [% END %]
         </td>
       </tr>
-      [%# Not `jobset.starttime`: that is set while the run which *schedules*
-          the evaluation is alive, which is a moment, whereas the evaluation
-          itself is a build and runs for as long as it runs. %]
-      [% IF runningEval %]
-      <tr>
-        <th>Evaluation running since:</th>
-        <td>[% INCLUDE renderRelativeDate timestamp = runningEval.timestamp %]
-          (<a [% HTML.attributes(href => c.uri_for('/build' runningEval.eval_build.id)) %]>build [%
-          HTML.escape(runningEval.eval_build.id) %]</a>)</td>
-      </tr>
-      [% ELSIF jobset.triggertime %]
+      [%# No "evaluation running since" row: an evaluation is a build, and a
+          build already says whether it is queued, running or finished, and
+          for how long. Saying it again here means saying it differently --
+          this row reported an evaluation as running while its build sat in
+          the queue, unstarted. %]
+      [% IF jobset.triggertime %]
       <tr>
         <th>Evaluation pending since:</th>
         <td>[% INCLUDE renderRelativeDate timestamp = jobset.triggertime %]</td>
