@@ -344,7 +344,7 @@ sub evals_GET {
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{total} = $evals->search(visibleEvalsCond($evals->current_source_alias))->count;
     my $offset = ($page - 1) * $resultsPerPage;
     $c->stash->{evals} = getEvals($c, $evals, $offset, $resultsPerPage);
     my %entity = (

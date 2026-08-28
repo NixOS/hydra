@@ -20,10 +20,25 @@
   </div>
 </div>
 
+[% evalBuild = eval.eval_build %]
+[% evalRunning = evalBuild && evalBuild.finished == 0 %]
+
+[% IF evalRunning %]
+<div class="alert alert-info">
+  <i class="fas fa-spinner fa-spin"></i>
+  This evaluation is still running, as <a [% HTML.attributes(href =>
+  c.uri_for('/build' evalBuild.id)) %]>build [% HTML.escape(evalBuild.id) %]</a>.
+  Jobs appear here as they are found.
+</div>
+[% END %]
+
 <p>This evaluation was performed [% IF eval.flake %]from the flake
 <tt>[% HTML.escape(eval.flake) %]</tt>[% END %] on [% INCLUDE renderDateTime
 timestamp=eval.timestamp %]. Fetching the dependencies took [%
-eval.checkouttime %]s and evaluation took [% HTML.escape(eval.evaltime) %]s.</p>
+eval.checkouttime %]s[% IF evalRunning %].[% ELSE %] and evaluation took [%
+HTML.escape(eval.evaltime) %]s.[% END %]
+[%- IF evalBuild && !evalRunning %] It was performed by <a [% HTML.attributes(href =>
+c.uri_for('/build' evalBuild.id)) %]>build [% HTML.escape(evalBuild.id) %]</a>.[% END %]</p>
 
 [% IF otherEval %]
 <p>Comparisons are relative to [% INCLUDE renderFullJobsetName

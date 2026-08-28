@@ -26,7 +26,7 @@ our @EXPORT = qw(
     gcRootFor
     getBaseUrl
     getDrvLogPath
-    getEvals getMachines
+    getEvals visibleEvalsCond getMachines
     getGCRootsDir
     getHydraConfig
     getHydraHome
@@ -323,13 +323,38 @@ Integer rows to fetch
 =back
 
 =cut
+=head2 visibleEvalsCond
+
+Search condition for the evaluations worth showing, given a result set alias.
+
+An evaluation is listed once it has contributed builds, and also while it is
+still being performed: the row exists from the moment the evaluation is
+scheduled so that its jobs can appear as they are found, and until the
+evaluation build finishes C<hasnewbuilds> holds a placeholder rather than an
+answer. Filtering on C<hasnewbuilds> alone would read that placeholder as
+"finished, found nothing" and hide the evaluation for as long as it runs.
+
+Callers that count evaluations for a pager must use this too, or the count and
+the page contents disagree.
+
+=cut
+sub visibleEvalsCond {
+    my ($me) = @_;
+    return {
+        -or => [
+            { "$me.hasnewbuilds" => 1 },
+            { "$me.eval_build" => { -in => \ "(select id from Builds where finished = 0)" } },
+        ]
+    };
+}
+
 sub getEvals {
     my ($c, $evals_result_set, $offset, $rows) = @_;
 
     my $me = $evals_result_set->current_source_alias;
 
     my @evals = $evals_result_set->search(
-        { hasnewbuilds => 1 },
+        visibleEvalsCond($me),
         { order_by => "$me.id DESC", rows => $rows, offset => $offset });
     my @res = ();
     my $cache = {};
