@@ -655,13 +655,7 @@ sub inputStorePaths {
 # rather than by shelling out so that a failure can say what was searched.
 sub findInPath {
     my ($program) = @_;
-    return $program if $program =~ m{/};
-    for my $dir (split /:/, ($ENV{PATH} // "")) {
-        next if $dir eq "";
-        my $candidate = "$dir/$program";
-        return $candidate if -x $candidate && !-d $candidate;
-    }
-    die "cannot find $program in PATH ($ENV{PATH})\n";
+    return which($program) // die "cannot find $program in PATH ($ENV{PATH})\n";
 }
 
 

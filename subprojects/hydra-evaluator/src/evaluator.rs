@@ -106,13 +106,6 @@ impl Evaluator {
             })
         };
 
-        let finisher = {
-            let this = Arc::clone(&this);
-            tokio::spawn(async move {
-                this.finisher_task().await;
-            })
-        };
-
         let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -134,34 +127,6 @@ impl Evaluator {
                 tracing::error!("main loop exited unexpectedly");
                 std::process::exit(1);
             }
-            _ = finisher => {
-                tracing::error!("evaluation finisher exited unexpectedly");
-                std::process::exit(1);
-            }
-        }
-    }
-
-    /// Read finished evaluation builds back into their evaluations.
-    ///
-    /// Evaluation is two runs of `hydra-eval-jobset`: one to schedule the
-    /// build, and one to consume its output once it has run. Nothing else
-    /// drives the second, because the first cannot wait for it -- the queue
-    /// runner is what dispatches the build, and blocking would hold an
-    /// evaluation slot (and in a single-machine setup, deadlock).
-    ///
-    /// Polled rather than driven by NOTIFY: the build finishing is the queue
-    /// runner's event, not the evaluator's, and a poll is also what recovers
-    /// the evaluations left behind when the evaluator was down.
-    async fn finisher_task(&self) {
-        loop {
-            if let Err(e) = self.finish_evals().await {
-                tracing::error!("exception finishing evaluations: {e:#}");
-                if is_broken_connection(&e) {
-                    tracing::error!("database connection broken, exiting");
-                    std::process::exit(1);
-                }
-            }
-            tokio::time::sleep(FINISHER_INTERVAL).await;
         }
     }
 
@@ -225,14 +190,15 @@ impl Evaluator {
 
             tracing::debug!("waiting for {} s", sleep_duration.as_secs());
 
-            if sleep_duration == Duration::MAX {
-                self.notify_work.notified().await;
-            } else {
-                tokio::select! {
-                    () = tokio::time::sleep(sleep_duration) => {}
-                    () = self.notify_work.notified() => {}
-                }
+            tokio::select! {
+                () = tokio::time::sleep(sleep_duration) => {}
+                () = self.notify_work.notified() => {}
             }
+
+            // Both halves of an evaluation's lifecycle, in the loop that
+            // owns it: start the ones that are due, and read back the ones
+            // whose build has finished.
+            self.finish_evals().await?;
 
             let mut state = self.state.lock().await;
             self.start_evals(&mut state).await?;
@@ -241,7 +207,7 @@ impl Evaluator {
 
     fn compute_sleep_duration(&self, state: &State) -> Duration {
         if state.running_evals >= self.max_evals {
-            return Duration::MAX;
+            return FINISHER_INTERVAL;
         }
 
         let now = now_epoch();
@@ -257,7 +223,12 @@ impl Evaluator {
             }
         }
 
-        u64::try_from(sleep_secs).map_or(Duration::MAX, Duration::from_secs)
+        // Capped, because nothing notifies the evaluator when an evaluation
+        // build finishes: that is the queue runner's event, and this is also
+        // what picks up evaluations left behind while the evaluator was down.
+        u64::try_from(sleep_secs)
+            .map_or(Duration::MAX, Duration::from_secs)
+            .min(FINISHER_INTERVAL)
     }
 
     async fn db_monitor_task(&self) {
