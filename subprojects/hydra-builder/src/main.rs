@@ -20,7 +20,6 @@ mod grpc;
 mod metrics;
 mod nix_config;
 mod state;
-mod streams;
 mod system;
 mod types;
 mod utils;

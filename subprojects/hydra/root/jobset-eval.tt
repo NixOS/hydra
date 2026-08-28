@@ -28,24 +28,7 @@
   <i class="fas fa-spinner fa-spin"></i>
   This evaluation is still running, as <a [% HTML.attributes(href =>
   c.uri_for('/build' evalBuild.id)) %]>build [% HTML.escape(evalBuild.id) %]</a>.
-  [%# The jobs are not builds yet -- they become builds when the evaluation
-      completes -- so they are listed by name only. This is a preview of the
-      evaluation's output as it is written, and it is missing entirely when
-      the evaluation build was cached and so never ran. %]
-  [% IF jobsFoundSoFar.defined %]
-    [% IF jobsFoundSoFar.size %]
-      It has found [% jobsFoundSoFar.size %] job[% jobsFoundSoFar.size == 1 ? '' : 's' %] so far:
-      <div class="mt-2">
-        [% FOREACH job IN jobsFoundSoFar.sort %]
-          <span class="badge badge-secondary">[% HTML.escape(job) %]</span>
-        [% END %]
-      </div>
-    [% ELSE %]
-      It has not reported any jobs yet.
-    [% END %]
-  [% ELSE %]
-    Its jobs will appear here when it finishes.
-  [% END %]
+  Its jobs appear here when it finishes.
 </div>
 [% END %]
 

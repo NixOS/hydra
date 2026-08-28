@@ -21,7 +21,6 @@ use daemon_client_utils::DaemonStoreReader;
 use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
-use hydra_proto::NamedStreamChunk;
 use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
@@ -567,7 +566,7 @@ impl State {
             .await;
         let before_build = Instant::now();
 
-        let mut options = build_client_options(
+        let options = build_client_options(
             self.config.build_cores,
             m.max_silent_time,
             m.max_log_size,
@@ -575,69 +574,9 @@ impl State {
             m.presigned_url_opts.is_some(),
         );
 
-        // Extra output streams, if the runner asked for any. Each is a fifo
-        // bound into the sandbox; whatever the build writes there is relayed
-        // back untouched. The builder does not interpret the contents.
-        let stream_dir = tempfile::tempdir().map_err(|e| JobFailure::Build(e.into()))?;
-        let mut bound_streams = Vec::new();
-        for stream in &m.streams {
-            match crate::streams::BoundStream::create(stream_dir.path(), stream) {
-                Ok(bound) => bound_streams.push(bound),
-                Err(e) => {
-                    tracing::error!("could not create stream {}: {e:#}", stream.name);
-                    return Err(JobFailure::Build(e));
-                }
-            }
-        }
-        if !bound_streams.is_empty() {
-            options.other_settings.insert(
-                "extra-sandbox-paths".to_string(),
-                crate::streams::sandbox_paths_option(&bound_streams).into(),
-            );
-        }
-
-        let mut stream_relays = Vec::new();
-        for bound in bound_streams {
-            let mut client = self.client.clone();
-            let drv_proto = drv.clone();
-            stream_relays.push(tokio::spawn(async move {
-                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                let name = bound.name.clone();
-                let drv_for_chunks = drv_proto.clone();
-                let sender = tokio::spawn(async move {
-                    let chunks = tokio_stream::StreamExt::map(
-                        tokio_stream::wrappers::UnboundedReceiverStream::new(rx),
-                        move |(name, data): (String, Vec<u8>)| NamedStreamChunk {
-                            drv: Some((&drv_for_chunks).into()),
-                            name,
-                            data,
-                        },
-                    );
-                    let _ = client.build_stream(chunks).await;
-                });
-                if let Err(e) = bound
-                    .relay(|name, data| {
-                        let _ = tx.send((name, data));
-                    })
-                    .await
-                {
-                    tracing::warn!("stream {name} ended early: {e:#}");
-                }
-                drop(tx);
-                let _ = sender.await;
-            }));
-        }
-
         let success = self
             .request_build(&self.connector, &roots, &drv, &basic_drv, options)
             .await?;
-
-        // The build has finished, so its end of each fifo is closed and the
-        // relays see end of file.
-        for relay in stream_relays {
-            let _ = relay.await;
-        }
-        drop(stream_dir);
 
         // Extract output paths from the build result.
         let outputs: BTreeMap<OutputName, StorePath> = success

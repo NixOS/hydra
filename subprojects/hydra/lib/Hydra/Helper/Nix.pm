@@ -26,7 +26,6 @@ our @EXPORT = qw(
     gcRootFor
     getBaseUrl
     getDrvLogPath
-    getDrvStreamPath
     getEvals visibleEvalsCond getMachines
     getGCRootsDir
     getHydraConfig
@@ -199,15 +198,11 @@ sub jobsetOverview {
 # Return the path of the build log of the given derivation, or undef
 # if the log is gone.
 sub getDrvLogPath {
-    my ($drvPath, $wantUncompressedName) = @_;
+    my ($drvPath) = @_;
     # Logs are bucketed by the first two characters of the store path.
     my $base = $drvPath->to_string;
     my $bucketed = substr($base, 0, 2) . "/" . substr($base, 2);
     my $fn = Hydra::Model::DB::getHydraPath . "/build-logs/";
-    # The name the log would have if it were uncompressed, whether or not it
-    # is there. Callers that want a file back get undef instead; callers
-    # deriving a sibling path from it -- a named stream, say -- want the name.
-    return $fn . $bucketed if $wantUncompressedName;
     for ($fn . $bucketed, $fn . $bucketed . ".bz2") {
         return $_ if -f $_;
     }
@@ -220,33 +215,6 @@ sub getDrvLogPath {
 
 # Find the log of the derivation denoted by $drvPath.  It it doesn't
 # exist, try other derivations that produced its outputs (@outPaths).
-=head2 getDrvStreamPath
-
-The file the queue runner wrote for a named output stream of a build, or
-undef if there is none.
-
-A build can ask for extra output streams besides its log (see `hydraStreams`);
-the queue runner persists each one exactly as it persists the log, with the
-stream's name appended. An evaluation build uses this to report the jobs it
-is finding while it is still running.
-
-=cut
-# The stream an evaluation build reports its jobs on, as the queue runner
-# names the file. Here rather than in `hydra-eval-jobset` because the
-# evaluator writes it and the web interface reads it, and they have to agree.
-our $EVAL_STREAM_NAME = "eval-jobs";
-
-sub getDrvStreamPath {
-    my ($drvPath, $name) = @_;
-
-    my $logPath = getDrvLogPath($drvPath, 1);
-    return undef unless defined $logPath;
-
-    my $fn = "$logPath.$name";
-    return -f $fn ? $fn : undef;
-}
-
-
 sub findLog {
     my ($c, $drvPath, @outPaths) = @_;
 

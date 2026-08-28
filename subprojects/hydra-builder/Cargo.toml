@@ -27,7 +27,6 @@ hyper-util.workspace   = true
 prost.workspace        = true
 tokio                  = { workspace = true, features = [ "full" ] }
 tokio-stream.workspace = true
-tempfile.workspace     = true
 tokio-util             = { workspace = true, features = [ "io", "io-util" ] }
 tonic                  = { workspace = true, features = [ "tls-webpki-roots" ] }
 tonic-prost.workspace  = true
