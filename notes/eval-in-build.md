@@ -189,13 +189,24 @@ socket like any other client. The build script does the plumbing:
 which gets the authoritative output and the live stream out of one
 unmodified process, with nothing that has to track the JSON format.
 
-Retention then falls out of the ordinary reference graph rather than
-needing `--gc-roots-dir`: the JSONL contains `/nix/store/…-foo.drv`
-strings, so reference scanning records those derivations as references
-of `$out`, and they were registered as dependencies of the build when
-they were added. Rooting the evaluation build's output — which Hydra
-already does for build outputs — roots every derivation it names, and
-substituting that output brings its closure along.
+Retention was expected to fall out of the ordinary reference graph
+rather than needing `--gc-roots-dir`: the JSONL contains
+`/nix/store/…-foo.drv` strings, so reference scanning records those
+derivations as references of `$out`, and rooting the evaluation build's
+output would root every derivation it names.
+
+That does not hold in practice — aggregate derivations were collectable
+immediately after evaluation — so the roots are made explicitly instead,
+by the run that reads the result. `--gc-roots-dir` is not available to
+the evaluation any more, since the directory is outside the sandbox and
+a build cannot write to it, but the same roots can be made on the way
+back in, from the derivations the JSONL names.
+
+Every job needs one, not only the jobs that become builds: an aggregate
+is reported as a job and nothing else in the store refers to its
+derivation. Worth revisiting whether the reference-graph argument can be
+made to work, since it would make retention automatic rather than a step
+that can be forgotten.
 
 Gathering the inputs
 --------------------

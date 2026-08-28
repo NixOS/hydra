@@ -1498,7 +1498,9 @@ sub replayEvaluationLog {
     return unless defined $logPath && $logPath !~ /\.(bz2|zst)$/;
 
     open(my $log, "<", $logPath) or return;
-    print STDERR $_ while <$log>;
+    while (defined(my $line = <$log>)) {
+        print STDERR $line;
+    }
     close $log;
 }
 
