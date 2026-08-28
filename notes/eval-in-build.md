@@ -380,6 +380,20 @@ Open questions
 - Scheduling and priority: the evaluation build holds a slot while its
   nested builds run. This must not deadlock. (Carried over from the
   roadmap's open questions; still unanswered.)
+- What this does *not* obsolete, and why. Very little of the evaluator's
+  existing machinery died with this change: it still fetches inputs, locks
+  jobsets while it does, limits how many run at once, and guards the
+  coordinator's free disk. All of that survives for one reason -- input
+  fetching still writes to the coordinator's store, and the queue runner
+  still reads `.drv` files from it.
+
+  So evaluation-as-a-build currently adds a layer rather than replacing
+  those responsibilities. They go when the coordinator stops having a
+  store at all: inputs fetched by the builder, results uploaded to the
+  cache, `.drv` files fetched back from it to be run. That is the change
+  this one is a prerequisite for, and the honest measure of whether the
+  approach is right.
+
 - Turning the streamed preview into rows. A running evaluation now
   lists the jobs it has found, read straight from the stream file, but
   they are names on a page rather than `JobsetEvalMembers`: making them
