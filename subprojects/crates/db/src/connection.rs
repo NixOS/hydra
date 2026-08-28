@@ -119,58 +119,6 @@ impl Connection {
         .transpose()?)
     }
 
-    /// Create the jobset that holds evaluation builds, returning its id.
-    ///
-    /// Evaluation builds need a non-null `jobset_id` but belong to no
-    /// evaluation, so they all live here rather than in the jobset they
-    /// evaluate -- where they would show up among its jobs and in its
-    /// statistics, as a job nothing in that jobset names.
-    ///
-    /// `enabled = 0` is load-bearing, not cosmetic. The evaluator selects
-    /// jobsets with `enabled != 0 and p.enabled != 0`, so an enabled jobset
-    /// here would be scheduled for evaluation itself, and evaluating it
-    /// would want to create an evaluation build inside itself.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn ensure_eval_jobset(&mut self) -> crate::Result<i32> {
-        let mut tx = self.conn.begin().await?;
-
-        sqlx::query(
-            "INSERT INTO Users (userName, fullName, emailAddress, password)
-             VALUES ('hydra', 'Hydra', 'hydra@localhost', '')
-             ON CONFLICT (userName) DO NOTHING",
-        )
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query(
-            "INSERT INTO Projects (name, displayName, description, owner, enabled, hidden)
-             VALUES ('hydra', 'Hydra', 'Bookkeeping that Hydra does for itself', 'hydra', 1, 1)
-             ON CONFLICT (name) DO NOTHING",
-        )
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query(
-            "INSERT INTO Jobsets
-                (name, project, description, nixExprInput, nixExprPath, emailOverride,
-                 type, enabled, hidden)
-             VALUES ('evaluations', 'hydra', 'Evaluations, run as builds', '', '', '',
-                 0, 0, 1)
-             ON CONFLICT (project, name) DO NOTHING",
-        )
-        .execute(&mut *tx)
-        .await?;
-
-        let id: i32 = sqlx::query_scalar(
-            "SELECT id FROM Jobsets WHERE project = 'hydra' AND name = 'evaluations'",
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-        Ok(id)
-    }
-
     #[tracing::instrument(skip(self), err)]
     pub async fn get_jobset_build_steps(
         &mut self,
@@ -1506,31 +1454,6 @@ mod tests {
 
     async fn insert_step(conn: &mut Connection, build: i32, stepnr: i32, drv_path: &StorePath) {
         insert_step_with_status(conn, build, stepnr, drv_path, 0, None).await;
-    }
-
-    #[tokio::test]
-    async fn ensure_eval_jobset_is_idempotent() {
-        let (_pg, mut conn) = setup().await;
-        let id1 = conn.ensure_eval_jobset().await.unwrap();
-        let id2 = conn.ensure_eval_jobset().await.unwrap();
-        assert_eq!(id1, id2);
-    }
-
-    /// The evaluator selects jobsets with `enabled != 0`, so an enabled
-    /// jobset here would be scheduled for evaluation itself and would want
-    /// to create an evaluation build inside itself.
-    #[tokio::test]
-    async fn eval_jobset_is_disabled_and_hidden() {
-        let (_pg, mut conn) = setup().await;
-        let id = conn.ensure_eval_jobset().await.unwrap();
-        let (enabled, hidden): (i32, i32) =
-            sqlx::query_as("SELECT enabled, hidden FROM Jobsets WHERE id = $1")
-                .bind(id)
-                .fetch_one(&mut *conn.conn)
-                .await
-                .unwrap();
-        assert_eq!(enabled, 0, "the eval jobset must never be scheduled");
-        assert_eq!(hidden, 1);
     }
 
     async fn insert_step_with_status(
