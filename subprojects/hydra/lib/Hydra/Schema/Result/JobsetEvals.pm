@@ -110,6 +110,11 @@ __PACKAGE__->table("jobsetevals");
   is_foreign_key: 1
   is_nullable: 1
 
+=head2 completed
+
+  data_type: 'bigint'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -146,6 +151,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "eval_build",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
+  "completed",
+  { data_type => "bigint", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -248,8 +255,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 03:10:48
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EKyahy73y2OfaOFG5/a5HA
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 04:12:50
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uqLqr8mPsB426CUg5352Gg
 
 __PACKAGE__->has_many(
   "buildIds",

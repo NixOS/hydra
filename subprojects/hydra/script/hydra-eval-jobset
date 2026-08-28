@@ -734,6 +734,8 @@ sub scheduleEvaluationBuild {
     my $ev = $jobset->jobsetevals->create(
         { timestamp => $time
         , checkouttime => $checkoutTime
+          # Placeholders. `completed` is left null to say so; the columns
+          # below are `not null` and have no honest value yet.
         , evaltime => 0
         , hasnewbuilds => 0
         , hash => $argsHash
@@ -1330,7 +1332,11 @@ sub finishEvaluation {
 
         # How long evaluating took, which is how long the evaluation build
         # ran -- not how long this run took to read its output.
-        $ev->update({ evaltime => $evalSeconds });
+        #
+        # `completed` goes in the same update: from here on the row's columns
+        # are answers rather than placeholders, and that is exactly what the
+        # column means.
+        $ev->update({ evaltime => $evalSeconds, completed => time });
     };
 
     # Retry rather than lose the evaluation if Postgres aborts the transaction

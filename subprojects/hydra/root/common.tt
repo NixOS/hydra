@@ -507,7 +507,7 @@ BLOCK renderEvals %]
           <td><a class="row-link" [% HTML.attributes(href => link) %]>[% HTML.escape(eval.id) %]</a>
             [%# The evaluation is still being performed, so the jobs listed
                 here are only the ones found so far. %]
-            [% IF eval.eval_build && eval.eval_build.finished == 0 %]
+            [% IF eval.eval_build && !eval.completed %]
               <i class="fas fa-spinner fa-spin" title="This evaluation is still running"></i>
             [% END %]
           </td>

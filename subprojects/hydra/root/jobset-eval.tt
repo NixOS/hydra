@@ -21,7 +21,7 @@
 </div>
 
 [% evalBuild = eval.eval_build %]
-[% evalRunning = evalBuild && evalBuild.finished == 0 %]
+[% evalRunning = evalBuild && !eval.completed %]
 
 [% IF evalRunning %]
 <div class="alert alert-info">

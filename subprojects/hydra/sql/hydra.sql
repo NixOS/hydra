@@ -509,6 +509,21 @@ create table JobsetEvals (
     -- revert to null.
     eval_build    integer,
 
+    -- When the results of `eval_build` were read back into this row, i.e.
+    -- when the columns above stopped being placeholders and became answers.
+    --
+    -- An evaluation build finishing and its results being consumed are two
+    -- different events, performed by two different processes, so "the build
+    -- is finished" does not mean "the evaluation is done". This column is the
+    -- difference, and it is what says a row is still awaiting completion --
+    -- which cannot be inferred, since an evaluation legitimately finds no
+    -- jobs and legitimately takes no measurable time.
+    --
+    -- Null for a tentative evaluation, and also for the historical rows that
+    -- were written in one shot before evaluation became a build; those are
+    -- told apart by `eval_build` being null too.
+    completed     bigint,
+
     foreign key   (jobset_id) references Jobsets(id) on delete cascade,
     foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null,
     foreign key   (eval_build) references Builds(id) on delete set null

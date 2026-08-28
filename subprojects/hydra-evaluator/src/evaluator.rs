@@ -8,6 +8,11 @@ use tokio::process::Command;
 use tokio::sync::{Mutex, Notify};
 
 use crate::config::HydraConfig;
+
+/// How often to look for evaluation builds that have finished. Nothing
+/// notifies the evaluator when one does, and the work is a single indexed
+/// query, so this only bounds how stale an evaluation can look.
+const FINISHER_INTERVAL: Duration = Duration::from_secs(10);
 use crate::queries::JobsetQueries as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,6 +106,13 @@ impl Evaluator {
             })
         };
 
+        let finisher = {
+            let this = Arc::clone(&this);
+            tokio::spawn(async move {
+                this.finisher_task().await;
+            })
+        };
+
         let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
         let mut sigterm =
             tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -122,7 +134,73 @@ impl Evaluator {
                 tracing::error!("main loop exited unexpectedly");
                 std::process::exit(1);
             }
+            _ = finisher => {
+                tracing::error!("evaluation finisher exited unexpectedly");
+                std::process::exit(1);
+            }
         }
+    }
+
+    /// Read finished evaluation builds back into their evaluations.
+    ///
+    /// Evaluation is two runs of `hydra-eval-jobset`: one to schedule the
+    /// build, and one to consume its output once it has run. Nothing else
+    /// drives the second, because the first cannot wait for it -- the queue
+    /// runner is what dispatches the build, and blocking would hold an
+    /// evaluation slot (and in a single-machine setup, deadlock).
+    ///
+    /// Polled rather than driven by NOTIFY: the build finishing is the queue
+    /// runner's event, not the evaluator's, and a poll is also what recovers
+    /// the evaluations left behind when the evaluator was down.
+    async fn finisher_task(&self) {
+        loop {
+            if let Err(e) = self.finish_evals().await {
+                tracing::error!("exception finishing evaluations: {e:#}");
+                if is_broken_connection(&e) {
+                    tracing::error!("database connection broken, exiting");
+                    std::process::exit(1);
+                }
+            }
+            tokio::time::sleep(FINISHER_INTERVAL).await;
+        }
+    }
+
+    async fn finish_evals(&self) -> eyre::Result<()> {
+        let pending = self
+            .db
+            .get()
+            .await?
+            .get_evals_awaiting_completion()
+            .await
+            .wrap_err("failed to look for evaluations awaiting completion")?;
+
+        for eval_id in pending {
+            tracing::info!("completing evaluation {eval_id}");
+
+            // Run to completion rather than spawning and forgetting: two
+            // finishers for the same evaluation would both write its jobs,
+            // and the poll below would start the second while the first is
+            // still going.
+            let status = Command::new("hydra-eval-jobset")
+                .arg("--finish-evaluation")
+                .arg(eval_id.to_string())
+                .status()
+                .await;
+
+            match status {
+                Ok(status) if status.success() => {}
+                Ok(status) => {
+                    // Left for the next poll to retry: the row is still
+                    // uncompleted, which is the whole state this needs.
+                    tracing::error!("completing evaluation {eval_id} failed: {status}");
+                }
+                Err(e) => {
+                    tracing::error!("failed to spawn hydra-eval-jobset for {eval_id}: {e}");
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn main_loop_task(&self) {

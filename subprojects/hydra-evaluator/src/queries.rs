@@ -30,6 +30,16 @@ pub(crate) trait JobsetQueries {
     /// Whether an evaluation still has unfinished builds.
     async fn eval_has_unfinished_builds(&mut self, eval_id: i32) -> Result<bool, sqlx::Error>;
 
+    /// Evaluations whose build has finished but whose results have not been
+    /// read back yet.
+    ///
+    /// An evaluation build finishing and the evaluation being completed are
+    /// separate events: the build produces the jobs, and a later
+    /// `hydra-eval-jobset --finish-evaluation` turns them into rows. This is
+    /// the gap between the two, and `completed IS NULL` is the only honest
+    /// way to spot it -- an evaluation may legitimately find no jobs.
+    async fn get_evals_awaiting_completion(&mut self) -> Result<Vec<i32>, sqlx::Error>;
+
     /// Mark a jobset as currently evaluating.
     async fn set_jobset_start_time(
         &mut self,
@@ -97,6 +107,20 @@ impl JobsetQueries for db::Connection {
         .fetch_optional(self.raw())
         .await?
         .is_some())
+    }
+
+    async fn get_evals_awaiting_completion(&mut self) -> Result<Vec<i32>, sqlx::Error> {
+        Ok(sqlx::query!(
+            "SELECT e.id FROM jobsetevals e \
+             JOIN builds b ON e.eval_build = b.id \
+             WHERE e.completed IS NULL AND b.finished != 0 \
+             ORDER BY e.id"
+        )
+        .fetch_all(self.raw())
+        .await?
+        .into_iter()
+        .map(|r| r.id)
+        .collect())
     }
 
     async fn set_jobset_start_time(
