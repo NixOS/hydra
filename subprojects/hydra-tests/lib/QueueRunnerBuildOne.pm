@@ -41,12 +41,16 @@ sub runBuilds {
         local $SIG{ALRM} = sub { die "timeout\n" };
         alarm $timeout;
 
-        wait_for_url($ua, "$base_url/status")
+        # The same budget the alarm above allows, rather than a shorter one
+        # of their own.
+        my $deadline = time() + $timeout;
+
+        wait_for_url($ua, "$base_url/status", undef, $deadline)
             or die "Timed out waiting for queue-runner REST server\n";
 
         wait_for_url($ua, "$base_url/status/machines", sub {
             shift->decoded_content =~ /"hostname"/;
-        }) or die "Timed out waiting for builder to register\n";
+        }, $deadline) or die "Timed out waiting for builder to register\n";
 
         for my $bid (@build_ids) {
             $pg->pump_logs;

@@ -16,16 +16,26 @@ our @EXPORT = qw(
     wait_for_url
 );
 
+# Poll $url until it succeeds and $check accepts the response, or $deadline
+# passes. Returns whether it succeeded.
+#
+# Takes a deadline rather than a fixed number of attempts: callers already
+# wrap this in an alarm, and a fixed count silently overrode it -- thirty
+# half-second tries capped every caller at fifteen seconds however long they
+# had asked to wait. That is not long for a builder to register on a machine
+# running the whole suite in parallel, and it made the wait look flaky rather
+# than merely slow.
 sub wait_for_url {
-    my ($ua, $url, $check) = @_;
-    for my $i (1..30) {
+    my ($ua, $url, $check, $deadline) = @_;
+    $deadline //= time() + 15;
+    while (1) {
         my $resp = $ua->get($url);
         if ($resp->is_success) {
             return 1 if !$check || $check->($resp);
         }
+        return 0 if time() >= $deadline;
         select(undef, undef, undef, 0.5);
     }
-    return 0;
 }
 
 
