@@ -267,6 +267,7 @@
               hydra-linters
               hydra-queue-runner
               hydra-builder
+              hydra-cargo-deps
               ;
             foreman = pkgs.callPackage ./packaging/foreman/package.nix {
               foreman-src = foreman;
