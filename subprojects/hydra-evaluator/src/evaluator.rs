@@ -9,6 +9,11 @@ use tokio::sync::{Mutex, Notify};
 use crate::config::HydraConfig;
 use crate::queries;
 
+/// How often to look for evaluation builds that have finished. Nothing
+/// notifies the evaluator when one does, and the work is a single indexed
+/// query, so this only bounds how stale an evaluation can look.
+const FINISHER_INTERVAL: Duration = Duration::from_secs(10);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum EvaluationStyle {
@@ -130,6 +135,29 @@ impl Evaluator {
         }
     }
 
+    async fn finish_evals(&self) -> eyre::Result<()> {
+        let mut conn = self.db.get().await?;
+        let pending = queries::get_evals_awaiting_completion(&mut conn)
+            .await
+            .wrap_err("failed to look for evaluations awaiting completion")?;
+
+        for eval_id in pending {
+            tracing::info!("completing evaluation {eval_id}");
+
+            // Run to completion rather than spawning and forgetting: two
+            // finishers for the same evaluation would both write its jobs,
+            // and the poll below would start the second while the first is
+            // still going.
+            if let Err(e) = crate::evaluate::complete(&self.db, &self.config, eval_id).await {
+                // Left for the next poll to retry: the row is still
+                // uncompleted, which is the whole state this needs.
+                tracing::error!("completing evaluation {eval_id} failed: {e:#}");
+            }
+        }
+
+        Ok(())
+    }
+
     async fn main_loop_task(&self) {
         loop {
             if let Err(e) = self.main_loop_iteration().await {
@@ -152,14 +180,15 @@ impl Evaluator {
 
             tracing::debug!("waiting for {} s", sleep_duration.as_secs());
 
-            if sleep_duration == Duration::MAX {
-                self.notify_work.notified().await;
-            } else {
-                tokio::select! {
-                    () = tokio::time::sleep(sleep_duration) => {}
-                    () = self.notify_work.notified() => {}
-                }
+            tokio::select! {
+                () = tokio::time::sleep(sleep_duration) => {}
+                () = self.notify_work.notified() => {}
             }
+
+            // Both halves of an evaluation's lifecycle, in the loop that
+            // owns it: start the ones that are due, and read back the ones
+            // whose build has finished.
+            self.finish_evals().await?;
 
             let mut state = self.state.lock().await;
             self.start_evals(&mut state).await?;
@@ -168,7 +197,7 @@ impl Evaluator {
 
     fn compute_sleep_duration(&self, state: &State) -> Duration {
         if state.running_evals >= self.max_evals {
-            return Duration::MAX;
+            return FINISHER_INTERVAL;
         }
 
         let now = now_epoch();
@@ -184,7 +213,12 @@ impl Evaluator {
             }
         }
 
-        u64::try_from(sleep_secs).map_or(Duration::MAX, Duration::from_secs)
+        // Capped, because nothing notifies the evaluator when an evaluation
+        // build finishes: that is the queue runner's event, and this is also
+        // what picks up evaluations left behind while the evaluator was down.
+        u64::try_from(sleep_secs)
+            .map_or(Duration::MAX, Duration::from_secs)
+            .min(FINISHER_INTERVAL)
     }
 
     async fn db_monitor_task(&self) {
@@ -533,13 +567,9 @@ async fn reap_eval(
         Some(Ok(crate::evaluate::Outcome::Cached { previous })) => {
             (true, format!("cached, same as evaluation {previous}"))
         }
-        Some(Ok(crate::evaluate::Outcome::Evaluated { eval, changed })) => (
+        Some(Ok(crate::evaluate::Outcome::Scheduled { eval, build })) => (
             true,
-            if *changed {
-                format!("added evaluation {eval}")
-            } else {
-                format!("evaluation {eval} found no changes")
-            },
+            format!("scheduled evaluation {eval} as build {build}"),
         ),
         Some(Ok(crate::evaluate::Outcome::Declared)) => (
             true,

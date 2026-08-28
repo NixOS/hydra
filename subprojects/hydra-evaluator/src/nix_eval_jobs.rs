@@ -6,11 +6,9 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
-use std::process::Stdio;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use db::StoreDir;
-use tokio::io::{AsyncBufReadExt as _, BufReader};
 
 use crate::config::HydraConfig;
 use crate::inputs::{InputInfo, JobsetInput};
@@ -216,41 +214,26 @@ pub(crate) fn full(store_dir: &StoreDir, path: &str) -> String {
     }
 }
 
-/// Run `nix-eval-jobs` and hand back the jobs it reports, one at a time.
+/// Read the jobs out of a finished evaluation build's output.
 ///
-/// Its stderr is inherited: diagnostics are how an evaluation explains
-/// itself, and they belong in the log rather than buffered up here.
-pub(crate) async fn run(cmd: &[String]) -> eyre::Result<Vec<Job>> {
-    // NIX_PATH is cleared so that an evaluation depends on its declared
-    // inputs and nothing about the machine it runs on.
-    let mut child = tokio::process::Command::new("nix-eval-jobs")
-        .args(cmd)
-        .env_remove("NIX_PATH")
-        .stdout(Stdio::piped())
-        .spawn()
-        .wrap_err("failed to start nix-eval-jobs")?;
-
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| eyre::eyre!("nix-eval-jobs has no stdout"))?;
-    let mut lines = BufReader::new(stdout).lines();
+/// The same JSONL `run` reads from a pipe, but from the file the build
+/// produced -- which is the whole point of running the evaluation as a build.
+pub(crate) async fn read(path: &str) -> eyre::Result<Vec<Job>> {
+    let contents = tokio::fs::read_to_string(path)
+        .await
+        .wrap_err_with(|| format!("could not read the evaluation's output at `{path}'"))?;
 
     let mut jobs = Vec::new();
-    while let Some(line) = lines.next_line().await? {
+    for line in contents.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        match serde_json::from_str::<Job>(&line) {
+        match serde_json::from_str::<Job>(line) {
             Ok(job) => jobs.push(job),
             // A line we cannot read is worth complaining about but not worth
-            // abandoning the evaluation over, which is what the Perl did.
-            Err(e) => tracing::warn!("nix-eval-jobs sent unreadable JSON: {e}: {line}"),
+            // abandoning the evaluation over.
+            Err(e) => tracing::warn!("nix-eval-jobs wrote unreadable JSON: {e}: {line}"),
         }
     }
-
-    let status = child.wait().await?;
-    eyre::ensure!(status.success(), "nix-eval-jobs failed: {status}");
-
     Ok(jobs)
 }

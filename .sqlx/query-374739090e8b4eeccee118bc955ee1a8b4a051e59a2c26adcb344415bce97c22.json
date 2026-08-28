@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,\n               p.declfile, p.decltype, p.declvalue, j.errormsg\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.project = $1 AND j.name = $2",
+  "query": "\n        SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,\n               p.declfile, p.decltype, p.declvalue\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.project = $1 AND j.name = $2",
   "describe": {
     "columns": [
       {
@@ -90,17 +90,6 @@
             "name": "declvalue"
           }
         }
-      },
-      {
-        "ordinal": 8,
-        "name": "errormsg",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "jobsets",
-            "name": "errormsg"
-          }
-        }
       }
     ],
     "parameters": {
@@ -117,9 +106,8 @@
       true,
       true,
       true,
-      true,
       true
     ]
   },
-  "hash": "6e7f270a3582c16ac4d9918e46ac69d7cf65526bbb59ef72cbcc1d2d72ebedb8"
+  "hash": "374739090e8b4eeccee118bc955ee1a8b4a051e59a2c26adcb344415bce97c22"
 }

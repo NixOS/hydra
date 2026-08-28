@@ -93,6 +93,29 @@ pub(crate) async fn eval_has_unfinished_builds(
     .is_some())
 }
 
+/// Evaluations whose build has finished but whose results have not been read
+/// back yet.
+///
+/// An evaluation build finishing and the evaluation being completed are
+/// separate events: the build produces the jobs, and a later pass turns them
+/// into rows. This is the gap between the two, and `completed IS NULL` is the
+/// only honest way to spot it -- an evaluation may legitimately find no jobs.
+pub(crate) async fn get_evals_awaiting_completion(
+    conn: &mut db::Connection,
+) -> Result<Vec<i32>, sqlx::Error> {
+    Ok(sqlx::query!(
+        "SELECT e.id FROM jobsetevals e \
+         JOIN builds b ON e.eval_build = b.id \
+         WHERE e.completed IS NULL AND b.finished != 0 \
+         ORDER BY e.id"
+    )
+    .fetch_all(conn.raw())
+    .await?
+    .into_iter()
+    .map(|r| r.id)
+    .collect())
+}
+
 /// A jobset's configured inputs, with their alternatives, in the order
 /// the evaluator should resolve them.
 pub(crate) async fn get_jobset_inputs(
@@ -368,7 +391,7 @@ pub(crate) async fn get_jobset_for_eval(
         JobsetForEval,
         r#"
         SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,
-               p.declfile, p.decltype, p.declvalue, j.errormsg
+               p.declfile, p.decltype, p.declvalue
         FROM jobsets j
         JOIN projects p ON j.project = p.name
         WHERE j.project = $1 AND j.name = $2"#,
@@ -392,6 +415,54 @@ pub(crate) async fn get_previous_eval(
         WHERE jobset_id = $1
         ORDER BY id DESC
         LIMIT 1"#,
+        jobset_id,
+    )
+    .fetch_optional(conn.raw())
+    .await
+}
+
+/// The evaluation before a given one, which is what its jobs are compared
+/// against.
+///
+/// Excludes the evaluation itself: unlike the old flow, the row exists before
+/// its jobs do, so "the newest" would be this one.
+pub(crate) async fn get_eval_before(
+    conn: &mut db::Connection,
+    jobset_id: i32,
+    eval_id: i32,
+) -> Result<Option<PreviousEval>, sqlx::Error> {
+    sqlx::query_as!(
+        PreviousEval,
+        r#"
+        SELECT id, hash, flake FROM jobsetevals
+        WHERE jobset_id = $1 AND id < $2 AND completed IS NOT NULL
+        ORDER BY id DESC
+        LIMIT 1"#,
+        jobset_id,
+        eval_id,
+    )
+    .fetch_optional(conn.raw())
+    .await
+}
+
+/// What completing an evaluation needs to know about the jobset it belongs to.
+#[derive(Debug)]
+pub(crate) struct JobsetForCompletion {
+    pub declfile: Option<String>,
+    pub name: String,
+    pub errormsg: Option<String>,
+}
+
+pub(crate) async fn get_jobset_for_completion(
+    conn: &mut db::Connection,
+    jobset_id: i32,
+) -> Result<Option<JobsetForCompletion>, sqlx::Error> {
+    sqlx::query_as!(
+        JobsetForCompletion,
+        r#"
+        SELECT p.declfile, j.name, j.errormsg
+        FROM jobsets j JOIN projects p ON j.project = p.name
+        WHERE j.id = $1"#,
         jobset_id,
     )
     .fetch_optional(conn.raw())
@@ -554,9 +625,6 @@ pub(crate) struct JobsetForEval {
     /// The type and value of the input holding `declfile`.
     pub decltype: Option<String>,
     pub declvalue: Option<String>,
-    /// The error the jobset already has, so that an evaluation can say
-    /// whether the one it ends up with is different.
-    pub errormsg: Option<String>,
 }
 
 /// The previous evaluation, for deciding whether to evaluate again.
@@ -606,6 +674,11 @@ pub(crate) struct NewEval<'a> {
     pub nix_expr_input: Option<&'a str>,
     pub nix_expr_path: Option<&'a str>,
     pub evaluation_error_id: Option<i32>,
+    /// The build that will perform this evaluation, and fill the row in.
+    pub eval_build: Option<i32>,
+    /// So the pass that completes this evaluation reports against the same
+    /// trace as the one that scheduled it.
+    pub trace_id: Option<&'a str>,
 }
 
 /// The writes an evaluation makes, which happen inside its transaction.
@@ -627,8 +700,8 @@ pub(crate) async fn insert_eval(
         INSERT INTO jobsetevals
           (jobset_id, timestamp, checkouttime, evaltime, hasnewbuilds,
            nrbuilds, hash, flake, nixexprinput, nixexprpath,
-           evaluationerror_id)
-        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9)
+           evaluationerror_id, eval_build, trace_id)
+        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id"#,
         eval.jobset_id,
         now,
@@ -639,6 +712,8 @@ pub(crate) async fn insert_eval(
         eval.nix_expr_input,
         eval.nix_expr_path,
         eval.evaluation_error_id,
+        eval.eval_build,
+        eval.trace_id,
     )
     .fetch_one(tx.raw())
     .await?
@@ -872,6 +947,126 @@ pub(crate) async fn insert_build_outputs(
     .bind(build)
     .bind(&names)
     .bind(&paths)
+    .execute(tx.raw())
+    .await?;
+    Ok(())
+}
+
+/// The hidden jobset that evaluation builds belong to, created on first use.
+///
+/// They are builds and so must live in some jobset, but they are not anyone's
+/// jobs: this keeps them out of the jobsets people look at.
+pub(crate) async fn ensure_eval_jobset(conn: &mut db::Connection) -> Result<i32, sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO projects (name, displayName, description, enabled, hidden, owner)
+         VALUES ('hydra', 'Hydra', 'Hydra internals', 0, 1, 'root')
+         ON CONFLICT (name) DO NOTHING"
+    )
+    .execute(conn.raw())
+    .await?;
+
+    sqlx::query!(
+        "INSERT INTO jobsets (project, name, description, nixexprinput, nixexprpath,
+                              enabled, hidden, checkinterval, triggertime, type)
+         VALUES ('hydra', 'evaluations', 'Evaluations run as builds', '', '', 0, 1, 0, null, 0)
+         ON CONFLICT (project, name) DO NOTHING"
+    )
+    .execute(conn.raw())
+    .await?;
+
+    Ok(
+        sqlx::query!("SELECT id FROM jobsets WHERE project = 'hydra' AND name = 'evaluations'")
+            .fetch_one(conn.raw())
+            .await?
+            .id,
+    )
+}
+
+/// Queue the build that will perform an evaluation.
+///
+/// The queue runner only ever *updates* a build's output row -- it fills in
+/// the path once there is one -- so the row has to exist first. For a job
+/// build `check_build` inserts it; this build has no job, so it is inserted
+/// here. The single `out` is the JSONL the evaluation produces, and reading
+/// it back is the whole point of the build.
+pub(crate) async fn insert_eval_build(
+    tx: &mut db::Transaction<'_>,
+    jobset_id: i32,
+    job: &str,
+    drv_path: &str,
+    system: &str,
+    now: db::Timestamp,
+) -> Result<i32, sqlx::Error> {
+    let id = sqlx::query!(
+        r#"
+        INSERT INTO builds
+          (timestamp, jobset_id, job, nixname, drvpath, system, priority,
+           globalpriority, finished, iscurrent)
+        VALUES ($1, $2, $3, 'hydra-eval', $4, $5, 100, 0, 0, 1)
+        RETURNING id"#,
+        now,
+        jobset_id,
+        job,
+        drv_path,
+        system,
+    )
+    .fetch_one(tx.raw())
+    .await?
+    .id;
+
+    sqlx::query!(
+        "INSERT INTO buildoutputs (build, name, path) VALUES ($1, 'out', null)",
+        id,
+    )
+    .execute(tx.raw())
+    .await?;
+
+    Ok(id)
+}
+
+/// What completing an evaluation needs to know about it.
+#[derive(Debug)]
+pub(crate) struct EvalToComplete {
+    pub jobset_id: i32,
+    pub trace_id: Option<String>,
+    pub build_status: Option<i32>,
+    pub out_path: Option<String>,
+}
+
+pub(crate) async fn get_eval_to_complete(
+    conn: &mut db::Connection,
+    eval_id: i32,
+) -> Result<Option<EvalToComplete>, sqlx::Error> {
+    sqlx::query_as!(
+        EvalToComplete,
+        r#"
+        SELECT e.jobset_id, e.trace_id, b.buildstatus as build_status,
+               o.path as out_path
+        FROM jobsetevals e
+        JOIN builds b ON e.eval_build = b.id
+        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'
+        WHERE e.id = $1"#,
+        eval_id,
+    )
+    .fetch_optional(conn.raw())
+    .await
+}
+
+/// Say that an evaluation has been read back from its build.
+///
+/// `completed` is what tells the finisher not to look at this evaluation
+/// again; nothing else in the row can say so, since an evaluation may
+/// legitimately have found no jobs.
+pub(crate) async fn mark_eval_completed(
+    tx: &mut db::Transaction<'_>,
+    eval_id: i32,
+    now: db::Timestamp,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsetevals SET completed = $2 WHERE id = $1",
+        eval_id,
+        now,
+    )
     .execute(tx.raw())
     .await?;
     Ok(())

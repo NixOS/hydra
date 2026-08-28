@@ -1,5 +1,6 @@
 mod config;
 mod declarative;
+mod eval_build;
 mod evaluate;
 mod evaluator;
 mod fetcher;
@@ -26,6 +27,10 @@ struct Cli {
         default_value = "evaluator.toml"
     )]
     config_path: String,
+
+    /// Complete any evaluations whose build has finished, and exit
+    #[arg(long)]
+    finish: bool,
 
     /// Clear startTime on all jobsets and exit
     #[arg(long)]
@@ -56,6 +61,17 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     let config = HydraConfig::load(&cli.config_path)?;
+
+    // One pass of what the daemon's loop does, for a caller that has just
+    // built an evaluation and wants its results read back now.
+    if cli.finish {
+        let pending = queries::get_evals_awaiting_completion(&mut db.get().await?).await?;
+        for eval_id in pending {
+            tracing::info!("completing evaluation {eval_id}");
+            evaluate::complete(&db, &config, eval_id).await?;
+        }
+        return Ok(());
+    }
 
     let eval_one = match (cli.project, cli.jobset) {
         (Some(p), Some(j)) => Some((p, j)),

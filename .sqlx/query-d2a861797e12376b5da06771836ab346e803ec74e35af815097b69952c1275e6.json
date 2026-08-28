@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO jobsetevals\n          (jobset_id, timestamp, checkouttime, evaltime, hasnewbuilds,\n           nrbuilds, hash, flake, nixexprinput, nixexprpath,\n           evaluationerror_id)\n        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9)\n        RETURNING id",
+  "query": "\n        INSERT INTO jobsetevals\n          (jobset_id, timestamp, checkouttime, evaltime, hasnewbuilds,\n           nrbuilds, hash, flake, nixexprinput, nixexprpath,\n           evaluationerror_id, eval_build, trace_id)\n        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9, $10, $11)\n        RETURNING id",
   "describe": {
     "columns": [
       {
@@ -25,12 +25,14 @@
         "Text",
         "Text",
         "Text",
-        "Int4"
+        "Int4",
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "0bb9ff47965449c55566a5828ca5845c7af1746b3ed41de495b7201af399f188"
+  "hash": "d2a861797e12376b5da06771836ab346e803ec74e35af815097b69952c1275e6"
 }
