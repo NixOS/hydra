@@ -181,6 +181,31 @@ read-only-mount check in `may_open`. `extra-sandbox-paths` is also
 overridable by a trusted user, which `system-features` is not, so the
 builder can bind the stream without a daemon config change.
 
+Verified on stock Nix 2.35, rather than taken on faith: a sandboxed
+derivation with `requiredSystemFeatures = [ "recursive-nix" ]` running
+`nix store add-path` does add the path, and it is valid in the outer
+store once the build finishes. That holds against a *relocated* store
+(`local?root=…`), which is what Hydra runs on in the test harness, so
+the earlier worry that a relocated store forces a chroot that
+recursive Nix cannot live with is unfounded. `sandbox-build-dir must
+not contain the storeDir` only bites when the store is genuinely
+underneath the build directory.
+
+Two conditions, and both are the same condition Hydra already has to
+satisfy for its own tooling: the store's *logical* directory has to be
+the one the paths are named with (a store opened with `&store=` pointing
+somewhere else makes every `/nix/store/…` path foreign), and whatever
+the build runs -- Nix itself included -- has to be in that store rather
+than merely on the host.
+
+The second is why this is not exercised by the Perl test suite: the
+harness deliberately gives its store a logical directory under the
+test's temporary directory so the builder and the evaluator agree on
+one, and no `/nix/store` path is addressable there. The evaluation build
+runs unsandboxed with an explicit `evaluation_build_store_uri` instead.
+That is a property of the harness, not of the design, but it does mean
+the production path is not covered by a test.
+
 `nix-eval-jobs` is used unmodified, talking to the recursive-Nix daemon
 socket like any other client. The build script does the plumbing:
 
