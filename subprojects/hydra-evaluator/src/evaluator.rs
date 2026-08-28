@@ -13,6 +13,9 @@ use crate::config::HydraConfig;
 /// notifies the evaluator when one does, and the work is a single indexed
 /// query, so this only bounds how stale an evaluation can look.
 const FINISHER_INTERVAL: Duration = Duration::from_secs(10);
+
+/// The channel the queue runner announces a finished build on.
+const BUILD_FINISHED: &str = "build_finished";
 use crate::queries::JobsetQueries as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +253,11 @@ impl Evaluator {
                 "jobsets_added",
                 "jobsets_deleted",
                 "jobset_scheduling_changed",
+                // A finished build may be an evaluation build, and the main
+                // loop is what reads those back. Waking on it is the
+                // difference between an evaluation completing when its build
+                // does and completing up to `FINISHER_INTERVAL` later.
+                "build_finished",
             ])
             .await?;
 
@@ -259,21 +267,30 @@ impl Evaluator {
 
         loop {
             match stream.next().await {
-                Some(Ok(_notification)) => {
+                Some(Ok(notification)) => {
                     // Drain any already-buffered notifications so a burst
                     // (e.g. a webhook triggering many jobsets) coalesces
                     // into a single re-read, as pqxx's await_notification
                     // did in the C++ version.
+                    let mut jobsets_changed = notification.channel() != BUILD_FINISHED;
                     loop {
                         match stream.next().now_or_never() {
-                            Some(Some(Ok(_))) => {}
+                            Some(Some(Ok(n))) => {
+                                jobsets_changed |= n.channel() != BUILD_FINISHED;
+                            }
                             Some(Some(Err(e))) => return Err(e.into()),
                             Some(None) => eyre::bail!("notification stream ended"),
                             None => break,
                         }
                     }
-                    tracing::info!("received jobset event");
-                    self.read_jobsets().await?;
+                    // A build finishing says nothing about which jobsets are
+                    // schedulable, and there are far more of them than jobset
+                    // events; re-reading every jobset for each would be a lot
+                    // of queries to learn nothing.
+                    if jobsets_changed {
+                        tracing::info!("received jobset event");
+                        self.read_jobsets().await?;
+                    }
                     self.notify_work.notify_one();
                 }
                 Some(Err(e)) => {
