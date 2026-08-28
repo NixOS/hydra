@@ -146,8 +146,7 @@ impl Evaluator {
             // finishers for the same evaluation would both write its jobs,
             // and the poll below would start the second while the first is
             // still going.
-            let status = Command::new("hydra-eval-jobset")
-                .arg("--finish-evaluation")
+            let status = Command::new("hydra-finish-eval")
                 .arg(eval_id.to_string())
                 .status()
                 .await;
@@ -160,7 +159,7 @@ impl Evaluator {
                     tracing::error!("completing evaluation {eval_id} failed: {status}");
                 }
                 Err(e) => {
-                    tracing::error!("failed to spawn hydra-eval-jobset for {eval_id}: {e}");
+                    tracing::error!("failed to spawn hydra-finish-eval for {eval_id}: {e}");
                 }
             }
         }

@@ -35,7 +35,7 @@ pub(crate) trait JobsetQueries {
     ///
     /// An evaluation build finishing and the evaluation being completed are
     /// separate events: the build produces the jobs, and a later
-    /// `hydra-eval-jobset --finish-evaluation` turns them into rows. This is
+    /// `hydra-finish-eval` turns them into rows. This is
     /// the gap between the two, and `completed IS NULL` is the only honest
     /// way to spot it -- an evaluation may legitimately find no jobs.
     async fn get_evals_awaiting_completion(&mut self) -> Result<Vec<i32>, sqlx::Error>;

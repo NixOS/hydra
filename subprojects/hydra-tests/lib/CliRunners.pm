@@ -48,7 +48,7 @@ sub finishScheduledEvaluations {
 
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-            ("hydra-eval-jobset", "--finish-evaluation", $ev->id));
+            ("hydra-finish-eval", $ev->id));
         $result = $res if $res && !$result;
         $out .= $stdout;
         $err .= $stderr;

@@ -3,17 +3,14 @@
 use strict;
 use warnings;
 use utf8;
-use Config::General;
-use Data::Dump qw(dump);
 use Digest::SHA qw(sha256_hex);
 use Encode;
-use File::Slurper qw(read_text);
 use File::Temp;
 use File::Which qw(which);
 use Hydra::Config;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
-use Hydra::Helper::Email;
+use Hydra::Helper::Evaluation;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
@@ -25,7 +22,6 @@ use JSON::MaybeXS;
 use Net::Statsd;
 use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
-use Try::Tiny;
 
 STDOUT->autoflush();
 STDERR->autoflush(1);
@@ -38,9 +34,9 @@ my $config = getHydraConfig();
 
 my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
+# Reporting rather than recording is `hydra-finish-eval`'s business now:
+# a dry run wants to see the jobs, and the jobs are what that program reads.
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
-# Where a dry run gets its jobs from; see `--jobs` at the bottom.
-my $jobsFile;
 
 my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
 $Net::Statsd::HOST = $statsdConfig->{'host'};
@@ -517,80 +513,10 @@ sub evalDrvExpr {
 }
 
 
-# Turn a source of JSON lines into the job iterator that the rest of this
-# script consumes: call $nextLine for the next line of `nix-eval-jobs`
-# output, or undef when there are no more.
-#
-# The line source is separate from the parsing so that reading a finished
-# build's output and tailing one that is still running stay the same parse.
-# The jobs in a file of `nix-eval-jobs` output -- an evaluation build's
-# `$out`, or the same thing captured out of band.
-sub jobsIterFromFile {
-    my ($path) = @_;
-
-    open(my $fh, "<", $path)
-        or die "$0: cannot read the evaluation's jobs from $path: $!\n";
-
-    return jobsIterFromLines(sub {
-        my $line = <$fh>;
-        if (!defined $line) {
-            close $fh;
-            return undef;
-        }
-        chomp $line;
-        return $line;
-    });
-}
 
 
-# Report the jobs an evaluation found, without recording anything about them.
-sub printJobs {
-    my ($jobsIter) = @_;
-
-    while (defined(my $job = $jobsIter->())) {
-        my $name = $job->{attr};
-        if (defined $job->{drvPath}) {
-            print STDERR "good job $name: "
-                . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
-        } else {
-            print STDERR "failed job $name: $job->{error}\n";
-        }
-    }
-}
 
 
-sub jobsIterFromLines {
-    my ($nextLine) = @_;
-
-    return sub {
-        while (1) {
-            my $out = $nextLine->();
-            return unless defined $out;
-            next if $out eq '';
-
-            my $job;
-            try {
-                $job = decode_json($out);
-            } catch {
-                warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
-            };
-            next unless defined $job;
-
-            # nix-eval-jobs speaks full paths. Strip the store directory
-            # here, where its output enters Hydra, so that everything
-            # downstream compares and keys on store paths -- notably
-            # the `ne` against a build's inflated drvpath, and the
-            # constituent lookups, which would otherwise never match.
-            my $storeDir = machineLocalStore()->storeDir;
-            $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
-                if defined $job->{drvPath};
-            $job->{constituents} = [
-                map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
-            ] if defined $job->{constituents};
-            return $job;
-        }
-    };
-}
 
 
 # The store path a path belongs to, or undef if it is not in this store.
@@ -811,146 +737,8 @@ sub scheduleEvaluationBuild {
 }
 
 
-# Return the most recent evaluation of the given jobset (that
-# optionally had new builds), or undefined if no such evaluation
-# exists.
-sub getPrevJobsetEval {
-    my ($db, $jobset, $hasNewBuilds) = @_;
-    my ($prevEval) = $jobset->jobsetevals(
-        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }),
-        { order_by => "id DESC", rows => 1 });
-    return $prevEval;
-}
 
 
-# Check whether to add the build described by $buildInfo.
-sub checkBuild {
-    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap) = @_;
-
-    my @outputNames = sort keys %{$buildInfo->{outputs}};
-    die unless scalar @outputNames;
-
-    # In various checks we can use an arbitrary output (the first)
-    # rather than all outputs, since if one output is the same, the
-    # others will be as well.
-    my $firstOutputName = $outputNames[0];
-    my $firstOutputPath = $buildInfo->{outputs}->{$firstOutputName};
-
-    my $jobName = $buildInfo->{attr} or die;
-    my $drvPath = $buildInfo->{drvPath} or die;
-
-    my $build;
-
-    $db->txn_do(sub {
-        # Don't add a build that has already been scheduled for this
-        # job, or has been built but is still a "current" build for
-        # this job.  Note that this means that if the sources of a job
-        # are changed from A to B and then reverted to A, three builds
-        # will be performed (though the last one will probably use the
-        # cached result from the first).  This ensures that the builds
-        # with the highest ID will always be the ones that we want in
-        # the channels.  FIXME: Checking the output paths doesn't take
-        # meta-attributes into account.  For instance, do we want a
-        # new build to be scheduled if the meta.maintainers field is
-        # changed?
-        if (defined $prevEval) {
-            my $pathOrDrvConstraint = defined $firstOutputPath
-                ? { path => $firstOutputPath }
-                : { drvPath => $drvPath };
-
-            my ($prevBuild) = $prevEval->builds->search(
-                # The "project" and "jobset" constraints are
-                # semantically unnecessary (because they're implied by
-                # the eval), but they give a factor 1000 speedup on
-                # the Nixpkgs jobset with PostgreSQL.
-                { jobset_id => $jobset->get_column('id'), job => $jobName,
-                  name => $firstOutputName, %$pathOrDrvConstraint },
-                { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
-            if (defined $prevBuild) {
-                # Same output path but a different drv: repoint and rebuild.
-                # Applied after the evaluation transaction (applyDrvPathRepoints)
-                # to avoid holding Builds row locks for the whole evaluation.
-                my $repoint = $prevBuild->drvpath ne $drvPath;
-                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath, repoint => $repoint };
-
-                if ($prevBuild->finished && !$repoint) {
-                    $db->storage->dbh->do("notify cached_build_finished, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
-                } else {
-                    $db->storage->dbh->do("notify cached_build_queued, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
-                }
-
-                return;
-            }
-        }
-
-        # Prevent multiple builds with the same (job, outPath) from
-        # being added.
-        my $prev = $$jobOutPathMap{$jobName . "\t" . $firstOutputPath};
-        if (defined $prev) {
-            #print STDERR "    already scheduled as build ", $prev, "\n";
-            return;
-        }
-
-        my $time = time();
-
-        sub getMeta {
-            my ($s, $def) = @_;
-            return ($s || "") eq "" ? $def : $s;
-        }
-
-        sub getMetaStrings {
-            my ($v, $k, $acc) = @_;
-            my $t = ref $v;
-
-            if ($t eq 'HASH') {
-                push @$acc, $v->{$k} if exists $v->{$k};
-            } elsif ($t eq 'ARRAY') {
-                getMetaStrings($_, $k, $acc) foreach @$v;
-            } elsif (defined $v) {
-                push @$acc, $v;
-            }
-        }
-
-        sub getMetaConcatStrings {
-            my ($v, $k) = @_;
-
-            my @strings;
-            getMetaStrings($v, $k, \@strings);
-            return join(", ", @strings) || undef;
-        }
-
-        # Add the build to the database.
-        $build = $jobset->builds->create(
-            { timestamp => $time
-            , jobset_id => $jobset->id
-            , job => $jobName
-            , description => getMeta($buildInfo->{meta}->{description}, undef)
-            , license => getMetaConcatStrings($buildInfo->{meta}->{license}, "shortName")
-            , homepage => getMeta($buildInfo->{meta}->{homepage}, undef)
-            , maintainers => getMetaConcatStrings($buildInfo->{meta}->{maintainers}, "email")
-            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, undef)
-            , timeout => getMeta($buildInfo->{meta}->{timeout}, undef)
-            , nixname => $buildInfo->{name}
-            , drvpath => $drvPath
-            , system => $buildInfo->{system}
-            , priority => getMeta($buildInfo->{meta}->{schedulingPriority}, 100)
-            , finished => 0
-            , iscurrent => 1
-            , ischannel => getMeta($buildInfo->{meta}->{isChannel}, 0)
-            });
-
-        # Output rows are inserted in bulk by the caller (see populate below);
-        # row-at-a-time creates dominate eval insertion time on large jobsets.
-        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath
-                                  , outputs => [ map { { build => $build->id, name => $_, path => $buildInfo->{outputs}->{$_} } } @outputNames ] };
-        $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
-
-        $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
-        print STDERR "added build ${\$build->id} (${\$jobset->get_column('project')}:${\$jobset->name}:$jobName)\n";
-    });
-
-    return $build;
-};
 
 
 sub fetchInputs {
@@ -964,117 +752,11 @@ sub fetchInputs {
 }
 
 
-sub setJobsetError {
-    my ($jobset, $errorMsg, $errorTime) = @_;
-    my $prevError = $jobset->errormsg;
-
-    eval {
-        $db->txn_do(sub {
-            $jobset->update({ errormsg => $errorMsg, errortime => $errorTime, fetcherrormsg => undef });
-        });
-    };
-    if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
-        sendJobsetErrorNotification($jobset, $errorMsg);
-    }
-}
 
 
-sub sendJobsetErrorNotification() {
-    my ($jobset, $errorMsg) = @_;
-
-    chomp $errorMsg;
-
-    return unless $config->{email_notification} // 0;
-    return if $jobset->project->owner->emailonerror == 0;
-    return if $errorMsg eq "";
-
-    my $projectName = $jobset->get_column('project');
-    my $jobsetName = $jobset->name;
-    my $body = "Hi,\n"
-        . "\n"
-        . "This is to let you know that evaluation of the Hydra jobset ‘$projectName:$jobsetName’\n"
-        . "resulted in the following error:\n"
-        . "\n"
-        . "$errorMsg"
-        . "\n"
-        . "Regards,\n\nThe Hydra build daemon.\n";
-
-    try {
-        sendEmail(
-            $config,
-            $jobset->project->owner->emailaddress,
-            "Hydra $projectName:$jobsetName evaluation error",
-            $body,
-            [ 'X-Hydra-Project' => $projectName
-            , 'X-Hydra-Jobset'  => $jobsetName
-            ]);
-    } catch {
-        warn "error sending email: $_\n";
-    };
-}
 
 
-# Point the jobset's iscurrent flags at the given evaluation, in id-ordered
-# batches outside the evaluation transaction: updating 100k+ Builds rows
-# inside it holds their locks for minutes and deadlocks against the queue
-# runner finishing builds.
-sub syncCurrentBuilds {
-    my ($jobset, $evalId) = @_;
-    my $dbh = $db->storage->dbh;
-    my $batch = 10000;
 
-    my $run = sub {
-        my ($sql, @bind) = @_;
-        while (1) {
-            my $n;
-            for (my $attempt = 1; ; $attempt++) {
-                eval { $n = $dbh->do($sql, undef, @bind); };
-                last unless $@;
-                die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-                sleep 1;
-            }
-            last if $n == 0;
-        }
-    };
-
-    $run->(q{
-        update builds set iscurrent = 1 where id in (
-          select b.id from builds b join jobsetevalmembers m on m.build = b.id
-          where m.eval = ? and b.iscurrent = 0 order by b.id limit ?)
-    }, $evalId, $batch);
-
-    $run->(q{
-        update builds set iscurrent = 0 where id in (
-          select b.id from builds b
-          where b.jobset_id = ? and b.iscurrent = 1
-            and not exists (select 1 from jobsetevalmembers m where m.eval = ? and m.build = b.id)
-          order by b.id limit ?)
-    }, $jobset->get_column('id'), $evalId, $batch);
-}
-
-# Repoint existing builds at their new derivation in a short id-ordered
-# transaction outside the evaluation transaction, so it can't hold Builds row
-# locks for the whole evaluation and deadlock the queue runner.
-sub applyDrvPathRepoints {
-    my ($buildMap) = @_;
-    my @ids = sort { $a <=> $b } grep { $buildMap->{$_}->{repoint} } keys %$buildMap;
-    return unless @ids;
-
-    my $builds = $db->resultset('Builds');
-    for (my $attempt = 1; ; $attempt++) {
-        eval {
-            $db->txn_do(sub {
-                for my $id (@ids) {
-                    $builds->search({ id => $id })->update(
-                        { drvpath => $buildMap->{$id}->{drvPath}, finished => 0, buildstatus => undef });
-                }
-            });
-        };
-        last unless $@;
-        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-        sleep 1;
-    }
-}
 
 sub checkJobsetWrapped {
     my ($jobset, $tmpId) = @_;
@@ -1183,16 +865,6 @@ sub checkJobsetWrapped {
         return;
     }
 
-    # A dry run reports and records nothing, exactly as it always has. What
-    # has changed is where the jobs come from: this run does not evaluate --
-    # nothing here does any more -- so they are supplied instead, by `--jobs`.
-    # That file is an evaluation build's output, either taken from a previous
-    # one or produced out of band; either way nothing is built to get it.
-    if ($dryRun) {
-        printJobs(jobsIterFromFile($jobsFile));
-        return;
-    }
-
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my $evalStop;
@@ -1208,186 +880,6 @@ sub checkJobsetWrapped {
 }
 
 
-# Finish an evaluation from the jobs its evaluation build produced.
-#
-# Takes no plugins, and needs none: plugins are input types, and the inputs
-# were fetched by the run that scheduled this evaluation. Everything from
-# here is the jobs themselves.
-#
-# This runs in a different process from the one that scheduled the build,
-# so everything it needs is passed in rather than left in scope: the jobs
-# iterator, and the context the scheduling run recorded.
-sub finishEvaluation {
-    my ($db, $project, $jobset, $evalId, $jobsIter, $evalSeconds, $tmpId) = @_;
-
-    # Recomputed rather than threaded through: it is a property of the
-    # project and jobset, both of which are already here.
-    my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
-
-    # Store the error messages for jobs that failed to evaluate.
-    my $evaluationErrorTime = time;
-    my $evaluationErrorMsg = "";
-    my $evaluationErrorRecord = $db->resultset('EvaluationErrors')->create(
-        { errormsg => $evaluationErrorMsg
-        , errortime => $evaluationErrorTime
-        }
-    );
-
-    my $jobOutPathMap = {};
-    my $jobsetChanged = 0;
-    my %buildMap;
-
-    my @jobs;
-    push @jobs, $_ while defined($_ = $jobsIter->());
-
-    my $currentEval;
-    my $evalTxn = sub {
-        my $prevEval = getPrevJobsetEval($db, $jobset, 1);
-        $currentEval = undef;
-
-        # The evaluation already exists: scheduling the evaluation build
-        # created it, so that it is visible while it runs. Fill it in rather
-        # than making a second one.
-        my $ev = $db->resultset('JobsetEvals')->find($evalId)
-            or die "evaluation $evalId no longer exists\n";
-        $ev->update(
-            { evaluationerror => $evaluationErrorRecord
-            , nrbuilds => 0
-            , nixexprinput => $jobset->nixexprinput
-            , nixexprpath => $jobset->nixexprpath
-            });
-
-        my @jobsWithConstituents;
-
-        foreach my $job (@jobs) {
-            if ($jobsetsJobset) {
-                die "The .jobsets jobset must only have a single job named 'jobsets'"
-                    unless $job->{attr} eq "jobsets";
-            }
-
-            $evaluationErrorMsg .=
-                ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
-                ":\n" . $job->{error} . "\n\n" if defined $job->{error};
-
-            checkBuild($db, $jobset, $ev, undef, $job, \%buildMap, $prevEval, $jobOutPathMap)
-                unless defined $job->{error};
-
-            if (defined $job->{constituents}) {
-                push @jobsWithConstituents, $job;
-            }
-        }
-
-        # Bulk-insert the outputs of all new builds in one statement.
-        # `populate` in void context goes through insert_bulk, which bypasses
-        # inflation and deflation, so these paths stay as nix-eval-jobs gave
-        # them: full path strings, or undef for a not-yet-built CA output.
-        my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
-        $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
-
-        # Have any builds been added or removed since last time?
-        $jobsetChanged =
-            (scalar(grep { $_->{new} } values(%buildMap)) > 0)
-            || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
-
-        $ev->update({
-            hasnewbuilds => $jobsetChanged ? 1 : 0,
-            nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
-        });
-
-        $db->storage->dbh->do("notify eval_added, ?", undef,
-                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
-
-        if ($jobsetChanged) {
-            # Create JobsetEvalMembers mappings in bulk.
-            $db->resultset('JobsetEvalMembers')->populate(
-                [ map { { eval => $ev->id, build => $_, isnew => $buildMap{$_}->{new} } } keys %buildMap ]);
-
-            # Create AggregateConstituents mappings.  Since there can
-            # be jobs that alias each other, if there are multiple
-            # builds for the same derivation, pick the one with the
-            # shortest name.
-            my %drvPathToId;
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                my $y = $drvPathToId{$x->{drvPath}};
-                if (defined $y) {
-                    next if length $x->{jobName} > length $y->{jobName};
-                    next if length $x->{jobName} == length $y->{jobName} && $x->{jobName} ge $y->{jobName};
-                }
-                $drvPathToId{$x->{drvPath}} = $x;
-            }
-
-            foreach my $job (values @jobsWithConstituents) {
-                next unless defined $job->{constituents};
-                if (defined $job->{error}) {
-                    die "aggregate job ‘$job->{attr}’ failed with the error: $job->{error}\n";
-                }
-
-                my $x = $drvPathToId{$job->{drvPath}} or
-                    die "aggregate job ‘$job->{attr}’ has no corresponding build record.\n";
-                foreach my $drvPath (@{$job->{constituents}}) {
-                    my $constituent = $drvPathToId{$drvPath};
-                    if (defined $constituent) {
-                        $db->resultset('AggregateConstituents')->update_or_create({aggregate => $x->{id}, constituent => $constituent->{id}});
-                    } else {
-                        warn "aggregate job ‘$job->{attr}’ has a constituent ‘$drvPath’ that doesn't correspond to a Hydra build\n";
-                    }
-                }
-            }
-
-            print STDERR "  created new eval ", $ev->id, "\n";
-            $currentEval = $ev->id;
-
-            # Wake up hydra-queue-runner.
-            my $lowestId;
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                $lowestId = $id if $x->{new} && (!defined $lowestId || $id < $lowestId);
-            }
-            $notifyAdded->execute($lowestId) if defined $lowestId;
-
-        } else {
-            print STDERR "  created cached eval ", $ev->id, "\n";
-            $currentEval = $prevEval->id if defined $prevEval;
-        }
-
-        # If this is a one-shot jobset, disable it now.
-        $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
-
-        $jobset->update({ lastcheckedtime => time, forceeval => undef });
-
-        $evaluationErrorRecord->update({ errormsg => $evaluationErrorMsg });
-        setJobsetError($jobset, $evaluationErrorMsg, $evaluationErrorTime);
-
-        # How long evaluating took, which is how long the evaluation build
-        # ran -- not how long this run took to read its output.
-        #
-        # `completed` goes in the same update: from here on the row's columns
-        # are answers rather than placeholders, and that is exactly what the
-        # column means.
-        $ev->update({ evaltime => $evalSeconds, completed => time });
-    };
-
-    # Retry rather than lose the evaluation if Postgres aborts the transaction
-    # to break a lock cycle with the queue runner.
-    for (my $attempt = 1; ; $attempt++) {
-        eval { $db->txn_do($evalTxn); };
-        last unless $@;
-        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-        print STDERR "evaluation transaction aborted (attempt $attempt), retrying: $@";
-        %buildMap = ();
-        $jobOutPathMap = {};
-        $jobsetChanged = 0;
-        sleep $attempt;
-    }
-
-    applyDrvPathRepoints(\%buildMap);
-    syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
-
-    Net::Statsd::timing("hydra.evaluator.eval_time", $evalSeconds * 1000);
-    Net::Statsd::increment("hydra.evaluator.evals");
-    Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
-}
 
 
 
@@ -1411,165 +903,19 @@ sub checkJobset {
     my $stopTime = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
-    return recordEvaluationFailure($jobset, $checkError, $tmpId);
+    return recordEvaluationFailure($db, $config, $jobset, $checkError, $tmpId, $dryRun);
 }
 
 
-# Record that evaluating $jobset failed, and say so: the message on stderr,
-# the message on the jobset, and an `eval_failed` notification. Returns the
-# process's exit status, so a caller can `return` it directly.
-#
-# Shared by the two runs an evaluation now takes, because either can be the
-# one that fails and neither should report it differently.
-sub recordEvaluationFailure {
-    my ($jobset, $checkError, $tmpId) = @_;
-
-    return 0 unless $checkError;
-
-    print STDERR $checkError;
-    my $eventTime = time;
-    $db->txn_do(sub {
-        $jobset->update({lastcheckedtime => $eventTime});
-        setJobsetError($jobset, $checkError, $eventTime);
-        $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
-    }) if !$dryRun;
-
-    return 1;
-}
 
 
-# Finish an evaluation whose evaluation build has completed: read the jobs
-# from the build's output and turn them into the evaluation's members and
-# their builds.
-#
-# The output is read rather than any live stream, because it is the only
-# source that is always there. An evaluation whose derivation was built
-# before is not rebuilt, so nothing streams, and the output remains.
-# Copy the evaluation build's log to stderr, so that what the evaluator used
-# to say about a failing evaluation it still says.
-#
-# Best effort: the log is written by the queue runner, and may be absent (a
-# cached build never ran) or compressed. Losing it must not turn a completed
-# evaluation into a failed one, so anything unreadable is passed over.
-sub replayEvaluationLog {
-    my ($build) = @_;
-
-    my $logPath = getDrvLogPath($build->drvpath);
-    return unless defined $logPath && $logPath !~ /\.(bz2|zst)$/;
-
-    open(my $log, "<", $logPath) or return;
-    while (defined(my $line = <$log>)) {
-        print STDERR $line;
-    }
-    close $log;
-}
 
 
-# Wrap a job iterator so that each derivation it reports is rooted as it goes
-# by. This is what `nix-eval-jobs --gc-roots-dir` did while evaluation ran
-# here; the evaluation now runs in a build, where that directory is not
-# writable, so the roots are made on the way back in instead.
-#
-# Every job needs one, not just the ones that become builds: an aggregate is
-# reported as a job and its derivation must survive even though nothing else
-# in the store refers to it.
-sub rootEvaluatedDerivations {
-    my ($jobsIter) = @_;
-
-    return sub {
-        my $job = $jobsIter->();
-        return unless defined $job;
-        registerRoot $job->{drvPath} if defined $job->{drvPath};
-        return $job;
-    };
-}
 
 
-sub finishScheduledEvaluation {
-    my ($evalId) = @_;
-
-    my $ev = $db->resultset('JobsetEvals')->find($evalId)
-        or die "$0: evaluation $evalId does not exist\n";
-    my $build = $ev->eval_build
-        or die "$0: evaluation $evalId was not performed by a build\n";
-
-    die "$0: evaluation build " . $build->id . " has not finished\n"
-        unless $build->finished;
-
-    # nix-eval-jobs now runs inside the build, so its diagnostics -- which
-    # are the explanation of any evaluation failure -- land in the build log
-    # rather than on this process's stderr, where anyone watching an
-    # evaluation would look for them. Put them back.
-    replayEvaluationLog($build);
-
-    if ($build->buildstatus != 0) {
-        my $jobset = $ev->jobset;
-        my $tmpId = $ev->trace_id;
-
-        # Leave no tentative evaluation behind: its hash would otherwise say
-        # these inputs had been evaluated, and the jobset would never retry.
-        $db->txn_do(sub { $ev->delete; });
-
-        # Reported like any other evaluation failure -- because that is what
-        # it is. The build failing *is* the evaluation failing; the log
-        # replayed above says why.
-        return recordEvaluationFailure(
-            $jobset, "evaluation build " . $build->id . " failed\n", $tmpId);
-    }
-
-    my ($output) = $build->buildoutputs;
-    die "$0: evaluation build " . $build->id . " produced no output\n"
-        unless defined $output;
-
-    # `path` is stored as a bare store path, so put the store dir back to get
-    # something openable. The store's physical layout matches its logical one
-    # here -- a relocated store is only relocated for the *clients* that pass
-    # a root, and this is the store the build wrote into.
-    my $outPath = printStorePath(machineLocalStore()->storeDir, $output->path);
-
-    my $jobsIter = rootEvaluatedDerivations(jobsIterFromFile($outPath));
-
-    my $jobset = $ev->jobset;
-    my $project = $jobset->project;
-    # The trace the scheduling run started, so that the `eval_added` or
-    # `eval_failed` reported here can be tied to its `eval_started`. Only
-    # absent for an evaluation some older Hydra scheduled.
-    my $tmpId = $ev->trace_id // clock_gettime(CLOCK_MONOTONIC) . ".$$";
-
-    # Evaluating took as long as the evaluation build ran.
-    my $evalSeconds = defined $build->stoptime && defined $build->starttime
-        ? abs($build->stoptime - $build->starttime) : 0;
-
-    # Evaluating is what fails -- a broken aggregate, a constituent that does
-    # not exist -- and evaluating now happens over these two runs rather than
-    # one, so this run needs the same failure handling the scheduling run has.
-    eval {
-        finishEvaluation($db, $project, $jobset, $ev->id, $jobsIter,
-                         $evalSeconds, $tmpId);
-    };
-    return recordEvaluationFailure($jobset, $@, $tmpId);
-}
 
 
-if (@ARGV == 2 && $ARGV[0] eq "--finish-evaluation") {
-    exit finishScheduledEvaluation($ARGV[1]);
-}
-
-if (@ARGV >= 2 && $ARGV[0] eq "--jobs") {
-    $jobsFile = $ARGV[1];
-    splice(@ARGV, 0, 2);
-}
-
-die "syntax: $0 [--jobs <JOBS-FILE>] <PROJECT> <JOBSET>\n"
-  . "       $0 --finish-evaluation <EVAL-ID>\n"
-    unless @ARGV == 2;
-
-# Nothing evaluates in this process, so a dry run cannot discover the jobs
-# for itself; it has to be handed them.
-die "$0: HYDRA_DRY_RUN needs --jobs <JOBS-FILE>\n"
-    if $dryRun && !defined $jobsFile;
-die "$0: --jobs is only meaningful under HYDRA_DRY_RUN\n"
-    if defined $jobsFile && !$dryRun;
+die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];
