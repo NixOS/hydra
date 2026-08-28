@@ -7,7 +7,6 @@ use QueueRunnerBuildOne;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     completeScheduledEvaluations
-    finishScheduledEvaluations
     captureEvaluation
     evalFails
     evalSucceeds

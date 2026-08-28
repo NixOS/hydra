@@ -14,7 +14,6 @@ use CliRunners;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     completeScheduledEvaluations
-    finishScheduledEvaluations
     captureEvaluation
     createBaseJobset
     createJobsetWithOneInput
