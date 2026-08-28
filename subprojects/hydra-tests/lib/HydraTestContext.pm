@@ -84,6 +84,20 @@ sub new {
 
         my $hydra_config = $opts{'hydra_config'} || "";
         $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
+        # Evaluation builds ask for `recursive-nix` in production, so that the
+        # derivations the evaluation instantiates end up in the real store. No
+        # test machine advertises that feature, so requiring it would leave
+        # every evaluation build queued forever and every test timing out.
+        #
+        # Nothing is lost by dropping it here: this store lives under the
+        # outer build's /build, so requiring the feature would force a sandbox
+        # that Nix then refuses (`sandbox-build-dir must not contain the
+        # storeDir`). Builds run unsandboxed against a writable store instead,
+        # which gives the evaluation its store access by another route.
+        #
+        # Prepended, so a test that wants to exercise the requirement can
+        # still set its own value.
+        $hydra_config = "evaluation_build_system_features =\n" . $hydra_config;
         if ($opts{'use_external_destination_store'} // 1) {
             $deststoredir = "$dir/nix/dest-store";
             $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;

@@ -11,16 +11,7 @@ use Test2::V0;
 # The evaluation is finished when that build completes, which is a separate
 # step: nothing here waits for it, because the queue runner is what dispatches
 # builds and blocking would hold an evaluator slot until it did.
-my $ctx = test_context(
-    hydra_config => q|
-    # This store lives under the outer build's /build, so requiring
-    # recursive-nix would force a sandbox that Nix then refuses:
-    # `sandbox-build-dir must not contain the storeDir`. Builds here are
-    # unsandboxed against a writable store, which gives the evaluation the
-    # store access it needs by another route.
-    evaluation_build_system_features =
-    |
-);
+my $ctx = test_context();
 
 my $jobsetCtx = $ctx->makeJobset(expression => "basic.nix");
 my $jobset = $jobsetCtx->{"jobset"};
