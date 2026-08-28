@@ -19,6 +19,10 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **`hydra-server`** (Perl, Catalyst)
     - web frontend and REST API
     - user authentication (built-in or LDAP)
+- **`hydra-ws`** (Rust)
+    - WebSocket service for streaming live build logs
+    - reads build metadata from PostgreSQL and tails log files from the coordinator's store
+    - listens for PostgreSQL build-completion notifications and forwards events to clients
 - **`hydra-evaluator`** (Rust)
     - decides *when* a jobset is due to be evaluated, and schedules it
     - polls for evaluation builds that have finished, so their results are read back
@@ -78,6 +82,8 @@ graph BT
     hydra-proto --> nix-support
     hydra-evaluator --> db
     hydra-evaluator --> hydra-tracing
+    hydra-ws --> db
+    hydra-ws --> hydra-tracing
     store-transfer --> daemon-client-utils
     store-transfer --> hydra-proto
     hydra-builder --> binary-cache

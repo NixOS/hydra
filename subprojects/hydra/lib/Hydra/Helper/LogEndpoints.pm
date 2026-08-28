@@ -26,6 +26,15 @@ sub showLog {
         $c->stash->{log_uri} = $log_uri . "?tail=$lines";
         $c->stash->{tail} = $lines;
         $c->stash->{template} = 'log.tt';
+
+        my $step = $c->stash->{step};
+        my $isLive = $step ? $step->busy != 0 : !$c->stash->{build}->finished;
+        if ($isLive && $c->config->{'ws_endpoint'}) {
+            $c->stash->{live} = 1;
+        }
+        if (my $ws = $c->config->{'ws_endpoint'}) {
+            $c->stash->{ws_endpoint} = $ws;
+        }
     }
 
     else {

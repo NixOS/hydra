@@ -36,5 +36,6 @@ self': {
     hydra-queue-runner
     hydra-builder
     hydra-evaluator
+    hydra-ws
     ;
 }
