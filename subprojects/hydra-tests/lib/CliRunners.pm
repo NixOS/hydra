@@ -82,6 +82,9 @@ sub completeScheduledEvaluations {
     my ($ctx, $jobset) = @_;
 
     my ($res, $stdout, $stderr) = finishScheduledEvaluations($ctx, $jobset);
+    # Again: the error a test looks at is recorded by the run that evaluates,
+    # which is this one, after whatever refresh the caller already did.
+    $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });
     if ($res) {
         chomp $stdout; chomp $stderr;
         print STDERR "Finishing the evaluation failed.\n";
@@ -122,6 +125,7 @@ sub evalFails {
     if (!$res) {
         my ($finRes, $finOut, $finErr) = finishScheduledEvaluations($ctx, $jobset);
         ($res, $stdout, $stderr) = ($finRes, $stdout . $finOut, $stderr . $finErr);
+        $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });
     }
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
