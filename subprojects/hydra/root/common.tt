@@ -508,7 +508,7 @@ BLOCK renderEvals %]
             [%# The evaluation is still being performed, so the jobs listed
                 here are only the ones found so far. %]
             [% IF eval.eval_build && !eval.completed %]
-              <i class="fas fa-spinner fa-spin" title="This evaluation is still running"></i>
+              <i class="fas fa-hourglass-half" title="This evaluation has not been performed yet"></i>
             [% END %]
           </td>
           [% IF !jobset && !build %]
