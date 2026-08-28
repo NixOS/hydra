@@ -363,10 +363,10 @@ sub inputsToArgs {
 # The `nix-eval-jobs` invocation for a jobset. Separate from running it
 # because the same arguments describe the evaluation wherever it happens:
 # here, or inside the derivation that an evaluation build realises.
-# $gcRootsDir is undef when the evaluation runs inside a derivation: the
-# path would be meaningless in the sandbox, and the roots are unnecessary
-# there because the JSONL output names the instantiated derivations, so
-# they are references of the output and live as long as it does.
+# $gcRootsDir is undef when the evaluation runs inside a derivation: a path
+# outside the sandbox is not writable from within it. The roots are made
+# afterwards instead, by the run that reads the result -- see
+# `rootEvaluatedDerivation`.
 sub evalJobsCmd {
     my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
 
@@ -1503,6 +1503,26 @@ sub replayEvaluationLog {
 }
 
 
+# Wrap a job iterator so that each derivation it reports is rooted as it goes
+# by. This is what `nix-eval-jobs --gc-roots-dir` did while evaluation ran
+# here; the evaluation now runs in a build, where that directory is not
+# writable, so the roots are made on the way back in instead.
+#
+# Every job needs one, not just the ones that become builds: an aggregate is
+# reported as a job and its derivation must survive even though nothing else
+# in the store refers to it.
+sub rootEvaluatedDerivations {
+    my ($jobsIter) = @_;
+
+    return sub {
+        my $job = $jobsIter->();
+        return unless defined $job;
+        registerRoot $job->{drvPath} if defined $job->{drvPath};
+        return $job;
+    };
+}
+
+
 sub finishScheduledEvaluation {
     my ($evalId) = @_;
 
@@ -1547,7 +1567,7 @@ sub finishScheduledEvaluation {
     open(my $fh, "<", $outPath)
         or die "$0: cannot read the evaluation's jobs from $outPath: $!\n";
 
-    my $jobsIter = jobsIterFromLines(sub {
+    my $jobsIter = rootEvaluatedDerivations(jobsIterFromLines(sub {
         my $line = <$fh>;
         if (!defined $line) {
             close $fh;
@@ -1555,7 +1575,7 @@ sub finishScheduledEvaluation {
         }
         chomp $line;
         return $line;
-    });
+    }));
 
     my $jobset = $ev->jobset;
     my $project = $jobset->project;
