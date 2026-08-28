@@ -89,8 +89,9 @@
         <th>Last evaluation:</th>
         <td>
           [% IF latestEval %]
+            [%# No duration: evaluating is a build, and how long it took is
+                what that build says. The evaluation's own page links to it. %]
             [% INCLUDE renderDateTime timestamp = latestEval.timestamp %]
-            (took [% relativeDuration (latestEval.checkouttime + latestEval.evaltime) %])
           [% ELSE %]
             <em>never</em>
           [% END %]
