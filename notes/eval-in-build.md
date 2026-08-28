@@ -91,6 +91,13 @@ the build log also preserves a separation `nix-eval-jobs` already gives
 us: jobs go to stdout, diagnostics to stderr, and a build log merges
 them.
 
+Note this is a preview and nothing more. The stream reaches the build
+through `extra-sandbox-paths`, which binds nothing in an unsandboxed
+build, so an unsandboxed evaluation produces no stream at all -- as does
+one whose derivation was built before and so never ran. The evaluation
+must complete identically either way, and does: `$out` is the answer and
+the stream only ever makes the jobs visible sooner.
+
 Why the builder stays a dumb relay
 ----------------------------------
 
@@ -373,13 +380,17 @@ Open questions
 - Scheduling and priority: the evaluation build holds a slot while its
   nested builds run. This must not deadlock. (Carried over from the
   roadmap's open questions; still unanswered.)
-- Whether the *streamed* JSONL, rather than the completed output, can
-  drive the UI. The tentative evaluation is visible while it runs, but
-  its jobs still all appear at once when it completes; populating it
-  incrementally means a consumer that tails the stream file the queue
-  runner writes beside the log, and reconciling that with the
-  output-reading path so the two cannot drift. `hydra-ws` (PR 1773) is
-  the natural carrier, since it already tails log files.
+- Turning the streamed preview into rows. A running evaluation now
+  lists the jobs it has found, read straight from the stream file, but
+  they are names on a page rather than `JobsetEvalMembers`: making them
+  rows means creating builds from an evaluation that has not finished,
+  which starts building jobs before the evaluation they came from is
+  known to have succeeded. That is a scheduling change, not a display
+  one, and wants deciding on its own terms.
+
+- Pushing the preview rather than polling it. The page shows the stream
+  as of the request; `hydra-ws` (PR 1773) already tails log files and is
+  the natural carrier for tailing this one too.
 - Evaluation that fetches has no network in a sandbox. Pre-fetching
   every input is the principled answer and overlaps with materializing
   inputs as store paths above.

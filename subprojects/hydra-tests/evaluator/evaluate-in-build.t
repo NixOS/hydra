@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
+use Hydra::Controller::JobsetEval;
 
 # Evaluating a jobset does not run nix-eval-jobs in the evaluator. It
 # instantiates a derivation that will, and queues it as an ordinary build, so
@@ -57,6 +58,48 @@ subtest "a tentative evaluation points at the build that will perform it" => sub
     # The jobs are not known until the evaluation build has run, so nothing
     # should have been created for them.
     is(scalar($jobset->builds), 0, "no jobs should be queued yet");
+};
+
+subtest "the jobs found so far are read from the build's stream" => sub {
+    # The evaluation build tees its JSONL to a stream the queue runner
+    # persists beside the build log, so the jobs can be shown while the
+    # evaluation is still running rather than all at once at the end.
+    #
+    # The stream itself cannot be produced here: it reaches the build through
+    # `extra-sandbox-paths`, which binds nothing in an unsandboxed build, and
+    # unsandboxed is what a relocated store forces. So the build is expected
+    # to write no stream -- and the evaluation must not depend on one, which
+    # the next subtest checks by completing anyway.
+    #
+    # What is testable here is the reader: given a stream, the right file is
+    # found and the job names come back out of it.
+    require Hydra::Helper::Nix;
+    my $build = $eval->eval_build;
+    ok(runBuilds($ctx, $build), "the evaluation build should build");
+    $build->discard_changes;
+
+    local $ENV{HYDRA_DATA} = $ctx->{central}{hydra_data};
+    is(Hydra::Helper::Nix::getDrvStreamPath(
+           $build->drvpath, $Hydra::Helper::Nix::EVAL_STREAM_NAME),
+       undef,
+       "an unsandboxed build writes no stream");
+
+    my $path = Hydra::Helper::Nix::getDrvLogPath($build->drvpath, 1)
+        . "." . $Hydra::Helper::Nix::EVAL_STREAM_NAME;
+    open(my $fh, ">", $path) or die "cannot write $path: $!";
+    print $fh qq({"attr":"foo","drvPath":"/nix/store/x-foo.drv"}\n);
+    print $fh qq({"attr":"bar","drvPath":"/nix/store/y-bar.drv"}\n);
+    # A half-written last line, which is what a reader mid-evaluation sees.
+    print $fh qq({"attr":"baz");
+    close $fh;
+
+    is(Hydra::Helper::Nix::getDrvStreamPath(
+           $build->drvpath, $Hydra::Helper::Nix::EVAL_STREAM_NAME),
+       $path,
+       "the stream is found beside the build log");
+
+    is(Hydra::Controller::JobsetEval::jobsFoundSoFar($eval), ["foo", "bar"],
+        "the complete lines are reported and the partial one is not");
 };
 
 subtest "completing the build completes the evaluation" => sub {

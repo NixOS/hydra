@@ -420,10 +420,10 @@ sub evalJobsCmd {
 # derivations it instantiated, so reference scanning makes them references
 # of the output: rooting the evaluation build roots them too, and nothing
 # needs `--gc-roots-dir`.
-# Where the evaluation build writes its jobs, inside the sandbox, and what
-# the resulting stream is called. The name is how the stream is found later,
-# next to the build's log.
-our $EVAL_STREAM_NAME = "eval-jobs";
+# Where the evaluation build writes its jobs, inside the sandbox. What the
+# resulting stream is *called* lives in Hydra::Helper::Nix, because the web
+# interface has to find it there too.
+our $EVAL_STREAM_NAME = $Hydra::Helper::Nix::EVAL_STREAM_NAME;
 our $EVAL_STREAM_PATH = "/hydra/eval-jobs";
 
 sub nixString {

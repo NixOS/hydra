@@ -8,6 +8,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::BuildDiff;
 use List::SomeUtils qw(uniq);
+use JSON::MaybeXS;
 
 
 sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
@@ -24,12 +25,45 @@ sub evalChain : Chained('/') PathPart('eval') CaptureArgs(1) {
 
 sub view :Chained('evalChain') :PathPart('') :Args(0) :ActionClass('REST') { }
 
+# The names of the jobs an in-flight evaluation has found so far.
+#
+# The evaluation build tees its JSONL to a stream the queue runner persists
+# beside the build log, so the jobs can be watched as they are discovered
+# rather than appearing all at once when the build finishes. This is a
+# preview only: `$out` is the authoritative result, and an evaluation whose
+# derivation was built before never streams anything at all.
+sub jobsFoundSoFar {
+    my ($eval) = @_;
+
+    my $build = $eval->eval_build or return undef;
+    my $path = getDrvStreamPath($build->drvpath, $Hydra::Helper::Nix::EVAL_STREAM_NAME)
+        or return undef;
+
+    open(my $fh, "<", $path) or return undef;
+
+    my @jobs;
+    while (defined(my $line = <$fh>)) {
+        # The last line may still be being written, so anything that does not
+        # parse is simply not there yet.
+        my $job = eval { JSON::MaybeXS::decode_json($line) };
+        push @jobs, $job->{attr} if defined $job && defined $job->{attr};
+    }
+    close $fh;
+
+    return \@jobs;
+}
+
+
 sub view_GET {
     my ($self, $c) = @_;
 
     $c->stash->{template} = 'jobset-eval.tt';
 
     my $eval = $c->stash->{eval};
+
+    # Only while it is running: once it is completed the members are the
+    # answer, and they are what the rest of this page shows.
+    $c->stash->{jobsFoundSoFar} = jobsFoundSoFar($eval) unless defined $eval->completed;
 
     $c->stash->{filter} = $c->request->params->{filter} // "";
     my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
