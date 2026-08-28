@@ -32,5 +32,9 @@ self': {
   };
   hydra-manual = self'.callPackage ../subprojects/hydra-manual/package.nix { };
   hydra-linters = self'.callPackage ../subprojects/hydra-linters/package.nix { };
-  inherit (self'.rustWorkspace) hydra-queue-runner hydra-builder;
+  inherit (self'.rustWorkspace)
+    hydra-queue-runner
+    hydra-builder
+    hydra-evaluator
+    ;
 }

@@ -169,6 +169,7 @@
           hydra-linters
           hydra-queue-runner
           hydra-builder
+          hydra-evaluator
           ;
       };
 
@@ -267,6 +268,8 @@
               hydra-linters
               hydra-queue-runner
               hydra-builder
+              hydra-evaluator
+              hydra-cargo-deps
               ;
             foreman = pkgs.callPackage ./packaging/foreman/package.nix {
               foreman-src = foreman;
