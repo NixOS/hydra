@@ -167,7 +167,7 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn clear_busy(&mut self, stop_time: i64) -> crate::Result<()> {
+    pub async fn clear_busy(&mut self, stop_time: crate::Timestamp) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
@@ -185,7 +185,7 @@ impl Connection {
         &mut self,
         build_id: crate::models::BuildID,
         step_nr: i32,
-        stop_time: i64,
+        stop_time: crate::Timestamp,
         status: BuildStatus,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -497,8 +497,8 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         status: BuildStatus,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         is_cached_build: bool,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -1022,7 +1022,7 @@ impl Transaction<'_> {
     pub async fn create_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: Option<i64>,
+        start_time: Option<crate::Timestamp>,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1090,7 +1090,7 @@ impl Transaction<'_> {
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
+        start_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1142,8 +1142,8 @@ impl Transaction<'_> {
     pub async fn create_local_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
@@ -1196,8 +1196,8 @@ impl Transaction<'_> {
     pub async fn create_substitution_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
@@ -1248,8 +1248,8 @@ impl Transaction<'_> {
         &mut self,
         build: crate::models::MarkBuildSuccessData<'_>,
         is_cached_build: bool,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         store_dir: &StoreDir,
     ) -> crate::Result<()> {
         if build.finished_in_db {

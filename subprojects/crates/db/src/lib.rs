@@ -24,6 +24,12 @@ pub use error::{DataError, Error, Result};
 pub use harmonia_store_path::StoreDir;
 pub use sqlx::postgres::PgNotification as Notification;
 
+/// Seconds since the Unix epoch, at the width Hydra's schema stores them.
+///
+/// Named rather than spelled out at every column, so that changing the width
+/// is one edit here instead of a hunt for which `i64`s happened to be times.
+pub type Timestamp = i64;
+
 /// Error that a serialization-failure retry can recognise.
 pub trait RetryableError {
     /// True if this error was a rolled-back Postgres serialization failure or
