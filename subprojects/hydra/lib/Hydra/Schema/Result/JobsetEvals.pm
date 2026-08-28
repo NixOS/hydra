@@ -104,6 +104,22 @@ __PACKAGE__->table("jobsetevals");
   data_type: 'text'
   is_nullable: 1
 
+=head2 eval_build
+
+  data_type: 'integer'
+  is_foreign_key: 1
+  is_nullable: 1
+
+=head2 completed
+
+  data_type: 'bigint'
+  is_nullable: 1
+
+=head2 trace_id
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -138,6 +154,12 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "nixexprpath",
   { data_type => "text", is_nullable => 1 },
+  "eval_build",
+  { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
+  "completed",
+  { data_type => "bigint", is_nullable => 1 },
+  "trace_id",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -153,6 +175,26 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("id");
 
 =head1 RELATIONS
+
+=head2 eval_build
+
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Result::Builds>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "eval_build",
+  "Hydra::Schema::Result::Builds",
+  { id => "eval_build" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "SET NULL",
+    on_update     => "NO ACTION",
+  },
+);
 
 =head2 evaluationerror
 
@@ -220,8 +262,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lVl+eCVdOJP+kNCSIJCdFg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 05:00:28
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PeB/2DGJ3QnQa4iuRetvNg
 
 __PACKAGE__->has_many(
   "buildIds",
