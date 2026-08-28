@@ -99,12 +99,22 @@ sub new {
 
         write_file($central->{hydra_config_file}, $hydra_config);
 
+        # Evaluation builds ask for `recursive-nix` in production. No test
+        # machine has it, and this store lives under the outer build's /build,
+        # where a sandbox is refused anyway; builds run unsandboxed against a
+        # writable store, which gives an evaluation its store access instead.
+        # Without the feature the build gets no Nix configuration of its own
+        # and would find the host's daemon socket, so the store is named: the
+        # central one, since the queue runner must find what it instantiates.
+        #
         # Built outputs go to the destination store, not the central one, so
         # a `build` input naming one has to fetch it from there: that is what
         # `eval_substituter` is for.
         $central->{evaluator_config_file} = "$dir/evaluator.toml";
         write_file($central->{evaluator_config_file},
-            defined $deststoredir ? "eval_substituter = \"file://$deststoredir\"\n" : "");
+            "evaluation_build_system_features = \"\"\n"
+            . "evaluation_build_store_uri = \"$central->{nix_daemon_uri}\"\n"
+            . (defined $deststoredir ? "eval_substituter = \"file://$deststoredir\"\n" : ""));
     }
 
     my $pgsql = Test::PostgreSQL->new(

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO projects (name, displayName, description, enabled, hidden, owner)\n         VALUES ('hydra', 'Hydra', 'Hydra internals', 0, 1, 'root')\n         ON CONFLICT (name) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "c61507c5bf95c0f657fd3f48161c777dc8ad45ae67be7983d803eb4d6e0b83be"
+}

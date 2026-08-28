@@ -3,7 +3,8 @@
 members = [
     "subprojects/hydra-builder",
     "subprojects/hydra-ad-hoc",
-    "subprojects/hydra-evaluator",
+    "subprojects/hydra-process-evaluation",
+    "subprojects/hydra-submit-evaluation",
     "subprojects/hydra-queue-runner",
     "subprojects/hydra-ws",
     "subprojects/crates/*",

@@ -76,8 +76,12 @@ subtest "interested" => sub {
 };
 
 subtest "load" => sub {
-    my ($build) = $db->resultset('Builds')->search({ }, { limit => 1 })->single;
-    my $evaluation = $build->jobsetevals->search({}, { limit => 1 })->single;
+    # From the evaluation rather than from any build: the first build is the
+    # one that performed the evaluation, and that build is not a member of
+    # the evaluation it produced.
+    my $evaluation = $db->resultset('JobsetEvals')->search(
+        {}, { rows => 1, order_by => { -asc => 'id' } })->single;
+    my ($build) = $evaluation->builds;
 
     my $event = Hydra::Event::CachedBuildQueued->new($evaluation->id, $build->id);
 
