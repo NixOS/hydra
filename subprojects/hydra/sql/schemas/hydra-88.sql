@@ -463,7 +463,6 @@ create table EvaluationErrors (
     errorTime     bigint  -- timestamp associated with errorMsg
 );
 
--- Results of evaluations of a given jobset
 create table JobsetEvals (
     id            serial primary key not null,
     jobset_id     integer not null,
@@ -496,47 +495,8 @@ create table JobsetEvals (
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
 
-    -- The evaluation that (first) created this jobset evaluation (result)
-    -- was performed in this build.
-    --
-    -- The builds themselves should live in a single jobset that
-    -- contains all of hydra evaluations (for any other jobset).
-    --
-    -- Nullable because historically evaluations were performed
-    -- out-of-band, but now they all take place within builds so they
-    -- can be distributed just like any other work that hydra does. Also
-    -- if the evaluation build is garbage collected, this will also
-    -- revert to null.
-    eval_build    integer,
-
-    -- When the results of `eval_build` were read back into this row, i.e.
-    -- when the columns above stopped being placeholders and became answers.
-    --
-    -- An evaluation build finishing and its results being consumed are two
-    -- different events, performed by two different processes, so "the build
-    -- is finished" does not mean "the evaluation is done". This column is the
-    -- difference, and it is what says a row is still awaiting completion --
-    -- which cannot be inferred, since an evaluation legitimately finds no
-    -- jobs and legitimately takes no measurable time.
-    --
-    -- Null for a tentative evaluation, and also for the historical rows that
-    -- were written in one shot before evaluation became a build; those are
-    -- told apart by `eval_build` being null too.
-    completed     bigint,
-
-    -- Correlates the notifications emitted while this evaluation is
-    -- performed. Evaluation now spans two processes -- one to schedule the
-    -- build, one to read its result -- and a receiver has to be able to tell
-    -- that an `eval_failed` belongs to a particular `eval_started`. The
-    -- scheduling run writes its id here so the completing run can reuse it.
-    --
-    -- Null for evaluations that predate evaluation-as-a-build, and for the
-    -- ones this instance has not scheduled itself.
-    trace_id      text,
-
     foreign key   (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null,
-    foreign key   (eval_build) references Builds(id) on delete set null
+    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null
 );
 
 
