@@ -1150,10 +1150,8 @@ sub checkJobsetWrapped {
 # so everything it needs is passed in rather than left in scope: the jobs
 # iterator, and the context the scheduling run recorded.
 sub finishEvaluation {
-    my ($db, $plugins, $project, $jobset, $evalId, $jobsIter, $evalStart,
+    my ($db, $plugins, $project, $jobset, $evalId, $jobsIter, $evalSeconds,
         $tmpId, $dryRun) = @_;
-
-    my $evalStop;
 
     # Recomputed rather than threaded through: it is a property of the
     # project and jobset, both of which are already here.
@@ -1307,8 +1305,9 @@ sub finishEvaluation {
         $evaluationErrorRecord->update({ errormsg => $evaluationErrorMsg });
         setJobsetError($jobset, $evaluationErrorMsg, $evaluationErrorTime);
 
-        $evalStop = clock_gettime(CLOCK_MONOTONIC);
-        $ev->update({ evaltime => abs(int($evalStop - $evalStart)) });
+        # How long evaluating took, which is how long the evaluation build
+        # ran -- not how long this run took to read its output.
+        $ev->update({ evaltime => $evalSeconds });
     };
 
     # Retry rather than lose the evaluation if Postgres aborts the transaction
@@ -1327,7 +1326,7 @@ sub finishEvaluation {
     applyDrvPathRepoints(\%buildMap);
     syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
 
-    Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
+    Net::Statsd::timing("hydra.evaluator.eval_time", $evalSeconds * 1000);
     Net::Statsd::increment("hydra.evaluator.evals");
     Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
 }
@@ -1423,8 +1422,12 @@ sub finishScheduledEvaluation {
     my $project = $jobset->project;
     my $tmpId = clock_gettime(CLOCK_MONOTONIC) . ".$$";
 
+    # Evaluating took as long as the evaluation build ran.
+    my $evalSeconds = defined $build->stoptime && defined $build->starttime
+        ? abs($build->stoptime - $build->starttime) : 0;
+
     finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
-                     clock_gettime(CLOCK_MONOTONIC), $tmpId, 0);
+                     $evalSeconds, $tmpId, 0);
     return 0;
 }
 
