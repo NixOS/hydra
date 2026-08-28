@@ -23,7 +23,12 @@ is(do {
     local $ENV{HYDRA_CONFIG} = $ctx{context}->{central}{hydra_config_file};
     getHydraConfig()
 }, {
+    # Everything the harness writes into every test's hydra.conf, since this
+    # asserts the config exactly. The evaluation settings are there because
+    # evaluation now runs as a build, which needs telling where to build.
     queue_runner_metrics_address => "127.0.0.1:0",
+    evaluation_build_system_features => "",
+    evaluation_build_store_uri => match(qr{^unix://}),
     foo => { bar => "baz" }
 }, "Nested includes work.");
 

@@ -84,6 +84,32 @@ sub new {
 
         my $hydra_config = $opts{'hydra_config'} || "";
         $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
+        # Evaluation builds ask for `recursive-nix` in production, so that the
+        # derivations the evaluation instantiates end up in the real store. No
+        # test machine advertises that feature, so requiring it would leave
+        # every evaluation build queued forever and every test timing out.
+        #
+        # Nothing is lost by dropping it here: this store lives under the
+        # outer build's /build, so requiring the feature would force a sandbox
+        # that Nix then refuses (`sandbox-build-dir must not contain the
+        # storeDir`). Builds run unsandboxed against a writable store instead,
+        # which gives the evaluation its store access by another route.
+        #
+        # Prepended, so a test that wants to exercise the requirement can
+        # still set its own value.
+        $hydra_config = "evaluation_build_system_features =\n" . $hydra_config;
+        # And, for the same reason, tell the evaluation which store to use.
+        # Without `recursive-nix` the build gets no Nix configuration of its
+        # own, and an unsandboxed build can see the host's real daemon socket
+        # -- which it would then use, with the wrong store dir.
+        #
+        # The *central* store, not the builder's: evaluation instantiates the
+        # derivations of the jobs it finds, and the queue runner then has to
+        # find them. Instantiating into the builder's store would leave the
+        # queue runner looking at paths that are not in the store it reads,
+        # and aborting every build it queued as garbage collected.
+        $hydra_config =
+            "evaluation_build_store_uri = $central->{nix_daemon_uri}\n" . $hydra_config;
         if ($opts{'use_external_destination_store'} // 1) {
             $deststoredir = "$dir/nix/dest-store";
             $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
