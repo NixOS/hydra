@@ -9,7 +9,42 @@ use db::models::BuildID;
 
 use super::{RemoteBuild, System};
 use crate::config::{MachineFreeFn, MachineSortFn};
-use hydra_proto::{AbortMessage, BuildMessage, JoinMessage, PresignedUploadOpts, runner_request};
+use hydra_proto::{
+    AbortMessage, BuildMessage, JoinMessage, NamedStream, PresignedUploadOpts, runner_request,
+};
+
+/// The extra output streams a derivation asks for, from its `hydraStreams`
+/// environment variable: whitespace-separated `name=/path/in/sandbox` pairs.
+///
+/// The derivation declares what it wants rather than the queue runner
+/// deciding, so nothing here has to know *why* a build wants a stream, only
+/// that it does. An evaluation build asks for one to report its jobs as it
+/// finds them; anything else may ask for its own reasons.
+fn requested_streams(drv: &hydra_proto::nix::store::derivation::v1::Basic) -> Vec<NamedStream> {
+    let Some(spec) = drv.env.get("hydraStreams") else {
+        return Vec::new();
+    };
+    let Ok(spec) = std::str::from_utf8(spec) else {
+        tracing::warn!("hydraStreams is not valid utf-8; ignoring it");
+        return Vec::new();
+    };
+
+    spec.split_whitespace()
+        .filter_map(|entry| match entry.split_once('=') {
+            Some((name, sandbox_path)) if !name.is_empty() && !sandbox_path.is_empty() => {
+                Some(NamedStream {
+                    name: name.to_string(),
+                    sandbox_path: sandbox_path.to_string(),
+                })
+            }
+            _ => {
+                tracing::warn!("ignoring malformed hydraStreams entry {entry:?}");
+                None
+            }
+        })
+        .collect()
+}
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum MachineError {
@@ -548,11 +583,8 @@ impl Message {
                 max_silent_time,
                 build_timeout,
                 presigned_url_opts,
+                streams: requested_streams(&resolved_drv),
                 resolved_drv: Some(*resolved_drv),
-                // No extra output streams yet. Evaluation builds will ask for
-                // one here so the jobs can be watched as they are produced;
-                // the mechanism is generic and carries nothing eval-specific.
-                streams: Vec::new(),
             }),
             Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
                 build_id: build_id.to_string(),

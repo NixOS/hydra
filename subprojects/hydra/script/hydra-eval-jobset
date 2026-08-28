@@ -420,6 +420,12 @@ sub evalJobsCmd {
 # derivations it instantiated, so reference scanning makes them references
 # of the output: rooting the evaluation build roots them too, and nothing
 # needs `--gc-roots-dir`.
+# Where the evaluation build writes its jobs, inside the sandbox, and what
+# the resulting stream is called. The name is how the stream is found later,
+# next to the build's log.
+our $EVAL_STREAM_NAME = "eval-jobs";
+our $EVAL_STREAM_PATH = "/hydra/eval-jobs";
+
 sub nixString {
     my ($s) = @_;
     $s =~ s/\\/\\\\/g;
@@ -429,7 +435,7 @@ sub nixString {
 }
 
 sub evalDrvExpr {
-    my ($jobsetName, $storePaths, $cmd, $streamPath, $systemFeatures) = @_;
+    my ($jobsetName, $storePaths, $cmd, $streamPath, $systemFeatures, $tee) = @_;
 
     my $name = $jobsetName;
     $name =~ s/[^a-zA-Z0-9._-]/-/g;
@@ -463,7 +469,16 @@ sub evalDrvExpr {
     # Referenced so the inputs are inputs of this derivation, and so appear
     # in the sandbox rather than merely being named by the arguments.
     $expr .= "  jobsetInputs = [ $inputs ];\n";
-    $expr .= "  evalStream = " . nixString($streamPath) . ";\n" if defined $streamPath;
+    if (defined $streamPath) {
+        # Asks the builder for an extra output stream at this path, and tells
+        # the build where to write it. The builder relays whatever appears
+        # there without interpreting it, so the jobs can be watched as they
+        # are found rather than only after the build finishes.
+        $expr .= "  evalStream = " . nixString($streamPath) . ";\n";
+        $expr .= "  hydraStreams = " . nixString("$EVAL_STREAM_NAME=$streamPath") . ";\n";
+        # By absolute path: a build does not inherit PATH.
+        $expr .= "  tee = " . nixString($tee) . ";\n";
+    }
     $expr .= "}\n";
     return $expr;
 }
@@ -674,7 +689,15 @@ sub scheduleEvaluationBuild {
 
     my @systemFeatures =
         split ' ', ($config->{evaluation_build_system_features} // "recursive-nix");
-    my $expr = evalDrvExpr($jobsetName, \@storePaths, \@cmd, undef, \@systemFeatures);
+    # `tee` sends the jobs to the output and to the stream at once. Like the
+    # evaluator it has to be named absolutely, and referenced when it is in
+    # this store so that it is present in the sandbox.
+    my $tee = findInPath("tee");
+    my $teeRoot = storePathRoot($tee);
+    push @storePaths, $teeRoot if defined $teeRoot;
+
+    my $expr = evalDrvExpr($jobsetName, \@storePaths, \@cmd, $EVAL_STREAM_PATH,
+                           \@systemFeatures, $tee);
 
     print STDERR "evaluation derivation:\n$expr" if defined $ENV{'HYDRA_DEBUG'};
 
