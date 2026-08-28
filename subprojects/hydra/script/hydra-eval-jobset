@@ -362,8 +362,12 @@ sub inputsToArgs {
 # The `nix-eval-jobs` invocation for a jobset. Separate from running it
 # because the same arguments describe the evaluation wherever it happens:
 # here, or inside the derivation that an evaluation build realises.
+# $gcRootsDir is undef when the evaluation runs inside a derivation: the
+# path would be meaningless in the sandbox, and the roots are unnecessary
+# there because the JSONL output names the instantiated derivations, so
+# they are references of the output and live as long as it does.
 sub evalJobsCmd {
-    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
 
     my @cmd;
 
@@ -386,7 +390,7 @@ sub evalJobsCmd {
                 inputsToArgs($inputInfo));
     }
 
-    push @cmd, ("--gc-roots-dir", getGCRootsDir);
+    push @cmd, ("--gc-roots-dir", $gcRootsDir) if defined $gcRootsDir;
     push @cmd, ("--max-jobs", 1);
     push @cmd, "--meta";
     push @cmd, "--constituents";
@@ -458,7 +462,8 @@ sub evalJobs {
 
     print STDERR "($jobsetName) Evaluating...\n";
 
-    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef);
+    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef,
+                          getGCRootsDir);
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
