@@ -11,10 +11,10 @@ use color_eyre::eyre::{self, WrapErr as _};
 use sha2::{Digest as _, Sha256};
 
 use crate::config::HydraConfig;
-use crate::declarative;
+use crate::eval_build;
 use crate::fetcher::InputFetcher;
 use crate::ingest;
-use crate::inputs::{self, ConfiguredInput, InputInfo};
+use crate::inputs::{self, ConfiguredInput};
 use crate::nix_eval_jobs::{self, Expression};
 use crate::queries;
 use crate::queries::NewEval;
@@ -27,14 +27,11 @@ const CURRENT_BATCH: i32 = 10_000;
 pub(crate) enum Outcome {
     /// These inputs had been evaluated before, so nothing was done.
     Cached { previous: i32 },
-    /// The evaluation ran and was recorded.
-    Evaluated { eval: i32, changed: bool },
-    /// A declarative project whose specification named its jobsets outright,
-    /// so they were created and there was nothing to evaluate.
-    Declared,
+    /// An evaluation was scheduled as a build; it is finished when that
+    /// build is, not now.
+    Scheduled { eval: i32, build: i32 },
 }
 
-#[allow(clippy::too_many_lines)]
 pub(crate) async fn evaluate(
     db: &db::Database,
     config: &HydraConfig,
@@ -47,30 +44,6 @@ pub(crate) async fn evaluate(
     let meta = queries::get_jobset_for_eval(&mut conn, project, jobset)
         .await?
         .ok_or_else(|| eyre::eyre!("jobset `{project}:{jobset}' does not exist"))?;
-
-    // `.jobsets` is Hydra evaluating a declarative project's own
-    // configuration. The specification may name the jobsets outright, in
-    // which case they are created and this is done; or it may describe how
-    // to generate them, in which case it reconfigures this jobset and
-    // supplies the inputs its expression is evaluated with.
-    let mut extra_inputs = InputInfo::new();
-    if meta.declfile.as_deref().is_some_and(|f| !f.is_empty()) && jobset == ".jobsets" {
-        match declarative::prepare(project).await? {
-            declarative::Prepared::Declared => {
-                // The specification was applied, so any error from a
-                // previous attempt at it is over: `Some("")` clears it.
-                queries::update_jobset_after_eval(&mut conn, meta.id, Some(""), now()).await?;
-                return Ok(Outcome::Declared);
-            }
-            declarative::Prepared::Generated { inputs } => extra_inputs = inputs,
-        }
-    }
-    // Re-read, since a specification may have changed what to evaluate.
-    let meta = queries::get_jobset_for_eval(&mut conn, project, jobset)
-        .await?
-        .ok_or_else(|| eyre::eyre!("jobset `{project}:{jobset}' does not exist"))?;
-
-    queries::notify_eval_started(&mut conn, trace, meta.id).await?;
 
     // Fetching is the slow part and the part that talks to the world, so it
     // happens before anything is written and outside any transaction.
@@ -97,8 +70,7 @@ pub(crate) async fn evaluate(
     )
     .await;
     fetcher.shutdown().await;
-    let mut resolved = resolved?;
-    resolved.extend(extra_inputs);
+    let resolved = resolved?;
     let checkout_time = checkout_start.elapsed().as_secs();
 
     let expr = Expression {
@@ -111,79 +83,187 @@ pub(crate) async fn evaluate(
     // The hash covers the arguments, so it changes exactly when what would be
     // evaluated changes. If the previous evaluation used the same ones there
     // is nothing to learn by running it again.
-    let hash = hex::encode(Sha256::digest(cmd.join(" ").as_bytes()));
+    let hash = format!("{:x}", Sha256::digest(cmd.join(" ").as_bytes()));
     let previous = queries::get_previous_eval(&mut conn, meta.id).await?;
 
-    if let Some(previous) = &previous
-        && previous.hash == hash
-        && !meta.forceeval.unwrap_or(false)
-        && meta.flake.as_deref() == previous.flake.as_deref()
-    {
-        tracing::info!("({project}:{jobset}) already evaluated these inputs");
-        queries::notify_eval_cached(&mut conn, trace, meta.id, previous.id).await?;
-        queries::update_jobset_after_eval(&mut conn, meta.id, None, now()).await?;
-        return Ok(Outcome::Cached {
-            previous: previous.id,
-        });
+    if let Some(previous) = &previous {
+        if previous.hash == hash
+            && !meta.forceeval.unwrap_or(false)
+            && meta.flake.as_deref() == previous.flake.as_deref()
+        {
+            tracing::info!("({project}:{jobset}) already evaluated these inputs");
+            queries::notify_eval_cached(&mut conn, trace, meta.id, previous.id).await?;
+            queries::update_jobset_after_eval(&mut conn, meta.id, None, now()).await?;
+            return Ok(Outcome::Cached {
+                previous: previous.id,
+            });
+        }
     }
 
-    tracing::info!("({project}:{jobset}) evaluating");
-    let eval_start = std::time::Instant::now();
-    let jobs = nix_eval_jobs::run(&cmd).await?;
-    let eval_time = eval_start.elapsed().as_secs();
+    // Evaluation happens in a build, so that it is scheduled and distributed
+    // like any other work. Scheduling it ends this run: the evaluation is
+    // finished when that build completes, not here.
+    tracing::info!("({project}:{jobset}) scheduling the evaluation as a build");
 
-    // `.jobsets` is Hydra evaluating its own configuration, and is allowed
-    // exactly one job.
-    let jobsets_jobset =
-        meta.declfile.as_deref().is_some_and(|f| !f.is_empty()) && jobset == ".jobsets";
+    let drv_path = eval_build::instantiate(
+        config,
+        &resolved,
+        &cmd,
+        &format!("{project}:{jobset}"),
+        &available.store_dir().to_path().display().to_string(),
+    )
+    .await
+    .wrap_err("failed to instantiate the evaluation derivation")?;
 
-    let prev_member_count = match &previous {
-        Some(p) => Some(queries::count_eval_members(&mut conn, p.id).await?),
-        None => None,
-    };
+    let eval_jobset = queries::ensure_eval_jobset(&mut conn).await?;
+    let system = current_system().await?;
 
     let mut tx = conn.begin_transaction().await?;
-    let error_id = queries::insert_evaluation_error(&mut tx, now()).await?;
-    let recorded = ingest::record(
+    let build = queries::insert_eval_build(
         &mut tx,
-        meta.id,
-        trace,
+        eval_jobset,
+        &format!("{project}:{jobset}"),
+        &drv_path,
+        &system,
+        now(),
+    )
+    .await?;
+
+    // A tentative evaluation, pointing at the build that will fill it in. It
+    // exists from the start so the evaluation is visible while it runs;
+    // `evaltime` and `hasnewbuilds` are placeholders until then, and
+    // `completed` is left null to say so.
+    let error_id = queries::insert_evaluation_error(&mut tx, now()).await?;
+    let eval_id = queries::insert_eval(
+        &mut tx,
         &NewEval {
             jobset_id: meta.id,
             checkout_time: i32::try_from(checkout_time).unwrap_or(0),
-            eval_time: i32::try_from(eval_time).unwrap_or(0),
+            eval_time: 0,
             hash: &hash,
             flake: meta.flake.as_deref(),
             nix_expr_input: meta.nixexprinput.as_deref(),
             nix_expr_path: meta.nixexprpath.as_deref(),
             evaluation_error_id: Some(error_id),
+            eval_build: Some(build),
+            trace_id: Some(trace),
         },
+    )
+    .await?;
+
+    // The inputs are recorded here rather than when the evaluation finishes,
+    // because this is where they are known: completing it happens later, and
+    // re-fetching could see different revisions than the ones evaluated.
+    for (name, alts) in &resolved {
+        for (n, alt) in alts.iter().enumerate() {
+            queries::insert_eval_input(&mut tx, eval_id, name, i32::try_from(n).unwrap_or(0), alt)
+                .await?;
+        }
+    }
+
+    tx.commit().await?;
+
+    queries::update_jobset_after_eval(&mut conn, meta.id, None, now()).await?;
+
+    return Ok(Outcome::Scheduled {
+        eval: eval_id,
+        build,
+    });
+}
+
+/// The system the evaluation build should be scheduled for.
+async fn current_system() -> eyre::Result<String> {
+    let out = tokio::process::Command::new("nix-instantiate")
+        .args(["--eval", "-E", "builtins.currentSystem"])
+        .output()
+        .await
+        .wrap_err("could not ask nix for the current system")?;
+    eyre::ensure!(
+        out.status.success(),
+        "could not ask nix for the current system"
+    );
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .trim()
+        .trim_matches('"')
+        .to_owned())
+}
+
+/// Read a finished evaluation build's output back, and turn its jobs into
+/// builds of the jobset that was evaluated.
+pub(crate) async fn complete(db: &db::Database, eval_id: i32) -> eyre::Result<()> {
+    let mut conn = db.get().await?;
+    let Some(eval) = queries::get_eval_to_complete(&mut conn, eval_id).await? else {
+        return Ok(());
+    };
+    let trace = eval.trace_id.clone().unwrap_or_default();
+
+    // A build that failed evaluated nothing; the error is the build's, and its
+    // log is where it is explained.
+    if eval.build_status.unwrap_or(1) != 0 {
+        queries::update_jobset_after_eval(
+            &mut conn,
+            eval.jobset_id,
+            Some("evaluation failed; see the evaluation build's log"),
+            now(),
+        )
+        .await?;
+        let mut tx = conn.begin_transaction().await?;
+        queries::mark_eval_completed(&mut tx, eval_id, now()).await?;
+        tx.commit().await?;
+        return Ok(());
+    }
+
+    let path = eval
+        .out_path
+        .ok_or_else(|| eyre::eyre!("evaluation build {eval_id} produced no output"))?;
+    let jobs = nix_eval_jobs::read(&path).await?;
+
+    // What this evaluation is compared against: the jobs of the evaluation
+    // before it, so a job already built is not built again, and its member
+    // count, since a job disappearing changes the jobset while queueing
+    // nothing.
+    let previous = queries::get_eval_before(&mut conn, eval.jobset_id, eval_id).await?;
+    let prev_member_count = match &previous {
+        Some(p) => Some(queries::count_eval_members(&mut conn, p.id).await?),
+        None => None,
+    };
+
+    let meta = queries::get_jobset_for_completion(&mut conn, eval.jobset_id)
+        .await?
+        .ok_or_else(|| eyre::eyre!("jobset {} does not exist", eval.jobset_id))?;
+
+    // `.jobsets` is Hydra evaluating its own configuration, and is allowed
+    // exactly one job.
+    let jobsets_jobset =
+        meta.declfile.as_deref().is_some_and(|f| !f.is_empty()) && meta.name == ".jobsets";
+
+    let mut tx = conn.begin_transaction().await?;
+    let error_id = queries::insert_evaluation_error(&mut tx, now()).await?;
+    let recorded = ingest::record(
+        &mut tx,
+        eval.jobset_id,
+        &trace,
+        eval_id,
         error_id,
         meta.errormsg.as_deref().unwrap_or_default(),
         &jobs,
         previous.as_ref().map(|p| p.id),
         prev_member_count,
-        &resolved,
-        &available.store_dir().to_path().display().to_string(),
+        // Already recorded when the evaluation was scheduled, which is where
+        // the inputs were known.
+        &Default::default(),
         jobsets_jobset,
     )
     .await
     .wrap_err("failed to record the evaluation")?;
+    queries::mark_eval_completed(&mut tx, eval_id, now()).await?;
     tx.commit().await?;
-
-    // Root every job's derivation, not only those that became builds: an
-    // aggregate is reported as a job and nothing else in the store refers to
-    // its derivation. This is what `nix-eval-jobs --gc-roots-dir` did for
-    // `hydra-eval-jobs`.
-    if let Err(e) = add_roots(jobs.iter().filter_map(|j| j.drv_path.as_deref())) {
-        tracing::warn!("could not root the evaluated derivations: {e:#}");
-    }
 
     // Both of these touch every build of the jobset, so they run afterwards:
     // holding those row locks for the evaluation's duration deadlocks against
     // the queue runner finishing builds.
     if recorded.jobset_changed {
-        queries::mark_current(&mut conn, meta.id, recorded.eval, CURRENT_BATCH)
+        queries::mark_current(&mut conn, eval.jobset_id, eval_id, CURRENT_BATCH)
             .await
             .wrap_err("failed to mark this evaluation's builds current")?;
     }
@@ -192,37 +272,14 @@ pub(crate) async fn evaluate(
         .await
         .wrap_err("failed to repoint builds at their new derivations")?;
 
-    queries::update_jobset_after_eval(&mut conn, meta.id, Some(&recorded.error), now()).await?;
+    queries::update_jobset_after_eval(&mut conn, eval.jobset_id, non_empty(&recorded.error), now())
+        .await?;
 
-    Ok(Outcome::Evaluated {
-        eval: recorded.eval,
-        changed: recorded.jobset_changed,
-    })
+    Ok(())
 }
 
-/// Symlink each derivation into Hydra's roots directory -- the same one the
-/// queue runner uses, so `hydra-update-gc-roots` knows to tidy it.
-fn add_roots<'a>(drvs: impl Iterator<Item = &'a str>) -> eyre::Result<()> {
-    let remote = daemon_client_utils::parse_nix_remote()
-        .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
-    let logname = std::env::var("LOGNAME").wrap_err("LOGNAME is not set")?;
-    let dir = remote
-        .state_dir
-        .join("gcroots/per-user")
-        .join(logname)
-        .join("hydra-roots");
-    fs_err::create_dir_all(&dir)?;
-    for drv in drvs {
-        let Some(name) = std::path::Path::new(drv).file_name() else {
-            continue;
-        };
-        match fs_err::os::unix::fs::symlink(drv, dir.join(name)) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(e).wrap_err_with(|| format!("rooting {drv}")),
-        }
-    }
-    Ok(())
+fn non_empty(s: &str) -> Option<&str> {
+    (!s.is_empty()).then_some(s)
 }
 
 fn now() -> db::Timestamp {

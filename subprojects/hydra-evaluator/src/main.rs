@@ -14,7 +14,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod config;
-mod declarative;
+mod eval_build;
 mod evaluate;
 mod evaluator;
 mod fetcher;
@@ -34,13 +34,12 @@ use evaluator::Evaluator;
 #[command(name = "hydra-evaluator", about = "Hydra jobset evaluation scheduler")]
 struct Cli {
     /// Path to the evaluator's configuration file
-    #[arg(
-        short,
-        long,
-        env = "HYDRA_EVALUATOR_CONFIG",
-        default_value = "evaluator.toml"
-    )]
+    #[arg(short, long, default_value = "evaluator.toml")]
     config_path: String,
+
+    /// Complete any evaluations whose build has finished, and exit
+    #[arg(long)]
+    finish: bool,
 
     /// Clear startTime on all jobsets and exit
     #[arg(long)]
@@ -70,6 +69,17 @@ async fn main() -> color_eyre::Result<()> {
         return Ok(());
     }
 
+    // One pass of what the daemon's loop does, for a caller that has just
+    // built an evaluation and wants its results read back now.
+    if cli.finish {
+        let pending = queries::get_evals_awaiting_completion(&mut db.get().await?).await?;
+        for eval_id in pending {
+            tracing::info!("completing evaluation {eval_id}");
+            evaluate::complete(&db, eval_id).await?;
+        }
+        return Ok(());
+    }
+
     let config = HydraConfig::load(&cli.config_path)?;
 
     let eval_one = match (cli.project, cli.jobset) {
@@ -84,7 +94,10 @@ async fn main() -> color_eyre::Result<()> {
     let remote = daemon_client_utils::parse_nix_remote()
         .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
     let available = store_paths::Availability::new(
-        remote.store_dir.clone(),
+        daemon_client_utils::DaemonStoreReader::new(daemon_client_utils::DaemonConnector::new(
+            remote.socket.clone(),
+            remote.store_dir.clone(),
+        )),
         config.eval_substituter().map(str::to_owned),
     );
 

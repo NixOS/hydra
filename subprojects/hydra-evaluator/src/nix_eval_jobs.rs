@@ -5,12 +5,9 @@
 //! what would be handed to something else to run.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
-use std::process::Stdio;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use db::StoreDir;
-use tokio::io::{AsyncBufReadExt as _, BufReader};
 
 use crate::config::HydraConfig;
 use crate::inputs::{InputInfo, JobsetInput};
@@ -141,7 +138,12 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
                 name.clone(),
                 alt.value.clone().unwrap_or_default(),
             ]),
-            "boolean" | "nix" => args.extend([
+            "boolean" => args.extend([
+                "--arg".to_owned(),
+                name.clone(),
+                alt.value.clone().unwrap_or_default(),
+            ]),
+            "nix" => args.extend([
                 "--arg".to_owned(),
                 name.clone(),
                 alt.value.clone().unwrap_or_default(),
@@ -150,7 +152,10 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
                 let jobs = alt.jobs.clone().unwrap_or_default();
                 let mut s = String::from("{ ");
                 for (job, path) in &jobs {
-                    let _ = write!(s, "{job} = builtins.storePath {}; ", full(store_dir, path));
+                    s.push_str(&format!(
+                        "{job} = builtins.storePath {}; ",
+                        full(store_dir, path)
+                    ));
                 }
                 s.push('}');
                 args.extend(["--arg".to_owned(), name.clone(), s]);
@@ -174,15 +179,14 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
 fn build_input_to_string(store_dir: &StoreDir, input: &JobsetInput) -> String {
     let mut s = String::from("{ outPath = builtins.storePath ");
     s.push_str(&full(store_dir, input.store_path.as_deref().unwrap_or("")));
-    let _ = write!(
-        s,
+    s.push_str(&format!(
         "; inputType = \"{}\"",
         input.r#type.as_deref().unwrap_or("")
-    );
+    ));
 
     let mut quoted = |key: &str, value: &Option<String>| {
         if let Some(v) = value {
-            let _ = write!(s, "; {key} = \"{v}\"");
+            s.push_str(&format!("; {key} = \"{v}\""));
         }
     };
     quoted("uri", &input.uri);
@@ -193,13 +197,16 @@ fn build_input_to_string(store_dir: &StoreDir, input: &JobsetInput) -> String {
     quoted("outputName", &input.output_name);
 
     if let Some(n) = input.rev_number {
-        let _ = write!(s, "; rev = {n}");
+        s.push_str(&format!("; rev = {n}"));
     }
     if let Some(n) = input.rev_count {
-        let _ = write!(s, "; revCount = {n}");
+        s.push_str(&format!("; revCount = {n}"));
     }
     if let Some(drv) = &input.drv_path {
-        let _ = write!(s, "; drvPath = builtins.storePath {}", full(store_dir, drv));
+        s.push_str(&format!(
+            "; drvPath = builtins.storePath {}",
+            full(store_dir, drv)
+        ));
     }
 
     s.push_str(";}");
@@ -216,41 +223,26 @@ fn full(store_dir: &StoreDir, path: &str) -> String {
     }
 }
 
-/// Run `nix-eval-jobs` and hand back the jobs it reports, one at a time.
+/// Read the jobs out of a finished evaluation build's output.
 ///
-/// Its stderr is inherited: diagnostics are how an evaluation explains
-/// itself, and they belong in the log rather than buffered up here.
-pub(crate) async fn run(cmd: &[String]) -> eyre::Result<Vec<Job>> {
-    // NIX_PATH is cleared so that an evaluation depends on its declared
-    // inputs and nothing about the machine it runs on.
-    let mut child = tokio::process::Command::new("nix-eval-jobs")
-        .args(cmd)
-        .env_remove("NIX_PATH")
-        .stdout(Stdio::piped())
-        .spawn()
-        .wrap_err("failed to start nix-eval-jobs")?;
-
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| eyre::eyre!("nix-eval-jobs has no stdout"))?;
-    let mut lines = BufReader::new(stdout).lines();
+/// The same JSONL `run` reads from a pipe, but from the file the build
+/// produced -- which is the whole point of running the evaluation as a build.
+pub(crate) async fn read(path: &str) -> eyre::Result<Vec<Job>> {
+    let contents = tokio::fs::read_to_string(path)
+        .await
+        .wrap_err_with(|| format!("could not read the evaluation's output at `{path}'"))?;
 
     let mut jobs = Vec::new();
-    while let Some(line) = lines.next_line().await? {
+    for line in contents.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        match serde_json::from_str::<Job>(&line) {
+        match serde_json::from_str::<Job>(line) {
             Ok(job) => jobs.push(job),
             // A line we cannot read is worth complaining about but not worth
-            // abandoning the evaluation over, which is what the Perl did.
-            Err(e) => tracing::warn!("nix-eval-jobs sent unreadable JSON: {e}: {line}"),
+            // abandoning the evaluation over.
+            Err(e) => tracing::warn!("nix-eval-jobs wrote unreadable JSON: {e}: {line}"),
         }
     }
-
-    let status = child.wait().await?;
-    eyre::ensure!(status.success(), "nix-eval-jobs failed: {status}");
-
     Ok(jobs)
 }

@@ -41,6 +41,18 @@ pub(crate) struct HydraConfig {
     #[serde(default = "default_max_concurrent_evals")]
     max_concurrent_evals: u64,
 
+    /// What an evaluation build needs of the machine that runs it. Adding
+    /// paths to the store while building is what evaluating does, which under
+    /// a sandbox means `recursive-nix`.
+    #[serde(default = "default_system_features")]
+    evaluation_build_system_features: String,
+
+    /// The store an evaluation build instantiates into, when `recursive-nix`
+    /// is not there to configure its Nix for it. Must be the builder's store,
+    /// so it is configuration rather than anything derivable here.
+    #[serde(default)]
+    evaluation_build_store_uri: Option<String>,
+
     /// Where to fetch a build's output from when a `build` or `sysbuild`
     /// input names one this machine does not have. Unset means the store is
     /// expected to have everything already.
@@ -58,6 +70,10 @@ fn default_max_memory_size() -> u64 {
 
 fn default_max_concurrent_evals() -> u64 {
     4
+}
+
+fn default_system_features() -> String {
+    "recursive-nix".to_owned()
 }
 
 impl HydraConfig {
@@ -97,6 +113,14 @@ impl HydraConfig {
 
     pub(crate) fn evaluator_max_memory_size(&self) -> u64 {
         self.evaluator_max_memory_size
+    }
+
+    pub(crate) fn evaluation_build_system_features(&self) -> &str {
+        &self.evaluation_build_system_features
+    }
+
+    pub(crate) fn evaluation_build_store_uri(&self) -> Option<&str> {
+        self.evaluation_build_store_uri.as_deref()
     }
 
     pub(crate) fn eval_substituter(&self) -> Option<&str> {

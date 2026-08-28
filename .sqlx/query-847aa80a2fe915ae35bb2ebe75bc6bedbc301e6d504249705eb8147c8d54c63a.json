@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO builds\n          (timestamp, jobset_id, job, nixname, drvpath, system, priority,\n           globalpriority, finished, iscurrent)\n        VALUES ($1, $2, $3, 'hydra-eval', $4, $5, 100, 0, 0, 1)\n        RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "847aa80a2fe915ae35bb2ebe75bc6bedbc301e6d504249705eb8147c8d54c63a"
+}

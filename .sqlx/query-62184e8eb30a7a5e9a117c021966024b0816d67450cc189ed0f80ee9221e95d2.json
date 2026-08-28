@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobsets (project, name, description, nixexprinput, nixexprpath,\n                              enabled, hidden, checkinterval, triggertime, type)\n         VALUES ('hydra', 'evaluations', 'Evaluations run as builds', '', '', 0, 1, 0, null, 0)\n         ON CONFLICT (project, name) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "62184e8eb30a7a5e9a117c021966024b0816d67450cc189ed0f80ee9221e95d2"
+}

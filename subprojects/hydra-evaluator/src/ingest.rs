@@ -247,7 +247,6 @@ fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<S
 /// together or not at all. It is also why the notifications are sent from in
 /// here -- `NOTIFY` is delivered on commit.
 pub(crate) struct Recorded {
-    pub eval: i32,
     pub jobset_changed: bool,
     pub error: String,
     /// Builds inherited from an earlier evaluation whose derivation has
@@ -260,7 +259,7 @@ pub(crate) async fn record(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     trace: &str,
-    eval: &queries::NewEval<'_>,
+    eval_id: i32,
     error_id: i32,
     prev_error: &str,
     jobs: &[Job],
@@ -270,8 +269,6 @@ pub(crate) async fn record(
     store_dir: &str,
     jobsets_jobset: bool,
 ) -> eyre::Result<Recorded> {
-    let eval_id = queries::insert_eval(tx, eval).await?;
-
     let mut error = String::new();
     let mut members: Vec<Member> = Vec::new();
     let mut seen = HashMap::new();
@@ -356,7 +353,6 @@ pub(crate) async fn record(
         .collect();
 
     Ok(Recorded {
-        eval: eval_id,
         jobset_changed,
         error,
         repoints,
