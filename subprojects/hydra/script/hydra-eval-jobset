@@ -9,6 +9,7 @@ use Digest::SHA qw(sha256_hex);
 use Encode;
 use File::Slurper qw(read_text);
 use File::Temp;
+use File::Which qw(which);
 use Hydra::Config;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
@@ -655,7 +656,12 @@ sub inputStorePaths {
 # rather than by shelling out so that a failure can say what was searched.
 sub findInPath {
     my ($program) = @_;
-    return which($program) // die "cannot find $program in PATH ($ENV{PATH})\n";
+
+    # Scalar context deliberately: `which` returns every match in list
+    # context, and callers want the one that would actually run.
+    my $path = scalar which($program);
+    return $path if defined $path;
+    die "cannot find $program in PATH ($ENV{PATH})\n";
 }
 
 
