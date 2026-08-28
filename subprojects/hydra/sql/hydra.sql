@@ -524,6 +524,16 @@ create table JobsetEvals (
     -- told apart by `eval_build` being null too.
     completed     bigint,
 
+    -- Correlates the notifications emitted while this evaluation is
+    -- performed. Evaluation now spans two processes -- one to schedule the
+    -- build, one to read its result -- and a receiver has to be able to tell
+    -- that an `eval_failed` belongs to a particular `eval_started`. The
+    -- scheduling run writes its id here so the completing run can reuse it.
+    --
+    -- Null for evaluations that predate evaluation-as-a-build, and for the
+    -- ones this instance has not scheduled itself.
+    trace_id      text,
+
     foreign key   (jobset_id) references Jobsets(id) on delete cascade,
     foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null,
     foreign key   (eval_build) references Builds(id) on delete set null

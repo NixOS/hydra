@@ -723,7 +723,8 @@ sub ensureEvalJobset {
 # `JobsetEvals.eval_build`, which is the only link from an evaluation to the
 # build that performed it.
 sub scheduleEvaluationBuild {
-    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime) = @_;
+    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime,
+        $tmpId) = @_;
 
     my $jobsetName = $project->name . ":" . $jobset->name;
     print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
@@ -805,6 +806,9 @@ sub scheduleEvaluationBuild {
         , hasnewbuilds => 0
         , hash => $argsHash
         , eval_build => $build->id
+          # So the run that completes this evaluation can report against the
+          # same trace as the run that scheduled it.
+        , trace_id => $tmpId
         , flake => $flakeRef
         , nixexprinput => $jobset->nixexprinput
         , nixexprpath => $jobset->nixexprpath
@@ -1227,7 +1231,7 @@ sub checkJobsetWrapped {
     # finished when that build completes, not here.
     $db->txn_do(sub {
         scheduleEvaluationBuild($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash,
-                                abs(int($checkoutStop - $checkoutStart)));
+                                abs(int($checkoutStop - $checkoutStart)), $tmpId);
         $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
     });
     return;
@@ -1517,17 +1521,18 @@ sub finishScheduledEvaluation {
     replayEvaluationLog($build);
 
     if ($build->buildstatus != 0) {
+        my $jobset = $ev->jobset;
+        my $tmpId = $ev->trace_id;
+
         # Leave no tentative evaluation behind: its hash would otherwise say
         # these inputs had been evaluated, and the jobset would never retry.
-        my $msg = "evaluation build " . $build->id . " failed";
-        my $eventTime = time;
-        my $jobset = $ev->jobset;
-        $db->txn_do(sub {
-            $ev->delete;
-            setJobsetError($jobset, "$msg\n", $eventTime);
-        });
-        print STDERR "$msg\n";
-        return 1;
+        $db->txn_do(sub { $ev->delete; });
+
+        # Reported like any other evaluation failure -- because that is what
+        # it is. The build failing *is* the evaluation failing; the log
+        # replayed above says why.
+        return recordEvaluationFailure(
+            $jobset, "evaluation build " . $build->id . " failed\n", $tmpId);
     }
 
     my ($output) = $build->buildoutputs;
@@ -1554,7 +1559,10 @@ sub finishScheduledEvaluation {
 
     my $jobset = $ev->jobset;
     my $project = $jobset->project;
-    my $tmpId = clock_gettime(CLOCK_MONOTONIC) . ".$$";
+    # The trace the scheduling run started, so that the `eval_added` or
+    # `eval_failed` reported here can be tied to its `eval_started`. Only
+    # absent for an evaluation some older Hydra scheduled.
+    my $tmpId = $ev->trace_id // clock_gettime(CLOCK_MONOTONIC) . ".$$";
 
     # Evaluating took as long as the evaluation build ran.
     my $evalSeconds = defined $build->stoptime && defined $build->starttime

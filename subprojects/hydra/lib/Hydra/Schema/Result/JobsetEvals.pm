@@ -115,6 +115,11 @@ __PACKAGE__->table("jobsetevals");
   data_type: 'bigint'
   is_nullable: 1
 
+=head2 trace_id
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -153,6 +158,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "completed",
   { data_type => "bigint", is_nullable => 1 },
+  "trace_id",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -255,8 +262,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 04:12:50
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:uqLqr8mPsB426CUg5352Gg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 05:00:28
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PeB/2DGJ3QnQa4iuRetvNg
 
 __PACKAGE__->has_many(
   "buildIds",

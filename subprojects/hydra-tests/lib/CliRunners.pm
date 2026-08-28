@@ -112,8 +112,17 @@ sub evalSucceeds {
 
 sub evalFails {
     my ($ctx, $jobset) = @_;
-    local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
+    # Both runs, because scheduling an evaluation almost always succeeds --
+    # it only instantiates a derivation. What fails is evaluating, which
+    # happens in the build.
+    my ($res, $stdout, $stderr) = do {
+        local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
+        captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
+    };
+    if (!$res) {
+        my ($finRes, $finOut, $finErr) = finishScheduledEvaluations($ctx, $jobset);
+        ($res, $stdout, $stderr) = ($finRes, $stdout . $finOut, $stderr . $finErr);
+    }
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
         chomp $stdout; chomp $stderr;

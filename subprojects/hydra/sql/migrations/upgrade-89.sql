@@ -16,3 +16,8 @@ ALTER TABLE JobsetEvals
 -- that predate evaluation-as-a-build have no eval_build either, and the two
 -- nulls together mean "written in one shot, the old way".
 ALTER TABLE JobsetEvals ADD COLUMN completed bigint;
+
+-- Correlates the notifications of one evaluation across the two processes
+-- that now perform it. See the comment in hydra.sql. Metadata-only like the
+-- rest: nullable, no default.
+ALTER TABLE JobsetEvals ADD COLUMN trace_id text;
