@@ -23,7 +23,6 @@ our @EXPORT = qw(
     cancelBuilds
     constructRunCommandLogPath
     findLog
-    gcRootFor
     getBaseUrl
     getDrvLogPath
     getEvals getMachines
@@ -253,14 +252,6 @@ sub getMainOutput {
     return
         $build->buildoutputs->find({name => "out"}) //
         $build->buildoutputs->find({}, {limit => 1, order_by => ["name"]});
-}
-
-
-sub getEvalInputs {
-    my ($c, $eval) = @_;
-    my @inputs = $eval->jobsetevalinputs->search(
-        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
-        { order_by => "name" });
 }
 
 

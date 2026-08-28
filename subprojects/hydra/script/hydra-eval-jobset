@@ -660,16 +660,6 @@ sub sendJobsetErrorNotification() {
 }
 
 
-sub permute {
-    my @list = @_;
-    for (my $n = scalar @list - 1; $n > 0; $n--) {
-        my $k = int(rand($n + 1)); # 0 <= $k <= $n
-        @list[$n, $k] = @list[$k, $n];
-    }
-    return @list;
-}
-
-
 # Point the jobset's iscurrent flags at the given evaluation, in id-ordered
 # batches outside the evaluation transaction: updating 100k+ Builds rows
 # inside it holds their locks for minutes and deadlocks against the queue

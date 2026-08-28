@@ -55,6 +55,10 @@ use warnings;
 
 use overload
     '""' => sub { $_[0]->to_string },
+    # A store path object always names a path, so it is always true. Spelled
+    # out rather than left to `fallback`, which would derive it from the
+    # stringification and make an empty name silently false.
+    'bool' => sub { 1 },
     fallback => 1;
 
 sub new {
@@ -77,7 +81,7 @@ package Hydra::StorePath;
 
 sub parseRelativeStorePath {
     my ($storeDir, $path) = @_;
-    my ($base, $relative) = split("/", _stripStoreDir($storeDir, $path), 2);
+    my ($base, $relative) = split(m{/}, _stripStoreDir($storeDir, $path), 2);
     return Hydra::RelativeStorePath->new(
         Nix::StorePath->new($base), $relative // "");
 }
