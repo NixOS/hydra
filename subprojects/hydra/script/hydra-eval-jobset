@@ -3,15 +3,13 @@
 use strict;
 use warnings;
 use utf8;
-use Config::General;
-use Data::Dump qw(dump);
 use Digest::SHA qw(sha256_hex);
-use Encode;
-use File::Slurper qw(read_text);
+use File::Temp;
+use File::Which qw(which);
 use Hydra::Config;
 use Hydra::Helper::AddBuilds;
 use Hydra::Helper::CatalystUtils;
-use Hydra::Helper::Email;
+use Hydra::Helper::Evaluation;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
@@ -21,21 +19,20 @@ use Hydra::Schema;
 use IPC::Run;
 use JSON::MaybeXS;
 use Net::Statsd;
-use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
-use Try::Tiny;
 
 STDOUT->autoflush();
 STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
 my $db = Hydra::Model::DB->new();
-my $notifyAdded = $db->storage->dbh->prepare("notify builds_added, ?");
 
 my $config = getHydraConfig();
 
 my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
+# Reporting rather than recording is `hydra-finish-eval`'s business now:
+# a dry run wants to see the jobs, and the jobs are what that program reads.
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
 my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
@@ -359,11 +356,14 @@ sub inputsToArgs {
 }
 
 
-# The `nix-eval-jobs` invocation for a jobset. Separate from running it
-# because the arguments describe the evaluation regardless of who performs
-# it or where.
+# The `nix-eval-jobs` invocation for a jobset, as the arguments of the
+# derivation that will run it. Nothing runs it here any more.
+#
+# No `--gc-roots-dir`: the evaluation runs in a build, and a path outside the
+# sandbox is not writable from within it. The roots are made afterwards
+# instead, by the run that reads the result -- see `rootEvaluatedDerivations`.
 sub evalJobsCmd {
-    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
     my @cmd;
 
@@ -386,7 +386,6 @@ sub evalJobsCmd {
                 inputsToArgs($inputInfo));
     }
 
-    push @cmd, ("--gc-roots-dir", $gcRootsDir) if defined $gcRootsDir;
     push @cmd, ("--max-jobs", 1);
     push @cmd, "--meta";
     push @cmd, "--constituents";
@@ -399,240 +398,344 @@ sub evalJobsCmd {
 }
 
 
-sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+# Nix source for a derivation that performs the evaluation, rather than
+# evaluating here. The arguments are identical either way -- `evalJobsCmd`
+# produces them -- so only where they run differs.
+#
+# Two things make this possible at all. The store paths those arguments
+# mention are pulled in with `builtins.storePath`, so the jobset's inputs
+# become real inputs of the derivation and appear in the sandbox; Hydra has
+# already materialized them, which is why evaluation can be described as a
+# derivation in the first place. And the build needs `recursive-nix`,
+# because evaluating instantiates derivations and a sandbox has a read-only
+# store view.
+#
+# The output is the JSONL `nix-eval-jobs` writes. That text names the
+# derivations it instantiated, so reference scanning makes them references
+# of the output: rooting the evaluation build roots them too, and nothing
+# needs `--gc-roots-dir`.
+# Where the evaluation build writes its jobs, inside the sandbox. What the
+# resulting stream is *called* lives in Hydra::Helper::Nix, because the web
+# interface has to find it there too.
 
-    print STDERR "($jobsetName) Evaluating...\n";
+sub nixString {
+    my ($s) = @_;
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\$\{/\\\${/g;
+    return '"' . $s . '"';
+}
 
-    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef,
-                          getGCRootsDir);
+# The Nix settings to hand the evaluation, as `NIX_CONFIG` contents.
+#
+# Read back out of this process's own Nix rather than guessed, so that the
+# evaluation sees what the evaluator sees -- which is what it saw when the
+# evaluator ran it directly. `nix-command` is force-enabled just to ask the
+# question; it ends up in the answer, which is harmless.
+sub evaluationNixConfig {
+    my ($out, $err);
+    IPC::Run::run([ "nix", "--extra-experimental-features", "nix-command",
+                    "config", "show", "experimental-features" ],
+                  \undef, \$out, \$err)
+        or die "cannot read the evaluator's experimental features:\n$err";
+    chomp $out;
+    return $out eq "" ? "" : "experimental-features = $out";
+}
 
-    if (defined $ENV{'HYDRA_DEBUG'}) {
-        sub escape {
-            my $s = $_;
-            $s =~ s/'/'\\''/g;
-            return "'" . $s . "'";
+
+sub evalDrvExpr {
+    my ($jobsetName, $storePaths, $cmd, $systemFeatures,
+        $storeDir, $storeUri, $nixConfig) = @_;
+
+    my $name = $jobsetName;
+    $name =~ s/[^a-zA-Z0-9._-]/-/g;
+
+    # `"$@"` rather than a quoted command line: the arguments stay separate
+    # Nix strings, so Nix's escaping is the only escaping involved.
+    #
+    # `HOME` is unset in a build, and Nix's own default of /homeless-shelter
+    # is not writable, so the evaluator cannot open its eval cache. Point it
+    # at the build directory, which is writable and discarded afterwards.
+    my $script = 'set -eu; export HOME="$PWD"; "$@" > "$out"';
+
+    my @argv = ("-c", $script, "hydra-eval", @$cmd);
+    my $args = join(" ", map { nixString($_) } @argv);
+    my $inputs = join(" ", map { "(builtins.storePath " . nixString($_) . ")" } @$storePaths);
+
+    my $expr = "derivation {\n";
+    $expr .= "  name = " . nixString("hydra-eval-" . $name) . ";\n";
+    $expr .= "  system = builtins.currentSystem;\n";
+    $expr .= "  builder = \"/bin/sh\";\n";
+    $expr .= "  args = [ $args ];\n";
+    # What evaluation needs from the machine is the ability to add paths to
+    # the store while it builds, since instantiating is what evaluating does.
+    # Under a sandbox that means `recursive-nix`; an unsandboxed build with a
+    # writable store already has it, and asking for the feature there only
+    # forces a sandbox that cannot be used.
+    $expr .= "  requiredSystemFeatures = [ " .
+        join(" ", map { nixString($_) } @$systemFeatures) . " ];\n"
+        if @$systemFeatures;
+    # Which store the evaluation instantiates into. A build gets no
+    # `NIX_STORE_DIR`, so a nested Nix falls back to the compile-time
+    # `/nix/store` -- and then rejects Hydra's own inputs as "not in the Nix
+    # store" whenever Hydra's store is relocated. The logical store dir is
+    # the same on every machine Hydra talks to (it has to be, or paths would
+    # not be portable between them), so naming it here is machine-independent
+    # despite looking like a local detail.
+    $expr .= "  NIX_STORE_DIR = " . nixString($storeDir) . ";\n";
+    # That alone is not always enough. A nested Nix with no `NIX_REMOTE`
+    # resolves `auto`, and an *unsandboxed* build can see the host's real
+    # daemon socket -- whose store dir then wins over the setting above. So
+    # when there is no `recursive-nix` to configure the build's Nix for us,
+    # the store has to be named outright. It must be the builder's store, so
+    # this is configuration rather than anything derivable here, and it is
+    # normally unset: in production `recursive-nix` does this job.
+    $expr .= "  NIX_REMOTE = " . nixString($storeUri) . ";\n"
+        if defined $storeUri && $storeUri ne "";
+    # Nix settings the evaluation needs, chiefly which experimental features
+    # are on: a flake jobset cannot be evaluated without `flakes`, and a
+    # content-addressed one without `ca-derivations`. Evaluation used to
+    # inherit these from the Hydra host's `nix.conf`; inside a build there is
+    # no such file, so they have to be carried in.
+    #
+    # Part of the derivation, and so of its hash, which is right -- the same
+    # inputs evaluated with different features are not the same evaluation.
+    $expr .= "  NIX_CONFIG = " . nixString($nixConfig) . ";\n"
+        if defined $nixConfig && $nixConfig ne "";
+    # Referenced so the inputs are inputs of this derivation, and so appear
+    # in the sandbox rather than merely being named by the arguments.
+    $expr .= "  jobsetInputs = [ $inputs ];\n";
+    $expr .= "}\n";
+    return $expr;
+}
+
+
+
+
+
+
+
+
+# The store path a path belongs to, or undef if it is not in this store.
+# `builtins.storePath` takes the path itself, not something inside it, and a
+# path from a different store (the evaluator binary, when Hydra's store is
+# not the ambient one) cannot be an input at all.
+sub storePathRoot {
+    my ($path) = @_;
+    my $storeDir = machineLocalStore()->storeDir;
+    return undef unless $path =~ m{^\Q$storeDir\E/([^/]+)};
+    return "$storeDir/$1";
+}
+
+
+# Every materialized store path the evaluation's arguments mention. These
+# become inputs of the evaluation derivation, so they are present in the
+# sandbox rather than merely named by an argument.
+sub inputStorePaths {
+    my ($inputInfo) = @_;
+    my $storeDir = machineLocalStore()->storeDir;
+    my @paths;
+    foreach my $input (sort keys %{$inputInfo}) {
+        foreach my $alt (@{$inputInfo->{$input}}) {
+            push @paths, printStorePath($storeDir, $alt->{storePath})
+                if defined $alt->{storePath};
+            push @paths, printStorePath($storeDir, $alt->{drvPath})
+                if defined $alt->{drvPath};
+            if (defined $alt->{jobs}) {
+                push @paths, printStorePath($storeDir, $alt->{jobs}->{$_})
+                    foreach keys %{$alt->{jobs}};
+            }
         }
-        my @escaped = map escape, @cmd;
-        print STDERR "evaluator: @escaped\n";
+    }
+    my %seen;
+    return grep { !$seen{$_}++ } grep { defined } map { storePathRoot($_) } @paths;
+}
+
+
+# Resolve a program to its absolute path, the way the shell would. Done here
+# rather than by shelling out so that a failure can say what was searched.
+sub findInPath {
+    my ($program) = @_;
+
+    # Scalar context deliberately: `which` returns every match in list
+    # context, and callers want the one that would actually run.
+    my $path = scalar which($program);
+    return $path if defined $path;
+    die "cannot find $program in PATH ($ENV{PATH})\n";
+}
+
+
+# The jobset that evaluation builds live in. They need a jobset but belong
+# to none in particular -- filing them under the jobset being evaluated would
+# list them among its jobs -- so they all share one, mirroring the ad-hoc
+# jobset the drv-daemon uses for builds with no evaluation.
+#
+# `enabled = 0` matters: the evaluator selects jobsets with `enabled != 0`,
+# so an enabled jobset here would be scheduled for evaluation itself, and
+# evaluating it would want to create an evaluation build inside itself.
+sub ensureEvalJobset {
+    my ($db) = @_;
+
+    $db->resultset('Users')->find_or_create(
+        { username => "hydra", fullname => "Hydra", emailaddress => 'hydra@localhost',
+          password => "" });
+
+    my $project = $db->resultset('Projects')->find_or_create(
+        { name => "hydra", displayname => "Hydra", owner => "hydra",
+          description => "Bookkeeping that Hydra does for itself",
+          enabled => 1, hidden => 1 });
+
+    return $project->jobsets->find_or_create(
+        { name => "evaluations", description => "Evaluations, run as builds",
+          nixexprinput => "", nixexprpath => "", emailoverride => "",
+          type => 0, enabled => 0, hidden => 1 });
+}
+
+
+# Schedule the evaluation rather than performing it: instantiate the
+# derivation that runs `nix-eval-jobs` and queue it like any other build.
+#
+# This deliberately does not wait. The queue runner is what dispatches
+# builds, and blocking here would hold an evaluator slot for as long as the
+# build sits in the queue -- and in the test harness, where the queue runner
+# only runs after the evaluator exits, it would never finish at all.
+#
+# The evaluation is finished elsewhere, when the build completes: see
+# `JobsetEvals.eval_build`, which is the only link from an evaluation to the
+# build that performed it.
+# The derivation that will perform this jobset's evaluation.
+#
+# Instantiating it is separate from queueing it because they are separate
+# concerns: this decides *what* the evaluation is -- which evaluator, which
+# inputs, which Nix settings -- and answers with a `.drv`, touching no
+# database. What to do with that derivation is the caller's business.
+sub instantiateEvaluationDerivation {
+    my ($project, $jobset, $inputInfo, $flakeRef) = @_;
+
+    my $jobsetName = $project->name . ":" . $jobset->name;
+
+    my @cmd = evalJobsCmd($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath,
+                          $flakeRef);
+    my @storePaths = inputStorePaths($inputInfo);
+
+    # A build does not inherit PATH, so the evaluator has to be named by its
+    # absolute path. Reference it too when it is in this store, so that it and
+    # its closure are in the sandbox rather than merely mentioned -- but only
+    # then: Hydra's store is not always the ambient one, and a path from
+    # another store is not a store path here.
+    my $evaluator = findInPath($cmd[0]);
+    $cmd[0] = $evaluator;
+    my $evaluatorRoot = storePathRoot($evaluator);
+    push @storePaths, $evaluatorRoot if defined $evaluatorRoot;
+
+    my @systemFeatures =
+        split ' ', ($config->{evaluation_build_system_features} // "recursive-nix");
+
+    my $expr = evalDrvExpr($jobsetName, \@storePaths, \@cmd,
+                           \@systemFeatures,
+                           machineLocalStore()->storeDir,
+                           $config->{evaluation_build_store_uri},
+                           evaluationNixConfig());
+
+    print STDERR "evaluation derivation:\n$expr" if defined $ENV{'HYDRA_DEBUG'};
+
+    my $exprFile = File::Temp->new(SUFFIX => ".nix");
+    print $exprFile $expr;
+    close $exprFile;
+
+    # stdout and stderr are kept apart: nix-instantiate prints warnings (the
+    # missing `--add-root`, for one), and folding those into the captured path
+    # corrupts it.
+    my ($drvPath, $instantiateErr);
+    IPC::Run::run([ "nix-instantiate", "$exprFile" ], \undef, \$drvPath, \$instantiateErr)
+        or die "instantiating the evaluation derivation failed:\n$instantiateErr";
+    chomp $drvPath;
+
+    return $drvPath;
+}
+
+
+sub scheduleEvaluationBuild {
+    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime,
+        $tmpId) = @_;
+
+    my $jobsetName = $project->name . ":" . $jobset->name;
+    print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
+
+    my $drvPath = instantiateEvaluationDerivation($project, $jobset, $inputInfo,
+                                                  $flakeRef);
+
+    my $evalJobset = ensureEvalJobset($db);
+    my $time = time();
+
+    my $build = $evalJobset->builds->create(
+        { timestamp => $time
+        , jobset_id => $evalJobset->id
+        , job => $jobsetName
+        , nixname => "hydra-eval"
+        , drvpath => $drvPath
+        , system => `nix-instantiate --eval -E builtins.currentSystem` =~ s/^"|"\n?$//gr
+        , priority => 100
+        , finished => 0
+        , iscurrent => 1
+        });
+
+    # The queue runner only ever *updates* a build's output rows -- it fills
+    # in the path once the build has produced one -- so the row has to exist
+    # first. For a job build `checkBuild` inserts it; this build has no job,
+    # so insert it here. The single `out` is the JSONL the evaluation
+    # produces, and reading it back is the whole point of the build.
+    $build->buildoutputs->create({ name => "out", path => undef });
+
+    # A tentative evaluation, pointing at the build that will fill it in. It
+    # exists from the start so that the evaluation is visible while it runs;
+    # evalTime and hasNewBuilds are placeholders until the build finishes.
+    my $ev = $jobset->jobsetevals->create(
+        { timestamp => $time
+        , checkouttime => $checkoutTime
+          # Placeholders. `completed` is left null to say so; the columns
+          # below are `not null` and have no honest value yet.
+        , evaltime => 0
+        , hasnewbuilds => 0
+        , hash => $argsHash
+        , eval_build => $build->id
+          # So the run that completes this evaluation can report against the
+          # same trace as the run that scheduled it.
+        , trace_id => $tmpId
+        , flake => $flakeRef
+        , nixexprinput => $jobset->nixexprinput
+        , nixexprpath => $jobset->nixexprpath
+        });
+
+    # The inputs are recorded here rather than when the evaluation finishes,
+    # because this is where they are known: the run that completes the
+    # evaluation is a different process, and re-fetching could see different
+    # revisions than the ones actually evaluated.
+    foreach my $name (keys %{$inputInfo}) {
+        for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
+            my $input = $inputInfo->{$name}->[$n];
+            $ev->jobsetevalinputs->create(
+                { name => $name
+                , altnr => $n
+                , type => $input->{type}
+                , uri => $input->{uri}
+                , revision => $input->{revision}
+                , shortrevlength => length($input->{shortRev})
+                , value => $input->{value}
+                , dependency => $input->{id}
+                , path => $input->{storePath} // "" # !!! temporary hack
+                , sha256hash => $input->{sha256hash}
+                });
+        }
     }
 
-    # Unset NIX_PATH for nix-eval-jobs to ensure reproducible evaluations
-    my %env = %ENV;
-    delete $env{'NIX_PATH'};
-
-    my $evalProc = IPC::Run::start \@cmd,
-            '>', IPC::Run::new_chunker, \my $out,
-            '2>', \my $err,
-            init => sub { %ENV = %env; };
-
-    return jobsIterFromLines(sub {
-        while (1) {
-            $evalProc->pump;
-            if (!defined $out && !defined $err) {
-                $evalProc->finish;
-                if ($?) {
-                    die "nix-eval-jobs returned " . ($? & 127 ? "signal $?" : "exit code " . ($? >> 8)) . "\n";
-                }
-                return undef;
-            }
-
-            if (defined $err) {
-                print STDERR "$err";
-                undef $err;
-            }
-
-            if (defined $out && $out ne '') {
-                my $line = $out;
-                undef $out;
-                return $line;
-            }
-        }
-    });
-}
-
-
-# Turn a source of JSON lines into the job iterator the rest of this script
-# consumes: call $nextLine for the next line of `nix-eval-jobs` output, or
-# undef when there are no more.
-#
-# Separate from the line source because parsing a job is the same work
-# wherever the line came from, and because keeping it in one place is what
-# stops two readers of the same format drifting apart.
-sub jobsIterFromLines {
-    my ($nextLine) = @_;
-
-    return sub {
-        while (1) {
-            my $out = $nextLine->();
-            return unless defined $out;
-            next if $out eq '';
-
-            my $job;
-            try {
-                $job = decode_json($out);
-            } catch {
-                warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
-            };
-            next unless defined $job;
-
-            # nix-eval-jobs speaks full paths. Strip the store directory
-            # here, where its output enters Hydra, so that everything
-            # downstream compares and keys on store paths -- notably the `ne`
-            # against a build's inflated drvpath, and the constituent
-            # lookups, which would otherwise never match.
-            my $storeDir = machineLocalStore()->storeDir;
-            $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
-                if defined $job->{drvPath};
-            $job->{constituents} = [
-                map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
-            ] if defined $job->{constituents};
-            return $job;
-        }
-    };
-}
-
-
-# Return the most recent evaluation of the given jobset (that
-# optionally had new builds), or undefined if no such evaluation
-# exists.
-sub getPrevJobsetEval {
-    my ($db, $jobset, $hasNewBuilds) = @_;
-    my ($prevEval) = $jobset->jobsetevals(
-        ($hasNewBuilds ? { hasnewbuilds => 1 } : { }),
-        { order_by => "id DESC", rows => 1 });
-    return $prevEval;
-}
-
-
-# Check whether to add the build described by $buildInfo.
-sub checkBuild {
-    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap) = @_;
-
-    my @outputNames = sort keys %{$buildInfo->{outputs}};
-    die unless scalar @outputNames;
-
-    # In various checks we can use an arbitrary output (the first)
-    # rather than all outputs, since if one output is the same, the
-    # others will be as well.
-    my $firstOutputName = $outputNames[0];
-    my $firstOutputPath = $buildInfo->{outputs}->{$firstOutputName};
-
-    my $jobName = $buildInfo->{attr} or die;
-    my $drvPath = $buildInfo->{drvPath} or die;
-
-    my $build;
-
-    $db->txn_do(sub {
-        # Don't add a build that has already been scheduled for this
-        # job, or has been built but is still a "current" build for
-        # this job.  Note that this means that if the sources of a job
-        # are changed from A to B and then reverted to A, three builds
-        # will be performed (though the last one will probably use the
-        # cached result from the first).  This ensures that the builds
-        # with the highest ID will always be the ones that we want in
-        # the channels.  FIXME: Checking the output paths doesn't take
-        # meta-attributes into account.  For instance, do we want a
-        # new build to be scheduled if the meta.maintainers field is
-        # changed?
-        if (defined $prevEval) {
-            my $pathOrDrvConstraint = defined $firstOutputPath
-                ? { path => $firstOutputPath }
-                : { drvPath => $drvPath };
-
-            my ($prevBuild) = $prevEval->builds->search(
-                # The "project" and "jobset" constraints are
-                # semantically unnecessary (because they're implied by
-                # the eval), but they give a factor 1000 speedup on
-                # the Nixpkgs jobset with PostgreSQL.
-                { jobset_id => $jobset->get_column('id'), job => $jobName,
-                  name => $firstOutputName, %$pathOrDrvConstraint },
-                { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
-            if (defined $prevBuild) {
-                # Same output path but a different drv: repoint and rebuild.
-                # Applied after the evaluation transaction (applyDrvPathRepoints)
-                # to avoid holding Builds row locks for the whole evaluation.
-                my $repoint = $prevBuild->drvpath ne $drvPath;
-                $buildMap->{$prevBuild->id} = { id => $prevBuild->id, jobName => $jobName, new => 0, drvPath => $drvPath, repoint => $repoint };
-
-                if ($prevBuild->finished && !$repoint) {
-                    $db->storage->dbh->do("notify cached_build_finished, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
-                } else {
-                    $db->storage->dbh->do("notify cached_build_queued, ?", undef, "${\$eval->id}\t${\$prevBuild->id}");
-                }
-
-                return;
-            }
-        }
-
-        # Prevent multiple builds with the same (job, outPath) from
-        # being added.
-        my $prev = $$jobOutPathMap{$jobName . "\t" . $firstOutputPath};
-        if (defined $prev) {
-            #print STDERR "    already scheduled as build ", $prev, "\n";
-            return;
-        }
-
-        my $time = time();
-
-        sub getMeta {
-            my ($s, $def) = @_;
-            return ($s || "") eq "" ? $def : $s;
-        }
-
-        sub getMetaStrings {
-            my ($v, $k, $acc) = @_;
-            my $t = ref $v;
-
-            if ($t eq 'HASH') {
-                push @$acc, $v->{$k} if exists $v->{$k};
-            } elsif ($t eq 'ARRAY') {
-                getMetaStrings($_, $k, $acc) foreach @$v;
-            } elsif (defined $v) {
-                push @$acc, $v;
-            }
-        }
-
-        sub getMetaConcatStrings {
-            my ($v, $k) = @_;
-
-            my @strings;
-            getMetaStrings($v, $k, \@strings);
-            return join(", ", @strings) || undef;
-        }
-
-        # Add the build to the database.
-        $build = $jobset->builds->create(
-            { timestamp => $time
-            , jobset_id => $jobset->id
-            , job => $jobName
-            , description => getMeta($buildInfo->{meta}->{description}, undef)
-            , license => getMetaConcatStrings($buildInfo->{meta}->{license}, "shortName")
-            , homepage => getMeta($buildInfo->{meta}->{homepage}, undef)
-            , maintainers => getMetaConcatStrings($buildInfo->{meta}->{maintainers}, "email")
-            , maxsilent => getMeta($buildInfo->{meta}->{maxSilent}, undef)
-            , timeout => getMeta($buildInfo->{meta}->{timeout}, undef)
-            , nixname => $buildInfo->{name}
-            , drvpath => $drvPath
-            , system => $buildInfo->{system}
-            , priority => getMeta($buildInfo->{meta}->{schedulingPriority}, 100)
-            , finished => 0
-            , iscurrent => 1
-            , ischannel => getMeta($buildInfo->{meta}->{isChannel}, 0)
-            });
-
-        # Output rows are inserted in bulk by the caller (see populate below);
-        # row-at-a-time creates dominate eval insertion time on large jobsets.
-        $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath
-                                  , outputs => [ map { { build => $build->id, name => $_, path => $buildInfo->{outputs}->{$_} } } @outputNames ] };
-        $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
-
-        $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
-        print STDERR "added build ${\$build->id} (${\$jobset->get_column('project')}:${\$jobset->name}:$jobName)\n";
-    });
-
+    print STDERR "($jobsetName) Evaluation build " . $build->id . " scheduled\n";
     return $build;
-};
+}
+
+
+
+
 
 
 sub fetchInputs {
@@ -646,84 +749,11 @@ sub fetchInputs {
 }
 
 
-sub setJobsetError {
-    my ($jobset, $errorMsg, $errorTime) = @_;
-    my $prevError = $jobset->errormsg;
-
-    eval {
-        $db->txn_do(sub {
-            $jobset->update({ errormsg => $errorMsg, errortime => $errorTime, fetcherrormsg => undef });
-        });
-    };
-    if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
-        sendJobsetErrorNotification($config, $jobset, $errorMsg);
-    }
-}
 
 
 
 
-# Point the jobset's iscurrent flags at the given evaluation, in id-ordered
-# batches outside the evaluation transaction: updating 100k+ Builds rows
-# inside it holds their locks for minutes and deadlocks against the queue
-# runner finishing builds.
-sub syncCurrentBuilds {
-    my ($jobset, $evalId) = @_;
-    my $dbh = $db->storage->dbh;
-    my $batch = 10000;
 
-    my $run = sub {
-        my ($sql, @bind) = @_;
-        while (1) {
-            my $n;
-            for (my $attempt = 1; ; $attempt++) {
-                eval { $n = $dbh->do($sql, undef, @bind); };
-                last unless $@;
-                die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-                sleep 1;
-            }
-            last if $n == 0;
-        }
-    };
-
-    $run->(q{
-        update builds set iscurrent = 1 where id in (
-          select b.id from builds b join jobsetevalmembers m on m.build = b.id
-          where m.eval = ? and b.iscurrent = 0 order by b.id limit ?)
-    }, $evalId, $batch);
-
-    $run->(q{
-        update builds set iscurrent = 0 where id in (
-          select b.id from builds b
-          where b.jobset_id = ? and b.iscurrent = 1
-            and not exists (select 1 from jobsetevalmembers m where m.eval = ? and m.build = b.id)
-          order by b.id limit ?)
-    }, $jobset->get_column('id'), $evalId, $batch);
-}
-
-# Repoint existing builds at their new derivation in a short id-ordered
-# transaction outside the evaluation transaction, so it can't hold Builds row
-# locks for the whole evaluation and deadlock the queue runner.
-sub applyDrvPathRepoints {
-    my ($buildMap) = @_;
-    my @ids = sort { $a <=> $b } grep { $buildMap->{$_}->{repoint} } keys %$buildMap;
-    return unless @ids;
-
-    my $builds = $db->resultset('Builds');
-    for (my $attempt = 1; ; $attempt++) {
-        eval {
-            $db->txn_do(sub {
-                for my $id (@ids) {
-                    $builds->search({ id => $id })->update(
-                        { drvpath => $buildMap->{$id}->{drvPath}, finished => 0, buildstatus => undef });
-                }
-            });
-        };
-        last unless $@;
-        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-        sleep 1;
-    }
-}
 
 sub checkJobsetWrapped {
     my ($jobset, $tmpId) = @_;
@@ -835,199 +865,19 @@ sub checkJobsetWrapped {
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my $evalStop;
-    my $jobsIter = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
-
-    if ($dryRun) {
-        while (defined(my $job = $jobsIter->())) {
-            my $name = $job->{attr};
-            if (defined $job->{drvPath}) {
-                print STDERR "good job $name: "
-                    . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
-            } else {
-                print STDERR "failed job $name: $job->{error}\n";
-            }
-        }
-        return;
-    }
-
-    # Store the error messages for jobs that failed to evaluate.
-    my $evaluationErrorTime = time;
-    my $evaluationErrorMsg = "";
-    my $evaluationErrorRecord = $db->resultset('EvaluationErrors')->create(
-        { errormsg => $evaluationErrorMsg
-        , errortime => $evaluationErrorTime
-        }
-    );
-
-    my $jobOutPathMap = {};
-    my $jobsetChanged = 0;
-    my %buildMap;
-
-    my @jobs;
-    push @jobs, $_ while defined($_ = $jobsIter->());
-
-    my $currentEval;
-    my $evalTxn = sub {
-        my $prevEval = getPrevJobsetEval($db, $jobset, 1);
-        $currentEval = undef;
-
-        my $ev = $jobset->jobsetevals->create(
-            { hash => $argsHash
-            , evaluationerror => $evaluationErrorRecord
-            , timestamp => time
-            , checkouttime => abs(int($checkoutStop - $checkoutStart))
-            , evaltime => 0
-            , hasnewbuilds => 0
-            , nrbuilds => 0
-            , flake => $flakeRef
-            , nixexprinput => $jobset->nixexprinput
-            , nixexprpath => $jobset->nixexprpath
-            });
-
-        my @jobsWithConstituents;
-
-        foreach my $job (@jobs) {
-            if ($jobsetsJobset) {
-                die "The .jobsets jobset must only have a single job named 'jobsets'"
-                    unless $job->{attr} eq "jobsets";
-            }
-
-            $evaluationErrorMsg .=
-                ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
-                ":\n" . $job->{error} . "\n\n" if defined $job->{error};
-
-            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap)
-                unless defined $job->{error};
-
-            if (defined $job->{constituents}) {
-                push @jobsWithConstituents, $job;
-            }
-        }
-
-        # Bulk-insert the outputs of all new builds in one statement.
-        # `populate` in void context goes through insert_bulk, which bypasses
-        # inflation and deflation, so these paths stay as nix-eval-jobs gave
-        # them: full path strings, or undef for a not-yet-built CA output.
-        my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
-        $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
-
-        # Have any builds been added or removed since last time?
-        $jobsetChanged =
-            (scalar(grep { $_->{new} } values(%buildMap)) > 0)
-            || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
-
-        $ev->update({
-            hasnewbuilds => $jobsetChanged ? 1 : 0,
-            nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
-        });
-
-        $db->storage->dbh->do("notify eval_added, ?", undef,
-                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
-
-        if ($jobsetChanged) {
-            # Create JobsetEvalMembers mappings in bulk.
-            $db->resultset('JobsetEvalMembers')->populate(
-                [ map { { eval => $ev->id, build => $_, isnew => $buildMap{$_}->{new} } } keys %buildMap ]);
-
-            # Create AggregateConstituents mappings.  Since there can
-            # be jobs that alias each other, if there are multiple
-            # builds for the same derivation, pick the one with the
-            # shortest name.
-            my %drvPathToId;
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                my $y = $drvPathToId{$x->{drvPath}};
-                if (defined $y) {
-                    next if length $x->{jobName} > length $y->{jobName};
-                    next if length $x->{jobName} == length $y->{jobName} && $x->{jobName} ge $y->{jobName};
-                }
-                $drvPathToId{$x->{drvPath}} = $x;
-            }
-
-            foreach my $job (values @jobsWithConstituents) {
-                next unless defined $job->{constituents};
-                if (defined $job->{error}) {
-                    die "aggregate job ‘$job->{attr}’ failed with the error: $job->{error}\n";
-                }
-
-                my $x = $drvPathToId{$job->{drvPath}} or
-                    die "aggregate job ‘$job->{attr}’ has no corresponding build record.\n";
-                foreach my $drvPath (@{$job->{constituents}}) {
-                    my $constituent = $drvPathToId{$drvPath};
-                    if (defined $constituent) {
-                        $db->resultset('AggregateConstituents')->update_or_create({aggregate => $x->{id}, constituent => $constituent->{id}});
-                    } else {
-                        warn "aggregate job ‘$job->{attr}’ has a constituent ‘$drvPath’ that doesn't correspond to a Hydra build\n";
-                    }
-                }
-            }
-
-            foreach my $name (keys %{$inputInfo}) {
-                for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
-                    my $input = $inputInfo->{$name}->[$n];
-                    $ev->jobsetevalinputs->create(
-                        { name => $name
-                        , altnr => $n
-                        , type => $input->{type}
-                        , uri => $input->{uri}
-                        , revision => $input->{revision}
-                        , shortrevlength => length($input->{shortRev})
-                        , value => $input->{value}
-                        , dependency => $input->{id}
-                        , path => $input->{storePath} // "" # !!! temporary hack
-                        , sha256hash => $input->{sha256hash}
-                        });
-                }
-            }
-
-            print STDERR "  created new eval ", $ev->id, "\n";
-            $currentEval = $ev->id;
-
-            # Wake up hydra-queue-runner.
-            my $lowestId;
-            foreach my $id (keys %buildMap) {
-                my $x = $buildMap{$id};
-                $lowestId = $id if $x->{new} && (!defined $lowestId || $id < $lowestId);
-            }
-            $notifyAdded->execute($lowestId) if defined $lowestId;
-
-        } else {
-            print STDERR "  created cached eval ", $ev->id, "\n";
-            $currentEval = $prevEval->id if defined $prevEval;
-        }
-
-        # If this is a one-shot jobset, disable it now.
-        $jobset->update({ enabled => 0 }) if $jobset->enabled == 2;
-
-        $jobset->update({ lastcheckedtime => time, forceeval => undef });
-
-        $evaluationErrorRecord->update({ errormsg => $evaluationErrorMsg });
-        setJobsetError($jobset, $evaluationErrorMsg, $evaluationErrorTime);
-
-        $evalStop = clock_gettime(CLOCK_MONOTONIC);
-        $ev->update({ evaltime => abs(int($evalStop - $evalStart)) });
-    };
-
-    # Retry rather than lose the evaluation if Postgres aborts the transaction
-    # to break a lock cycle with the queue runner.
-    for (my $attempt = 1; ; $attempt++) {
-        eval { $db->txn_do($evalTxn); };
-        last unless $@;
-        die $@ if $attempt >= 10 || $@ !~ /deadlock detected|could not serialize access/i;
-        print STDERR "evaluation transaction aborted (attempt $attempt), retrying: $@";
-        %buildMap = ();
-        $jobOutPathMap = {};
-        $jobsetChanged = 0;
-        sleep $attempt;
-    }
-
-    applyDrvPathRepoints(\%buildMap);
-    syncCurrentBuilds($jobset, $currentEval) if defined $currentEval;
-
-    Net::Statsd::timing("hydra.evaluator.eval_time", int(($evalStop - $evalStart) * 1000));
-    Net::Statsd::increment("hydra.evaluator.evals");
-    Net::Statsd::increment("hydra.evaluator.cached_evals") unless $jobsetChanged;
+    # Evaluation happens in a build, so that it is scheduled and distributed
+    # like any other work. Scheduling it ends this run: the evaluation is
+    # finished when that build completes, not here.
+    $db->txn_do(sub {
+        scheduleEvaluationBuild($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash,
+                                abs(int($checkoutStop - $checkoutStart)), $tmpId);
+        $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+    });
+    return;
 }
+
+
+
 
 
 sub checkJobset {
@@ -1050,20 +900,16 @@ sub checkJobset {
     my $stopTime = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
-    my $failed = 0;
-    if ($checkError) {
-        print STDERR $checkError;
-        my $eventTime = time;
-        $db->txn_do(sub {
-            $jobset->update({lastcheckedtime => $eventTime});
-            setJobsetError($jobset, $checkError, $eventTime);
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
-        }) if !$dryRun;
-        $failed = 1;
-    }
-
-    return $failed;
+    return recordEvaluationFailure($db, $config, $jobset, $checkError, $tmpId, $dryRun);
 }
+
+
+
+
+
+
+
+
 
 
 die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;

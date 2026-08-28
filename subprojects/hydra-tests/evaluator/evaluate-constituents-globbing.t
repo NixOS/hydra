@@ -12,9 +12,7 @@ subtest "general glob testing" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
-    );
+    my ($res, $stdout, $stderr) = captureEvaluation($ctx, $jobsetCtx);
     is($res, 0, "hydra-eval-jobset exits zero");
 
     my $builds = {};
@@ -47,9 +45,7 @@ subtest "* selects all except current aggregate" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
-    );
+    my ($res, $stdout, $stderr) = captureEvaluation($ctx, $jobsetCtx);
 
     subtest "no eval errors" => sub {
         ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
@@ -89,9 +85,7 @@ subtest "trivial cycle check" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
-    );
+    my ($res, $stdout, $stderr) = captureEvaluation($ctx, $jobsetCtx);
 
     ok(
         $stderr =~ "Found dependency cycle between jobs 'indirect_aggregate' and 'ok_aggregate'",
@@ -116,9 +110,7 @@ subtest "cycle check with globbing" => sub {
     );
     my $jobset = $jobsetCtx->{"jobset"};
 
-    my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
-    );
+    my ($res, $stdout, $stderr) = captureEvaluation($ctx, $jobsetCtx);
 
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
 
