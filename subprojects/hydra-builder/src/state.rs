@@ -21,8 +21,8 @@ use daemon_client_utils::DaemonStoreReader;
 use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
-use hydra_proto::ProtoStorePath;
 use hydra_proto::NamedStreamChunk;
+use hydra_proto::ProtoStorePath;
 use hydra_proto::{
     AbortMessage, BuildMessage, BuildResultInfo, BuildResultState, JoinMessage, OutputInfo,
     PingMessage, StepStatus, StepUpdate,

@@ -45,7 +45,6 @@ fn requested_streams(drv: &hydra_proto::nix::store::derivation::v1::Basic) -> Ve
         .collect()
 }
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum MachineError {
     #[error("{0}")]
