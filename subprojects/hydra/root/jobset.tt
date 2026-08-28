@@ -96,10 +96,15 @@
           [% END %]
         </td>
       </tr>
-      [% IF jobset.starttime %]
+      [%# Not `jobset.starttime`: that is set while the run which *schedules*
+          the evaluation is alive, which is a moment, whereas the evaluation
+          itself is a build and runs for as long as it runs. %]
+      [% IF runningEval %]
       <tr>
         <th>Evaluation running since:</th>
-        <td>[% INCLUDE renderRelativeDate timestamp = jobset.starttime %]</td>
+        <td>[% INCLUDE renderRelativeDate timestamp = runningEval.timestamp %]
+          (<a [% HTML.attributes(href => c.uri_for('/build' runningEval.eval_build.id)) %]>build [%
+          HTML.escape(runningEval.eval_build.id) %]</a>)</td>
       </tr>
       [% ELSIF jobset.triggertime %]
       <tr>
