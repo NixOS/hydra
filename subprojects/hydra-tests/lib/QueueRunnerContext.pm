@@ -77,7 +77,10 @@ sub start_queue_runner {
         my $db_url = $ctx->{central}{hydra_database_url};
         open(my $fh, '>', $config_file) or die "Cannot write $config_file: $!\n";
         print $fh "dbUrl = \"$db_url\"\n";
-        print $fh "hydraDataDir = \"$config_dir/data\"\n";
+        # The same directory Perl means by HYDRA_DATA, so that both halves of
+        # Hydra agree on where build logs are, as they do in a real
+        # deployment.
+        print $fh "hydraDataDir = \"$ctx->{central}{hydra_data}\"\n";
         print $fh "remoteStoreAddr = [\"$dest_store_uri\"]\n" if $dest_store_uri ne "";
         print $fh "useSubstitutes = true\n" if $use_substitutes eq "1";
         close($fh);
