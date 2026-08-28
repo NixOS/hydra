@@ -848,7 +848,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -1233,12 +1233,15 @@ sub checkJobsetWrapped {
 
 # Finish an evaluation from the jobs its evaluation build produced.
 #
+# Takes no plugins, and needs none: plugins are input types, and the inputs
+# were fetched by the run that scheduled this evaluation. Everything from
+# here is the jobs themselves.
+#
 # This runs in a different process from the one that scheduled the build,
 # so everything it needs is passed in rather than left in scope: the jobs
 # iterator, and the context the scheduling run recorded.
 sub finishEvaluation {
-    my ($db, $plugins, $project, $jobset, $evalId, $jobsIter, $evalSeconds,
-        $tmpId) = @_;
+    my ($db, $project, $jobset, $evalId, $jobsIter, $evalSeconds, $tmpId) = @_;
 
     # Recomputed rather than threaded through: it is a property of the
     # project and jobset, both of which are already here.
@@ -1289,7 +1292,7 @@ sub finishEvaluation {
                 ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
                 ":\n" . $job->{error} . "\n\n" if defined $job->{error};
 
-            checkBuild($db, $jobset, $ev, undef, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins)
+            checkBuild($db, $jobset, $ev, undef, $job, \%buildMap, $prevEval, $jobOutPathMap)
                 unless defined $job->{error};
 
             if (defined $job->{constituents}) {
@@ -1564,7 +1567,7 @@ sub finishScheduledEvaluation {
     # not exist -- and evaluating now happens over these two runs rather than
     # one, so this run needs the same failure handling the scheduling run has.
     eval {
-        finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
+        finishEvaluation($db, $project, $jobset, $ev->id, $jobsIter,
                          $evalSeconds, $tmpId);
     };
     return recordEvaluationFailure($jobset, $@, $tmpId);
