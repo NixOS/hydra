@@ -42,6 +42,15 @@ FIFOs, sockets and devices from the read-only-mount write check in
 write to the filesystem. A socket is the better choice if a build might
 open the stream more than once.
 
+Verified against stock Nix: a derivation built with
+
+    --option extra-sandbox-paths "/hydra-stream=$somewhere/stream"
+
+can `echo ... > /hydra-stream` and a reader outside the sandbox receives
+the lines. `extra-sandbox-paths` is accepted from a trusted user on the
+command line, unlike `system-features`, which the daemon reads only for
+itself.
+
 Queue runner: persists each stream the way it already persists the log,
 keyed by name. It does not parse them and gains no eval vocabulary; it
 also inherits whatever logs already do about retention, compression and
