@@ -24,11 +24,18 @@ These components all share a single Nix store and PostgreSQL database on the mas
     - reads build metadata from PostgreSQL and tails log files from the coordinator's store
     - listens for PostgreSQL build-completion notifications and forwards events to clients
 - **`hydra-evaluator`** (Rust)
-    - periodically evaluates jobsets by invoking the Nix evaluator
-    - writes `.drv` files into the coordinator's Nix store
-    - adds new builds to the queue when evaluation results change
+    - decides *when* a jobset is due to be evaluated, and schedules it
+    - polls for evaluation builds that have finished, so their results are read back
+    - does not evaluate anything itself
 - **`hydra-eval-jobset`** (Perl)
-    - called by the evaluator to orchestrate fetching inputs and running the Nix evaluation
+    - called by the evaluator, in two separate runs per evaluation
+    - scheduling run: fetches the jobset's inputs, hashes them, instantiates a
+      derivation that will run `nix-eval-jobs`, and queues it as an ordinary
+      build in a hidden `hydra:evaluations` jobset
+    - completing run (`--finish-evaluation`): reads the jobs out of that
+      build's output and turns them into builds of the evaluated jobset
+    - it never runs `nix-eval-jobs` itself: evaluation happens inside the
+      build, so it is sandboxed, distributed and retried like any other work
 - **`hydra-queue-runner`** (Rust)
     - reads `.drv` files from the coordinator's Nix store
     - schedules build steps across builders

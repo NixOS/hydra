@@ -288,14 +288,6 @@ sub getMainOutput {
 }
 
 
-sub getEvalInputs {
-    my ($c, $eval) = @_;
-    my @inputs = $eval->jobsetevalinputs->search(
-        { -or => [ -and => [ uri => { '!=' => undef }, revision => { '!=' => undef }], dependency => { '!=' => undef }], altNr => 0 },
-        { order_by => "name" });
-}
-
-
 sub getEvalInfo {
     my ($cache, $eval) = @_;
     my $res = $cache->{$eval->id}; return $res if defined $res;

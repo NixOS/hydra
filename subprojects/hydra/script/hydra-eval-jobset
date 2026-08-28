@@ -360,15 +360,14 @@ sub inputsToArgs {
 }
 
 
-# The `nix-eval-jobs` invocation for a jobset. Separate from running it
-# because the same arguments describe the evaluation wherever it happens:
-# here, or inside the derivation that an evaluation build realises.
-# $gcRootsDir is undef when the evaluation runs inside a derivation: a path
-# outside the sandbox is not writable from within it. The roots are made
-# afterwards instead, by the run that reads the result -- see
-# `rootEvaluatedDerivation`.
+# The `nix-eval-jobs` invocation for a jobset, as the arguments of the
+# derivation that will run it. Nothing runs it here any more.
+#
+# No `--gc-roots-dir`: the evaluation runs in a build, and a path outside the
+# sandbox is not writable from within it. The roots are made afterwards
+# instead, by the run that reads the result -- see `rootEvaluatedDerivations`.
 sub evalJobsCmd {
-    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
     my @cmd;
 
@@ -391,7 +390,6 @@ sub evalJobsCmd {
                 inputsToArgs($inputInfo));
     }
 
-    push @cmd, ("--gc-roots-dir", $gcRootsDir) if defined $gcRootsDir;
     push @cmd, ("--max-jobs", 1);
     push @cmd, "--meta";
     push @cmd, "--constituents";
@@ -539,67 +537,12 @@ sub evalDrvExpr {
 }
 
 
-sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
-
-    print STDERR "($jobsetName) Evaluating...\n";
-
-    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef,
-                          getGCRootsDir);
-
-    if (defined $ENV{'HYDRA_DEBUG'}) {
-        sub escape {
-            my $s = $_;
-            $s =~ s/'/'\\''/g;
-            return "'" . $s . "'";
-        }
-        my @escaped = map escape, @cmd;
-        print STDERR "evaluator: @escaped\n";
-    }
-
-    # Unset NIX_PATH for nix-eval-jobs to ensure reproducible evaluations
-    my %env = %ENV;
-    delete $env{'NIX_PATH'};
-
-    my $evalProc = IPC::Run::start \@cmd,
-            '>', IPC::Run::new_chunker, \my $out,
-            '2>', \my $err,
-            init => sub { %ENV = %env; };
-
-    return jobsIterFromLines(sub {
-        while (1) {
-            $evalProc->pump;
-            if (!defined $out && !defined $err) {
-                $evalProc->finish;
-                if ($?) {
-                    die "nix-eval-jobs returned " . ($? & 127 ? "signal $?" : "exit code " . ($? >> 8)) . "\n";
-                }
-                return undef;
-            }
-
-            if (defined $err) {
-                print STDERR "$err";
-                undef $err;
-            }
-
-            if (defined $out && $out ne '') {
-                my $line = $out;
-                undef $out;
-                return $line;
-            }
-        }
-    });
-}
-
-
 # Turn a source of JSON lines into the job iterator that the rest of this
 # script consumes: call $nextLine for the next line of `nix-eval-jobs`
 # output, or undef when there are no more.
 #
-# The line source is separate from the parsing because there is more than one
-# way to obtain those lines. Running `nix-eval-jobs` here is one; reading what
-# an evaluation build produced is another, and it must yield exactly the same
-# jobs, so the parsing cannot be duplicated.
+# The line source is separate from the parsing so that reading a finished
+# build's output and tailing one that is still running stay the same parse.
 sub jobsIterFromLines {
     my ($nextLine) = @_;
 
@@ -730,7 +673,7 @@ sub scheduleEvaluationBuild {
     print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
 
     my @cmd = evalJobsCmd($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath,
-                          $flakeRef, undef);
+                          $flakeRef);
     my @storePaths = inputStorePaths($inputInfo);
 
     # A build does not inherit PATH, so the evaluator has to be named by its
@@ -1044,16 +987,6 @@ sub sendJobsetErrorNotification() {
 }
 
 
-sub permute {
-    my @list = @_;
-    for (my $n = scalar @list - 1; $n > 0; $n--) {
-        my $k = int(rand($n + 1)); # 0 <= $k <= $n
-        @list[$n, $k] = @list[$k, $n];
-    }
-    return @list;
-}
-
-
 # Point the jobset's iscurrent flags at the given evaluation, in id-ordered
 # batches outside the evaluation transaction: updating 100k+ Builds rows
 # inside it holds their locks for minutes and deadlocks against the queue
@@ -1245,24 +1178,11 @@ sub checkJobsetWrapped {
 # iterator, and the context the scheduling run recorded.
 sub finishEvaluation {
     my ($db, $plugins, $project, $jobset, $evalId, $jobsIter, $evalSeconds,
-        $tmpId, $dryRun) = @_;
+        $tmpId) = @_;
 
     # Recomputed rather than threaded through: it is a property of the
     # project and jobset, both of which are already here.
     my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
-
-    if ($dryRun) {
-        while (defined(my $job = $jobsIter->())) {
-            my $name = $job->{attr};
-            if (defined $job->{drvPath}) {
-                print STDERR "good job $name: "
-                    . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
-            } else {
-                print STDERR "failed job $name: $job->{error}\n";
-            }
-        }
-        return;
-    }
 
     # Store the error messages for jobs that failed to evaluate.
     my $evaluationErrorTime = time;
@@ -1595,7 +1515,7 @@ sub finishScheduledEvaluation {
     # one, so this run needs the same failure handling the scheduling run has.
     eval {
         finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
-                         $evalSeconds, $tmpId, 0);
+                         $evalSeconds, $tmpId);
     };
     return recordEvaluationFailure($jobset, $@, $tmpId);
 }
