@@ -471,7 +471,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -893,7 +893,7 @@ sub checkJobsetWrapped {
                 ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
                 ":\n" . $job->{error} . "\n\n" if defined $job->{error};
 
-            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins)
+            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap)
                 unless defined $job->{error};
 
             if (defined $job->{constituents}) {
