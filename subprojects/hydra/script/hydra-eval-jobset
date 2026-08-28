@@ -653,7 +653,7 @@ sub ensureEvalJobset {
 # `JobsetEvals.eval_build`, which is the only link from an evaluation to the
 # build that performed it.
 sub scheduleEvaluationBuild {
-    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash) = @_;
+    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime) = @_;
 
     my $jobsetName = $project->name . ":" . $jobset->name;
     print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
@@ -708,15 +708,39 @@ sub scheduleEvaluationBuild {
     # A tentative evaluation, pointing at the build that will fill it in. It
     # exists from the start so that the evaluation is visible while it runs;
     # evalTime and hasNewBuilds are placeholders until the build finishes.
-    $jobset->jobsetevals->create(
+    my $ev = $jobset->jobsetevals->create(
         { timestamp => $time
-        , checkouttime => 0
+        , checkouttime => $checkoutTime
         , evaltime => 0
         , hasnewbuilds => 0
         , hash => $argsHash
         , eval_build => $build->id
         , flake => $flakeRef
+        , nixexprinput => $jobset->nixexprinput
+        , nixexprpath => $jobset->nixexprpath
         });
+
+    # The inputs are recorded here rather than when the evaluation finishes,
+    # because this is where they are known: the run that completes the
+    # evaluation is a different process, and re-fetching could see different
+    # revisions than the ones actually evaluated.
+    foreach my $name (keys %{$inputInfo}) {
+        for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
+            my $input = $inputInfo->{$name}->[$n];
+            $ev->jobsetevalinputs->create(
+                { name => $name
+                , altnr => $n
+                , type => $input->{type}
+                , uri => $input->{uri}
+                , revision => $input->{revision}
+                , shortrevlength => length($input->{shortRev})
+                , value => $input->{value}
+                , dependency => $input->{id}
+                , path => $input->{storePath} // "" # !!! temporary hack
+                , sha256hash => $input->{sha256hash}
+                });
+        }
+    }
 
     print STDERR "($jobsetName) Evaluation build " . $build->id . " scheduled\n";
     return $build;
@@ -1112,7 +1136,8 @@ sub checkJobsetWrapped {
     # like any other work. Scheduling it ends this run: the evaluation is
     # finished when that build completes, not here.
     $db->txn_do(sub {
-        scheduleEvaluationBuild($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash);
+        scheduleEvaluationBuild($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash,
+                                abs(int($checkoutStop - $checkoutStart)));
         $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
     });
     return;
@@ -1125,8 +1150,8 @@ sub checkJobsetWrapped {
 # so everything it needs is passed in rather than left in scope: the jobs
 # iterator, and the context the scheduling run recorded.
 sub finishEvaluation {
-    my ($db, $plugins, $project, $jobset, $inputInfo, $argsHash, $flakeRef,
-        $jobsIter, $checkoutStart, $checkoutStop, $evalStart, $tmpId, $dryRun) = @_;
+    my ($db, $plugins, $project, $jobset, $evalId, $jobsIter, $evalStart,
+        $tmpId, $dryRun) = @_;
 
     my $evalStop;
 
@@ -1168,15 +1193,14 @@ sub finishEvaluation {
         my $prevEval = getPrevJobsetEval($db, $jobset, 1);
         $currentEval = undef;
 
-        my $ev = $jobset->jobsetevals->create(
-            { hash => $argsHash
-            , evaluationerror => $evaluationErrorRecord
-            , timestamp => time
-            , checkouttime => abs(int($checkoutStop - $checkoutStart))
-            , evaltime => 0
-            , hasnewbuilds => 0
+        # The evaluation already exists: scheduling the evaluation build
+        # created it, so that it is visible while it runs. Fill it in rather
+        # than making a second one.
+        my $ev = $db->resultset('JobsetEvals')->find($evalId)
+            or die "evaluation $evalId no longer exists\n";
+        $ev->update(
+            { evaluationerror => $evaluationErrorRecord
             , nrbuilds => 0
-            , flake => $flakeRef
             , nixexprinput => $jobset->nixexprinput
             , nixexprpath => $jobset->nixexprpath
             });
@@ -1193,7 +1217,7 @@ sub finishEvaluation {
                 ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
                 ":\n" . $job->{error} . "\n\n" if defined $job->{error};
 
-            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins)
+            checkBuild($db, $jobset, $ev, undef, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins)
                 unless defined $job->{error};
 
             if (defined $job->{constituents}) {
@@ -1256,24 +1280,6 @@ sub finishEvaluation {
                     } else {
                         warn "aggregate job ‘$job->{attr}’ has a constituent ‘$drvPath’ that doesn't correspond to a Hydra build\n";
                     }
-                }
-            }
-
-            foreach my $name (keys %{$inputInfo}) {
-                for (my $n = 0; $n < scalar(@{$inputInfo->{$name}}); $n++) {
-                    my $input = $inputInfo->{$name}->[$n];
-                    $ev->jobsetevalinputs->create(
-                        { name => $name
-                        , altnr => $n
-                        , type => $input->{type}
-                        , uri => $input->{uri}
-                        , revision => $input->{revision}
-                        , shortrevlength => length($input->{shortRev})
-                        , value => $input->{value}
-                        , dependency => $input->{id}
-                        , path => $input->{storePath} // "" # !!! temporary hack
-                        , sha256hash => $input->{sha256hash}
-                        });
                 }
             }
 
