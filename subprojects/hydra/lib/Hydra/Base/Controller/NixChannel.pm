@@ -6,12 +6,15 @@ use base 'Hydra::Base::Controller::REST';
 use List::SomeUtils qw(any);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::StorePath;
 
 
 sub getChannelData {
     my ($c, $checkValidity) = @_;
 
     requireLocalStore($c);
+
+    my $storeDir = machineLocalStore()->storeDir;
 
     my @storePaths = ();
     $c->stash->{nixPkgs} = [];
@@ -28,15 +31,21 @@ sub getChannelData {
 
         my $outputs = {};
         foreach my $output (@outputs) {
-            my $outPath = $output->get_column("outpath");
-            next if $checkValidity && !$MACHINE_LOCAL_STORE->isValidPath($outPath);
-            $outputs->{$output->get_column("outname")} = $outPath;
+            # `get_column` reads the column raw, bypassing its inflator, so
+            # this is still a full path.
+            my $outPath = parseStorePath($storeDir, $output->get_column("outpath"));
+            next if $checkValidity && !machineLocalStore()->isValidPath($outPath);
+            # The `outputs` map is rendered into a Nix expression by the
+            # NixExprs view, which wants full paths.
+            $outputs->{$output->get_column("outname")} = printStorePath($storeDir, $outPath);
             push @storePaths, $outPath;
             # Put the system type in the manifest (for top-level
             # paths) as a hint to the binary patch generator.  (It
             # shouldn't try to generate patches between builds for
             # different systems.)  It would be nice if Nix stored this
             # info for every path but it doesn't.
+            # Keyed by the bare store path, which is what a store path
+            # stringifies to; the manifest view looks it up the same way.
             $c->stash->{systemForPath}->{$outPath} = $build->system;
         }
 

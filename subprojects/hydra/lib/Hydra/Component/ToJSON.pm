@@ -18,6 +18,11 @@ sub TO_JSON {
 
     my %json = ();
 
+    # `get_column`, not the accessor, and deliberately so: it gives the raw
+    # database value, bypassing inflation. That is what keeps store-path
+    # columns in this API spelled as full paths, which is what it has always
+    # served. Reaching for the accessor here would quietly start emitting
+    # bare store paths instead.
     foreach my $column (@{$hint->{columns}}) {
         $json{$column} = $self->get_column($column);
     }

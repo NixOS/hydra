@@ -9,6 +9,8 @@ let
   user = "hydra-queue-builder";
 
   format = pkgs.formats.toml { };
+
+  otel = import ./otel.nix { inherit lib; };
 in
 {
   options = {
@@ -149,9 +151,18 @@ in
         );
       };
 
+      otel = otel.mkOtelOption {
+        component = "the builder";
+        binary = "hydra-builder";
+      };
+
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ./. { };
+        # `withOtel` is a knob on the rust workspace, not on this crate: cargo
+        # resolves features once for the whole workspace build.
+        default =
+          (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-builder;
+        defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-builder";
       };
     };
   };
@@ -175,7 +186,8 @@ in
         # $HOME in order to use a temporary cache dir. bizarre failures will occur
         # otherwise
         HOME = "/run/hydra-queue-builder";
-      };
+      }
+      // otel.otelEnv cfg.otel;
 
       path = [ config.nix.package ];
 

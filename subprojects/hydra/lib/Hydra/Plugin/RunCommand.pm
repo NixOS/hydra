@@ -9,6 +9,8 @@ use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use IPC::Run3;
 use Try::Tiny;
+use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 sub isEnabled {
     my ($self) = @_;
@@ -51,7 +53,10 @@ sub isBuildEligibleForDynamicRunCommand {
             return 0;
         }
 
-        my $path = $out->path;
+        # These are filesystem tests, so they need the full path. The store
+        # directory comes from the schema, which knows which store these
+        # columns were written against, rather than from opening a store.
+        my $path = printStorePath($build->result_source->schema->storeDir, $out->path);
         if (-l $path) {
             $path = readlink($path);
         }
@@ -146,7 +151,8 @@ sub fanoutToCommands {
             my $out = $build->buildoutputs->find({name => "out"});
             push(@commands, {
                 matcher => "DynamicRunCommand($job)",
-                command => $out->path
+                # This is executed as a command, so it needs the full path.
+                command => printStorePath($build->result_source->schema->storeDir, $out->path)
             })
         }
     }
@@ -156,6 +162,10 @@ sub fanoutToCommands {
 
 sub makeJsonPayload {
     my ($event, $build) = @_;
+    # The payload goes to a command outside Hydra, which has always been
+    # given full paths; `get_column` below reads columns raw, i.e. already
+    # as full paths.
+    my $storeDir = $build->result_source->schema->storeDir;
     my $json = {
         event => $event,
         build => $build->id,
@@ -181,7 +191,7 @@ sub makeJsonPayload {
     for my $output ($build->buildoutputs) {
         my $j = {
             name => $output->name,
-            path => $output->path,
+            path => printStorePath($storeDir, $output->path),
         };
         push @{$json->{outputs}}, $j;
     }
@@ -193,7 +203,7 @@ sub makeJsonPayload {
             subtype => $product->subtype,
             fileSize => $product->filesize,
             sha256hash => $product->sha256hash,
-            path => $product->path,
+            path => printRelativeStorePath($storeDir, $product->path),
             name => $product->name,
             defaultPath => $product->defaultpath,
         };

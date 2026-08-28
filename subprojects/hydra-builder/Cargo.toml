@@ -45,7 +45,6 @@ harmonia-utils-hash.workspace       = true
 
 gethostname.workspace = true
 nix                   = { workspace = true, features = [ "fs" ] }
-procfs-core.workspace = true
 
 binary-cache.workspace             = true
 daemon-client-utils.workspace      = true
@@ -55,6 +54,9 @@ hydra-tracing                      = { workspace = true, features = [ "tonic" ] 
 nix-support.workspace              = true
 store-path-utils.workspace         = true
 store-transfer.workspace           = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+procfs-core.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 sysinfo.workspace = true

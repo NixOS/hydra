@@ -41,12 +41,11 @@ for my $build (@builds) {
     if ($newbuild->buildstatus == 0) {
       my $buildOutputs = $newbuild->buildoutputs;
       for my $output ($newbuild->buildoutputs) {
-        # XXX: This hardcodes /nix/store/.
-        # It's fine because in practice the nix store for the tests will be of
-        # the form `/some/thing/nix/store/`, but it would be cleaner if there
-        # was a way to query Nix for its store dir?
-        like(
-          $output->path, qr|/nix/store/|,
+        # No need to match against a hardcoded store directory: the column
+        # inflates to a Nix::StorePath, which is to say reading it at all
+        # would have failed had it not been a store path.
+        isa_ok(
+          $output->path, ['Nix::StorePath'],
           "Output '".$output->name."' of build '".$build->job."' should be a valid store path"
         );
       }

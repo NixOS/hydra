@@ -75,17 +75,17 @@ __PACKAGE__->table("jobsets");
 
 =head2 errortime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 lastcheckedtime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 triggertime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 enabled
@@ -141,7 +141,7 @@ __PACKAGE__->table("jobsets");
 
 =head2 starttime
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 type
@@ -184,11 +184,11 @@ __PACKAGE__->add_columns(
   "errormsg",
   { data_type => "text", is_nullable => 1 },
   "errortime",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "lastcheckedtime",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "triggertime",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "enabled",
   { data_type => "integer", default_value => 1, is_nullable => 0 },
   "enableemail",
@@ -208,7 +208,7 @@ __PACKAGE__->add_columns(
   "forceeval",
   { data_type => "boolean", is_nullable => 1 },
   "starttime",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "type",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "flake",
@@ -362,8 +362,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-24 14:17:33
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:7wPE5ebeVTkenMCWG9Sgcg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GUkeslZbzaUbhsMtLXmxXg
 
 use JSON::MaybeXS;
 

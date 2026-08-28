@@ -6,7 +6,7 @@
 
 [% BLOCK renderOutputs %]
   [% start=1; FOREACH output IN outputs %]
-    [% IF !start %],<br/>[% END; start=0; output.path %]
+    [% IF !start %],<br/>[% END; start=0; printStorePath(output.path) %]
   [% END %]
 [% END %]
 
@@ -15,7 +15,7 @@
     [% FOREACH output IN outputs %]
       <tr>
         <th><tt>[% output.name | html %]</tt></th>
-        <td><tt>[% IF output.path; output.path | html; ELSE %]<em>n/a</em>[% END %]</tt></td>
+        <td><tt>[% IF output.path; printStorePath(output.path) | html; ELSE %]<em>n/a</em>[% END %]</tt></td>
       </tr>
     [% END %]
   </table>

@@ -29,7 +29,7 @@
   is
   [% END %]
   the build log (<a [% HTML.attributes(href => rawUrl) %]>raw</a>)
-  of derivation <tt>[% drvpath | html %]</tt>.
+  of derivation <tt>[% printStorePath(drvpath) | html %]</tt>.
   [% IF step && step.machine %]
     It was built on <tt>[% step.machine | html %]</tt>.
   [% END %]

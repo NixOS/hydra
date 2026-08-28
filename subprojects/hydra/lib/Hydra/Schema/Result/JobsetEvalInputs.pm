@@ -214,4 +214,7 @@ sub frontend_revision() {
 
 }
 
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_optional_store_paths(qw/path/);
+
 1;

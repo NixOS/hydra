@@ -34,6 +34,15 @@ impl Connection {
         Ok(Transaction { tx })
     }
 
+    /// Raw access to the underlying connection, for components whose
+    /// schema knowledge deliberately lives outside this crate: they keep
+    /// their own compile-time-checked queries next to the code that owns
+    /// that slice of the schema, while still acquiring connections
+    /// through [`Database::get`](crate::Database::get) and its retry.
+    pub fn raw(&mut self) -> &mut sqlx::PgConnection {
+        &mut self.conn
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_not_finished_builds_fast(&mut self) -> crate::Result<Vec<BuildSmall>> {
         Ok(sqlx::query_as!(
@@ -137,13 +146,11 @@ impl Connection {
     // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
-        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
-            // TODO migrate to 64bit timestamp
-            jiff::Timestamp::now().as_second() as i32,
+            jiff::Timestamp::now().as_second(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -169,7 +176,7 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn clear_busy(&mut self, stop_time: i32) -> crate::Result<()> {
+    pub async fn clear_busy(&mut self, stop_time: crate::Timestamp) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
@@ -187,7 +194,7 @@ impl Connection {
         &mut self,
         build_id: crate::models::BuildID,
         step_nr: i32,
-        stop_time: i32,
+        stop_time: crate::Timestamp,
         status: BuildStatus,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -242,7 +249,7 @@ impl Connection {
               keep
             ) VALUES (
               0,
-              EXTRACT(EPOCH FROM NOW())::INT4,
+              EXTRACT(EPOCH FROM NOW())::INT8,
               $1,
               'debug',
               'debug',
@@ -398,7 +405,9 @@ impl Connection {
                       AND o.name = i.chain[r.step]
                       AND o.path IS NOT NULL
                       AND (s.status = 0 OR s.status = 13)
-                    ORDER BY s.build DESC
+                    -- `+ 0`: otherwise the planner walks buildsteps_pkey
+                    -- backwards instead of using IndexBuildStepsOnDrvPath.
+                    ORDER BY s.build + 0 DESC
                     LIMIT 1
                 ) sub
                 WHERE r.step <= array_length(i.chain, 1)
@@ -497,8 +506,8 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         status: BuildStatus,
-        start_time: i32,
-        stop_time: i32,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         is_cached_build: bool,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -529,7 +538,6 @@ impl Transaction<'_> {
         build_id: i32,
         status: BuildStatus,
     ) -> crate::Result<()> {
-        #[allow(clippy::cast_possible_truncation)]
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -543,8 +551,7 @@ impl Transaction<'_> {
               id = $1 AND finished = 0"#,
             build_id,
             status as i32,
-            // TODO migrate to 64bit timestamp
-            jiff::Timestamp::now().as_second() as i32,
+            jiff::Timestamp::now().as_second(),
         )
         .execute(&mut *self.tx)
         .await?;
@@ -876,7 +883,7 @@ impl Transaction<'_> {
         )
         .fetch_optional(&mut *self.tx)
         .await?
-        .and_then(|v| v.drvpath)
+        .map(|v| v.drvpath)
         .map(|p| store_dir.parse(&p))
         .transpose()
         .map_err(crate::Error::from)
@@ -1039,7 +1046,7 @@ impl Transaction<'_> {
     pub async fn create_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: Option<i32>,
+        start_time: Option<crate::Timestamp>,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1107,7 +1114,7 @@ impl Transaction<'_> {
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
+        start_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1159,8 +1166,8 @@ impl Transaction<'_> {
     pub async fn create_local_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
-        stop_time: i32,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
@@ -1213,8 +1220,8 @@ impl Transaction<'_> {
     pub async fn create_substitution_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i32,
-        stop_time: i32,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
@@ -1265,8 +1272,8 @@ impl Transaction<'_> {
         &mut self,
         build: crate::models::MarkBuildSuccessData<'_>,
         is_cached_build: bool,
-        start_time: i32,
-        stop_time: i32,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         store_dir: &StoreDir,
     ) -> crate::Result<()> {
         if build.finished_in_db {
@@ -1328,7 +1335,7 @@ impl Transaction<'_> {
                 project: build.project_name,
                 jobset: build.jobset_name,
                 job: build.name,
-                timestamp: i32::try_from(build.timestamp)?, // TODO
+                timestamp: build.timestamp,
             })
             .await?;
         }

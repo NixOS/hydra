@@ -7,6 +7,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
@@ -37,9 +38,9 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedBazaarInputs')->search(
         {uri => $uri, revision => $revision});
 
-    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    machineLocalStore()->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && machineLocalStore()->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
@@ -54,10 +55,12 @@ sub fetchInput {
             "nix-prefetch-bzr", $uri, $revision);
         die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
-        ($sha256, $storePath) = split ' ', $stdout;
+        my $storePathStr;
+        ($sha256, $storePathStr) = split ' ', $stdout;
+        $storePath = parseStorePath(machineLocalStore()->storeDir, $storePathStr);
 
         # FIXME: time window between nix-prefetch-bzr and addTempRoot.
-        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
+        machineLocalStore()->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedBazaarInputs')->create(
