@@ -463,7 +463,6 @@ create table EvaluationErrors (
     errorTime     bigint  -- timestamp associated with errorMsg
 );
 
--- Results of evaluations of a given jobset
 create table JobsetEvals (
     id            serial primary key not null,
     jobset_id     integer not null,
@@ -496,22 +495,8 @@ create table JobsetEvals (
     nixExprInput  text, -- name of the jobsetInput containing the Nix or Guix expression
     nixExprPath   text, -- relative path of the Nix or Guix expression
 
-    -- The evaluation that (first) created this jobset evaluation (result)
-    -- was performed in this build.
-    --
-    -- The builds themselves should live in a single jobset that
-    -- contains all of hydra evaluations (for any other jobset).
-    --
-    -- Nullable because historically evaluations were performed
-    -- out-of-band, but now they all take place within builds so they
-    -- can be distributed just like any other work that hydra does. Also
-    -- if the evaluation build is garbage collected, this will also
-    -- revert to null.
-    eval_build    integer,
-
     foreign key   (jobset_id) references Jobsets(id) on delete cascade,
-    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null,
-    foreign key   (eval_build) references Builds(id) on delete set null
+    foreign key   (evaluationerror_id) references EvaluationErrors(id) on delete set null
 );
 
 
