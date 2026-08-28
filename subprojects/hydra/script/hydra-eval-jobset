@@ -359,10 +359,11 @@ sub inputsToArgs {
 }
 
 
-sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
-
-    print STDERR "($jobsetName) Evaluating...\n";
+# The `nix-eval-jobs` invocation for a jobset. Separate from running it
+# because the same arguments describe the evaluation wherever it happens:
+# here, or inside the derivation that an evaluation build realises.
+sub evalJobsCmd {
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
 
     my @cmd;
 
@@ -394,6 +395,71 @@ sub evalJobs {
     push @cmd, ("--workers", $config->{evaluator_workers} // 1);
     push @cmd, ("--max-memory-size", $config->{evaluator_max_memory_size} // 4096);
 
+    return @cmd;
+}
+
+
+# Nix source for a derivation that performs the evaluation, rather than
+# evaluating here. The arguments are identical either way -- `evalJobsCmd`
+# produces them -- so only where they run differs.
+#
+# Two things make this possible at all. The store paths those arguments
+# mention are pulled in with `builtins.storePath`, so the jobset's inputs
+# become real inputs of the derivation and appear in the sandbox; Hydra has
+# already materialized them, which is why evaluation can be described as a
+# derivation in the first place. And the build needs `recursive-nix`,
+# because evaluating instantiates derivations and a sandbox has a read-only
+# store view.
+#
+# The output is the JSONL `nix-eval-jobs` writes. That text names the
+# derivations it instantiated, so reference scanning makes them references
+# of the output: rooting the evaluation build roots them too, and nothing
+# needs `--gc-roots-dir`.
+sub nixString {
+    my ($s) = @_;
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/"/\\"/g;
+    $s =~ s/\$\{/\\\${/g;
+    return '"' . $s . '"';
+}
+
+sub evalDrvExpr {
+    my ($jobsetName, $storePaths, $cmd, $streamPath) = @_;
+
+    my $name = $jobsetName;
+    $name =~ s/[^a-zA-Z0-9._-]/-/g;
+
+    # `"$@"` rather than a quoted command line: the arguments stay separate
+    # Nix strings, so Nix's escaping is the only escaping involved.
+    my $script = 'set -eu; "$@" | tee "$out"';
+    $script .= defined $streamPath ? ' > "$evalStream"' : ' > /dev/null';
+
+    my @argv = ("-c", $script, "hydra-eval", @$cmd);
+    my $args = join(" ", map { nixString($_) } @argv);
+    my $inputs = join(" ", map { "(builtins.storePath " . nixString($_) . ")" } @$storePaths);
+
+    my $expr = "derivation {\n";
+    $expr .= "  name = " . nixString("hydra-eval-" . $name) . ";\n";
+    $expr .= "  system = builtins.currentSystem;\n";
+    $expr .= "  builder = \"/bin/sh\";\n";
+    $expr .= "  args = [ $args ];\n";
+    $expr .= "  requiredSystemFeatures = [ \"recursive-nix\" ];\n";
+    # Referenced so the inputs are inputs of this derivation, and so appear
+    # in the sandbox rather than merely being named by the arguments.
+    $expr .= "  jobsetInputs = [ $inputs ];\n";
+    $expr .= "  evalStream = " . nixString($streamPath) . ";\n" if defined $streamPath;
+    $expr .= "}\n";
+    return $expr;
+}
+
+
+sub evalJobs {
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+
+    print STDERR "($jobsetName) Evaluating...\n";
+
+    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef);
+
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
             my $s = $_;
@@ -413,7 +479,7 @@ sub evalJobs {
             '2>', \my $err,
             init => sub { %ENV = %env; };
 
-    return sub {
+    return jobsIterFromLines(sub {
         while (1) {
             $evalProc->pump;
             if (!defined $out && !defined $err) {
@@ -421,7 +487,7 @@ sub evalJobs {
                 if ($?) {
                     die "nix-eval-jobs returned " . ($? & 127 ? "signal $?" : "exit code " . ($? >> 8)) . "\n";
                 }
-                return;
+                return undef;
             }
 
             if (defined $err) {
@@ -430,28 +496,52 @@ sub evalJobs {
             }
 
             if (defined $out && $out ne '') {
-                my $job;
-                try {
-                    $job = decode_json($out);
-                } catch {
-                    warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
-                };
+                my $line = $out;
                 undef $out;
-                if (defined $job) {
-                    # nix-eval-jobs speaks full paths. Strip the store directory
-                    # here, where its output enters Hydra, so that everything
-                    # downstream compares and keys on store paths -- notably
-                    # the `ne` against a build's inflated drvpath, and the
-                    # constituent lookups, which would otherwise never match.
-                    my $storeDir = machineLocalStore()->storeDir;
-                    $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
-                        if defined $job->{drvPath};
-                    $job->{constituents} = [
-                        map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
-                    ] if defined $job->{constituents};
-                    return $job;
-                }
+                return $line;
             }
+        }
+    });
+}
+
+
+# Turn a source of JSON lines into the job iterator that the rest of this
+# script consumes: call $nextLine for the next line of `nix-eval-jobs`
+# output, or undef when there are no more.
+#
+# The line source is separate from the parsing because there is more than one
+# way to obtain those lines. Running `nix-eval-jobs` here is one; reading what
+# an evaluation build produced is another, and it must yield exactly the same
+# jobs, so the parsing cannot be duplicated.
+sub jobsIterFromLines {
+    my ($nextLine) = @_;
+
+    return sub {
+        while (1) {
+            my $out = $nextLine->();
+            return unless defined $out;
+            next if $out eq '';
+
+            my $job;
+            try {
+                $job = decode_json($out);
+            } catch {
+                warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
+            };
+            next unless defined $job;
+
+            # nix-eval-jobs speaks full paths. Strip the store directory
+            # here, where its output enters Hydra, so that everything
+            # downstream compares and keys on store paths -- notably
+            # the `ne` against a build's inflated drvpath, and the
+            # constituent lookups, which would otherwise never match.
+            my $storeDir = machineLocalStore()->storeDir;
+            $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
+                if defined $job->{drvPath};
+            $job->{constituents} = [
+                map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
+            ] if defined $job->{constituents};
+            return $job;
         }
     };
 }
