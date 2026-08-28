@@ -13,70 +13,66 @@ the problem rather than the size. A change that moves evaluation out of
 the evaluator ought to *remove* evaluator responsibilities, and this one
 mostly does not. Two reasons, and they suggest two different fixes.
 
-The first is that a refactor got skipped. The second is that a piece of
-speculative infrastructure got carried along.
+One piece of speculative infrastructure got carried along, and the rest
+is the honest cost of making evaluation asynchronous.
 
-What should have come first
----------------------------
+What a preparatory refactor would and would not have bought
+----------------------------------------------------------
 
 `hydra-eval-jobset` is spawned by `hydra-evaluator` as a one-shot
-process. Evaluation-as-a-build makes it *two* one-shot processes — one
-to schedule, one to read the result back — and everything that has to
-survive between them has to be marshalled through the database and the
-command line:
+process, and evaluation-as-a-build makes it two of them: one to schedule
+the evaluation, one to read the result back. The obvious conclusion is
+that folding it into the evaluator first, as a non-functional change
+under the old design, would have removed the plumbing between them.
 
-- `finishScheduledEvaluation`, 66 lines, almost all of it re-deriving
-  state from an eval id: the eval, its build, the build's output, the
-  jobset, the project, the duration, the trace.
-- `recordEvaluationFailure`, 30 lines, factored out only because there
-  are two entry points that can fail.
-- `--finish-evaluation`, its argument parsing and its usage string.
-- `JobsetEvals.trace_id`, a column whose only job is to correlate two
-  processes.
-- On the Rust side, a daemon querying a table to discover work that the
-  same daemon created.
+That conclusion is mostly wrong, and it is worth writing down why.
 
-Call it 150–200 lines plus a column, none of which is the feature.
+The two halves are not separated by a process boundary. They are
+separated by a *time* boundary: the evaluation build can take hours, and
+can outlive any daemon restart. So the state connecting them has to be
+durable and re-derivable from the database whoever owns it. A long-lived
+worker cannot hold a jobset's evaluation context in memory across that
+gap -- and would not want to.
 
-Folding `hydra-eval-jobset` into `hydra-evaluator` first — as a
-non-functional change, under the old design, where it is reviewable on
-its own and cannot break anything — would have removed nearly all of
-that before it was ever written. `nixos-modules/web-app.nix` already
-carries the comment anticipating this:
+So of the code that looks like marshalling:
+
+- `finishScheduledEvaluation`'s 66 lines are recovery, not plumbing.
+  Only the two lookups at the top re-derive anything; the rest is the
+  actual work of consuming a finished build -- check it finished, replay
+  its log, handle failure, find its output, build the iterator, compute
+  how long it took. Any design needs all of it.
+- `JobsetEvals.trace_id` has to be a column for the same reason: it must
+  survive a restart.
+- `eval_build` and `completed` likewise.
+
+What a fold would actually have saved is the `--finish-evaluation`
+argument parsing and one per-process config-and-database setup. That is
+not nothing, but it is not a reason to reorder the work.
+
+There may be other reasons to fold -- one language, one configuration
+load, no process spawned per jobset, and the comment in
+`nixos-modules/web-app.nix` anticipating it:
 
     # Because hydra-evaluator calls `hydra-eval-jobset`. If we
     # move that perl script into rust, then we can get rid of this.
 
-`eval_build` and `completed` stay either way: an evaluation build can
-run for hours and outlive any process, so that state has to be durable
-no matter who owns it. The fold removes the marshalling, not the schema.
+-- but "it would have made this feature smaller" is not one of them.
 
-Which half, though
-------------------
+Which half could move, if it ever does
+--------------------------------------
 
-The plugin boundary turns out to be clean, and it falls exactly on the
+The plugin boundary is clean, and it falls exactly on the
 schedule/complete split. Plugins are input types, reached only through
 `fetchInput`, which only the scheduling half calls. The completion half
 needs none: both `finishEvaluation` and `checkBuild` were taking a
 `$plugins` argument and never using it.
 
-So "move the part that does not touch plugins" is a real option, and it
-is precisely the half this feature added. It is still the wrong trade.
-The completion half is plugin-free but it is where all the domain
-subtlety lives -- `checkBuild`, aggregates and constituents with their
-globbing and transitivity and cycle detection, and the per-attribute
-error assembly behind `EvaluationErrors`. That is the code with the most
-tests and the most ways to be quietly wrong, and porting it buys nothing
-the cheaper option does not.
-
-The cheaper option is to leave both halves in Perl and stop spawning two
-one-shot processes: one persistent worker the evaluator drives. That
-removes `--finish-evaluation`, the 66 lines of state re-derivation and
-the `trace_id` column without moving a line of domain logic or going
-near the plugin system.
-
-Doing any of it afterwards is strictly harder, since the refactor now
-has to preserve behaviour that did not exist when it was proposed.
+So the half that could move without disturbing the plugin system is
+precisely the half this feature added. It is still the wrong one to
+move: it is where the domain subtlety lives -- `checkBuild`, aggregates
+and constituents with their globbing, transitivity and cycle detection,
+and the per-attribute error assembly behind `EvaluationErrors`. That is
+the code with the most tests and the most ways to be quietly wrong.
 
 What should not be in this at all
 ---------------------------------
@@ -115,23 +111,18 @@ independently landable today.
    `/api/latestbuilds` and `/api/nrbuilds`. Defensible on its own — it
    is what `clear_queue_non_current` already does.
 
-4. **The fold.** `hydra-eval-jobset` becomes a persistent worker rather
-   than a one-shot process; the input plugins stay in Perl and do not
-   move. Non-functional. This is the one that was skipped, and
-   everything after it gets smaller.
+4. **Schema.** Migration 89: `eval_build`, `completed` and `trace_id`,
+   all nullable and metadata-only.
 
-5. **Schema.** Migration 89: `eval_build`, `completed`, and `trace_id`
-   only if 4 did not happen. All nullable, metadata-only.
+5. **Evaluation as a build.** The feature. Needs 4.
 
-6. **Evaluation as a build.** The feature. Needs 5.
-
-7. **UI.** In-flight evaluations made visible: `visibleEvalsCond`, the
+6. **UI.** In-flight evaluations made visible: `visibleEvalsCond`, the
    jobset page reading the evaluation's build rather than
-   `Jobsets.startTime`, the evaluation page's banner. Needs 6.
+   `Jobsets.startTime`, the evaluation page's banner. Needs 5.
 
-8. **Dry run via `--jobs`.** Needs 6.
+7. **Dry run via `--jobs`.** Needs 5.
 
-9. **Named output streams, and the jobs-found-so-far preview.** Its own
+8. **Named output streams, and the jobs-found-so-far preview.** Its own
    feature, and the only one whose data path is currently untested.
 
 History cleanup
