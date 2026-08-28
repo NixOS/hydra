@@ -14,6 +14,9 @@ service RunnerService {
   rpc CheckVersion(VersionCheckRequest) returns (VersionCheckResponse) {}
   rpc OpenTunnel(stream BuilderRequest) returns (stream RunnerRequest) {}
   rpc BuildLog(stream LogChunk) returns (Empty) {}
+  // A build's extra output streams, relayed verbatim. The builder does not
+  // interpret them; see NamedStreamChunk.
+  rpc BuildStream(stream NamedStreamChunk) returns (Empty) {}
   rpc BuildResult(stream AddToStoreRequest) returns (Empty) {}
   rpc BuildStepUpdate(StepUpdate) returns (Empty) {}
   rpc CompleteBuild(BuildResultInfo) returns (Empty) {}
@@ -143,6 +146,19 @@ message BuildMessage {
   // the drv closure from the queue runner. All inputDrvs have been
   // resolved to concrete output store paths in inputSrcs.
   optional nix.store.derivation.v1.Basic resolved_drv = 8;
+
+  // Extra output streams to make available to the build, beyond the log.
+  // For each, the builder creates a pipe, binds it into the sandbox at the
+  // requested path, and relays what the build writes there back via
+  // BuildStream. The builder never interprets the contents.
+  repeated NamedStream streams = 10;
+}
+
+message NamedStream {
+  // Identifies the stream in BuildStream chunks.
+  string name = 1;
+  // Where the build finds it, inside the sandbox.
+  string sandbox_path = 2;
 }
 
 message RequisitesResponse {
@@ -156,6 +172,21 @@ message AbortMessage {
 message LogChunk {
   nix.store.v1.StorePath drv = 1;
   bytes data = 2;
+}
+
+// A chunk of one of a build's extra output streams.
+//
+// This is deliberately opaque. The builder bind-mounts a pipe into the
+// sandbox and forwards whatever comes out of it, exactly as it forwards the
+// log; what the bytes mean is the business of whoever asked for the stream.
+// Do not add fields describing the payload -- the moment this carries, say,
+// a job name, the builder has learned a schema that is not its own, and
+// changing that schema means redeploying every builder.
+message NamedStreamChunk {
+  nix.store.v1.StorePath drv = 1;
+  // Which stream this is, as named in BuildMessage.streams.
+  string name = 2;
+  bytes data = 3;
 }
 
 message HasPathResponse {

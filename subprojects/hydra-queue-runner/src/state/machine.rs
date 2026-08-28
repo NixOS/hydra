@@ -549,6 +549,10 @@ impl Message {
                 build_timeout,
                 presigned_url_opts,
                 resolved_drv: Some(*resolved_drv),
+                // No extra output streams yet. Evaluation builds will ask for
+                // one here so the jobs can be watched as they are produced;
+                // the mechanism is generic and carries nothing eval-specific.
+                streams: Vec::new(),
             }),
             Self::AbortMessage { build_id } => runner_request::Message::Abort(AbortMessage {
                 build_id: build_id.to_string(),

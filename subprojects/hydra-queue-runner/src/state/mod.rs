@@ -1194,6 +1194,39 @@ impl State {
         log_file
     }
 
+    /// Where a build's extra output stream is kept.
+    ///
+    /// Alongside the log, under the same layout, so that streams inherit
+    /// whatever the log directory already gets for retention and cleanup, and
+    /// so a consumer can tail one exactly as it tails a log.
+    async fn construct_stream_file_path(&self, drv: &StorePath, name: &str) -> std::path::PathBuf {
+        let mut path = self.construct_log_file_path(drv).await;
+        let file = path
+            .file_name()
+            .map_or_else(String::new, |f| f.to_string_lossy().into_owned());
+        path.set_file_name(format!("{file}.{name}"));
+        path
+    }
+
+    #[tracing::instrument(skip(self), fields(%drv), err)]
+    pub async fn new_stream_file(
+        &self,
+        drv: &StorePath,
+        name: &str,
+    ) -> Result<fs_err::tokio::File, std::io::Error> {
+        let path = self.construct_stream_file_path(drv, name).await;
+        tracing::debug!("opening {path:?}");
+
+        fs_err::tokio::File::options()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .read(false)
+            .mode(0o666)
+            .open(path)
+            .await
+    }
+
     #[tracing::instrument(skip(self), fields(%drv), err)]
     pub async fn new_log_file(
         &self,

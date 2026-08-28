@@ -19,6 +19,7 @@ pub mod grpc;
 pub mod metrics;
 pub mod nix_config;
 pub mod state;
+pub mod streams;
 pub mod system;
 pub mod types;
 mod utils;

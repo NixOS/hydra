@@ -434,6 +434,55 @@ impl RunnerService for Server {
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
+    /// Relay a build's extra output stream to a file beside its log.
+    ///
+    /// The bytes are written exactly as the builder sent them. Nothing here
+    /// parses them: what a stream means belongs to whoever asked for it, and
+    /// teaching the queue runner otherwise would put a schema it does not own
+    /// on the path every build takes.
+    #[tracing::instrument(skip(self, req), err)]
+    async fn build_stream(
+        &self,
+        req: tonic::Request<tonic::Streaming<hydra_proto::NamedStreamChunk>>,
+    ) -> BuilderResult<hydra_proto::Empty> {
+        use tokio::io::AsyncWriteExt as _;
+        use tokio_stream::StreamExt as _;
+
+        let mut stream = req.into_inner();
+        let mut file: Option<fs_err::tokio::File> = None;
+
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            if file.is_none() {
+                let drv = chunk
+                    .drv
+                    .clone()
+                    .ok_or_else(|| tonic::Status::invalid_argument("missing drv"))?;
+                file = Some(
+                    self.state
+                        .new_stream_file(&drv.into(), &chunk.name)
+                        .await
+                        .map_err(|e| {
+                            tonic::Status::internal(format!("failed to create stream file: {e}"))
+                        })?,
+                );
+            }
+            if let Some(f) = file.as_mut() {
+                f.write_all(&chunk.data).await.map_err(|e| {
+                    tonic::Status::internal(format!("failed to write stream file: {e}"))
+                })?;
+            }
+        }
+
+        if let Some(mut f) = file {
+            f.flush()
+                .await
+                .map_err(|e| tonic::Status::internal(format!("failed to flush stream: {e}")))?;
+        }
+
+        Ok(tonic::Response::new(hydra_proto::Empty {}))
+    }
+
     #[tracing::instrument(skip(self, req), err)]
     async fn build_result(
         &self,
