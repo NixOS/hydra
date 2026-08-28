@@ -191,15 +191,14 @@ pub(crate) async fn evaluate(
 
     // A tentative evaluation, pointing at the build that will fill it in. It
     // exists from the start so the evaluation is visible while it runs;
-    // `evaltime` and `hasnewbuilds` are placeholders until then, and
-    // `completed` is left null to say so.
+    // `hasnewbuilds` is a placeholder until then, and `completed` is left
+    // null to say so.
     let error_id = queries::insert_evaluation_error(&mut tx, now()).await?;
     let eval_id = queries::insert_eval(
         &mut tx,
         &NewEval {
             jobset_id: meta.id,
             checkout_time: i32::try_from(checkout_time).unwrap_or(0),
-            eval_time: 0,
             hash: &hash,
             flake: meta.flake.as_deref(),
             nix_expr_input: meta.nixexprinput.as_deref(),

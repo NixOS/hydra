@@ -668,7 +668,6 @@ pub(crate) struct NewBuild<'a> {
 pub(crate) struct NewEval<'a> {
     pub jobset_id: i32,
     pub checkout_time: i32,
-    pub eval_time: i32,
     pub hash: &'a str,
     pub flake: Option<&'a str>,
     pub nix_expr_input: Option<&'a str>,
@@ -701,12 +700,13 @@ pub(crate) async fn insert_eval(
           (jobset_id, timestamp, checkouttime, evaltime, hasnewbuilds,
            nrbuilds, hash, flake, nixexprinput, nixexprpath,
            evaluationerror_id, eval_build, trace_id)
-        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9, $10, $11)
+        -- `evaltime` is written once and never maintained: how long an
+        -- evaluation took is how long its build took, which the build knows.
+        VALUES ($1, $2, $3, 0, 0, 0, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id"#,
         eval.jobset_id,
         now,
         eval.checkout_time,
-        eval.eval_time,
         eval.hash,
         eval.flake,
         eval.nix_expr_input,
