@@ -136,6 +136,7 @@ Migration 89 adds three nullable columns to `JobsetEvals`, all metadata-only, so
 - `eval_build`, the build performing the evaluation.
 - `completed`, when its result was read back.
   `evalTime` and `hasNewBuilds` are `not null` but unknown until then, so a tentative row carries placeholders, and `completed` is what distinguishes a placeholder from an answer.
+  Listings use it: an evaluation is shown once it has found builds or while it is not yet completed (`visibleEvalsCond`), and its page and the jobset page link to the build performing it.
   It is also what says which evaluations still need reading back.
   That cannot be inferred: a build finishing and its result being consumed are separate events, and an evaluation may legitimately find no jobs.
 - `trace_id`, so the evaluation's notifications are traced to the submission that started it.
@@ -165,8 +166,9 @@ Supervising a long evaluation in-process went with the evaluation:
   The build knows; `JobsetEvals.evalTime` is written as 0.
   The column stays: it is the only record of how long evaluations took before this, so dropping it waits until nothing reads the old values.
 
-The two columns are still there, as are the pages that read them.
-The jobset page's "evaluation running since" never appears; the duration it gives the last evaluation is only how long fetching its inputs took; and an evaluation's page says evaluating took 0s.
+The two columns are still there.
+Nothing reads `startTime`: the jobset page's "evaluation running since" comes from the evaluation in flight.
+`evalTime` is still shown: the duration the jobset page gives the last evaluation is only how long fetching its inputs took, and a completed evaluation's page says evaluating took 0s.
 
 On the way, `forceEval` is now reset once the evaluation it forced is submitted.
 Neither the Perl nor the first Rust evaluator did, so one forced evaluation made every later one skip the cache.
@@ -204,8 +206,6 @@ Open questions
   The submitter compares against the latest evaluation whatever became of it, so after a failure the same inputs are not tried again until they change or someone forces it.
   A transient failure -- a builder lost mid-build -- then sticks.
   The Perl version deleted the tentative evaluation on failure; that, or skipping failed evaluations in the comparison, would fix it.
-- An evaluation in flight is not listed.
-  Every listing filters on `hasNewBuilds`, which reads the placeholder `0` as "finished, found nothing" and hides the evaluation for exactly as long as it is interesting.
 - What assumes a build's step set is complete when it is queued?
   Progress display, the dispatcher's notion of what is runnable, and anything computing "steps remaining" are the likely candidates.
 - Scheduling and priority: the evaluation build holds a slot while its nested builds run.
