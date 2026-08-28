@@ -25,7 +25,6 @@ use Hydra::Schema;
 use Hydra::StorePath;
 use JSON::MaybeXS;
 use Net::Statsd;
-use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 use Try::Tiny;
 

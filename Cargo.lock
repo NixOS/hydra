@@ -1976,7 +1976,6 @@ dependencies = [
  "store-path-utils",
  "store-transfer",
  "sysinfo",
- "tempfile",
  "thiserror",
  "tikv-jemallocator",
  "tokio",

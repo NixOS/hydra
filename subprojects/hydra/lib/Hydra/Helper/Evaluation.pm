@@ -11,7 +11,6 @@ package Hydra::Helper::Evaluation;
 use strict;
 use warnings;
 use Hydra::Helper::Email;
-use Try::Tiny;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -44,41 +43,6 @@ sub setJobsetError {
     if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
         sendJobsetErrorNotification($config, $jobset, $errorMsg);
     }
-}
-
-
-sub sendJobsetErrorNotification {
-    my ($config, $jobset, $errorMsg) = @_;
-
-    chomp $errorMsg;
-
-    return unless $config->{email_notification} // 0;
-    return if $jobset->project->owner->emailonerror == 0;
-    return if $errorMsg eq "";
-
-    my $projectName = $jobset->get_column('project');
-    my $jobsetName = $jobset->name;
-    my $body = "Hi,\n"
-        . "\n"
-        . "This is to let you know that evaluation of the Hydra jobset ‘$projectName:$jobsetName’\n"
-        . "resulted in the following error:\n"
-        . "\n"
-        . "$errorMsg"
-        . "\n"
-        . "Regards,\n\nThe Hydra build daemon.\n";
-
-    try {
-        sendEmail(
-            $config,
-            $jobset->project->owner->emailaddress,
-            "Hydra $projectName:$jobsetName evaluation error",
-            $body,
-            [ 'X-Hydra-Project' => $projectName
-            , 'X-Hydra-Jobset'  => $jobsetName
-            ]);
-    } catch {
-        warn "error sending email: $_\n";
-    };
 }
 
 

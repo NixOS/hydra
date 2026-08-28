@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use utf8;
 use Digest::SHA qw(sha256_hex);
-use Encode;
 use File::Temp;
 use File::Which qw(which);
 use Hydra::Config;
@@ -20,7 +19,6 @@ use Hydra::Schema;
 use IPC::Run;
 use JSON::MaybeXS;
 use Net::Statsd;
-use Nix::Store;
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
 
 STDOUT->autoflush();
@@ -28,7 +26,6 @@ STDERR->autoflush(1);
 binmode STDERR, ":encoding(utf8)";
 
 my $db = Hydra::Model::DB->new();
-my $notifyAdded = $db->storage->dbh->prepare("notify builds_added, ?");
 
 my $config = getHydraConfig();
 
