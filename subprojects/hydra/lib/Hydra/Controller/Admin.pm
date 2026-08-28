@@ -32,8 +32,13 @@ sub machines : Chained('admin') PathPart('machines') Args(0) {
 
 sub clear_queue_non_current : Chained('admin') PathPart('clear-queue-non-current') Args(0) {
     my ($self, $c) = @_;
+    # Builds that belong to no evaluation at all are in the `except` set by
+    # construction, so they would all be cancelled here. Some are deliberate:
+    # evaluation builds and ad-hoc builds live in disabled jobsets and are
+    # never anybody's "current" evaluation. Only consider enabled jobsets,
+    # which is what "non-current" was always meant to mean.
     my $builds = $c->model('DB::Builds')->search_rs(
-        { id => { -in => \ "select id from Builds where id in ((select id from Builds where finished = 0) except (select build from JobsetEvalMembers where eval in (select max(id) from JobsetEvals where hasNewBuilds = 1 group by jobset_id)))" }
+        { id => { -in => \ "select id from Builds where id in ((select b.id from Builds b join Jobsets j on b.jobset_id = j.id where b.finished = 0 and j.enabled != 0) except (select build from JobsetEvalMembers where eval in (select max(id) from JobsetEvals where hasNewBuilds = 1 group by jobset_id)))" }
         });
     my $n = cancelBuilds($c->model('DB')->schema, $builds);
     $c->flash->{successMsg} = "$n builds have been cancelled.";
