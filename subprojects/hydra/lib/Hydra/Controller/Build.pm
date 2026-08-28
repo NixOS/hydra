@@ -614,7 +614,7 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
 
     $c->stash->{page} = $page;
     $c->stash->{resultsPerPage} = $resultsPerPage;
-    $c->stash->{total} = $evals->search({hasnewbuilds => 1})->count;
+    $c->stash->{total} = $evals->search(visibleEvalsCond($evals->current_source_alias))->count;
     $c->stash->{evals} = getEvals($c, $evals, ($page - 1) * $resultsPerPage, $resultsPerPage)
 }
 
