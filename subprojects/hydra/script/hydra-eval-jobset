@@ -38,6 +38,8 @@ my $config = getHydraConfig();
 my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
+# Where a dry run gets its jobs from; see `--jobs` at the bottom.
+my $jobsFile;
 
 my $statsdConfig = Hydra::Helper::Nix::getStatsdConfig($config);
 $Net::Statsd::HOST = $statsdConfig->{'host'};
@@ -543,6 +545,42 @@ sub evalDrvExpr {
 #
 # The line source is separate from the parsing so that reading a finished
 # build's output and tailing one that is still running stay the same parse.
+# The jobs in a file of `nix-eval-jobs` output -- an evaluation build's
+# `$out`, or the same thing captured out of band.
+sub jobsIterFromFile {
+    my ($path) = @_;
+
+    open(my $fh, "<", $path)
+        or die "$0: cannot read the evaluation's jobs from $path: $!\n";
+
+    return jobsIterFromLines(sub {
+        my $line = <$fh>;
+        if (!defined $line) {
+            close $fh;
+            return undef;
+        }
+        chomp $line;
+        return $line;
+    });
+}
+
+
+# Report the jobs an evaluation found, without recording anything about them.
+sub printJobs {
+    my ($jobsIter) = @_;
+
+    while (defined(my $job = $jobsIter->())) {
+        my $name = $job->{attr};
+        if (defined $job->{drvPath}) {
+            print STDERR "good job $name: "
+                . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
+        } else {
+            print STDERR "failed job $name: $job->{error}\n";
+        }
+    }
+}
+
+
 sub jobsIterFromLines {
     my ($nextLine) = @_;
 
@@ -665,12 +703,16 @@ sub ensureEvalJobset {
 # The evaluation is finished elsewhere, when the build completes: see
 # `JobsetEvals.eval_build`, which is the only link from an evaluation to the
 # build that performed it.
-sub scheduleEvaluationBuild {
-    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime,
-        $tmpId) = @_;
+# The derivation that will perform this jobset's evaluation.
+#
+# Instantiating it is separate from queueing it because they are separate
+# concerns: this decides *what* the evaluation is -- which evaluator, which
+# inputs, which Nix settings -- and answers with a `.drv`, touching no
+# database. What to do with that derivation is the caller's business.
+sub instantiateEvaluationDerivation {
+    my ($project, $jobset, $inputInfo, $flakeRef) = @_;
 
     my $jobsetName = $project->name . ":" . $jobset->name;
-    print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
 
     my @cmd = evalJobsCmd($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath,
                           $flakeRef);
@@ -714,6 +756,20 @@ sub scheduleEvaluationBuild {
     IPC::Run::run([ "nix-instantiate", "$exprFile" ], \undef, \$drvPath, \$instantiateErr)
         or die "instantiating the evaluation derivation failed:\n$instantiateErr";
     chomp $drvPath;
+
+    return $drvPath;
+}
+
+
+sub scheduleEvaluationBuild {
+    my ($db, $project, $jobset, $inputInfo, $flakeRef, $argsHash, $checkoutTime,
+        $tmpId) = @_;
+
+    my $jobsetName = $project->name . ":" . $jobset->name;
+    print STDERR "($jobsetName) Scheduling the evaluation as a build...\n";
+
+    my $drvPath = instantiateEvaluationDerivation($project, $jobset, $inputInfo,
+                                                  $flakeRef);
 
     my $evalJobset = ensureEvalJobset($db);
     my $time = time();
@@ -1156,6 +1212,16 @@ sub checkJobsetWrapped {
         return;
     }
 
+    # A dry run reports and records nothing, exactly as it always has. What
+    # has changed is where the jobs come from: this run does not evaluate --
+    # nothing here does any more -- so they are supplied instead, by `--jobs`.
+    # That file is an evaluation build's output, either taken from a previous
+    # one or produced out of band; either way nothing is built to get it.
+    if ($dryRun) {
+        printJobs(jobsIterFromFile($jobsFile));
+        return;
+    }
+
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my $evalStop;
@@ -1486,18 +1552,8 @@ sub finishScheduledEvaluation {
     # here -- a relocated store is only relocated for the *clients* that pass
     # a root, and this is the store the build wrote into.
     my $outPath = printStorePath(machineLocalStore()->storeDir, $output->path);
-    open(my $fh, "<", $outPath)
-        or die "$0: cannot read the evaluation's jobs from $outPath: $!\n";
 
-    my $jobsIter = rootEvaluatedDerivations(jobsIterFromLines(sub {
-        my $line = <$fh>;
-        if (!defined $line) {
-            close $fh;
-            return undef;
-        }
-        chomp $line;
-        return $line;
-    }));
+    my $jobsIter = rootEvaluatedDerivations(jobsIterFromFile($outPath));
 
     my $jobset = $ev->jobset;
     my $project = $jobset->project;
@@ -1525,8 +1581,21 @@ if (@ARGV == 2 && $ARGV[0] eq "--finish-evaluation") {
     exit finishScheduledEvaluation($ARGV[1]);
 }
 
-die "syntax: $0 <PROJECT> <JOBSET>\n       $0 --finish-evaluation <EVAL-ID>\n"
+if (@ARGV >= 2 && $ARGV[0] eq "--jobs") {
+    $jobsFile = $ARGV[1];
+    splice(@ARGV, 0, 2);
+}
+
+die "syntax: $0 [--jobs <JOBS-FILE>] <PROJECT> <JOBSET>\n"
+  . "       $0 --finish-evaluation <EVAL-ID>\n"
     unless @ARGV == 2;
+
+# Nothing evaluates in this process, so a dry run cannot discover the jobs
+# for itself; it has to be handed them.
+die "$0: HYDRA_DRY_RUN needs --jobs <JOBS-FILE>\n"
+    if $dryRun && !defined $jobsFile;
+die "$0: --jobs is only meaningful under HYDRA_DRY_RUN\n"
+    if defined $jobsFile && !$dryRun;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];

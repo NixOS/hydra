@@ -45,6 +45,13 @@ sub jobset_GET {
 
     $c->stash->{latestEval} = $c->stash->{jobset}->jobsetevals->search({ hasnewbuilds => 1 }, { rows => 1, order_by => ["id desc"] })->single;
 
+    # The evaluation being performed right now, if any. `Jobsets.startTime`
+    # cannot answer this any more: it covers the run that *schedules* the
+    # evaluation, which takes a moment, not the build that performs it.
+    $c->stash->{runningEval} = $c->stash->{jobset}->jobsetevals->search(
+        { eval_build => { "!=" => undef }, completed => undef },
+        { rows => 1, order_by => ["id desc"] })->single;
+
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
 
     $c->stash->{emailNotification} = $c->config->{email_notification} // 0;
