@@ -1447,19 +1447,30 @@ sub checkJobset {
     my $stopTime = clock_gettime(CLOCK_MONOTONIC);
     Net::Statsd::timing("hydra.evaluator.total_time", int(($stopTime - $startTime) * 1000));
 
-    my $failed = 0;
-    if ($checkError) {
-        print STDERR $checkError;
-        my $eventTime = time;
-        $db->txn_do(sub {
-            $jobset->update({lastcheckedtime => $eventTime});
-            setJobsetError($jobset, $checkError, $eventTime);
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
-        }) if !$dryRun;
-        $failed = 1;
-    }
+    return recordEvaluationFailure($jobset, $checkError, $tmpId);
+}
 
-    return $failed;
+
+# Record that evaluating $jobset failed, and say so: the message on stderr,
+# the message on the jobset, and an `eval_failed` notification. Returns the
+# process's exit status, so a caller can `return` it directly.
+#
+# Shared by the two runs an evaluation now takes, because either can be the
+# one that fails and neither should report it differently.
+sub recordEvaluationFailure {
+    my ($jobset, $checkError, $tmpId) = @_;
+
+    return 0 unless $checkError;
+
+    print STDERR $checkError;
+    my $eventTime = time;
+    $db->txn_do(sub {
+        $jobset->update({lastcheckedtime => $eventTime});
+        setJobsetError($jobset, $checkError, $eventTime);
+        $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
+    }) if !$dryRun;
+
+    return 1;
 }
 
 
@@ -1470,6 +1481,24 @@ sub checkJobset {
 # The output is read rather than any live stream, because it is the only
 # source that is always there. An evaluation whose derivation was built
 # before is not rebuilt, so nothing streams, and the output remains.
+# Copy the evaluation build's log to stderr, so that what the evaluator used
+# to say about a failing evaluation it still says.
+#
+# Best effort: the log is written by the queue runner, and may be absent (a
+# cached build never ran) or compressed. Losing it must not turn a completed
+# evaluation into a failed one, so anything unreadable is passed over.
+sub replayEvaluationLog {
+    my ($build) = @_;
+
+    my $logPath = getDrvLogPath($build->drvpath);
+    return unless defined $logPath && $logPath !~ /\.(bz2|zst)$/;
+
+    open(my $log, "<", $logPath) or return;
+    print STDERR $_ while <$log>;
+    close $log;
+}
+
+
 sub finishScheduledEvaluation {
     my ($evalId) = @_;
 
@@ -1480,6 +1509,12 @@ sub finishScheduledEvaluation {
 
     die "$0: evaluation build " . $build->id . " has not finished\n"
         unless $build->finished;
+
+    # nix-eval-jobs now runs inside the build, so its diagnostics -- which
+    # are the explanation of any evaluation failure -- land in the build log
+    # rather than on this process's stderr, where anyone watching an
+    # evaluation would look for them. Put them back.
+    replayEvaluationLog($build);
 
     if ($build->buildstatus != 0) {
         # Leave no tentative evaluation behind: its hash would otherwise say
@@ -1525,9 +1560,14 @@ sub finishScheduledEvaluation {
     my $evalSeconds = defined $build->stoptime && defined $build->starttime
         ? abs($build->stoptime - $build->starttime) : 0;
 
-    finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
-                     $evalSeconds, $tmpId, 0);
-    return 0;
+    # Evaluating is what fails -- a broken aggregate, a constituent that does
+    # not exist -- and evaluating now happens over these two runs rather than
+    # one, so this run needs the same failure handling the scheduling run has.
+    eval {
+        finishEvaluation($db, $plugins, $project, $jobset, $ev->id, $jobsIter,
+                         $evalSeconds, $tmpId, 0);
+    };
+    return recordEvaluationFailure($jobset, $@, $tmpId);
 }
 
 

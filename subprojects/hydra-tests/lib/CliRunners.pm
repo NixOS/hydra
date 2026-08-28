@@ -7,6 +7,8 @@ use QueueRunnerBuildOne;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     completeScheduledEvaluations
+    finishScheduledEvaluations
+    captureEvaluation
     evalFails
     evalSucceeds
     runBuild
@@ -22,12 +24,23 @@ our @EXPORT = qw(
 # In production the second step is triggered by the build completing. Here
 # the queue runner only runs when a test asks it to, so the sequence is
 # explicit: schedule, build, finish.
-sub completeScheduledEvaluations {
+# Build and complete every evaluation of $jobset that is waiting for it, and
+# return the ($res, $stdout, $stderr) of that work as though it were one
+# command: the first non-zero exit, with the output of every run concatenated.
+#
+# Tests that care about *how* an evaluation failed want this rather than
+# `completeScheduledEvaluations`, because the failure is no longer reported by
+# the run that schedules the evaluation. Evaluating is what fails -- a broken
+# aggregate, a constituent that does not exist -- and evaluating now happens
+# in the build, so the diagnosis comes out of the run that reads its result.
+sub finishScheduledEvaluations {
     my ($ctx, $jobset) = @_;
 
     my @pending = $jobset->jobsetevals->search(
         { eval_build => { '!=' => undef }, completed => undef },
         { order_by => 'id' });
+
+    my ($result, $out, $err) = (0, "", "");
 
     for my $ev (@pending) {
         my $build = $ev->eval_build;
@@ -37,13 +50,44 @@ sub completeScheduledEvaluations {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         my ($res, $stdout, $stderr) = captureStdoutStderr(60,
             ("hydra-eval-jobset", "--finish-evaluation", $ev->id));
-        if ($res) {
-            chomp $stdout; chomp $stderr;
-            print STDERR "Finishing evaluation " . $ev->id . " failed.\n";
-            print STDERR "STDOUT: $stdout\n" if $stdout ne "";
-            print STDERR "STDERR: $stderr\n" if $stderr ne "";
-            return 0;
-        }
+        $result = $res if $res && !$result;
+        $out .= $stdout;
+        $err .= $stderr;
+    }
+
+    return ($result, $out, $err);
+}
+
+# A whole evaluation -- schedule it, build it, complete it -- reported as the
+# single command it used to be: ($res, $stdout, $stderr), with the two runs'
+# output concatenated and the first non-zero exit.
+#
+# For tests that assert on how an evaluation went. Scheduling almost always
+# succeeds, since it is only instantiating a derivation; what a test is
+# usually looking for happens in the run that reads that derivation's result.
+sub captureEvaluation {
+    my ($ctx, $jobsetCtx) = @_;
+
+    my $jobset = $jobsetCtx->{"jobset"};
+    my ($res, $out, $err) = $ctx->capture_cmd(60,
+        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name);
+    return ($res, $out, $err) if $res;
+
+    my ($finishRes, $finishOut, $finishErr) = finishScheduledEvaluations($ctx, $jobset);
+    return ($finishRes, $out . $finishOut, $err . $finishErr);
+}
+
+# As above, but for tests that only need the evaluation to have happened.
+sub completeScheduledEvaluations {
+    my ($ctx, $jobset) = @_;
+
+    my ($res, $stdout, $stderr) = finishScheduledEvaluations($ctx, $jobset);
+    if ($res) {
+        chomp $stdout; chomp $stderr;
+        print STDERR "Finishing the evaluation failed.\n";
+        print STDERR "STDOUT: $stdout\n" if $stdout ne "";
+        print STDERR "STDERR: $stderr\n" if $stderr ne "";
+        return 0;
     }
 
     return 1;
