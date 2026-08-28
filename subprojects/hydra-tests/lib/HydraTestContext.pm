@@ -98,6 +98,12 @@ sub new {
         # Prepended, so a test that wants to exercise the requirement can
         # still set its own value.
         $hydra_config = "evaluation_build_system_features =\n" . $hydra_config;
+        # And, for the same reason, tell the evaluation which store to use.
+        # Without `recursive-nix` the build gets no Nix configuration of its
+        # own, and an unsandboxed build can see the host's real daemon socket
+        # -- which it would then use, with the wrong store dir.
+        $hydra_config =
+            "evaluation_build_store_uri = $builder->{nix_daemon_uri}\n" . $hydra_config;
         if ($opts{'use_external_destination_store'} // 1) {
             $deststoredir = "$dir/nix/dest-store";
             $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;

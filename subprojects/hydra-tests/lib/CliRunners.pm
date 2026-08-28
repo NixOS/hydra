@@ -26,7 +26,7 @@ sub completeScheduledEvaluations {
     my ($ctx, $jobset) = @_;
 
     my @pending = $jobset->jobsetevals->search(
-        { eval_build => { '!=' => undef }, evaltime => 0 },
+        { eval_build => { '!=' => undef }, completed => undef },
         { order_by => 'id' });
 
     for my $ev (@pending) {

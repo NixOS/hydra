@@ -435,7 +435,8 @@ sub nixString {
 }
 
 sub evalDrvExpr {
-    my ($jobsetName, $storePaths, $cmd, $streamPath, $systemFeatures, $tee) = @_;
+    my ($jobsetName, $storePaths, $cmd, $streamPath, $systemFeatures, $tee,
+        $storeDir, $storeUri) = @_;
 
     my $name = $jobsetName;
     $name =~ s/[^a-zA-Z0-9._-]/-/g;
@@ -443,11 +444,21 @@ sub evalDrvExpr {
     # `"$@"` rather than a quoted command line: the arguments stay separate
     # Nix strings, so Nix's escaping is the only escaping involved.
     #
-    # A build's PATH is minimal, so `tee` is only used when there really are
-    # two destinations, and then by absolute path.
+    # `HOME` is unset in a build, and Nix's own default of /homeless-shelter
+    # is not writable, so the evaluator cannot open its eval cache. Point it
+    # at the build directory, which is writable and discarded afterwards.
+    #
+    # The stream is written only if it is actually there. It arrives as a
+    # path the builder binds into the sandbox, and an unsandboxed build --
+    # which is what a build against a relocated, writable store must be --
+    # never gets it. Nothing is lost when it is missing: the stream only ever
+    # makes the jobs visible sooner, and `$out` is the answer either way. A
+    # build's PATH is minimal, so `tee` is named by absolute path.
     my $script = defined $streamPath
-        ? 'set -eu; "$@" | "$tee" "$out" > "$evalStream"'
-        : 'set -eu; "$@" > "$out"';
+        ? 'set -eu; export HOME="$PWD"; ' .
+          'if [ -e "$evalStream" ]; then "$@" | "$tee" "$out" > "$evalStream"; ' .
+          'else "$@" > "$out"; fi'
+        : 'set -eu; export HOME="$PWD"; "$@" > "$out"';
 
     my @argv = ("-c", $script, "hydra-eval", @$cmd);
     my $args = join(" ", map { nixString($_) } @argv);
@@ -466,6 +477,23 @@ sub evalDrvExpr {
     $expr .= "  requiredSystemFeatures = [ " .
         join(" ", map { nixString($_) } @$systemFeatures) . " ];\n"
         if @$systemFeatures;
+    # Which store the evaluation instantiates into. A build gets no
+    # `NIX_STORE_DIR`, so a nested Nix falls back to the compile-time
+    # `/nix/store` -- and then rejects Hydra's own inputs as "not in the Nix
+    # store" whenever Hydra's store is relocated. The logical store dir is
+    # the same on every machine Hydra talks to (it has to be, or paths would
+    # not be portable between them), so naming it here is machine-independent
+    # despite looking like a local detail.
+    $expr .= "  NIX_STORE_DIR = " . nixString($storeDir) . ";\n";
+    # That alone is not always enough. A nested Nix with no `NIX_REMOTE`
+    # resolves `auto`, and an *unsandboxed* build can see the host's real
+    # daemon socket -- whose store dir then wins over the setting above. So
+    # when there is no `recursive-nix` to configure the build's Nix for us,
+    # the store has to be named outright. It must be the builder's store, so
+    # this is configuration rather than anything derivable here, and it is
+    # normally unset: in production `recursive-nix` does this job.
+    $expr .= "  NIX_REMOTE = " . nixString($storeUri) . ";\n"
+        if defined $storeUri && $storeUri ne "";
     # Referenced so the inputs are inputs of this derivation, and so appear
     # in the sandbox rather than merely being named by the arguments.
     $expr .= "  jobsetInputs = [ $inputs ];\n";
@@ -697,7 +725,9 @@ sub scheduleEvaluationBuild {
     push @storePaths, $teeRoot if defined $teeRoot;
 
     my $expr = evalDrvExpr($jobsetName, \@storePaths, \@cmd, $EVAL_STREAM_PATH,
-                           \@systemFeatures, $tee);
+                           \@systemFeatures, $tee,
+                           machineLocalStore()->storeDir,
+                           $config->{evaluation_build_store_uri});
 
     print STDERR "evaluation derivation:\n$expr" if defined $ENV{'HYDRA_DEBUG'};
 
@@ -727,6 +757,13 @@ sub scheduleEvaluationBuild {
         , finished => 0
         , iscurrent => 1
         });
+
+    # The queue runner only ever *updates* a build's output rows -- it fills
+    # in the path once the build has produced one -- so the row has to exist
+    # first. For a job build `checkBuild` inserts it; this build has no job,
+    # so insert it here. The single `out` is the JSONL the evaluation
+    # produces, and reading it back is the whole point of the build.
+    $build->buildoutputs->create({ name => "out", path => undef });
 
     # A tentative evaluation, pointing at the build that will fill it in. It
     # exists from the start so that the evaluation is visible while it runs;
@@ -1434,8 +1471,13 @@ sub finishScheduledEvaluation {
     die "$0: evaluation build " . $build->id . " produced no output\n"
         unless defined $output;
 
-    open(my $fh, "<", $output->path)
-        or die "$0: cannot read the evaluation's jobs from " . $output->path . ": $!\n";
+    # `path` is stored as a bare store path, so put the store dir back to get
+    # something openable. The store's physical layout matches its logical one
+    # here -- a relocated store is only relocated for the *clients* that pass
+    # a root, and this is the store the build wrote into.
+    my $outPath = printStorePath(machineLocalStore()->storeDir, $output->path);
+    open(my $fh, "<", $outPath)
+        or die "$0: cannot read the evaluation's jobs from $outPath: $!\n";
 
     my $jobsIter = jobsIterFromLines(sub {
         my $line = <$fh>;

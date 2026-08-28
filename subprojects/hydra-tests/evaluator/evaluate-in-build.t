@@ -4,19 +4,24 @@ use warnings;
 use Setup;
 use Test2::V0;
 
-# Evaluating a jobset does not run nix-eval-jobs in the evaluator.
-# It instantiates a derivation that will, and queues it as an ordinary build,
-# so that evaluation is scheduled and distributed like any other work.
+# Evaluating a jobset does not run nix-eval-jobs in the evaluator. It
+# instantiates a derivation that will, and queues it as an ordinary build, so
+# that evaluation is scheduled and distributed like any other work.
 #
-# The evaluation is finished when that build completes, which is a separate
-# step: nothing here waits for it, because the queue runner is what dispatches
-# builds and blocking would hold an evaluator slot until it did.
+# That makes evaluation two steps rather than one, and this test drives them
+# apart -- calling `hydra-eval-jobset` directly for the first, rather than
+# `evalSucceeds`, which does both -- so that the intermediate state is
+# something we assert about rather than something that merely happens to work.
 my $ctx = test_context();
 
 my $jobsetCtx = $ctx->makeJobset(expression => "basic.nix");
 my $jobset = $jobsetCtx->{"jobset"};
 
-ok(evalSucceeds($jobset), "evaluating the jobset should succeed");
+my ($res, $stdout, $stderr) = $ctx->capture_cmd(
+    60, "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name);
+is($res, 0, "scheduling the evaluation should succeed") or diag($stderr);
+
+my $eval;
 
 subtest "an evaluation build is queued" => sub {
     my $evalJobset = $ctx->db()->resultset('Jobsets')->find(
@@ -34,24 +39,38 @@ subtest "an evaluation build is queued" => sub {
     my $build = $builds[0];
     is($build->finished, 0, "the evaluation build should still be queued");
     like($build->drvpath, qr/hydra-eval-/, "it should build the evaluation derivation");
+
+    # The queue runner fills this in rather than inserting it, so it has to
+    # exist from the start or the build's output is lost.
+    ok(defined $build->buildoutputs->find({ name => "out" }),
+        "the evaluation build should have an output row to fill in");
 };
 
-subtest "the evaluation points at the build that will perform it" => sub {
+subtest "a tentative evaluation points at the build that will perform it" => sub {
     my @evals = $jobset->jobsetevals;
     is(scalar @evals, 1, "a tentative evaluation should exist while it runs");
 
-    my $eval = $evals[0];
+    $eval = $evals[0];
     ok(defined $eval->eval_build, "the evaluation should name its build");
+    is($eval->completed, undef, "and should not be marked completed yet");
 
-    my $build = $ctx->db()->resultset('Builds')->find($eval->eval_build->id);
-    is($build->jobset_id, $eval->eval_build->jobset_id,
-        "that build is the queued evaluation build");
+    # The jobs are not known until the evaluation build has run, so nothing
+    # should have been created for them.
+    is(scalar($jobset->builds), 0, "no jobs should be queued yet");
 };
 
-subtest "the jobset itself gained no builds" => sub {
-    # The jobs are not known until the evaluation build has run, so nothing
-    # should have been created for them yet.
-    is(scalar($jobset->builds), 0, "no jobs should be queued yet");
+subtest "completing the build completes the evaluation" => sub {
+    ok(completeScheduledEvaluations($ctx, $jobset), "the evaluation should complete");
+
+    $eval->discard_changes;
+    ok(defined $eval->completed, "the evaluation should be marked completed");
+    is($eval->eval_build->finished, 1, "its build should have finished");
+    is($eval->eval_build->buildstatus, 0, "and succeeded");
+
+    # Only now do the jobs exist, and they are ordinary builds of the jobset
+    # being evaluated -- not of the jobset the evaluation build lives in.
+    ok(scalar($jobset->builds) > 0, "the jobs should now be queued");
+    is($eval->hasnewbuilds, 1, "and the evaluation should say so");
 };
 
 done_testing;

@@ -13,6 +13,7 @@ use CliRunners;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
+    completeScheduledEvaluations
     createBaseJobset
     createJobsetWithOneInput
     evalFails
