@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET errorMsg = $1, fetchErrorMsg = null, errorTime = CASE WHEN $1 = '' THEN NULL ELSE $2::bigint END WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a69393a901763ac8177b462c24aafcde070b7e562dc3ea26bdc870e266179e39"
+}

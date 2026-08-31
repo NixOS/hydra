@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE builds\n        SET drvpath = $2, finished = 0, buildstatus = NULL\n        WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "afc8949b46b9a20e677794cd602f76da1ed4ed2dbd2f486853cabe86d93a44c6"
+}

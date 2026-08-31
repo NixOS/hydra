@@ -34,6 +34,12 @@ my $hydraConfigCache;
 # exactly like the setting having no effect, so say so once.
 our %movedSettings = (
     max_concurrent_evals => "`max_concurrent_evals` in /etc/hydra/evaluator.toml",
+    evaluator_workers => "`evaluator_workers` in /etc/hydra/evaluator.toml",
+    evaluator_max_memory_size =>
+        "`evaluator_max_memory_size` in /etc/hydra/evaluator.toml",
+    allow_import_from_derivation =>
+        "`allow_import_from_derivation` in /etc/hydra/evaluator.toml",
+    eval_substituter => "`eval_substituter` in /etc/hydra/evaluator.toml",
 );
 
 sub warnAboutMovedSettings {

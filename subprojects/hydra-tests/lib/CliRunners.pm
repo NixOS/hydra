@@ -20,7 +20,7 @@ sub captureEvaluation {
     my ($ctx, $jobset) = @_;
     $jobset = $jobset->{"jobset"} if ref $jobset eq "HASH";
     return $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobset->project->name, $jobset->name);
+        "hydra-evaluator", $jobset->project->name, $jobset->name);
 }
 
 sub evalSucceeds {

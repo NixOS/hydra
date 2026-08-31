@@ -195,7 +195,6 @@ stdenv.mkDerivation (finalAttrs: {
       darcs
       gnused
       breezy
-      nix-eval-jobs
     ]
     ++ lib.optionals stdenv.hostPlatform.isLinux [
       rpm

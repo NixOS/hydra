@@ -11,12 +11,17 @@ let
 
   cfg = config.services.hydra-dev;
 
-  inherit (import ./web-app-env.nix { inherit lib cfg; })
-    baseDir
-    hydraEnv
-    dbUrlWithAppName
-    env
-    ;
+  sharedEnv = import ./web-app-env.nix { inherit lib cfg; };
+
+  inherit (sharedEnv) baseDir hydraEnv dbUrlWithAppName;
+
+  # Only the web app's own services send email.
+  env =
+    optionalAttrs (cfg.smtpHost != null) {
+      EMAIL_SENDER_TRANSPORT = "SMTP";
+      EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
+    }
+    // sharedEnv.env;
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
