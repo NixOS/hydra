@@ -82,7 +82,18 @@ Sends email notification if build status changes.
 
 ### Configuration options
 
-- `email_notification`
+- `email_notifications.build` --- mail about finished builds, to whoever
+  maintains the job
+- `email_notification` --- deprecated; enables this and the separate
+  `email_notifications.eval`. Setting it as well as the block is an error.
+
+### Example
+
+```xml
+<email_notifications>
+  build = 1
+</email_notifications>
+```
 
 ## Gitea status
 
