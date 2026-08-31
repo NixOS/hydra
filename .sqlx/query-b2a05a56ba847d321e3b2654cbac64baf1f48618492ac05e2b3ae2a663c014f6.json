@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET startTime = null, lastCheckedTime = $2 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b2a05a56ba847d321e3b2654cbac64baf1f48618492ac05e2b3ae2a663c014f6"
+}

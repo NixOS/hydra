@@ -36,10 +36,6 @@ rec {
     NIX_REMOTE = "daemon";
     PGPASSFILE = "${baseDir}/pgpass";
   }
-  // optionalAttrs (cfg.smtpHost != null) {
-    EMAIL_SENDER_TRANSPORT = "SMTP";
-    EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
-  }
   // hydraEnv
   // cfg.extraEnv;
 }
