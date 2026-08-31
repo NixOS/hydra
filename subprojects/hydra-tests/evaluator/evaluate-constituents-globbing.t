@@ -13,9 +13,9 @@ subtest "general glob testing" => sub {
     my $jobset = $jobsetCtx->{"jobset"};
 
     my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
+        "hydra-evaluator", $jobsetCtx->{"project"}->name, $jobset->name
     );
-    is($res, 0, "hydra-eval-jobset exits zero");
+    is($res, 0, "hydra-evaluator exits zero");
 
     my $builds = {};
     for my $build ($jobset->builds) {
@@ -48,7 +48,7 @@ subtest "* selects all except current aggregate" => sub {
     my $jobset = $jobsetCtx->{"jobset"};
 
     my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
+        "hydra-evaluator", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     subtest "no eval errors" => sub {
@@ -90,7 +90,7 @@ subtest "trivial cycle check" => sub {
     my $jobset = $jobsetCtx->{"jobset"};
 
     my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
+        "hydra-evaluator", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     ok(
@@ -117,7 +117,7 @@ subtest "cycle check with globbing" => sub {
     my $jobset = $jobsetCtx->{"jobset"};
 
     my ($res, $stdout, $stderr) = $ctx->capture_cmd(60,
-        "hydra-eval-jobset", $jobsetCtx->{"project"}->name, $jobset->name
+        "hydra-evaluator", $jobsetCtx->{"project"}->name, $jobset->name
     );
 
     ok(utf8::decode($stderr), "Stderr output is UTF8-clean");
@@ -129,7 +129,7 @@ subtest "cycle check with globbing" => sub {
         "packages.constituentA error missing"
     );
 
-    # on this branch of Hydra, hydra-eval-jobset fails hard if an aggregate
+    # on this branch of Hydra, the evaluator fails hard if an aggregate
     # job is broken.
     is(0, $jobset->builds->count, "Zero jobs are scheduled");
 };

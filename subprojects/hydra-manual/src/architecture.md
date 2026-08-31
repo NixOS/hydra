@@ -24,11 +24,13 @@ These components all share a single Nix store and PostgreSQL database on the mas
     - reads build metadata from PostgreSQL and tails log files from the coordinator's store
     - listens for PostgreSQL build-completion notifications and forwards events to clients
 - **`hydra-evaluator`** (Rust)
-    - periodically evaluates jobsets by invoking the Nix evaluator
+    - periodically evaluates jobsets, running `nix-eval-jobs` itself
     - writes `.drv` files into the coordinator's Nix store
     - adds new builds to the queue when evaluation results change
-- **`hydra-eval-jobset`** (Perl)
-    - called by the evaluator to orchestrate fetching inputs and running the Nix evaluation
+- **`hydra-fetch-input`** (Perl)
+    - fetches one jobset input of a plugin-provided type, on the evaluator's behalf
+    - the only Perl left in the evaluation path, because input types are a
+      plugin interface; it touches nothing but the plugins' own cache tables
 - **`hydra-queue-runner`** (Rust)
     - reads `.drv` files from the coordinator's Nix store
     - schedules build steps across builders

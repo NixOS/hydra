@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n              j.id,\n              j.project,\n              j.name,\n              lastCheckedTime,\n              triggerTime,\n              checkInterval,\n              j.enabled\n            FROM jobsets j\n            JOIN projects p ON j.project = p.name\n            WHERE j.enabled != 0 AND p.enabled != 0",
+  "query": "\n        SELECT\n          j.id,\n          j.project,\n          j.name,\n          lastCheckedTime,\n          triggerTime,\n          checkInterval,\n          j.enabled\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.enabled != 0 AND p.enabled != 0",
   "describe": {
     "columns": [
       {
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "1252e78f56dc65f4557b6f8dd03d5323efd3565619f1392faea40d2b654250e7"
+  "hash": "89ddc1b1a2b3f337f56f24c01e43d2be4038e6601709b8dc1c443d62b18c2bc8"
 }

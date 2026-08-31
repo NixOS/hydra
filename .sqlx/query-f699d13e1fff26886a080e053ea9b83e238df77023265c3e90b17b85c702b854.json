@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_notify('eval_failed', $1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pg_notify",
+        "type_info": "Void"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f699d13e1fff26886a080e053ea9b83e238df77023265c3e90b17b85c702b854"
+}

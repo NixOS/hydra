@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO jobsetevals\n          (jobset_id, timestamp, checkouttime, evaltime, hasnewbuilds,\n           nrbuilds, hash, flake, nixexprinput, nixexprpath,\n           evaluationerror_id)\n        VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8, $9)\n        RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0bb9ff47965449c55566a5828ca5845c7af1746b3ed41de495b7201af399f188"
+}

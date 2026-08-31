@@ -14,15 +14,20 @@
 #![allow(clippy::missing_errors_doc)]
 
 mod config;
+mod evaluate;
 mod evaluator;
+mod fetcher;
+mod ingest;
+mod inputs;
+mod nix_eval_jobs;
 mod queries;
+mod store_paths;
 
 use clap::Parser;
 use color_eyre::eyre::{self, WrapErr as _};
 
 use config::HydraConfig;
 use evaluator::Evaluator;
-use queries::JobsetQueries as _;
 
 #[derive(clap::Parser, Debug)]
 #[command(name = "hydra-evaluator", about = "Hydra jobset evaluation scheduler")]
@@ -52,9 +57,7 @@ async fn main() -> color_eyre::Result<()> {
         .wrap_err("failed to connect to database")?;
 
     if cli.unlock {
-        db.get()
-            .await?
-            .unlock_all_jobsets()
+        queries::unlock_all_jobsets(&mut db.get().await?)
             .await
             .wrap_err("failed to unlock jobsets")?;
         tracing::info!("unlocked all jobsets");
@@ -69,6 +72,24 @@ async fn main() -> color_eyre::Result<()> {
         _ => eyre::bail!("Syntax: hydra-evaluator [<project> <jobset>]"),
     };
 
-    let evaluator = Evaluator::new(db, &config, eval_one);
+    // The store is needed both to describe inputs to the expression -- which
+    // used to be the Perl's business -- and to find out whether a build an
+    // input names is actually here.
+    let remote = daemon_client_utils::parse_nix_remote()
+        .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
+    let available = store_paths::Availability::new(
+        daemon_client_utils::DaemonStoreReader::new(daemon_client_utils::DaemonConnector::new(
+            remote.socket.clone(),
+            remote.store_dir.clone(),
+        )),
+        config.eval_substituter().map(str::to_owned),
+    );
+
+    let evaluator = Evaluator::new(
+        db,
+        std::sync::Arc::new(config),
+        std::sync::Arc::new(available),
+        eval_one,
+    );
     evaluator.run().await
 }

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT e.id FROM jobsetevals e\n        JOIN jobsets j ON e.jobset_id = j.id\n        WHERE j.project = $1 AND j.name = $2 AND e.hasnewbuilds = 1\n          AND NOT EXISTS (\n            SELECT 1 FROM jobsetevalmembers m JOIN builds b ON m.build = b.id\n            WHERE m.eval = e.id AND b.finished = 0)\n        ORDER BY e.id DESC\n        LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5e1912eee74fe99bf6d89d8b04cafa7e8e0f3ec6e12ad707d29a3c9adfe0a9c8"
+}

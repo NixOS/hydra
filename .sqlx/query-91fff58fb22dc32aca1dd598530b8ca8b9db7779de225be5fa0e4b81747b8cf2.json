@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE builds SET iscurrent = 1 WHERE id IN (\n              SELECT b.id FROM builds b\n              JOIN jobsetevalmembers m ON m.build = b.id\n              WHERE m.eval = $1 AND b.iscurrent = 0\n              ORDER BY b.id LIMIT $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "91fff58fb22dc32aca1dd598530b8ca8b9db7779de225be5fa0e4b81747b8cf2"
+}

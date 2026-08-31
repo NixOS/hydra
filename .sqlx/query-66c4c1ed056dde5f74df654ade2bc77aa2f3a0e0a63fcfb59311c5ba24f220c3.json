@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.id, b.finished, b.drvpath\n        FROM jobsetevalmembers m\n        JOIN builds b ON m.build = b.id\n        JOIN buildoutputs o ON o.build = b.id\n        WHERE m.eval = $1 AND b.jobset_id = $2 AND b.job = $3\n          AND o.name = $4\n          AND (($5::text IS NULL AND b.drvpath = $6) OR o.path = $5)\n        LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "finished",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "drvpath",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "66c4c1ed056dde5f74df654ade2bc77aa2f3a0e0a63fcfb59311c5ba24f220c3"
+}

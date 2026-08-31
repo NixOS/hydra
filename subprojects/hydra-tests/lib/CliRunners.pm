@@ -16,7 +16,7 @@ our @EXPORT = qw(
 sub evalSucceeds {
     my ($ctx, $jobset) = @_;
     local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-evaluator", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
         chomp $stdout; chomp $stderr;
@@ -32,7 +32,7 @@ sub evalSucceeds {
 sub evalFails {
     my ($ctx, $jobset) = @_;
     local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-eval-jobset", $jobset->project->name, $jobset->name));
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-evaluator", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if (!$res) {
         chomp $stdout; chomp $stderr;

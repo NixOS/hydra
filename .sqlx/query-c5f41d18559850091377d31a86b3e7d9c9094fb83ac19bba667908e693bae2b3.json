@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.id, b.releasename, b.nixname,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.id DESC\n        LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "releasename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "nixname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "out_path?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "out_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c5f41d18559850091377d31a86b3e7d9c9094fb83ac19bba667908e693bae2b3"
+}

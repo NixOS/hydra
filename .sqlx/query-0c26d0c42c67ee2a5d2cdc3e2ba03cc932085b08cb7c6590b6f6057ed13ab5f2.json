@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,\n               p.declfile, j.errormsg\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.project = $1 AND j.name = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "flake",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "nixexprinput",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "nixexprpath",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "forceeval",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "declfile",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "errormsg",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0c26d0c42c67ee2a5d2cdc3e2ba03cc932085b08cb7c6590b6f6057ed13ab5f2"
+}

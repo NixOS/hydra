@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.id, b.releasename, b.nixname,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE b.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "releasename",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "nixname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "out_path?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "out_name?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "e85a9cb7b5c47829f466c96b34ebca5fd36a6739e4ac88b734ff78adf5df58d3"
+}

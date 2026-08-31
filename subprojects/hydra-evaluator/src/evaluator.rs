@@ -4,11 +4,10 @@ use std::time::Duration;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::{FutureExt as _, StreamExt as _};
-use tokio::process::Command;
 use tokio::sync::{Mutex, Notify};
 
 use crate::config::HydraConfig;
-use crate::queries::JobsetQueries as _;
+use crate::queries;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
@@ -59,6 +58,10 @@ struct State {
 
 pub(crate) struct Evaluator {
     db: db::Database,
+    /// Kept because evaluating is done here now, rather than by a program
+    /// spawned per jobset that would read the configuration itself.
+    config: Arc<HydraConfig>,
+    available: Arc<crate::store_paths::Availability>,
     max_evals: usize,
     eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
@@ -68,12 +71,15 @@ pub(crate) struct Evaluator {
 impl Evaluator {
     pub(crate) fn new(
         db: db::Database,
-        config: &HydraConfig,
+        config: Arc<HydraConfig>,
+        available: Arc<crate::store_paths::Availability>,
         eval_one: Option<(String, String)>,
     ) -> Self {
         let max_evals = config.max_concurrent_evals();
         Self {
             db,
+            config,
+            available,
             max_evals,
             eval_one,
             state: Arc::new(Mutex::new(State::default())),
@@ -238,7 +244,7 @@ impl Evaluator {
     }
 
     async fn read_jobsets(&self) -> eyre::Result<()> {
-        let rows = self.db.get().await?.get_schedulable_jobsets().await?;
+        let rows = queries::get_schedulable_jobsets(&mut self.db.get().await?).await?;
 
         let mut state = self.state.lock().await;
         let mut seen = HashSet::new();
@@ -337,8 +343,7 @@ impl Evaluator {
     async fn should_evaluate_one_at_a_time(&self, jobset: &Jobset) -> eyre::Result<bool> {
         let mut conn = self.db.get().await?;
 
-        let eval_id = conn
-            .get_latest_eval_id(jobset.id)
+        let eval_id = queries::get_latest_eval_id(&mut conn, jobset.id)
             .await
             .wrap_err_with(|| format!("checking one-at-a-time for {}", jobset.display()))?;
 
@@ -350,8 +355,7 @@ impl Evaluator {
             return Ok(true);
         };
 
-        let unfinished = conn
-            .eval_has_unfinished_builds(eval_id)
+        let unfinished = queries::eval_has_unfinished_builds(&mut conn, eval_id)
             .await
             .wrap_err_with(|| format!("checking unfinished builds for {}", jobset.display()))?;
 
@@ -437,41 +441,9 @@ impl Evaluator {
             now - last_checked,
         );
 
-        self.db
-            .get()
-            .await?
-            .set_jobset_start_time(jobset_id, now)
+        queries::set_jobset_start_time(&mut self.db.get().await?, jobset_id, now)
             .await
             .wrap_err("failed to set startTime")?;
-
-        let child = match Command::new("hydra-eval-jobset")
-            .arg(&project)
-            .arg(&jobset_name)
-            .spawn()
-        {
-            Ok(child) => child,
-            Err(e) => {
-                tracing::error!("failed to spawn hydra-eval-jobset for {jobset_display}: {e}");
-                // Clean up as if the eval had failed — startTime was
-                // already written, and leaving it set would show the
-                // jobset as evaluating forever while it retries in a
-                // tight loop. (In the C++ version exec failure happened
-                // in the forked child, so the reaper always ran this.)
-                if let Some(jobset) = state.jobsets.get_mut(&jobset_id) {
-                    jobset.trigger_time = None;
-                    jobset.last_checked_time = now;
-                }
-                let status = format!("failed to start: {e}");
-                if let Err(e) = update_db_after_eval(&self.db, jobset_id, false, &status, now).await
-                {
-                    tracing::error!("exception setting jobset error: {e:#}");
-                }
-                if self.eval_one.is_some() {
-                    std::process::exit(1);
-                }
-                return Ok(());
-            }
-        };
 
         let (kill_tx, kill_rx) = tokio::sync::oneshot::channel();
         state.running_evals += 1;
@@ -483,11 +455,33 @@ impl Evaluator {
         let state_arc = Arc::clone(&self.state);
         let notify_work = Arc::clone(&self.notify_work);
 
+        let config = Arc::clone(&self.config);
+        let available = Arc::clone(&self.available);
+        let trace = format!("{now}.{jobset_id}");
+        let reap_trace = trace.clone();
+
+        let eval_db = db.clone();
+
         tokio::spawn(async move {
-            reap_child(
-                child,
+            // Built inside the task so the future owns what it borrows; it
+            // outlives this scope by design.
+            let evaluation = Box::pin(async move {
+                crate::evaluate::evaluate(
+                    &eval_db,
+                    &config,
+                    &available,
+                    &project,
+                    &jobset_name,
+                    &trace,
+                )
+                .await
+            });
+
+            reap_eval(
+                evaluation,
                 kill_rx,
                 jobset_id,
+                reap_trace,
                 jobset_display,
                 now,
                 eval_one,
@@ -502,10 +496,7 @@ impl Evaluator {
     }
 
     async fn unlock(&self) -> eyre::Result<()> {
-        self.db
-            .get()
-            .await?
-            .unlock_all_jobsets()
+        queries::unlock_all_jobsets(&mut self.db.get().await?)
             .await
             .wrap_err("failed to unlock jobsets")?;
         Ok(())
@@ -513,10 +504,13 @@ impl Evaluator {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn reap_child(
-    mut child: tokio::process::Child,
+async fn reap_eval(
+    evaluation: std::pin::Pin<
+        Box<dyn Future<Output = eyre::Result<crate::evaluate::Outcome>> + Send>,
+    >,
     mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     jobset_id: i32,
+    trace: String,
     jobset_display: String,
     start_time: db::Timestamp,
     eval_one: bool,
@@ -524,22 +518,31 @@ async fn reap_child(
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
 ) {
-    let status = tokio::select! {
-        s = child.wait() => s,
+    // Abandoning the future is how an evaluation is cancelled now that it is
+    // not a process: dropping it stops the work, and anything it had already
+    // committed stands, as it would have with a killed child.
+    let outcome = tokio::select! {
+        result = evaluation => Some(result),
         _ = &mut kill_rx => {
-            tracing::info!("killing evaluation of jobset '{jobset_display}'");
-            let _ = child.start_kill();
-            child.wait().await
+            tracing::info!("abandoning evaluation of jobset '{jobset_display}'");
+            None
         }
     };
 
-    let (exit_ok, status_str) = match &status {
-        Ok(s) => {
-            let code = s.code();
-            let ok = code == Some(0) || code == Some(1);
-            (ok, format!("{s}"))
+    let (exit_ok, status_str) = match &outcome {
+        Some(Ok(crate::evaluate::Outcome::Cached { previous })) => {
+            (true, format!("cached, same as evaluation {previous}"))
         }
-        Err(e) => (false, format!("error: {e}")),
+        Some(Ok(crate::evaluate::Outcome::Evaluated { eval, changed })) => (
+            true,
+            if *changed {
+                format!("added evaluation {eval}")
+            } else {
+                format!("evaluation {eval} found no changes")
+            },
+        ),
+        Some(Err(e)) => (false, format!("{e:#}")),
+        None => (true, "abandoned".to_owned()),
     };
 
     tracing::info!("evaluation of jobset '{}' {}", jobset_display, status_str);
@@ -567,7 +570,7 @@ async fn reap_child(
     // not-running afterwards (as the C++ reaper did), so a new eval
     // of the same jobset cannot start in between and have its fresh
     // startTime clobbered by this transaction.
-    if let Err(e) = update_db_after_eval(&db, jobset_id, exit_ok, &status_str, now).await {
+    if let Err(e) = update_db_after_eval(&db, &trace, jobset_id, exit_ok, &status_str, now).await {
         tracing::error!("exception setting jobset error: {e:#}");
     }
 
@@ -583,22 +586,37 @@ async fn reap_child(
     // in eval-one mode, so a woken main loop could otherwise start a second
     // eval of the jobset before the process is gone.
     if eval_one {
-        std::process::exit(0);
+        // Non-zero when the evaluation failed: `hydra-evaluator p j` is how
+        // a single evaluation is asked for, and its caller wants to know.
+        std::process::exit(i32::from(!exit_ok));
     }
 }
 
 async fn update_db_after_eval(
     db: &db::Database,
+    trace: &str,
     jobset_id: i32,
     exit_ok: bool,
     status_str: &str,
     now: db::Timestamp,
 ) -> eyre::Result<()> {
-    let error_msg = (!exit_ok).then(|| format!("evaluation {status_str}"));
-    db.get()
-        .await?
-        .update_jobset_after_eval(jobset_id, error_msg.as_deref(), now)
+    let mut conn = db.get().await?;
+
+    // A failure is announced; a success is not, because `record` already sent
+    // `eval_added` -- carrying the same flag -- from inside the transaction
+    // that produced the evaluation.
+    if exit_ok {
+        queries::update_jobset_after_eval(&mut conn, jobset_id, None, now).await?;
+    } else {
+        queries::fail_jobset_eval(
+            &mut conn,
+            trace,
+            jobset_id,
+            &format!("evaluation {status_str}"),
+            now,
+        )
         .await?;
+    }
     Ok(())
 }
 

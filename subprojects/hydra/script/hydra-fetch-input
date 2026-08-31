@@ -1,0 +1,138 @@
+#! /usr/bin/env perl
+
+# Fetch one jobset input at a time, on behalf of the evaluator.
+#
+# This is the whole of the Perl that remains in the evaluation path, and it
+# exists for one reason: input types are a plugin interface, and the plugins
+# are Perl. Everything else about evaluating a jobset -- deciding what to
+# evaluate, running the evaluator, turning jobs into builds -- is done by the
+# caller.
+#
+# Consequently this program touches only the plugins' own cache tables. It
+# never reads or writes Builds, Jobsets, JobsetEvals or anything else: inputs
+# whose values come from those (`build`, `sysbuild`, `eval`) are resolved by
+# the caller, which owns them, and never reach here.
+#
+# The protocol is one JSON object per line in each direction. (The examples
+# below are laid out over several lines for easier reading, but on the wire
+# each is a single line.)
+#
+# A request names the input to fetch:
+#
+#     {
+#        "type"    : "git",
+#        "name"    : "nixpkgs",
+#        "value"   : "https://github.com/NixOS/nixpkgs main",
+#        "project" : "nixos",
+#        "jobset"  : "trunk"
+#     }
+#
+# and the reply is either the inputs that type produced, or why it failed:
+#
+#     { "inputs" : [ { "uri" : "...", "revision" : "...", ... } ] }
+#     { "error"  : "could not fetch ..." }
+#
+# A failure is reported rather than fatal: one unfetchable input should not
+# cost the caller the others.
+
+use strict;
+use warnings;
+
+use Hydra::Config;
+use Hydra::Model::DB;
+use Hydra::Plugin;
+use JSON::MaybeXS;
+
+# A plugin that writes to stdout must not be able to corrupt the protocol.
+# The channel is a private duplicate of the descriptor, taken before anything
+# else runs, and `STDOUT` is then pointed at `STDERR`: a stray `print` lands
+# in the evaluator's log, where it is visible and attributable, rather than
+# in the middle of the stream.
+#
+# Redirected rather than closed. Closing it breaks every plugin that shells
+# out, because `IPC::Run3` saves and restores `STDOUT` and `addToStore` uses
+# it -- a closed descriptor fails with "Bad file descriptor saving STDOUT"
+# before the plugin gets as far as its own work.
+open(my $proto, ">&", \*STDOUT) or die "$0: cannot duplicate stdout: $!\n";
+open(STDOUT, ">&", \*STDERR) or die "$0: cannot redirect stdout: $!\n";
+$proto->autoflush(1);
+STDOUT->autoflush(1);
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
+
+my $config = getHydraConfig();
+my $db = Hydra::Model::DB->new();
+my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
+
+my $json = JSON::MaybeXS->new(utf8 => 1, canonical => 1);
+
+
+# The plugins take the project and jobset as database rows, but all any of
+# them wants is the name -- `GitInput` for a cache key, and nothing else at
+# all. Passing names rather than rows is what keeps this program away from
+# the tables that hold them.
+{
+    package Hydra::FetchInput::Named;
+    sub new { my ($class, $name) = @_; return bless { name => $name }, $class; }
+    sub name { return $_[0]->{name}; }
+    sub get_column { return $_[0]->{name}; }
+}
+
+
+# What a plugin hands back may contain objects -- a store path is a class on
+# this branch, not a string -- which JSON will not encode. They all know how
+# to print themselves, so print them.
+sub plain {
+    my ($value) = @_;
+    return undef unless defined $value;
+    my $ref = ref $value;
+    return [ map { plain($_) } @$value ] if $ref eq 'ARRAY';
+    return { map { $_ => plain($value->{$_}) } keys %$value } if $ref eq 'HASH';
+    return $value if $ref eq '';
+    return "$value";
+}
+
+
+sub fetchOne {
+    my ($req) = @_;
+
+    my $type = $req->{type} // die "request has no input type\n";
+    my $name = $req->{name} // die "request has no input name\n";
+    my $project = Hydra::FetchInput::Named->new($req->{project} // "");
+    my $jobset = Hydra::FetchInput::Named->new($req->{jobset} // "");
+
+    for my $plugin (@{$plugins}) {
+        my @inputs = $plugin->fetchInput($type, $name, $req->{value}, $project, $jobset);
+        # A plugin that does not handle this type returns nothing, so an
+        # undefined first element means "not mine" rather than "failed".
+        return [ map { plain($_) } @inputs ] if defined $inputs[0];
+    }
+
+    die "input `$name' has unknown type `$type'.\n";
+}
+
+
+sub answer {
+    my ($req) = @_;
+
+    my $reply;
+    eval {
+        $reply = { inputs => fetchOne($req) };
+        1;
+    } or do {
+        my $error = $@ || "unknown error";
+        chomp $error;
+        $reply = { error => $error };
+    };
+
+    print $proto $json->encode($reply), "\n";
+}
+
+
+while (defined(my $line = <STDIN>)) {
+    next if $line =~ /^\s*$/;
+
+    # A malformed request is the caller's bug rather than an input that
+    # failed, so it is fatal: there is nothing sensible to answer with.
+    answer($json->decode($line));
+}

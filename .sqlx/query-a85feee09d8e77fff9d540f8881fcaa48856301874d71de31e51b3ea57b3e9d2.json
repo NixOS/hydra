@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.job, o.path as \"path!\"\n        FROM jobsetevalmembers m\n        JOIN builds b ON m.build = b.id\n        JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE m.eval = $1 AND b.finished = 1 AND b.buildstatus = 0\n          AND o.path IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "job",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "path!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "a85feee09d8e77fff9d540f8881fcaa48856301874d71de31e51b3ea57b3e9d2"
+}

@@ -140,6 +140,24 @@ in
         type = types.submodule {
           freeformType = evaluatorFormat.type;
           options = {
+            allow_import_from_derivation = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Whether jobsets may import from derivations.
+                Off unless asked for, because it lets an evaluation demand builds.
+              '';
+            };
+            evaluator_workers = mkOption {
+              type = types.ints.positive;
+              default = 1;
+              description = "How many `nix-eval-jobs` workers to run.";
+            };
+            evaluator_max_memory_size = mkOption {
+              type = types.ints.positive;
+              default = 4096;
+              description = "The memory each worker may use, in MiB, before it is restarted.";
+            };
             max_concurrent_evals = mkOption {
               type = types.ints.positive;
               default = 4;
@@ -351,9 +369,8 @@ in
       ];
       path = with pkgs; [
         hostname-debian
-        # Because hydra-evaluator calls `hydra-eval-jobset`. If we
-        # move that perl script into rust, then we can get rid of
-        # this.
+        # Because hydra-evaluator calls `hydra-fetch-input`, which is Perl
+        # and must stay so: input types are a plugin interface.
         cfg.package
       ];
       environment = env // {
@@ -366,8 +383,6 @@ in
           "--config-path"
           "/etc/hydra/evaluator.toml"
         ];
-        # `--unlock` goes through the same argument parsing, so it needs the
-        # path too.
         ExecStopPost = escapeShellArgs [
           "${cfg.evaluatorExecutable}"
           "--config-path"

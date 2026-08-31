@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO builds\n          (timestamp, jobset_id, job, drvpath, system, nixname, description,\n           license, homepage, maintainers, maxsilent, timeout, priority,\n           finished, iscurrent, ischannel)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 1, $14)\n        RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f86bb9e2f3de697c233e84db3d8105901ed6c384056de8f72e937527e3f22adc"
+}

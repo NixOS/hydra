@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_notify('eval_cached', $1)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pg_notify",
+        "type_info": "Void"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cf5f3b134e14f70f522ba81050428082074ca8341844ad15aa9b943c73b8373f"
+}

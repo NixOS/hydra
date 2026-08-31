@@ -471,6 +471,12 @@ impl Transaction<'_> {
         Ok(self.tx.commit().await?)
     }
 
+    /// The transaction itself, so that callers can run their own queries in
+    /// it, as [`Connection::raw`] lets them do outside one.
+    pub fn raw(&mut self) -> &mut sqlx::PgConnection {
+        &mut self.tx
+    }
+
     #[tracing::instrument(skip(self, v), err)]
     pub async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
         sqlx::query!(
@@ -1363,6 +1369,31 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
+    /// A build this evaluation queued.
+    pub async fn notify_build_queued(&mut self, build_id: i32) -> crate::Result<()> {
+        self.notify_any("build_queued", &build_id.to_string()).await
+    }
+
+    /// A build this evaluation inherited from an earlier one, still running.
+    pub async fn notify_cached_build_queued(
+        &mut self,
+        eval_id: i32,
+        build_id: i32,
+    ) -> crate::Result<()> {
+        self.notify_any("cached_build_queued", &format!("{eval_id}\t{build_id}"))
+            .await
+    }
+
+    /// A build this evaluation inherited from an earlier one, already done.
+    pub async fn notify_cached_build_finished(
+        &mut self,
+        eval_id: i32,
+        build_id: i32,
+    ) -> crate::Result<()> {
+        self.notify_any("cached_build_finished", &format!("{eval_id}\t{build_id}"))
+            .await
+    }
+
     pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
         self.notify_any("build_started", &build_id.to_string())
             .await?;

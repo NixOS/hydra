@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, hash, flake FROM jobsetevals\n        WHERE jobset_id = $1\n        ORDER BY id DESC\n        LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "flake",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "962820ceeec38e40109798689806c8953074ff7a5cdf28c62d34fa97cbaf5ec8"
+}

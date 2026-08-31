@@ -22,9 +22,36 @@ pub(crate) enum ConfigError {
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct HydraConfig {
+    /// Whether jobsets may import from derivations. Off unless asked for,
+    /// because it lets an evaluation demand builds.
+    #[serde(default)]
+    allow_import_from_derivation: bool,
+
+    /// How many `nix-eval-jobs` workers to run.
+    #[serde(default = "default_workers")]
+    evaluator_workers: u64,
+
+    /// The memory each of them may use, in MiB, before it is restarted.
+    #[serde(default = "default_max_memory_size")]
+    evaluator_max_memory_size: u64,
+
     /// How many jobsets to evaluate at once.
     #[serde(default = "default_max_concurrent_evals")]
     max_concurrent_evals: u64,
+
+    /// Where to fetch a build's output from when a `build` or `sysbuild`
+    /// input names one this machine does not have. Unset means the store is
+    /// expected to have everything already.
+    #[serde(default)]
+    eval_substituter: Option<String>,
+}
+
+fn default_workers() -> u64 {
+    1
+}
+
+fn default_max_memory_size() -> u64 {
+    4096
 }
 
 fn default_max_concurrent_evals() -> u64 {
@@ -58,8 +85,24 @@ impl HydraConfig {
         })
     }
 
-    /// At least one, so that a configuration of zero slows the evaluator down
-    /// rather than stopping it.
+    pub(crate) fn allow_import_from_derivation(&self) -> bool {
+        self.allow_import_from_derivation
+    }
+
+    pub(crate) fn evaluator_workers(&self) -> u64 {
+        self.evaluator_workers
+    }
+
+    pub(crate) fn evaluator_max_memory_size(&self) -> u64 {
+        self.evaluator_max_memory_size
+    }
+
+    pub(crate) fn eval_substituter(&self) -> Option<&str> {
+        self.eval_substituter.as_deref()
+    }
+
+    /// At least one, so that a configuration of zero does not stop the
+    /// evaluator rather than slowing it down.
     pub(crate) fn max_concurrent_evals(&self) -> usize {
         usize::try_from(self.max_concurrent_evals.max(1)).unwrap_or(usize::MAX)
     }
