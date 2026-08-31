@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsetevals SET hasnewbuilds = $2, nrbuilds = $3 WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "09b6cacdd42c15434ecb7969bde7cb4f62ac9a75ab2f9836c72689b517a0f9c4"
+}
