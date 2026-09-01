@@ -28,3 +28,14 @@ sub search_rs {
 
   return $class->next::method($query, $attrs);
 }
+
+# Find a jobset by id, with its error message.
+#
+# `search_rs` above drops `errormsg` unless a query names it in `+columns`, so
+# a plain `find` gives back a jobset whose error is undef -- indistinguishable
+# from one that never failed, and nothing says so.
+sub find_with_error {
+  my ( $self, $id ) = @_;
+
+  return $self->search({ id => $id }, { '+columns' => { errormsg => 'errormsg' } })->single;
+}

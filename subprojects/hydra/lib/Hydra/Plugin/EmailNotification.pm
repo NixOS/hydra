@@ -11,6 +11,10 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use Hydra::Config;
 
+# TODO rename to `EmailNotificationBuild`, beside `EmailNotificationEval`.
+# Blocked on migrating `TaskRetries`, which stores `pluginname` as the class
+# name. We will want the migration to rename any `EmailNotification` to
+# `EmailNotificationBuild` accordingly.
 sub isEnabled {
     my ($self) = @_;
     return buildEmailNotificationEnabled($self->{config});
@@ -92,7 +96,7 @@ sub buildFinished {
 
     # Send an email to each interested address.
     for my $to (keys %addresses) {
-        print STDERR "sending mail notification to ", $to, "\n";
+        print STDERR "sending mail notification for changed build status to ", $to, "\n";
         my @builds = @{$addresses{$to}->{builds}};
 
         my $tt = Template->new({});

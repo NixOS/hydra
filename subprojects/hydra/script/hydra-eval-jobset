@@ -646,18 +646,26 @@ sub fetchInputs {
 }
 
 
+# Whether an error differs from the one the jobset already has. This has to be
+# asked before the row is updated, and the answer travels with the notification,
+# because by the time a plugin sees the jobset the previous error is gone.
+sub errorChanged {
+    my ($jobset, $errorMsg) = @_;
+    return (defined $errorMsg && $errorMsg ne ($jobset->errormsg // "")) ? 1 : 0;
+}
+
+
 sub setJobsetError {
     my ($jobset, $errorMsg, $errorTime) = @_;
-    my $prevError = $jobset->errormsg;
+    my $changed = errorChanged($jobset, $errorMsg);
 
     eval {
         $db->txn_do(sub {
             $jobset->update({ errormsg => $errorMsg, errortime => $errorTime, fetcherrormsg => undef });
         });
     };
-    if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
-        sendJobsetErrorNotification($config, $jobset, $errorMsg);
-    }
+
+    return $changed;
 }
 
 
@@ -807,7 +815,10 @@ sub checkJobsetWrapped {
         print STDERR $fetchError;
         $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
+            # A fetch error goes to `fetcherrormsg` and leaves `errormsg` alone,
+            # so there is nothing here that could have changed, and nobody is
+            # mailed -- which is what happened before the flag existed too.
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id'), 0));
         });
         return;
     }
@@ -921,8 +932,11 @@ sub checkJobsetWrapped {
             nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
         });
 
+        # The jobset's error is not written until further down, so this still
+        # compares against the error it had coming in.
         $db->storage->dbh->do("notify eval_added, ?", undef,
-                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
+                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id,
+                                   errorChanged($jobset, $evaluationErrorMsg)));
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings in bulk.
@@ -1056,8 +1070,8 @@ sub checkJobset {
         my $eventTime = time;
         $db->txn_do(sub {
             $jobset->update({lastcheckedtime => $eventTime});
-            setJobsetError($jobset, $checkError, $eventTime);
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
+            my $changed = setJobsetError($jobset, $checkError, $eventTime);
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id'), $changed));
         }) if !$dryRun;
         $failed = 1;
     }
@@ -1070,6 +1084,11 @@ die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];
-my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or
+# With its error message: `setJobsetError` compares against it to decide
+# whether this failure is news. `Jobsets::search_rs` drops the column unless a
+# query names it, so a plain `find` leaves it undef and every error looks new.
+my $jobset = $db->resultset('Jobsets')->search(
+        { project => $projectName, name => $jobsetName },
+        { '+columns' => { errormsg => 'errormsg' } })->single or
     die "$0: specified jobset \"$projectName:$jobsetName\" does not exist\n";
 exit checkJobset($jobset);

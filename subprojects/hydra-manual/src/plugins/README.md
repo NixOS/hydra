@@ -76,22 +76,49 @@ Uploads source code to [coverity scan](https://scan.coverity.com).
 - `coverityscan.[].token`
 - `coverityscan.[].scanurl`
 
-## Email notification
+## Email notification, builds
 
 Sends email notification if build status changes.
+
+_This plugin is named just `EmailNotification` for historical reasons, and it
+should be renamed to `EmailNotificationBuild`._
 
 ### Configuration options
 
 - `email_notifications.build` --- mail about finished builds, to whoever
   maintains the job
-- `email_notification` --- deprecated; enables this and the separate
-  `email_notifications.eval`. Setting it as well as the block is an error.
+- `email_notification` --- deprecated; enables this and
+  `email_notifications.eval` below. Setting it as well as the block is an error.
 
 ### Example
 
 ```xml
 <email_notifications>
   build = 1
+</email_notifications>
+```
+
+## Email notification, evaluation errors
+
+Tells a project's owner when one of its jobsets fails to evaluate, or evaluates
+with jobs that did not.
+
+The owner must also have "Receive evaluation error notifications" set on their
+user page; unlike build notification, it is off by default. Only a changed
+error is reported, so a jobset failing the same way is not mailed about
+repeatedly.
+
+### Configuration options
+
+- `email_notifications.eval`
+- `email_notification` --- deprecated; enables this and
+  `email_notifications.build` above. Setting it as well as the block is an error.
+
+### Example
+
+```xml
+<email_notifications>
+  eval = 1
 </email_notifications>
 ```
 
