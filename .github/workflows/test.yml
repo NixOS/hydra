@@ -30,6 +30,6 @@ jobs:
       with:
         name: hydra-test-cache
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - uses: Mic92/hestia@v2
+    - uses: Mic92/hestia@v3
     - run: nix-build -A packages.${{ matrix.system }}.hydra-cargo-deps
     - run: nix-build -A checks.${{ matrix.system }}.systemTests -A checks.${{ matrix.system }}.validate-openapi -A checks.${{ matrix.system }}.formatter
