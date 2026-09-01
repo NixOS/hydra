@@ -37,8 +37,13 @@ sub sendEmail {
     print STDERR "sending email:\n", $email->as_string if $ENV{'HYDRA_MAIL_TEST'};
 
     if (defined $ENV{'HYDRA_MAIL_SINK'}) {
-        # For testing, redirect all mail to a file.
-        write_file($ENV{'HYDRA_MAIL_SINK'}, { append => 1 }, $email->as_string . "\n");
+        # For testing, redirect all mail to a file. Appended, because a run
+        # sends more than one message and every sender opens this separately;
+        # in one write, so that two of them cannot interleave a message.
+        my $sink = $ENV{'HYDRA_MAIL_SINK'};
+        open(my $fh, ">>", $sink) or die "cannot append to `$sink': $!\n";
+        print $fh $email->as_string . "\n";
+        close($fh) or die "cannot write to `$sink': $!\n";
     } else {
         sendmail($email, { from => $sender });
     }
