@@ -1070,6 +1070,11 @@ die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];
-my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or
+# With its error message: `setJobsetError` compares against it to decide
+# whether this failure is news. `Jobsets::search_rs` drops the column unless a
+# query names it, so a plain `find` leaves it undef and every error looks new.
+my $jobset = $db->resultset('Jobsets')->search(
+        { project => $projectName, name => $jobsetName },
+        { '+columns' => { errormsg => 'errormsg' } })->single or
     die "$0: specified jobset \"$projectName:$jobsetName\" does not exist\n";
 exit checkJobset($jobset);
