@@ -6,6 +6,7 @@ use Email::MIME;
 use Email::Sender::Simple qw(sendmail);
 use Exporter 'import';
 use Hydra::Helper::Nix;
+use Hydra::Config;
 use Sys::Hostname::Long;
 use Try::Tiny;
 
@@ -49,7 +50,7 @@ sub sendJobsetErrorNotification {
 
     chomp $errorMsg;
 
-    return unless $config->{email_notification} // 0;
+    return unless evalEmailNotificationEnabled($config);
     return if $jobset->project->owner->emailonerror == 0;
     return if $errorMsg eq "";
 

@@ -9,10 +9,11 @@ use Template;
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
+use Hydra::Config;
 
 sub isEnabled {
     my ($self) = @_;
-    return ($self->{config}->{email_notification} // 0) == 1;
+    return buildEmailNotificationEnabled($self->{config});
 }
 
 my $template = <<EOF;
