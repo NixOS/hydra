@@ -141,6 +141,8 @@ in
   programs = {
     # Perl, which the wrappers wrap.
     hydra-backfill-ids = webApp;
+    # Reads the configuration, and runs nothing.
+    hydra-config = { };
     hydra-create-user = webApp;
     hydra-init = webApp;
     hydra-s3-backup-collect-garbage = webApp;

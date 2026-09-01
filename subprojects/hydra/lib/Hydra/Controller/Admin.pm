@@ -6,7 +6,6 @@ use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Data::Dump qw(dump);
-use Config::General;
 
 
 sub admin : Chained('/') PathPart('admin') CaptureArgs(0) {

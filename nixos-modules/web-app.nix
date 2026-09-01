@@ -15,6 +15,7 @@ let
 
   inherit (sharedEnv)
     baseDir
+    settingsFormat
     hydraEnv
     hydraConf
     dbUrlWithAppName
@@ -45,6 +46,9 @@ in
     )
     (mkRemovedOptionModule [ "services" "hydra-dev" "dbi" ]
       "Hydra services are now configured with a postgres:// URL via `services.hydra-dev.dbUrl` instead of a Perl DBI string."
+    )
+    (mkRemovedOptionModule [ "services" "hydra-dev" "extraConfig" ]
+      "The module writes hydra.json now, so there is nowhere to put a block of Apache-style configuration. Use `services.hydra-dev.settings`, which is the same settings as structured Nix, and `services.hydra-dev.includes` for the secrets that used to need an `Include` directive."
     )
   ];
   ###### interface
@@ -143,15 +147,52 @@ in
         description = "Whether to run the server in debug mode.";
       };
 
-      extraConfig = mkOption {
-        type = types.lines;
-        description = "Extra lines for the Hydra configuration.";
+      settings = mkOption {
+        type = settingsFormat.type;
+        default = { };
+        example = {
+          max_servers = 25;
+          email_notifications.build = 1;
+        };
+        description = ''
+          Hydra configuration, written to `hydra.json`.
+
+          See the Hydra manual for the available settings. Nested attribute
+          sets are the blocks the Apache-style syntax writes with `<...>`, and
+          lists are those blocks repeated.
+        '';
       };
 
       extraEnv = mkOption {
         type = types.attrsOf types.str;
         default = { };
-        description = "Extra environment variables for Hydra.";
+        description = ''
+          Extra environment variables for Hydra.
+
+          Setting `HYDRA_CONFIG` here points Hydra at a configuration file of
+          your own instead of the generated `hydra.json`, which is how a
+          deployment keeps secrets out of the Nix store: a `.conf` file gets
+          the Apache-style parser, whose `Include` directive can read them from
+          elsewhere.
+        '';
+      };
+
+      includes = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        example = [ "/run/keys/hydra/secrets.json" ];
+        description = ''
+          Files to read settings from, alongside {option}`settings`.
+
+          These are read at runtime and are deliberately not copied into the
+          Nix store, which is what makes them the place for secrets: tokens,
+          webhook secrets, the LDAP bind password. A file may be JSON or the
+          Apache-style syntax, decided by its extension, and holds settings the
+          same way this configuration does.
+
+          A setting given both here and in {option}`settings` is an error
+          rather than one of them quietly winning.
+        '';
       };
 
       gcRootsDir = mkOption {
@@ -198,7 +239,7 @@ in
       "d ${baseDir} 0750 hydra hydra"
       "d ${baseDir}/www 0700 hydra-www hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
-      "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
+      "L+ ${baseDir}/hydra.json - - - - ${hydraConf}"
     ];
 
     users.users.hydra-www = {
@@ -213,31 +254,17 @@ in
       hydra-users hydra-www hydra
     '';
 
-    services.hydra-dev.extraConfig = ''
-      using_frontend_proxy = 1
-      base_uri = ${cfg.hydraURL}
-      notification_sender = ${cfg.notificationSender}
-      max_servers = 25
-      compress_num_threads = 0
-      ${optionalString (cfg.logo != null) ''
-        hydra_logo = ${cfg.logo}
-      ''}
-      gc_roots_dir = ${cfg.gcRootsDir}
-      use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
-
-      ${optionalString (cfg.tracker != null) (
-        let
-          indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (
-            lib.splitString "\n" cfg.tracker
-          );
-        in
-        ''
-          tracker = <<TRACKER
-          ${indentedTrackerData}
-            TRACKER
-        ''
-      )}
-    '';
+    services.hydra-dev.settings = {
+      using_frontend_proxy = 1;
+      base_uri = cfg.hydraURL;
+      notification_sender = cfg.notificationSender;
+      max_servers = 25;
+      compress_num_threads = 0;
+      gc_roots_dir = cfg.gcRootsDir;
+      use-substitutes = if cfg.useSubstitutes then 1 else 0;
+    }
+    // optionalAttrs (cfg.logo != null) { hydra_logo = cfg.logo; }
+    // optionalAttrs (cfg.tracker != "") { tracker = cfg.tracker; };
 
     environment.systemPackages = [ cfg.package ];
 
