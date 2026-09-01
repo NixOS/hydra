@@ -3,33 +3,108 @@ Configuration
 
 This chapter is a collection of configuration snippets for different scenarios.
 
-The configuration is parsed by `Config::General` which has [a pretty thorough documentation on their file format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
-Hydra calls the parser with the following options:
-- `-UseApacheInclude => 1`
-- `-IncludeAgain => 1`
-- `-IncludeRelative => 1`
+Hydra reads its configuration in either of two formats, chosen by the file's
+extension:
+
+- `hydra.conf` --- the Apache-style syntax Hydra has always used, parsed by
+  `Config::General`, which has [a pretty thorough documentation on their file
+  format](https://metacpan.org/pod/Config::General#CONFIG-FILE-FORMAT).
+  Hydra calls that parser with the following options:
+  - `-UseApacheInclude => 1`
+  - `-IncludeAgain => 1`
+  - `-IncludeRelative => 1`
+
+- `hydra.json` --- the same settings written as JSON.
+  A repeated block in the Apache-style syntax is a JSON array, and a single block is a JSON object.
+  The two formats produce the same configuration, so nothing behaves differently depending on which you choose.
+
+`HYDRA_CONFIG` names the file to read.
+Without it Hydra looks for `hydra.json` and then `hydra.conf` in its state directory.
+
+Whichever you use, `hydra-config` reads the configuration and prints it as JSON, exiting non-zero if it cannot be parsed.
+It is the way to check a file before restarting anything:
+
+```console
+$ hydra-config /var/lib/hydra/hydra.json
+$ hydra-config | jq -r '.compress_build_logs_compression // ""'
+zstd
+```
+
+Because the output is JSON whichever format the input was, `jq` is how a script reads one setting without knowing how the file is written.
+Given several files it folds them together the way `includes` does, so a whole deployment's configuration can be checked at once.
+
+It also refuses any configuration that keeps a secret where anyone can read it:
+
+```console
+$ hydra-config /var/lib/hydra/hydra.json
+hydra-config: /var/lib/hydra/hydra.json is world-readable and sets `github_authorization'.
+```
+
+See [Including files](#including-files) below for where those settings belong instead.
+
+`hydra-config` also makes sure that world-readable settings files do not contain secrets, in support of the idiom described in the next section.
 
 Including files
 ---------------
 
-`hydra.conf` supports Apache-style includes.
+Secrets must not go in your main configuration file.
 This is **IMPORTANT** because that is how you keep your **secrets** out of the **Nix store**.
 Hopefully this got your attention 😌
 
 This:
-```
+```apache
 <github_authorization>
 NixOS = Bearer gha-secret😱secret😱secret😱
 </github_authorization>
 ```
 should **NOT** be in `hydra.conf`.
 
+And likewise,
+```json
+{
+  "github_authorization": {
+    "NixOS": "Bearer gha-secret😱secret😱secret😱"
+  }
+}
+```
+should **NOT** be in `hydra.json`.
+
 `hydra.conf` is rendered in the Nix store and is therefore world-readable.
 
-Instead, the above should be written to a file outside the Nix store by other means (manually, using Nixops' secrets feature, etc) and included like so:
-```
+Instead, the above should be written to a file outside the Nix store by other means (manually, using Nixops' secrets feature, etc) and read from there.
+Both formats can do that, by different means.
+
+`hydra.conf` uses `Config::General`'s Apache-style directive:
+```apache
 Include /run/keys/hydra/github_authorizations.conf
 ```
+
+For JSON configuration files, we allow wrapping the entire settings object, naming the files to be read alongside them:
+```json
+{
+  "includes": [ "/run/keys/hydra/github_authorizations.conf" ],
+  "settings": { "max_servers": 25 }
+}
+```
+
+The wrapper is optional and must hold nothing but those two keys; a JSON file without a `settings` key is read exactly as it always was.
+An included file is settings, in whichever format its own extension names, which is why the example above can read its secrets from an Apache-style file.
+A JSON one may wrap in turn.
+
+Blocks combine and repeated blocks append, so a file holding only the secret part of a block adds to what the main file says about it rather than replacing it.
+A single setting given in two files is an error rather than one of them quietly winning.
+
+`hydra-config` knows which settings hold a secret and will tell you if one of them is in a file anyone can read, which is the mistake this section exists to prevent.
+Run it after changing your configuration and before restarting anything.
+
+NixOS module
+------------
+
+The NixOS module writes `hydra.json` from the structured `services.hydra-dev.settings` option, and does not generate the Apache-style syntax at all.
+Anything it writes is world-readable in the Nix store, so secrets go in `services.hydra-dev.includes`, which names files deployed by other means.
+
+The NixOS module validates the final configuration using `hydra-config`, so you don't need to start hydra in order to see if your configuration is valid.
+Since the NixOS module will only populate files in the Nix store, this is also very useful to make sure your NixOS configuration doesn't accidentally include secrets.
 
 Serving behind reverse proxy
 ----------------------------

@@ -72,6 +72,8 @@ let
         CatalystViewTT
         CatalystXRoleApplicator
         CatalystXScriptServerStarman
+        ConfigAny
+        ConfigGeneral
         CryptPassphrase
         CryptPassphraseArgon2
         CryptRandPasswd

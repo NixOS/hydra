@@ -2,7 +2,9 @@ package Hydra::Config;
 
 use strict;
 use warnings;
-use Config::General;
+use Config::Any;
+use Cwd qw(abs_path);
+use File::Basename qw(dirname);
 use List::SomeUtils qw(none);
 use YAML qw(LoadFile);
 
@@ -19,33 +21,228 @@ our %configGeneralOpts = (-UseApacheInclude => 1, -IncludeAgain => 1, -IncludeRe
 
 my $hydraConfigCache;
 
+# The formats Hydra will read, in the order a bare `hydra.conf`-less
+# installation is searched. Which parser runs is decided by the extension, so
+# the name of the file is what says how it is written.
+our @configExtensions = ("json", "conf");
+
 sub getHydraConfig {
     return $hydraConfigCache if defined $hydraConfigCache;
 
-    my $conf;
-
     if ($ENV{"HYDRA_CONFIG"}) {
-        $conf = $ENV{"HYDRA_CONFIG"};
-    } else {
-        require Hydra::Model::DB;
-        $conf = Hydra::Model::DB::getHydraPath() . "/hydra.conf"
-    };
-
-    if (-f $conf) {
-        $hydraConfigCache = loadConfig($conf);
-    } else {
-        $hydraConfigCache = {};
+        my $conf = $ENV{"HYDRA_CONFIG"};
+        $hydraConfigCache = -f $conf ? loadConfig($conf) : {};
+        return $hydraConfigCache;
     }
 
+    require Hydra::Model::DB;
+    my $dir = Hydra::Model::DB::getHydraPath();
+
+    for my $ext (@configExtensions) {
+        my $conf = "$dir/hydra.$ext";
+        next unless -f $conf;
+        $hydraConfigCache = loadConfig($conf);
+        return $hydraConfigCache;
+    }
+
+    $hydraConfigCache = {};
     return $hydraConfigCache;
 }
 
+# Read one configuration file, in whichever of the supported formats its
+# extension names: `.conf` is the Apache-style syntax Hydra has always used,
+# `.json` is JSON. The two produce the same structure -- a repeated
+# `<runcommand>` block and a JSON array of the same objects are both an
+# arrayref here -- so nothing downstream needs to know which was written.
+# The settings that hold a secret.
+#
+# A file containing any of these must not be readable by anyone but Hydra, and
+# in particular must not be the file the NixOS module generates -- everything
+# in the Nix store is world-readable, which is what `includes` exists to work
+# around. `hydra-config` checks this, since the mistake is invisible until
+# someone reads the token out of your store.
+#
+# Paths are dotted. A repeated block is a list here and a single one is not, so
+# list nesting is not a step in the path: `githubstatus.authorization` finds it
+# whether there is one `<githubstatus>` block or several.
+our @secretSettings = (
+    "bitbucket.password",
+    "bitbucket_authorization",
+    "circleci.token",
+    "coverityscan.token",
+    "gitea_authorization",
+    "github_authorization",
+    "githubstatus.authorization",
+    "gitlab_authorization",
+    "ldap.config.store.bindpw",
+    "slack.url",
+    "webhooks",
+);
+
+# Which of the secret-bearing settings a configuration contains.
+sub secretsIn {
+    my ($config) = @_;
+    return grep { hasSetting($config, split /\./, $_) } @secretSettings;
+}
+
+sub hasSetting {
+    my ($node, @path) = @_;
+
+    return 0 unless defined $node;
+    return 1 unless @path;
+
+    if (ref $node eq "ARRAY") {
+        for my $element (@$node) {
+            return 1 if hasSetting($element, @path);
+        }
+        return 0;
+    }
+
+    return 0 unless ref $node eq "HASH";
+    my $key = shift @path;
+    return exists $node->{$key} && hasSetting($node->{$key}, @path);
+}
+
+# Whether anyone at all can read this file.
+sub isWorldReadable {
+    my ($file) = @_;
+    my @stat = stat($file) or return 0;
+    return ($stat[2] & 0004) != 0;
+}
+
+# Options, all optional:
+#
+#   insecure    an arrayref to collect files that hold a secret and are
+#               readable by anyone
+#   noIncludes  do not read the files an envelope includes, and do not mind
+#               that they are not there. For checking a configuration
+#               somewhere its `includes' cannot be resolved -- a build
+#               sandbox, checking what the NixOS module generated.
+#   seen        internal: the files already being read, to catch cycles
 sub loadConfig {
-    my ($sourceFile) = @_;
+    my ($sourceFile, $opts) = @_;
+    $opts //= {};
 
-    my %opts = (%configGeneralOpts, -ConfigFile => $sourceFile);
+    # Config::Any would also read INI, XML, YAML and Perl, going by the
+    # extension. Only the two Hydra documents are accepted, so that the set of
+    # ways to write a configuration is the set anyone has thought about.
+    my ($ext) = $sourceFile =~ /\.([^.\/]+)$/;
+    $ext = lc($ext // "");
+    unless (grep { $_ eq $ext } @configExtensions) {
+        die "$sourceFile: no parser for this file. Hydra reads "
+            . join(" and ", map { "`.$_'" } @configExtensions) . ".\n";
+    }
 
-    return { Config::General->new(%opts)->getall };
+    my $loaded = Config::Any->load_files({
+        files => [$sourceFile],
+        use_ext => 1,
+        driver_args => { General => \%configGeneralOpts },
+    });
+
+    for my $parsed (@$loaded) {
+        my ($doc, $config) = %$parsed;
+        next unless $doc eq $sourceFile;
+
+        # Only in JSON. The Apache-style syntax has `Include` already, and
+        # giving `settings` and `includes` a meaning there would change what
+        # existing files mean -- a `<settings>` block someone already has would
+        # stop being a setting called `settings`.
+        my $wrapped = $ext eq "json" && exists $config->{"settings"};
+
+        # What this file itself says, before anything it includes is folded in,
+        # so that a secret is reported against the file it is actually in.
+        if (defined $opts->{insecure} && isWorldReadable($sourceFile)) {
+            my $own = $wrapped ? ($config->{"settings"} // {}) : $config;
+            my @secrets = secretsIn($own);
+            push @{$opts->{insecure}}, { file => $sourceFile, settings => \@secrets }
+                if @secrets;
+        }
+
+        return $wrapped ? unwrap($config, $sourceFile, $opts) : $config;
+    }
+
+    die "$sourceFile: could not be read as "
+        . join(" or ", map { "`.$_'" } @configExtensions) . ".\n";
+}
+
+# Take the settings out of a parsed configuration file, reading whatever it
+# asks to include.
+#
+# A JSON file is either settings alone, as Hydra has always taken it, or an
+# envelope around them:
+#
+#     { "includes": [ "/run/keys/hydra/secrets.json" ],
+#       "settings": { "max_servers": 25 } }
+#
+# The envelope exists because a generated configuration needs somewhere to name
+# files it does not contain -- that is how secrets stay out of the Nix store now
+# that the NixOS module writes JSON, which has no include mechanism of its own.
+# JSON only. The Apache-style syntax has `Include`, and reading `settings` and
+# `includes` there would change the meaning of files that already use those
+# names for settings. An included file may be in either format; it is settings,
+# and is not unwrapped again unless it is JSON.
+sub unwrap {
+    my ($doc, $sourceFile, $opts) = @_;
+
+    my @unknown = grep { $_ ne "includes" && $_ ne "settings" } sort keys %$doc;
+    die "$sourceFile: a file with a `settings' block holds only that and"
+        . " `includes', but this one also has "
+        . join(", ", map { "`$_'" } @unknown) . ".\n"
+        if @unknown;
+
+    my $config = $doc->{"settings"} // {};
+    my $includes = $doc->{"includes"};
+    return $config if $opts->{noIncludes} || !defined $includes;
+
+    my $seen = $opts->{seen} //= { abs_path($sourceFile) => 1 };
+    my $dir = dirname($sourceFile);
+
+    for my $file (ref $includes eq "ARRAY" ? @$includes : ($includes)) {
+        # Relative to the file doing the including, as `-IncludeRelative` is
+        # for the Apache-style syntax.
+        my $path = $file =~ m{^/} ? $file : "$dir/$file";
+
+        my $real = abs_path($path);
+        die "$sourceFile: `includes' names `$file', which does not exist.\n"
+            unless defined $real && -f $real;
+
+        # An include reaching a file already being read would otherwise recurse
+        # until perl runs out of stack.
+        die "$sourceFile: `includes' of `$file' is a cycle.\n" if $seen->{$real}++;
+
+        merge($config, loadConfig($real, $opts), "`$sourceFile'", "the included `$file'");
+    }
+
+    return $config;
+}
+
+# Fold one configuration into another.
+#
+# Blocks combine, so a file holding only the secret parts of a block adds to
+# what the other file says about it rather than replacing it, and repeated
+# blocks -- `<runcommand>` and the rest, which are lists here -- append.
+#
+# Anything else set in both places is an error. The two files disagree about a
+# single value and which was meant is not for Hydra to guess, the same reason
+# `email_notification` refuses to coexist with the block that replaced it.
+sub merge {
+    my ($into, $from, $intoName, $fromName, @path) = @_;
+
+    for my $key (sort keys %$from) {
+        my @here = (@path, $key);
+        my ($mine, $theirs) = ($into->{$key}, $from->{$key});
+
+        if (!exists $into->{$key}) {
+            $into->{$key} = $theirs;
+        } elsif (ref $mine eq "HASH" && ref $theirs eq "HASH") {
+            merge($mine, $theirs, $intoName, $fromName, @here);
+        } elsif (ref $mine eq "ARRAY" && ref $theirs eq "ARRAY") {
+            push @$mine, @$theirs;
+        } else {
+            die "`" . join(".", @here) . "' is set in both $intoName and"
+                . " $fromName. Set it in one of them.\n";
+        }
+    }
 }
 
 # Hydra sends two unrelated kinds of mail, and `email_notification` used to

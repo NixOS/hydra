@@ -13,11 +13,32 @@ let
 
   baseDir = "/var/lib/hydra";
 
-  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
+  settingsFormat = pkgs.formats.json { };
+
+  # Always the wrapped form, both keys present even when `includes` is empty,
+  # so the generated file has one shape rather than two.
+  #
+  # `includes` names files Hydra reads at runtime, which is what keeps secrets
+  # out of the Nix store: everything the module writes is world-readable there.
+  generatedConf = settingsFormat.generate "hydra.json" {
+    inherit (cfg) includes settings;
+  };
+
+  # Check it while building, so a configuration that Hydra would refuse fails
+  # the deployment instead of the next restart.
+  #
+  # This is also where a secret in `settings` is caught: the file is in the Nix
+  # store and therefore world-readable, which is exactly what `hydra-config`
+  # refuses. `--no-includes` because those name runtime paths, which are not
+  # here and are not ours to check.
+  hydraConf = pkgs.runCommand "hydra.json" { nativeBuildInputs = [ cfg.package ]; } ''
+    hydra-config --no-includes ${generatedConf} > /dev/null
+    cp ${generatedConf} $out
+  '';
 
   hydraEnv = {
     HYDRA_DATABASE_URL = cfg.dbUrl;
-    HYDRA_CONFIG = "${baseDir}/hydra.conf";
+    HYDRA_CONFIG = "${baseDir}/hydra.json";
     HYDRA_DATA = "${baseDir}";
   };
 
@@ -69,6 +90,9 @@ in
     )
     (mkRemovedOptionModule [ "services" "hydra-dev" "dbi" ]
       "Hydra services are now configured with a postgres:// URL via `services.hydra-dev.dbUrl` instead of a Perl DBI string."
+    )
+    (mkRemovedOptionModule [ "services" "hydra-dev" "extraConfig" ]
+      "The module writes hydra.json now, so there is nowhere to put a block of Apache-style configuration. Use `services.hydra-dev.settings`, which is the same settings as structured Nix, and `services.hydra-dev.includes` for the secrets that used to need an `Include` directive."
     )
   ];
   ###### interface
@@ -180,15 +204,52 @@ in
         description = "Whether to run the server in debug mode.";
       };
 
-      extraConfig = mkOption {
-        type = types.lines;
-        description = "Extra lines for the Hydra configuration.";
+      settings = mkOption {
+        type = settingsFormat.type;
+        default = { };
+        example = {
+          max_servers = 25;
+          email_notifications.build = 1;
+        };
+        description = ''
+          Hydra configuration, written to `hydra.json`.
+
+          See the Hydra manual for the available settings. Nested attribute
+          sets are the blocks the Apache-style syntax writes with `<...>`, and
+          lists are those blocks repeated.
+        '';
       };
 
       extraEnv = mkOption {
         type = types.attrsOf types.str;
         default = { };
-        description = "Extra environment variables for Hydra.";
+        description = ''
+          Extra environment variables for Hydra.
+
+          Setting `HYDRA_CONFIG` here points Hydra at a configuration file of
+          your own instead of the generated `hydra.json`, which is how a
+          deployment keeps secrets out of the Nix store: a `.conf` file gets
+          the Apache-style parser, whose `Include` directive can read them from
+          elsewhere.
+        '';
+      };
+
+      includes = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        example = [ "/run/keys/hydra/secrets.json" ];
+        description = ''
+          Files to read settings from, alongside {option}`settings`.
+
+          These are read at runtime and are deliberately not copied into the
+          Nix store, which is what makes them the place for secrets: tokens,
+          webhook secrets, the LDAP bind password. A file may be JSON or the
+          Apache-style syntax, decided by its extension, and holds settings the
+          same way this configuration does.
+
+          A setting given both here and in {option}`settings` is an error
+          rather than one of them quietly winning.
+        '';
       };
 
       gcRootsDir = mkOption {
@@ -223,7 +284,7 @@ in
       "d ${baseDir}/www 0700 hydra-www hydra"
       "d ${baseDir}/notify 0700 hydra-queue-runner hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
-      "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
+      "L+ ${baseDir}/hydra.json - - - - ${hydraConf}"
     ];
 
     users.users.hydra-www = {
@@ -238,31 +299,17 @@ in
       hydra-users hydra-www hydra
     '';
 
-    services.hydra-dev.extraConfig = ''
-      using_frontend_proxy = 1
-      base_uri = ${cfg.hydraURL}
-      notification_sender = ${cfg.notificationSender}
-      max_servers = 25
-      compress_num_threads = 0
-      ${optionalString (cfg.logo != null) ''
-        hydra_logo = ${cfg.logo}
-      ''}
-      gc_roots_dir = ${cfg.gcRootsDir}
-      use-substitutes = ${if cfg.useSubstitutes then "1" else "0"}
-
-      ${optionalString (cfg.tracker != null) (
-        let
-          indentedTrackerData = lib.concatMapStringsSep "\n" (line: "    ${line}") (
-            lib.splitString "\n" cfg.tracker
-          );
-        in
-        ''
-          tracker = <<TRACKER
-          ${indentedTrackerData}
-            TRACKER
-        ''
-      )}
-    '';
+    services.hydra-dev.settings = {
+      using_frontend_proxy = 1;
+      base_uri = cfg.hydraURL;
+      notification_sender = cfg.notificationSender;
+      max_servers = 25;
+      compress_num_threads = 0;
+      gc_roots_dir = cfg.gcRootsDir;
+      use-substitutes = if cfg.useSubstitutes then 1 else 0;
+    }
+    // optionalAttrs (cfg.logo != null) { hydra_logo = cfg.logo; }
+    // optionalAttrs (cfg.tracker != "") { tracker = cfg.tracker; };
 
     environment.systemPackages = [ cfg.package ];
 
@@ -419,12 +466,17 @@ in
     # if the queue runner is stopped prematurely.
     systemd.services.hydra-compress-logs = {
       path = [
+        cfg.package
         pkgs.bzip2
+        pkgs.jq
         pkgs.zstd
       ];
+      # `hydra-config` reads whichever format the configuration is in, so this
+      # does not have to know how it is written.
+      environment = hydraEnv;
       script = ''
         set -eou pipefail
-        compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
+        compression=$(hydra-config | jq -r '.compress_build_logs_compression // ""')
         if [[ $compression == "" || $compression == bzip2 ]]; then
           compressionCmd=(bzip2)
         elif [[ $compression == zstd ]]; then

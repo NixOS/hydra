@@ -1,0 +1,89 @@
+#! /usr/bin/env perl
+
+# Read Hydra's configuration and say what it found, without starting anything.
+#
+# Two uses. It is how you check that a `hydra.conf` or `hydra.json` parses, and
+# what it parsed to, before restarting the services that depend on it. And it
+# is how a script reads a setting without knowing how the file is written: the
+# answer is JSON whichever format the configuration is in, so `jq` does the
+# selecting -- which it does better than an option here would, since it can
+# reach nested settings and supply defaults.
+
+use strict;
+use warnings;
+use Getopt::Long qw(:config no_ignore_case);
+use JSON::MaybeXS;
+use Hydra::Config;
+
+sub usage {
+    print STDERR <<'USAGE';
+usage: hydra-config [--no-includes] [FILE...]
+
+Print Hydra's configuration as JSON, exiting non-zero if it cannot be read or
+if it keeps a secret where anyone can read it.
+
+With no FILE, reads the configuration Hydra would. Each FILE is parsed
+according to its extension, and several are folded together the way an
+`include' is -- so a setting given in two of them is an error rather than one
+of them quietly winning.
+
+  --no-includes  check the files given and stop, rather than reading what they
+                 include. For checking a configuration somewhere its includes
+                 are not there to be read, such as a build sandbox.
+
+Pipe it through jq to read one setting:
+
+  hydra-config | jq -r '.compress_build_logs_compression // ""'
+USAGE
+    exit 1;
+}
+
+my $noIncludes;
+GetOptions("no-includes" => \$noIncludes, "help" => sub { usage() }) or usage();
+
+my %opts = (insecure => \my @insecure, noIncludes => $noIncludes);
+
+# `@insecure` collects files that hold a secret and are readable by anyone,
+# while loading, so that each is reported against the file it is actually in
+# rather than against the configuration as a whole.
+my $config = eval {
+    unless (@ARGV) {
+        my $conf = $ENV{"HYDRA_CONFIG"};
+        return getHydraConfig() unless defined $conf && -f $conf;
+        return Hydra::Config::loadConfig($conf, \%opts);
+    }
+
+    my $merged = {};
+    for my $file (@ARGV) {
+        die "$file: no such file\n" unless -f $file;
+        Hydra::Config::merge($merged, Hydra::Config::loadConfig($file, \%opts),
+            "an earlier file", "`$file'");
+    }
+    $merged;
+};
+if ($@) {
+    # Parser failures arrive with the Perl file and line that raised them
+    # appended, which says nothing to whoever wrote the configuration.
+    my $error = $@;
+    $error =~ s/ at \S+ line \d+\.?\s*$//gm;
+    $error =~ s/\s+\z//;
+    print STDERR "hydra-config: $error\n";
+    exit 1;
+}
+
+print JSON::MaybeXS->new(canonical => 1, pretty => 1)->encode($config);
+
+# A secret anyone can read is already leaked, and nothing about running Hydra
+# will say so, which is why this is worth failing over.
+if (@insecure) {
+    for my $bad (@insecure) {
+        print STDERR "hydra-config: $bad->{file} is world-readable and sets "
+            . join(", ", map { "`$_'" } @{$bad->{settings}}) . ".\n";
+    }
+    print STDERR "hydra-config: move these to a file only Hydra can read, named"
+        . " by `includes'. Anything the NixOS module writes is in the Nix store,"
+        . " where everyone can read it.\n";
+    exit 1;
+}
+
+exit 0;

@@ -121,11 +121,7 @@ in
     { pkgs, ... }:
     {
       imports = [ common.serverConfig ];
-      services.hydra-dev.extraConfig = ''
-        <gitea_authorization>
-        root=d7f16a3412e01a43a414535b16007c6931d3a9c7
-        </gitea_authorization>
-      '';
+      services.hydra-dev.settings.gitea_authorization.root = "d7f16a3412e01a43a414535b16007c6931d3a9c7";
       nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
       services.gitea = {
         enable = true;
