@@ -413,3 +413,65 @@ Open questions
   not an answer.
 - How much of `nix-eval-jobs` survives when evaluation is a build?
   (Carried over from the roadmap.)
+
+Landing this on the Rust evaluator
+----------------------------------
+
+This branch was written against the Perl `hydra-eval-jobset`, splitting
+it into a half that schedules the evaluation build and a half that reads
+its result back. `more-rust-eval` deletes that program, so the change
+cannot be rebased: its central commit rewrites 839 lines of a file that
+no longer exists, and adds 638 more (`hydra-finish-eval`) implementing
+in Perl what the Rust evaluator now does itself.
+
+So it wants reimplementing rather than replaying. The good news is that
+the Rust is already shaped for it: `nix_eval_jobs::command()` builds the
+argument list and `run()` executes it, deliberately separate, and the
+deduplication hash is taken over the former. Evaluation-as-a-build
+replaces `run()` and leaves the rest alone.
+
+### What the port needs
+
+- An expression builder and `nix-instantiate` call, porting
+  `evalDrvExpr` and `instantiateEvaluationDerivation`. The reasoning in
+  their comments -- `"$@"` rather than a quoted command line, `HOME`
+  pointed at the build directory, `NIX_STORE_DIR` named explicitly,
+  `requiredSystemFeatures = [ "recursive-nix" ]` -- is the hard-won part
+  and should be carried over verbatim.
+- Queries: ensure the evaluations jobset, insert the build and its
+  single `out` output row, insert the tentative `JobsetEval`.
+- Reading the finished build's output back and handing it to
+  `ingest::record`, which already does everything after that point.
+
+`evaluation_build_system_features` and `evaluation_build_store_uri` are
+two more settings, and belong in `evaluator.toml` with the rest.
+
+### What it obviates
+
+Evaluation-as-a-build does not just move work; it makes machinery
+redundant, and the port should delete rather than translate:
+
+- The `eval_started`/`eval_added`/`eval_failed`/`eval_cached` family,
+  their `Hydra::Event::Eval*` classes and the `evalAdded`/`evalFailed`
+  plugin hooks. An evaluation is a build, so `build_started` and
+  `build_finished` already say what happened, to plugins that already
+  receive them.
+- With them goes the `error_changed` flag those events carry. It exists
+  because an evaluation has no durable "notification pending" state;
+  builds have `notificationPendingSince`, which is the same idea done
+  properly.
+- `max_concurrent_evals`. Build scheduling is by builder capacity and
+  system features, which is a better answer than a number in a file.
+- The `FINISHER_INTERVAL` poll this branch adds. It exists because
+  "nothing notifies the evaluator when an evaluation build finishes" --
+  but `build_finished` is exactly that, so the finisher should be driven
+  by the notification rather than by a timer.
+- `jobsets.startTime` as a lock, `unlock_all_jobsets`, `--unlock`, and
+  the `ExecStopPost` that calls it. A build is scheduled or busy, and a
+  queue runner that dies does not leave a jobset wedged.
+- Evaluation timeouts and `evaluator_max_memory_size`, in favour of
+  `builds.timeout` and `builds.maxsilent`.
+
+And one gain rather than a deletion: an evaluation's output stops being
+a line in the evaluator's journal and becomes a build log, stored and
+shown in the web interface like any other.
