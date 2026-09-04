@@ -19,6 +19,23 @@ our %configGeneralOpts = (-UseApacheInclude => 1, -IncludeAgain => 1, -IncludeRe
 
 my $hydraConfigCache;
 
+# Settings that used to live in `hydra.conf` and now belong to a component's
+# own configuration file. Left here they are silently inert, which looks
+# exactly like the setting having no effect, so say so once.
+our %movedSettings = (
+    max_concurrent_evals => "`max_concurrent_evals` in /etc/hydra/evaluator.toml",
+);
+
+sub warnAboutMovedSettings {
+    my ($config) = @_;
+
+    for my $key (sort keys %movedSettings) {
+        next unless exists $config->{$key};
+        warn "hydra.conf sets `$key', which is no longer read from there. "
+            . "Set $movedSettings{$key} instead.\n";
+    }
+}
+
 sub getHydraConfig {
     return $hydraConfigCache if defined $hydraConfigCache;
 
@@ -36,6 +53,8 @@ sub getHydraConfig {
     } else {
         $hydraConfigCache = {};
     }
+
+    warnAboutMovedSettings($hydraConfigCache);
 
     return $hydraConfigCache;
 }

@@ -10,8 +10,11 @@ clap                 = { workspace = true, features = [ "derive" ] }
 color-eyre.workspace = true
 fs-err.workspace     = true
 futures.workspace    = true
+serde                = { workspace = true, features = [ "derive" ] }
 sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+thiserror.workspace  = true
 tokio                = { workspace = true, features = [ "full" ] }
+toml.workspace       = true
 tracing.workspace    = true
 
 db            = { path = "../crates/db" }

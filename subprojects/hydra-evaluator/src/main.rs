@@ -27,6 +27,10 @@ use queries::JobsetQueries as _;
 #[derive(clap::Parser, Debug)]
 #[command(name = "hydra-evaluator", about = "Hydra jobset evaluation scheduler")]
 struct Cli {
+    /// Path to the evaluator's configuration file
+    #[arg(short, long, default_value = "evaluator.toml")]
+    config_path: String,
+
     /// Clear startTime on all jobsets and exit
     #[arg(long)]
     unlock: bool,
@@ -57,7 +61,7 @@ async fn main() -> color_eyre::Result<()> {
         return Ok(());
     }
 
-    let config = HydraConfig::load();
+    let config = HydraConfig::load(&cli.config_path)?;
 
     let eval_one = match (cli.project, cli.jobset) {
         (Some(p), Some(j)) => Some((p, j)),

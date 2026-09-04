@@ -71,8 +71,7 @@ impl Evaluator {
         config: &HydraConfig,
         eval_one: Option<(String, String)>,
     ) -> Self {
-        let max_evals =
-            usize::try_from(config.get_int("max_concurrent_evals", 4).max(1)).unwrap_or(usize::MAX);
+        let max_evals = config.max_concurrent_evals();
         Self {
             db,
             max_evals,
