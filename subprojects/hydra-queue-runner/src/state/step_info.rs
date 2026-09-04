@@ -130,7 +130,7 @@ impl StepInfo {
                         result.or_else(|| {
                             let mut current = (*root).clone();
                             for output_name in outputs {
-                                current = rt
+                                let resolved = rt
                                     .block_on(conn.resolve_drv_output(
                                         store_dir,
                                         &current,
@@ -142,7 +142,12 @@ impl StepInfo {
                                     })
                                     .or_else(|| {
                                         resolve_from_drv_file(store_dir, &current, output_name)
-                                    })?;
+                                    });
+                                tracing::debug!(
+                                    "chain hop: {current}!{output_name} => {:?}",
+                                    resolved.as_ref().map(ToString::to_string),
+                                );
+                                current = resolved?;
                             }
                             Some(current)
                         })
