@@ -1,61 +1,66 @@
-use std::collections::HashMap;
+//! What the evaluator is configured with.
+//!
+//! Its own file, as the queue runner and the builder have theirs.
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum ConfigError {
+    #[error("reading {path}")]
+    Io {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("parsing {path}")]
+    Toml {
+        path: String,
+        #[source]
+        source: toml::de::Error,
+    },
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct HydraConfig {
-    options: HashMap<String, String>,
+    /// How many jobsets to evaluate at once.
+    #[serde(default = "default_max_concurrent_evals")]
+    max_concurrent_evals: u64,
+}
+
+fn default_max_concurrent_evals() -> u64 {
+    4
 }
 
 impl HydraConfig {
-    pub(crate) fn load() -> Self {
-        let mut options = HashMap::new();
-
-        let path = match std::env::var("HYDRA_CONFIG") {
-            Ok(p) if !p.is_empty() => p,
-            _ => return Self { options },
-        };
-
-        let contents = match fs_err::read_to_string(&path) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("could not read HYDRA_CONFIG at {path}: {e}");
-                return Self { options };
+    /// Read the file, or take the defaults if it is not there.
+    ///
+    /// Absent is fine -- every setting has a default -- but present and
+    /// unreadable is not, since that is a configuration someone wrote and
+    /// expects to be in effect.
+    pub(crate) fn load(path: &str) -> Result<Self, ConfigError> {
+        let contents = match fs_err::read_to_string(path) {
+            Ok(contents) => contents,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::info!("no configuration at {path}, using defaults");
+                return Ok(Self::default());
+            }
+            Err(source) => {
+                return Err(ConfigError::Io {
+                    path: path.to_owned(),
+                    source,
+                });
             }
         };
 
-        for line in contents.lines() {
-            // Strip comments
-            let line = match line.find('#') {
-                Some(pos) => &line[..pos],
-                None => line,
-            };
-            let line = line.trim();
-
-            let Some(eq) = line.find('=') else {
-                continue;
-            };
-
-            let key = line[..eq].trim();
-            let value = line[eq + 1..].trim();
-
-            if key.is_empty() {
-                continue;
-            }
-
-            options.insert(key.to_owned(), value.to_owned());
-        }
-
-        Self { options }
+        toml::from_str(&contents).map_err(|source| ConfigError::Toml {
+            path: path.to_owned(),
+            source,
+        })
     }
 
-    pub(crate) fn get_int(&self, key: &str, default: u64) -> u64 {
-        match self.options.get(key) {
-            None => default,
-            Some(v) => v.parse().unwrap_or_else(|_| {
-                // The C++ evaluator failed loudly on unparsable values;
-                // at least warn so a hydra.conf typo is visible.
-                tracing::warn!("invalid value for {key} in hydra.conf: {v:?}, using {default}");
-                default
-            }),
-        }
+    /// At least one, so that a configuration of zero slows the evaluator down
+    /// rather than stopping it.
+    pub(crate) fn max_concurrent_evals(&self) -> usize {
+        usize::try_from(self.max_concurrent_evals.max(1)).unwrap_or(usize::MAX)
     }
 }

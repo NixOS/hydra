@@ -2000,8 +2000,11 @@ dependencies = [
  "fs-err",
  "futures",
  "hydra-tracing",
+ "serde",
  "sqlx",
+ "thiserror",
  "tokio",
+ "toml",
  "tracing",
 ]
 

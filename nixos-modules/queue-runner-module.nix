@@ -19,7 +19,13 @@ in
       enable = lib.mkEnableOption "QueueRunner";
 
       settings = lib.mkOption {
-        description = "Reloadable settings for queue runner";
+        description = ''
+          Reloadable settings for the queue runner, written to
+          `/etc/hydra/queue-runner.toml`.
+
+          Every service in Rust in hydra has its own separate TOML configuration file,
+          with just the settings it needs.
+        '';
         type = lib.types.submodule {
           options = {
             hydraDataDir = lib.mkOption {

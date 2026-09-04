@@ -23,7 +23,12 @@ in
       };
 
       settings = lib.mkOption {
-        description = "Builder settings written to the TOML config file";
+        description = ''
+          Settings for the builder, written to `/etc/hydra/builder.toml`.
+
+          Every service in Rust in hydra has its own separate TOML configuration file,
+          with just the settings it needs.
+        '';
         type = lib.types.submodule {
           options = {
             pingInterval = lib.mkOption {
