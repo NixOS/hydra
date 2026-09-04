@@ -229,7 +229,55 @@ __PACKAGE__->has_many(
   { "foreign.eval" => "self.id" },
 );
 
-__PACKAGE__->many_to_many(builds => 'buildIds', 'build');
+# There is deliberately no `builds` accessor. A build belongs to an
+# evaluation in one of two ways — as one of its jobs, or as something it
+# had to build in order to produce those jobs — and code that reaches for
+# an evaluation's builds nearly always means only one of them. Naming all
+# three makes the choice impossible to skip; see `forEvaluation` in
+# hydra.sql for what separates them.
+__PACKAGE__->many_to_many(allBuilds => 'buildIds', 'build');
+
+# The evaluation's jobs, as opposed to every build attached to it.
+#
+# A separate relationship rather than a filter on `builds`, because
+# filtering there changes the SQL of *every* caller: the condition can
+# only be expressed as a coderef, DBIC cannot invert a coderef
+# relationship, and it therefore roots the query at jobsetevals instead
+# of builds. Callers that name a column both tables have — `jobset_id`
+# in hydra-eval-jobset's previous-build lookup — then become ambiguous,
+# and there is no way to find them all short of running everything.
+#
+# The condition is qualified with the relationship's own alias rather
+# than left bare, because callers join jobsetevalmembers a second time
+# (restartBuilds does, to find the evals a build belongs to) and a bare
+# column would be ambiguous across the two copies.
+__PACKAGE__->has_many(
+  "jobIds",
+  "Hydra::Schema::Result::JobsetEvalMembers",
+  sub {
+    my $args = shift;
+    return {
+      "$args->{foreign_alias}.eval"          => { -ident => "$args->{self_alias}.id" },
+      "$args->{foreign_alias}.forevaluation" => 0,
+    };
+  },
+);
+
+__PACKAGE__->many_to_many(jobs => 'jobIds', 'build');
+
+__PACKAGE__->has_many(
+  "buildIdsForEvaluation",
+  "Hydra::Schema::Result::JobsetEvalMembers",
+  sub {
+    my $args = shift;
+    return {
+      "$args->{foreign_alias}.eval"          => { -ident => "$args->{self_alias}.id" },
+      "$args->{foreign_alias}.forevaluation" => 1,
+    };
+  },
+);
+
+__PACKAGE__->many_to_many(buildsForEvaluation => 'buildIdsForEvaluation', 'build');
 
 my %hint = (
     columns => [
@@ -241,7 +289,10 @@ my %hint = (
         "flake",
     ],
     relations => {
-        "builds" => "id"
+        # Named `builds` for compatibility: it has always meant the
+        # evaluation's jobs, which is what `jobs` is.
+        "builds" => { via => "jobs", key => "id" },
+        "buildsForEvaluation" => "id"
     },
     eager_relations => {
         # altnr? Does anyone care?

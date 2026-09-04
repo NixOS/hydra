@@ -47,6 +47,13 @@ impl HydraConfig {
         Self { options }
     }
 
+    pub(crate) fn get_str(&self, key: &str) -> Option<&str> {
+        self.options
+            .get(key)
+            .map(String::as_str)
+            .filter(|v| !v.is_empty())
+    }
+
     pub(crate) fn get_int(&self, key: &str, default: u64) -> u64 {
         match self.options.get(key) {
             None => default,

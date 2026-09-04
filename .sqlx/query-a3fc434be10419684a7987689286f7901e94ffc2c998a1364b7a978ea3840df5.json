@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobsetevalmembers (eval, build, isNew, forEvaluation) SELECT $1, unnest($2::integer[]), 1, 1 ON CONFLICT (eval, build) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a3fc434be10419684a7987689286f7901e94ffc2c998a1364b7a978ea3840df5"
+}

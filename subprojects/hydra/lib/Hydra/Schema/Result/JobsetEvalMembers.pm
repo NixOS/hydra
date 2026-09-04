@@ -52,6 +52,12 @@ __PACKAGE__->table("jobsetevalmembers");
   data_type: 'integer'
   is_nullable: 0
 
+=head2 forevaluation
+
+  data_type: 'integer'
+  default_value: 0
+  is_nullable: 0
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -61,6 +67,8 @@ __PACKAGE__->add_columns(
   { data_type => "integer", is_foreign_key => 1, is_nullable => 0 },
   "isnew",
   { data_type => "integer", is_nullable => 0 },
+  "forevaluation",
+  { data_type => "integer", default_value => 0, is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -110,8 +118,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:QBT9/VToFEwbuXSF8IeySQ
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-22 22:15:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BPMg2ctt4uW9QuT5m1lhZA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration

@@ -86,6 +86,9 @@ HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('view'),
   [% IF unfinished.size > 0 %]
     <li class="nav-item"><a class="nav-link" href="#tabs-unfinished" data-toggle="tab">Queued Jobs ([% HTML.escape(unfinished.size) %])</a></li>
   [% END %]
+  [% IF buildsForEvaluation.size > 0 %]
+    <li class="nav-item"><a class="nav-link" href="#tabs-for-evaluation" data-toggle="tab">Builds for Evaluation ([% HTML.escape(buildsForEvaluation.size) %])</a></li>
+  [% END %]
   <li class="nav-item"><a class="nav-link" href="#tabs-inputs" data-toggle="tab">Inputs</a></li>
 
   [% IF eval.evaluationerror.has_error %]
@@ -152,6 +155,15 @@ HTML.attributes(href => c.uri_for(c.controller('JobsetEval').action_for('view'),
 
   <div id="tabs-unfinished" class="tab-pane">
     [% INCLUDE renderSome builds=unfinished tabname="#tabs-unfinished" %]
+  </div>
+
+  <div id="tabs-for-evaluation" class="tab-pane">
+    <p>
+      These are not jobs. Evaluating this jobset required reading the
+      output of a derivation, so that derivation had to be built before
+      the jobs above could be known at all.
+    </p>
+    [% INCLUDE renderSome builds=buildsForEvaluation tabname="#tabs-for-evaluation" %]
   </div>
 
   <div id="tabs-inputs" class="tab-pane">

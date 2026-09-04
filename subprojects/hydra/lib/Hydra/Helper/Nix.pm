@@ -265,8 +265,8 @@ sub getEvalInfo {
     if (defined $nrSucceeded) {
         $nrScheduled = 0;
     } else {
-        $nrScheduled = $eval->builds->search({finished => 0})->count;
-        $nrSucceeded = $eval->builds->search({finished => 1, buildStatus => 0})->count;
+        $nrScheduled = $eval->jobs->search({finished => 0})->count;
+        $nrSucceeded = $eval->jobs->search({finished => 1, buildStatus => 0})->count;
         if ($nrScheduled == 0) {
             $eval->update({nrsucceeded => $nrSucceeded});
         }

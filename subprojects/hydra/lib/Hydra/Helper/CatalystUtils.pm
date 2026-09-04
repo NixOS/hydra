@@ -104,7 +104,7 @@ sub searchBuildsAndEvalsForJobset {
     my $nrBuilds = 0;
 
     foreach my $eval (@evals) {
-        my @allBuilds = $eval->builds->search(
+        my @allBuilds = $eval->jobs->search(
             $condition,
             { columns => ['id', 'job', 'finished', 'buildstatus'] }
         );

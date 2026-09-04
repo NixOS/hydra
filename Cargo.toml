@@ -123,6 +123,7 @@ zstd = "0.13"
 # Local workspace crates
 binary-cache        = { path = "subprojects/crates/binary-cache" }
 daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
+daemon-server       = { path = "subprojects/crates/daemon-server" }
 db                  = { path = "subprojects/crates/db" }
 hydra-proto         = { path = "subprojects/crates/proto" }
 hydra-tracing       = { path = "subprojects/crates/tracing" }

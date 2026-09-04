@@ -29,6 +29,13 @@ use-substitutes = true
 queue_runner_endpoint = http://localhost:$HYDRA_QUEUE_RUNNER_REST_PORT
 ws_endpoint = ws://localhost:$HYDRA_WS_PORT
 
+# Builds an evaluation needs go through Hydra rather than happening
+# inside the evaluator: it serves a nix-daemon socket per evaluation, so
+# each BuildPaths/BuildDerivation becomes a Build in the jobset being
+# evaluated. Use via-evaluator to build them locally instead, or
+# disallowed to fail such an evaluation outright.
+builds_during_evaluation = via-hydra
+
 <hydra_notify>
   <prometheus>
     listen_address = 127.0.0.1

@@ -231,7 +231,7 @@ sub fetchInputEval {
     }
 
     my $jobs = {};
-    foreach my $build ($eval->builds) {
+    foreach my $build ($eval->jobs) {
         next unless $build->finished == 1 && $build->buildstatus == 0;
         # FIXME: Handle multiple outputs.
         my $out = $build->buildoutputs->find({ name => "out" });
@@ -391,7 +391,16 @@ sub evalJobsCmd {
     push @cmd, "--meta";
     push @cmd, "--constituents";
     push @cmd, "--force-recurse";
-    push @cmd, ("--option", "allow-import-from-derivation", "false") if ($config->{allow_import_from_derivation} // "false") ne "true";
+    # Always stated, either way: left unset, nix falls back to whatever
+    # nix.conf says, so whether a jobset may build while being evaluated
+    # would depend on the machine the evaluator happens to run on.
+    #
+    # Both via- settings permit it; they differ in where the build runs,
+    # which is the evaluator's business (it points NIX_REMOTE at its own
+    # daemon for via-hydra), not nix's.
+    my $buildsDuringEval = $config->{builds_during_evaluation} // "disallowed";
+    push @cmd, ("--option", "allow-import-from-derivation",
+        ($buildsDuringEval eq "via-evaluator" || $buildsDuringEval eq "via-hydra") ? "true" : "false");
     push @cmd, ("--workers", $config->{evaluator_workers} // 1);
     push @cmd, ("--max-memory-size", $config->{evaluator_max_memory_size} // 4096);
 
@@ -540,12 +549,14 @@ sub checkBuild {
                 ? { path => $firstOutputPath }
                 : { drvPath => $drvPath };
 
-            my ($prevBuild) = $prevEval->builds->search(
+            my ($prevBuild) = $prevEval->jobs->search(
                 # The "project" and "jobset" constraints are
                 # semantically unnecessary (because they're implied by
                 # the eval), but they give a factor 1000 speedup on
                 # the Nixpkgs jobset with PostgreSQL.
-                { jobset_id => $jobset->get_column('id'), job => $jobName,
+                # jobset_id is qualified because jobsetevals has one too,
+                # and this query joins both.
+                { 'build.jobset_id' => $jobset->get_column('id'), job => $jobName,
                   name => $firstOutputName, %$pathOrDrvConstraint },
                 { rows => 1, columns => ['id', 'finished', 'drvpath', 'buildstatus'], join => ['buildoutputs'] });
             if (defined $prevBuild) {
@@ -925,7 +936,10 @@ sub checkJobsetWrapped {
         # Have any builds been added or removed since last time?
         $jobsetChanged =
             (scalar(grep { $_->{new} } values(%buildMap)) > 0)
-            || (defined $prevEval && $prevEval->jobsetevalmembers->count != scalar(keys %buildMap));
+            # jobIds, not every member: %buildMap holds the jobs, so
+            # counting builds the previous evaluation merely needed in
+            # order to run would make every later evaluation look changed.
+            || (defined $prevEval && $prevEval->jobIds->count != scalar(keys %buildMap));
 
         $ev->update({
             hasnewbuilds => $jobsetChanged ? 1 : 0,

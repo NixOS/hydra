@@ -30,6 +30,18 @@ pub(crate) trait JobsetQueries {
     /// Whether an evaluation still has unfinished builds.
     async fn eval_has_unfinished_builds(&mut self, eval_id: i32) -> Result<bool, sqlx::Error>;
 
+    /// Record builds the evaluation needed in order to run at all —
+    /// reading a derivation's output — as members of it, flagged so they are not
+    /// mistaken for its jobs.
+    ///
+    /// Ignores builds already linked: an evaluation can reach the same
+    /// derivation more than once, and the second time is not an error.
+    async fn add_builds_for_evaluation(
+        &mut self,
+        eval_id: i32,
+        build_ids: &[i32],
+    ) -> Result<(), sqlx::Error>;
+
     /// Mark a jobset as currently evaluating.
     async fn set_jobset_start_time(
         &mut self,
@@ -97,6 +109,23 @@ impl JobsetQueries for db::Connection {
         .fetch_optional(self.raw())
         .await?
         .is_some())
+    }
+
+    async fn add_builds_for_evaluation(
+        &mut self,
+        eval_id: i32,
+        build_ids: &[i32],
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "INSERT INTO jobsetevalmembers (eval, build, isNew, forEvaluation) \
+             SELECT $1, unnest($2::integer[]), 1, 1 \
+             ON CONFLICT (eval, build) DO NOTHING",
+            eval_id,
+            build_ids,
+        )
+        .execute(self.raw())
+        .await?;
+        Ok(())
     }
 
     async fn set_jobset_start_time(

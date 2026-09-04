@@ -35,6 +35,13 @@ sub wait_for_url {
 # Returns ($process_group, $rest_url, $grpc_addr).
 # The ProcessGroup has the nix daemon and queue-runner registered.
 # Caller is responsible for calling $pg->stop when done.
+#
+# Options:
+#   queue_monitor_loop: 1 to leave the queue-monitor-loop running so the
+#     queue runner picks up new Builds rows on its own. Needed when the
+#     rows appear while the test is running rather than before it, as
+#     with an evaluation that creates builds for its IFDs. Default 0
+#     (disabled), which matches QueueRunnerBuildOne's /build_one driver.
 sub start_queue_runner {
     my ($ctx, %opts) = @_;
     ref $ctx eq 'HydraTestContext' or die "start_queue_runner requires a HydraTestContext\n";
@@ -94,6 +101,14 @@ sub start_queue_runner {
     my $rest_fd = fileno($rest_sock);
     my $grpc_fd = fileno($grpc_sock);
 
+    my @args = (
+        "hydra-queue-runner",
+        "--config-path", $config_file,
+        "--rest-bind", "-",
+        "--grpc-bind", "-",
+    );
+    push @args, "--disable-queue-monitor-loop" unless $opts{queue_monitor_loop};
+
     my ($qr_in, $qr_out, $qr_err) = ("", "", "");
 
     # Start the queue runner, connecting to the nix daemon via unix://.
@@ -108,12 +123,7 @@ sub start_queue_runner {
         # Don't set LISTEN_PID — listenfd skips the PID check when it's unset.
         delete $ENV{LISTEN_PID};
         $qr_harness = IPC::Run::start(
-            ["hydra-queue-runner",
-                "--config-path", $config_file,
-                "--rest-bind", "-",
-                "--grpc-bind", "-",
-                "--disable-queue-monitor-loop",
-            ],
+            \@args,
             \$qr_in, \$qr_out, \$qr_err,
             init => sub {
                 # In the child: place sockets at fd 3 and 4.
