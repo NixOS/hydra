@@ -12,6 +12,7 @@
   ninja,
 
   perl,
+  perlPackages,
   nixComponents,
 
   bzip2,
@@ -25,6 +26,8 @@
   pixz,
   nix-eval-jobs,
   curl,
+  kanidm_1_10,
+  jq,
 
   cacert,
   glibcLocales,
@@ -75,6 +78,8 @@ stdenv.mkDerivation (finalAttrs: {
     pixz
     nix-eval-jobs
     curl
+    kanidm_1_10
+    jq
   ];
 
   buildInputs = [
@@ -85,7 +90,14 @@ stdenv.mkDerivation (finalAttrs: {
     nixComponents.nix-cli
     hydra.perlDeps
     perl
-  ];
+  ]
+  ++ (with perlPackages; [
+    # Test-only Perl modules used by the OIDC end-to-end test
+    HTTPCookieJar
+    TestLongString
+    TestWWWMechanize
+    TestWWWMechanizeCatalyst
+  ]);
 
   OPENLDAP_ROOT = openldap;
 

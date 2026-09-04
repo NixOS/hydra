@@ -1,0 +1,386 @@
+package Hydra::Helper::OIDC;
+
+use strict;
+use warnings;
+use feature qw(signatures try);
+no warnings 'experimental::try';
+use Exporter 'import';
+use LWP::UserAgent;
+use JSON::MaybeXS qw(decode_json);
+use Digest::SHA qw(sha256);
+use MIME::Base64 qw(encode_base64url);
+use URI;
+use Crypt::URandom qw(urandom);
+use File::Slurper qw(read_text);
+use Crypt::JWT qw(decode_jwt);
+use String::Compare::ConstantTime qw(equals);
+use Hydra::Helper::CatalystUtils qw(error);
+
+our @EXPORT_OK = qw(
+    resolveOIDCConfig
+);
+
+# Resolve the effective provider configuration, merging static config
+# with (lazily fetched, cached) discovery endpoints. This is called on
+# every new()/load() so that an IdP that was down at Hydra startup will
+# start working once it recovers, without requiring a Hydra restart.
+sub _resolvedConf ($c, $provider_name) {
+    my $static = $c->config->{oidc}->{provider}->{$provider_name}
+        or error($c, "OIDC provider $provider_name is not configured", 404);
+
+    # If all endpoints are already set (either manually or by a previous
+    # discovery), no network I/O needed.
+    return $static if $static->{authorization_endpoint}
+                   && $static->{token_endpoint}
+                   && $static->{jwks_uri}
+                   && $static->{issuer};
+
+    error($c, "OIDC provider $provider_name has no discovery_url and is "
+            . "missing required endpoints", 500)
+        unless $static->{discovery_url};
+
+    my $cache_key = "oidc.$provider_name.discovery";
+    my $discovery = $c->cache_get($cache_key);
+    unless ($discovery) {
+        try {
+            $discovery = getOIDCDiscovery($static);
+        } catch ($e) {
+            error($c, "OIDC discovery for '$provider_name' failed: $e", 503);
+        }
+        $c->cache_set($cache_key, $discovery, expires => 3600);
+    }
+
+    # Merge: explicit config wins over discovery, discovery fills the rest.
+    # We also write back into the static config hash so subsequent calls
+    # in the same process short-circuit at the top of this function.
+    for my $k (qw(authorization_endpoint token_endpoint jwks_uri issuer
+                  end_session_endpoint)) {
+        $static->{$k} //= $discovery->{$k};
+    }
+    return $static;
+}
+
+# Start a new OIDC login session
+sub new ($class, $c, %args) {
+    my $provider_name = $args{provider_name};
+
+    my $conf = _resolvedConf($c, $provider_name);
+    my $session_data = {
+        # RFC 6749 §10.10 requires tokens to be unguessable (≤ 2^-160 probability).
+        # 16 random bytes (128 bits) base64url-encoded is well above that.
+        state => encode_base64url(urandom(16)),
+        nonce => encode_base64url(urandom(16)),
+        # RFC 7636 §4.1: PKCE code_verifier must be 43-128 chars from the
+        # unreserved set [A-Za-z0-9-._~]. base64url output of 32 bytes is
+        # 43 chars using only [A-Za-z0-9-_], which is a subset.
+        code_verifier => encode_base64url(urandom(32)),
+        # It's recommended to not allow redirects to take forever (although RFC 6749 does not
+        # mandate or recommend any particular length of time)
+        expires_at => time + 600,
+        provider_name => $provider_name,
+        after => $args{after},
+        redirect_uri => $args{redirect_uri},
+    };
+    $c->session->{oidc} = $session_data;
+
+    return bless {
+        c => $c,
+        session_data => $session_data,
+        provider_name => $provider_name,
+        conf =>  $conf,
+    }, $class;
+}
+
+# Load OIDC login session data from the Catalyst session
+sub load ($class, $c, %args) {
+    my $provider_name = $args{provider_name};
+
+    my $conf = _resolvedConf($c, $provider_name);
+    my $session_data = $c->session->{oidc} or error($c, "No OIDC login in progress", 400);
+    $session_data->{provider_name} eq $provider_name
+        or error($c, "OIDC provider endpoint mismatch", 400);
+
+    return bless {
+        c => $c,
+        session_data => $session_data,
+        provider_name => $provider_name,
+        conf =>  $conf,
+    }, $class;
+}
+
+
+sub authorizationURL ($self) {
+    my $uri = URI->new($self->{conf}->{authorization_endpoint});
+    $uri->query_form(
+        response_type => 'code',
+        client_id => $self->{conf}->{client_id},
+        # This value is saved in the session, so that we can retrieve it when performing the token
+        # exchange later
+        redirect_uri => $self->{session_data}->{redirect_uri},
+        # We need the openid scope to make sure an id token is returned, and email because hydra's
+        # DB needs an email. Any extra scopes can be added in configuration (because, for example,
+        # the IDP might not be configured to return a hydra_roles claim without explicitly asking
+        # for it with a scope)
+        scope => join(" ", "openid", "profile", "email",
+                      grep { length } $self->{conf}->{extra_scopes} // ()),
+        # RFC 7636 §4.2: code_challenge = BASE64URL-ENCODE(SHA256(code_verifier))
+        # MIME::Base64::encode_base64url already omits '=' padding per RFC 4648 §5.
+        code_challenge => encode_base64url(sha256($self->{session_data}->{code_verifier})),
+        code_challenge_method => 'S256',
+        nonce => $self->{session_data}->{nonce},
+        state => $self->{session_data}->{state},
+    );
+    return $uri->as_string;
+}
+
+sub validateAuthorizationCode ($self, $params) {
+    my $c = $self->{c};
+
+    # Per RFC 6747 Section 10.12:
+    #   The client MUST implement CSRF protection for its redirection URI. This is typically
+    #   accomplished by requiring any request sent to the redirection URI to include a value that
+    #   binds the request to the user-agent's authenticated state
+    error($c, "Invalid state", 400) unless $params->{state};
+    error($c, "Invalid state", 400) unless equals($params->{state}, $self->{session_data}->{state});
+
+    # Per RFC 9207 Section 2.4:
+    #   Clients that support this specification MUST extract the value of the iss parameter from
+    #   authorization responses they receive if the parameter is present... If the value does not
+    #   match the expected issuer identifier, clients MUST reject the authorization response
+    if ($params->{iss}) {
+        error($c, "Invalid issuer", 400) unless $params->{iss} eq $self->{conf}->{issuer};
+    }
+
+    # Check if the state hasn't expired in our opinion
+    if (time > $self->{session_data}->{expires_at}) {
+        error($c, "State expired ($self->{session_data}->{expires_at})", 400);
+    }
+
+    # Per RFC 6747 Section 4.1.2.1:
+    #   If the resource owner denies the access request or if the request fails for reasons other
+    #   than a missing or invalid redirection URI, the authorization server informs the client by
+    #   adding the following parameters to the query component of the redirection URI
+    if ($params->{error}) {
+        my $error_str = $params->{error};
+        if ($params->{error_description}) {
+          $error_str = "$error_str: $params->{error_description}";
+        }
+        my $error_code;
+        if ($params->{error} =~ /access_denied/) {
+            $error_code = 403;
+        } elsif ($params->{error} =~ /temporarily_unavailable/) {
+            $error_code = 503;
+        } else {
+            # Everything else indicates something is misconfigured with the OIDC client
+            $error_code = 500;
+        }
+        error($c, "OIDC server rejected authorization: $error_str", $error_code);
+    }
+
+    error($c, "Invalid code", 400) unless $params->{code};
+    return $params->{code};
+}
+
+sub exchangeCodeForToken ($self, $code) {
+    my $c = $self->{c};
+
+    my $ua = $self->make_ua();
+    my $req = HTTP::Request::Common::POST($self->{conf}->{token_endpoint}, [
+        # Per RFC 6747 Section 4.1.3:
+        #   grant_type... Value MUST be set to "authorization_code"
+        grant_type => 'authorization_code',
+        #   code... The authorization code received from the authorization server
+        code => $code,
+        #   redirect_uri... REQUIRED, if the "redirect_uri" parameter was included in the
+        #   authorization request
+        redirect_uri => $self->{session_data}->{redirect_uri},
+        # Per RFC 7637 Section 4.5:
+        #   In addition to the parameters defined in the OAuth 2.0 Access Token Request, it sends
+        #   the following parameter
+        code_verifier => $self->{session_data}->{code_verifier},
+    ]);
+    # Per RFC 6747 Section 2.3.1:
+    #   Including the client credentials in the request-body using the two parameters is NOT
+    #   RECOMMENDEDand SHOULD be limited to clients unable to directly utilize the HTTP Basic
+    #   authentication scheme
+    # So we should not pass client_id & client_secret in the body, but rather in an auth header
+    $req->authorization_basic($self->{conf}->{client_id}, $self->{conf}->{client_secret});
+    my $res = $ua->request($req);
+
+    my $res_json;
+    try {
+        $res_json = decode_json($res->decoded_content);
+    } catch ($e) {
+        # The response was not JSON, probably this is like a load balancer returning a 500
+        # page or some such. So check the status code when deciding what to return here.
+        if (not $res->is_success) {
+            error($c, "OIDC token endpoint returned status " . $res->status_line, 500);
+        } else {
+            error($c, "OIDC token endpoint did not return valid JSON: $e", 500);
+        }
+    }
+    if ($res_json->{error}) {
+        my $error_str = $res_json->{error};
+        if ($res_json->{error_description}) {
+            $error_str = "$error_str: $res_json->{error_description}";
+        }
+        # All of the possibilities here are a misconfiguration
+        error($c, "OIDC token endpoint returned error: $error_str", 500);
+    }
+    # Catch HTTP errors that returned valid JSON without an 'error' field
+    # (e.g. a reverse proxy returning a JSON 502 page).
+    if (not $res->is_success) {
+        error($c, "OIDC token endpoint returned status " . $res->status_line, 500);
+    }
+
+    error($c, "OIDC token endpoint did not return an id token", 400) unless $res_json->{id_token};
+
+    return $res_json->{id_token};
+}
+
+sub validateToken ($self, $token) {
+    my $c = $self->{c};
+
+    # Crypt::JWT handles the standard ID token validation required by OIDC
+    # Core 1.0 §3.1.3.7 for us: signature verification against JWKS, issuer
+    # match, audience match, exp/nbf time checks, and rejection of alg=none.
+    # It does NOT verify the nonce (OIDC-specific) or sub presence, which we
+    # check separately below.
+    my $claims;
+    # Try twice: first with cached JWKS, then refreshed if the key ID is
+    # unknown (OIDC Core §10.1.1: re-fetch jwks_uri on unfamiliar kid).
+    foreach my $force_refresh (0, 1) {
+        my $jwks = $self->JWKS(force => $force_refresh);
+        try {
+            $claims = decode_jwt(
+                token      => $token,
+                kid_keys   => $jwks,
+                verify_iss => sub { $_[0] eq $self->{conf}->{issuer} },
+                verify_aud => sub { $_[0] eq $self->{conf}->{client_id} },
+                verify_exp => 1,
+                verify_nbf => 1,
+            );
+        } catch ($e) {
+            next if $e =~ /kid_keys lookup failed/ && !$force_refresh;
+            error($c, "OIDC token validation failed: $e", 401);
+        }
+        last if $claims;
+    }
+
+    # Nonce binds the token to our authorization request (replay protection).
+    $claims->{nonce} or error($c, "No nonce claim in OIDC token", 400);
+    equals($claims->{nonce}, $self->{session_data}->{nonce})
+        or error($c, "Nonce mismatch", 403);
+
+    # We use `sub` as the stable user identifier; it's REQUIRED by OIDC but
+    # be defensive anyway.
+    $claims->{sub} or error($c, "No sub claim in OIDC token", 400);
+
+    return $claims;
+}
+
+sub JWKS ($self, %args) {
+    my $c = $self->{c};
+    my $provider_name = $self->{session_data}->{provider_name};
+    my $jwks_uri = $self->{conf}->{jwks_uri};
+    my $cache_key = "oidc.$provider_name.jwks";
+
+    if (!$args{force}) {
+        my $jwks = $c->cache_get($cache_key);
+        return $jwks if $jwks;
+    }
+
+    my $ua = $self->make_ua();
+    my $res = $ua->get($jwks_uri);
+    if (not $res->is_success) {
+        error($c, "Failed fetching OIDC JWKS endpoint $jwks_uri: ". $res->status_line, 500);
+    }
+    my $res_json;
+    try {
+        $res_json = decode_json($res->decoded_content);
+    } catch ($e) {
+        error($c, "OIDC JWKS endpoint returned invalid JSON: $e", 500);
+    }
+
+    $c->cache_set($cache_key, $res_json, expires => 60);
+    return $res_json;
+}
+
+sub clear_session ($self) {
+    # Clears the session out of the session store, but does NOT clear $self->session_data;
+    # this is so we can call $self->after() later in the request to redirect.
+    $self->{c}->session->{oidc} = undef;
+}
+
+sub after ($self) {
+    return $self->{session_data}->{after};
+}
+
+sub make_ua ($self) {
+    return _make_ua($self->{conf});
+}
+
+sub _make_ua ($conf) {
+    my $ua = LWP::UserAgent->new(timeout => 10);
+    if (defined $conf->{ca_file}) {
+        $ua->ssl_opts(SSL_ca_file => $conf->{ca_file});
+    }
+    return $ua;
+}
+
+# Run at startup to load secrets from disk and validate static
+# configuration. Does NOT perform network I/O — discovery is resolved
+# lazily on first login so that a temporarily unreachable IdP does not
+# delay Hydra startup or require a restart to recover.
+sub resolveOIDCConfig ($oidc_config) {
+    return unless $oidc_config;
+    return unless $oidc_config->{provider};
+
+    foreach my $provider_name (keys %{$oidc_config->{provider}}) {
+        my $provider = $oidc_config->{provider}{$provider_name};
+
+        # Load secrets from file
+        if ($provider->{client_secret_file}) {
+            my $client_secret = read_text($provider->{client_secret_file});
+            $client_secret =~ s/^\s+|\s+$//g;  # Trim whitespace
+            $provider->{client_secret} = $client_secret;
+        }
+
+        $provider->{client_secret}
+            or die "OIDC provider '$provider_name' must have client_secret or client_secret_file\n";
+
+        # Either discovery_url or all four endpoints must be configured.
+        # Actual discovery fetching happens lazily in _resolvedConf.
+        unless ($provider->{discovery_url}) {
+            for my $field (qw(authorization_endpoint token_endpoint jwks_uri issuer)) {
+                $provider->{$field}
+                    or die "OIDC provider '$provider_name' is missing '$field' "
+                         . "(set discovery_url or configure it explicitly)\n";
+            }
+        }
+    }
+}
+
+sub getOIDCDiscovery ($conf) {
+    my $ua = _make_ua($conf);
+    my $res = $ua->get($conf->{discovery_url});
+    die "Discovery request to $conf->{discovery_url} failed: " . $res->status_line
+        unless $res->is_success;
+
+    my $doc;
+    try {
+        $doc = decode_json($res->decoded_content);
+    } catch ($e) {
+        die "Discovery response is not valid JSON: $e";
+    }
+
+    # Validate required fields per OIDC spec
+    die "Missing 'issuer' in discovery document" unless $doc->{issuer};
+    die "Missing 'authorization_endpoint' in discovery document" unless $doc->{authorization_endpoint};
+    die "Missing 'token_endpoint' in discovery document" unless $doc->{token_endpoint};
+    die "Missing 'jwks_uri' in discovery document" unless $doc->{jwks_uri};
+
+    return $doc;
+}
+
+1;

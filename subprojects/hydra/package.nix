@@ -55,6 +55,7 @@ let
       ]
       ++ (with perlPackages; [
         AuthenSASL
+        CacheFastMmap
         CatalystActionREST
         CatalystAuthenticationStoreDBIxClass
         CatalystAuthenticationStoreLDAP
@@ -62,6 +63,7 @@ let
         CatalystPluginAccessLog
         CatalystPluginAuthorizationRoles
         CatalystPluginCaptcha
+        CatalystPluginCache
         CatalystPluginPrometheusTiny
         CatalystPluginSessionStateCookie
         CatalystPluginSessionStoreFastMmap
@@ -72,9 +74,11 @@ let
         CatalystViewTT
         CatalystXRoleApplicator
         CatalystXScriptServerStarman
+        CryptJWT
         CryptPassphrase
         CryptPassphraseArgon2
         CryptRandPasswd
+        CryptURandom
         DataDump
         DateTime
         DBDPg
@@ -119,6 +123,7 @@ let
         TextTable
         URIdb
         UUIDURandom
+        WWWMechanize
         YAML
         XMLSimple
       ])
