@@ -1,0 +1,34 @@
+[package]
+name                   = "hydra-ad-hoc"
+description            = "Experimental, optional: presents Hydra as one giant nix daemon for ad hoc jobs and ad hoc store usage"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+clap                 = { workspace = true, features = [ "derive" ] }
+color-eyre.workspace = true
+fs-err.workspace     = true
+futures.workspace    = true
+hydra-tracing        = { workspace = true }
+listenfd.workspace   = true
+sd-notify.workspace  = true
+secrecy              = { workspace = true, features = [ "serde" ] }
+serde                = { workspace = true, features = [ "derive" ] }
+sqlx                 = { workspace = true, features = [ "runtime-tokio", "postgres" ] }
+thiserror.workspace  = true
+tokio                = { workspace = true, features = [ "full" ] }
+toml.workspace       = true
+tracing.workspace    = true
+
+db.workspace                             = true
+harmonia-protocol.workspace              = true
+harmonia-store-content-address.workspace = true
+harmonia-store-derivation.workspace      = true
+harmonia-store-path.workspace            = true
+harmonia-store-remote.workspace          = true
+harmonia-utils-io.workspace              = true
+
+[features]
+otel = [ "hydra-tracing/otel" ]

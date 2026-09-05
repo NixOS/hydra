@@ -169,6 +169,7 @@
           hydra-linters
           hydra-queue-runner
           hydra-builder
+          hydra-ad-hoc
           hydra-evaluator
           ;
       };
@@ -185,6 +186,8 @@
         queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
         builder = forEachSystem (system: packages.${system}.hydra-builder);
+
+        adHoc = forEachSystem (system: packages.${system}.hydra-ad-hoc);
 
         nixosTests = import ./nixos-tests {
           inherit nixpkgs nixosModules;
@@ -269,6 +272,7 @@
               hydra-queue-runner
               hydra-builder
               hydra-evaluator
+              hydra-ad-hoc
               hydra-cargo-deps
               ;
             foreman = pkgs.callPackage ./packaging/foreman/package.nix {

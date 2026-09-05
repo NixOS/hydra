@@ -19,7 +19,7 @@ pub mod models;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{Connection, FinishedBuild, Transaction};
 pub use error::{DataError, Error, Result};
 
 /// Seconds since the Unix epoch, at the width Hydra's schema stores them.

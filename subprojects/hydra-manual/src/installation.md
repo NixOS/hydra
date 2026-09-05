@@ -124,3 +124,6 @@ There are two other processes that come into play:
     It is launched using the `hydra-queue-runner` command.
 
 All three processes must be running for Hydra to be fully functional, though it's possible to temporarily stop any one of them for maintenance purposes, for instance.
+
+Optionally, the new and still experimental `hydra-ad-hoc` command runs a nix daemon endpoint through which builds can be submitted to Hydra from outside, without any jobset.
+See [Ad hoc builds](configuration.md#ad-hoc-builds-optional-experimental).
