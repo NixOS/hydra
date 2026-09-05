@@ -37,7 +37,8 @@ self': {
   inherit (self'.rustWorkspace)
     hydra-queue-runner
     hydra-builder
-    hydra-evaluator
+    hydra-submit-evaluation
+    hydra-process-evaluation
     hydra-ws
     hydra-ad-hoc
     ;

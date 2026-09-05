@@ -147,9 +147,14 @@ in
     meta.description = "Hydra queue runner (Rust)";
   };
 
-  hydra-evaluator = mkCrate {
-    pname = "hydra-evaluator";
-    meta.description = "Hydra evaluator (Rust)";
+  hydra-submit-evaluation = mkCrate {
+    pname = "hydra-submit-evaluation";
+    meta.description = "Hydra evaluation scheduler: queues a build per evaluation (Rust)";
+  };
+
+  hydra-process-evaluation = mkCrate {
+    pname = "hydra-process-evaluation";
+    meta.description = "Hydra evaluation finisher: reads evaluation builds back (Rust)";
   };
 
   hydra-ws = mkCrate {

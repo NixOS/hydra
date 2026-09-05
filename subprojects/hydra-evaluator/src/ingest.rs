@@ -5,7 +5,6 @@
 //! whether this job is already built and, if not, queueing it.
 
 use std::collections::HashMap;
-use std::fmt::Write as _;
 
 use color_eyre::eyre::{self, WrapErr as _};
 
@@ -19,7 +18,7 @@ use crate::queries::NewBuild;
 /// build, which is what makes an evaluation a complete record of its jobs
 /// rather than only of the new work it created.
 #[derive(Debug, Clone)]
-pub(crate) struct Member {
+pub struct Member {
     pub build: i32,
     pub job: String,
     /// Whether this evaluation queued the build, as opposed to finding it
@@ -37,7 +36,7 @@ pub(crate) struct Member {
 /// Returns `None` when the job is a duplicate within this same evaluation --
 /// two attributes producing the same output path -- which is not an error and
 /// not a second build.
-pub(crate) async fn check_build(
+pub async fn check_build(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     eval: i32,
@@ -246,7 +245,8 @@ fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<S
 /// members, its aggregates and the notifications announcing them are true
 /// together or not at all. It is also why the notifications are sent from in
 /// here -- `NOTIFY` is delivered on commit.
-pub(crate) struct Recorded {
+#[derive(Debug)]
+pub struct Recorded {
     pub jobset_changed: bool,
     pub error: String,
     /// Builds inherited from an earlier evaluation whose derivation has
@@ -254,8 +254,7 @@ pub(crate) struct Recorded {
     pub repoints: HashMap<i32, String>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn record(
+pub async fn record(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     trace: &str,
@@ -290,7 +289,7 @@ pub(crate) async fn record(
             } else {
                 format!("in job ‘{}’", job.attr)
             };
-            let _ = write!(error, "{where_}:\n{message}\n\n");
+            error.push_str(&format!("{where_}:\n{message}\n\n"));
         } else if let Some(member) =
             check_build(tx, jobset_id, eval_id, job, prev_eval, &mut seen).await?
         {
@@ -306,7 +305,7 @@ pub(crate) async fn record(
     // set of jobs is a different size than last time -- a job disappearing is
     // a change even though it queues nothing.
     let jobset_changed = members.iter().any(|m| m.is_new)
-        || prev_member_count.is_some_and(|n| i64::try_from(members.len()) != Ok(n));
+        || prev_member_count.is_some_and(|n| n != members.len() as i64);
 
     let nr_builds = i32::try_from(members.len()).ok();
     queries::finish_eval(
@@ -405,15 +404,16 @@ async fn record_aggregates(
         })?;
 
         for constituent_drv in constituents {
-            if let Some(constituent) = by_drv.get(constituent_drv.as_str()) {
-                queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
-                    .await?;
-            } else {
-                tracing::warn!(
+            match by_drv.get(constituent_drv.as_str()) {
+                Some(constituent) => {
+                    queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
+                        .await?;
+                }
+                None => tracing::warn!(
                     "aggregate job ‘{}’ has a constituent ‘{constituent_drv}’ \
                      that doesn't correspond to a Hydra build",
                     job.attr
-                );
+                ),
             }
         }
     }

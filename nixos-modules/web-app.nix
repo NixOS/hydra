@@ -96,7 +96,7 @@ in
           internally).
 
           NOTE: an `application_name` query parameter is appended per
-          service (e.g. `hydra-evaluator`) to more easily distinguish
+          service (e.g. `hydra-submit-evaluation`) to more easily distinguish
           where queries are coming from, so do not set one here.
         '';
       };
@@ -106,9 +106,14 @@ in
         description = "The Hydra package.";
       };
 
-      evaluatorExecutable = mkOption {
+      submitEvaluationExecutable = mkOption {
         type = types.path;
-        description = "Path to the hydra-evaluator executable.";
+        description = "Path to the `hydra-submit-evaluation` executable.";
+      };
+
+      processEvaluationExecutable = mkOption {
+        type = types.path;
+        description = "Path to the `hydra-process-evaluation` executable.";
       };
 
       hydraURL = mkOption {
@@ -162,7 +167,7 @@ in
         };
         default = { };
         description = ''
-          Settings for `hydra-evaluator`, written to `/etc/hydra/evaluator.toml`.
+          Settings for `hydra-submit-evaluation`, written to `/etc/hydra/evaluator.toml`.
 
           Every service in Rust in hydra has its own separate TOML configuration file,
           with just the settings it needs.
@@ -351,7 +356,7 @@ in
     environment.etc."hydra/evaluator.toml".source =
       evaluatorFormat.generate "evaluator.toml" cfg.evaluatorSettings;
 
-    systemd.services.hydra-evaluator = {
+    systemd.services.hydra-submit-evaluation = {
       wantedBy = [ "multi-user.target" ];
       requires = [ "hydra-init.service" ];
       restartTriggers = [
@@ -364,28 +369,45 @@ in
       ];
       path = with pkgs; [
         hostname-debian
-        # Because hydra-evaluator calls `hydra-fetch-input`, which is Perl
+        # Because hydra-submit-evaluation calls `hydra-fetch-input`, which is Perl
         # and must stay so: input types are a plugin interface.
         cfg.package
       ];
       environment = env // {
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-submit-evaluation";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
-          "@${cfg.evaluatorExecutable}"
-          "hydra-evaluator"
+          "@${cfg.submitEvaluationExecutable}"
+          "hydra-submit-evaluation"
           "--config-path"
           "/etc/hydra/evaluator.toml"
-        ];
-        ExecStopPost = escapeShellArgs [
-          "${cfg.evaluatorExecutable}"
-          "--config-path"
-          "/etc/hydra/evaluator.toml"
-          "--unlock"
         ];
         User = "hydra";
         Restart = "always";
+        WorkingDirectory = baseDir;
+      };
+    };
+
+    # The other half of evaluating: reads finished evaluation builds back
+    # and turns them into the builds they found. Driven by `build_finished`,
+    # with a catch-up pass at startup, so nothing about it needs configuring.
+    systemd.services.hydra-process-evaluation = {
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      after = [ "hydra-init.service" ];
+      path = [ cfg.package ];
+      environment = env // {
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-process-evaluation";
+      };
+      serviceConfig = {
+        ExecStart = escapeShellArgs [
+          "@${cfg.processEvaluationExecutable}"
+          "hydra-process-evaluation"
+        ];
+        User = "hydra";
+        Restart = "always";
+        RestartSec = 5;
         WorkingDirectory = baseDir;
       };
     };
@@ -450,10 +472,10 @@ in
     # Leaves a tag file indicating this reason; if the tag file exists
     # and disk space is above the threshold + 10GB, the evaluator will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-evaluator-check-space = {
+    systemd.services.hydra-submit-evaluation-check-space = {
       script = ''
         ${builtins.readFile ./check-space.sh}
-        spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
+        spacestopstart hydra-submit-evaluation ${toString cfg.minimumDiskFreeEvaluator}
       '';
       startAt = "*:0/5";
     };

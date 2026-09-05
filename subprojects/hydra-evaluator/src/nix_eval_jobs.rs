@@ -14,7 +14,7 @@ use crate::inputs::{InputInfo, JobsetInput};
 
 /// What a jobset says to evaluate.
 #[derive(Debug)]
-pub(crate) struct Expression<'a> {
+pub struct Expression<'a> {
     /// The flake reference, when the jobset is a flake.
     pub flake: Option<&'a str>,
     /// Otherwise, the input holding the expression and the path within it.
@@ -27,7 +27,7 @@ pub(crate) struct Expression<'a> {
 /// Deliberately loose: the shape of this is `nix-eval-jobs`' to define, and
 /// a field we do not know about is not our business to reject.
 #[derive(Debug, Clone, serde::Deserialize)]
-pub(crate) struct Job {
+pub struct Job {
     #[serde(default)]
     pub attr: String,
     /// The derivation's name, which is not in `meta`.
@@ -54,7 +54,7 @@ pub(crate) struct Job {
 /// Separate from running it because the arguments describe the evaluation
 /// regardless of who performs it: they are also what the deduplication hash
 /// is computed over.
-pub(crate) fn command(
+pub fn command(
     store_dir: &StoreDir,
     config: &HydraConfig,
     inputs: &InputInfo,
@@ -227,7 +227,7 @@ fn full(store_dir: &StoreDir, path: &str) -> String {
 ///
 /// The same JSONL `run` reads from a pipe, but from the file the build
 /// produced -- which is the whole point of running the evaluation as a build.
-pub(crate) async fn read(path: &str) -> eyre::Result<Vec<Job>> {
+pub async fn read(path: &str) -> eyre::Result<Vec<Job>> {
     let contents = tokio::fs::read_to_string(path)
         .await
         .wrap_err_with(|| format!("could not read the evaluation's output at `{path}'"))?;

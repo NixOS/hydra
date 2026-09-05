@@ -47,7 +47,7 @@ sub finishScheduledEvaluations {
 
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         my ($res, $stdout, $stderr) = captureStdoutStderr(60,
-            ("hydra-evaluator", "--finish"));
+            ("hydra-process-evaluation", "--once"));
         $result = $res if $res && !$result;
         $out .= $stdout;
         $err .= $stderr;
@@ -93,7 +93,7 @@ sub completeScheduledEvaluations {
 sub evalSucceeds {
     my ($ctx, $jobset) = @_;
     local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-evaluator", $jobset->project->name, $jobset->name));
+    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-submit-evaluation", $jobset->project->name, $jobset->name));
     $jobset->discard_changes({ '+columns' => {'errormsg' => 'errormsg'} });  # refresh from DB
     if ($res) {
         chomp $stdout; chomp $stderr;
@@ -111,7 +111,7 @@ sub evalFails {
     my ($ctx, $jobset) = @_;
     my ($res, $stdout, $stderr) = do {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-        captureStdoutStderr(60, ("hydra-evaluator", $jobset->project->name, $jobset->name));
+        captureStdoutStderr(60, ("hydra-submit-evaluation", $jobset->project->name, $jobset->name));
     };
     if (!$res) {
         my ($finRes, $finOut, $finErr) = finishScheduledEvaluations($ctx, $jobset);

@@ -24,7 +24,7 @@ These components all share a single Nix store and PostgreSQL database on the mas
     - WebSocket service for streaming live build logs
     - reads build metadata from PostgreSQL and tails log files from the coordinator's store
     - listens for PostgreSQL build-completion notifications and forwards events to clients
-- **`hydra-evaluator`** (Rust)
+- **`hydra-submit-evaluation`** and **`hydra-process-evaluation`** (Rust)
     - decides *when* a jobset is due to be evaluated, and schedules it
     - fetches the jobset's inputs, hashes them, and instantiates a derivation
       that will run `nix-eval-jobs`, queued as an ordinary build in a hidden
@@ -86,9 +86,11 @@ graph BT
     hydra-ad-hoc --> build-logs
     hydra-ad-hoc --> db
     hydra-ad-hoc --> hydra-tracing
-    hydra-evaluator --> db
-    hydra-evaluator --> hydra-tracing
     hydra-ws --> build-logs
+    hydra-submit-evaluation --> db
+    hydra-submit-evaluation --> hydra-tracing
+    hydra-process-evaluation --> db
+    hydra-process-evaluation --> hydra-tracing
     hydra-ws --> db
     hydra-ws --> hydra-tracing
     store-transfer --> daemon-client-utils

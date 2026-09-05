@@ -7,9 +7,12 @@ rec {
       _file = ./default.nix;
       imports = [ ./web-app.nix ];
       services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
-      services.hydra-dev.evaluatorExecutable = lib.mkDefault "${
-        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator
-      }/bin/hydra-evaluator";
+      services.hydra-dev.submitEvaluationExecutable = lib.mkDefault "${
+        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-submit-evaluation
+      }/bin/hydra-submit-evaluation";
+      services.hydra-dev.processEvaluationExecutable = lib.mkDefault "${
+        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-process-evaluation
+      }/bin/hydra-process-evaluation";
     };
 
   postgresql = ./postgresql.nix;

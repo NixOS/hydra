@@ -197,7 +197,7 @@ foreach my $link (@roots) {
     if (!defined $roots{$link}) {
         # Don't delete roots that are less than a day old, to prevent
         # a race where hydra-eval-jobs has added a root but
-        # hydra-evaluator hasn't added them to the database yet.
+        # hydra-submit-evaluation hasn't added them to the database yet.
         my $st = lstat("$gcRootsDir/$link");
         if (!defined $st) {
             print STDERR "skipping link $link: $!\n";

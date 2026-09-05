@@ -119,7 +119,7 @@ The `hydra-server` command launches the web server.
 There are two other processes that come into play:
 
 -   The *evaluator* is responsible for periodically evaluating job sets, checking out their dependencies off their version control systems (VCS), and queueing new builds if the result of the evaluation changed.
-    It is launched by the `hydra-evaluator` command.
+    It is launched by the `hydra-submit-evaluation` command, and its results are read back by `hydra-process-evaluation`.
 -   The *queue runner* launches builds (using Nix) as they are queued by the evaluator, scheduling them onto the configured Nix hosts.
     It is launched using the `hydra-queue-runner` command.
 

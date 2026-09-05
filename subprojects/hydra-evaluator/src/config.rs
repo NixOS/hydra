@@ -5,7 +5,7 @@
 //! nothing else reads them, and `Hydra::Config` warns about any left there.
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum ConfigError {
+pub enum ConfigError {
     #[error("reading {path}")]
     Io {
         path: String,
@@ -23,7 +23,7 @@ pub(crate) enum ConfigError {
 
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct HydraConfig {
+pub struct HydraConfig {
     /// Whether jobsets may import from derivations. Off unless asked for,
     /// because it lets an evaluation demand builds.
     #[serde(default)]
@@ -74,7 +74,7 @@ impl HydraConfig {
     /// Absent is fine -- every setting has a default -- but present and
     /// unreadable is not, since that is a configuration someone wrote and
     /// expects to be in effect.
-    pub(crate) fn load(path: &str) -> Result<Self, ConfigError> {
+    pub fn load(path: &str) -> Result<Self, ConfigError> {
         let contents = match fs_err::read_to_string(path) {
             Ok(contents) => contents,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -95,27 +95,27 @@ impl HydraConfig {
         })
     }
 
-    pub(crate) fn allow_import_from_derivation(&self) -> bool {
+    pub fn allow_import_from_derivation(&self) -> bool {
         self.allow_import_from_derivation
     }
 
-    pub(crate) fn evaluator_workers(&self) -> u64 {
+    pub fn evaluator_workers(&self) -> u64 {
         self.evaluator_workers
     }
 
-    pub(crate) fn evaluator_max_memory_size(&self) -> u64 {
+    pub fn evaluator_max_memory_size(&self) -> u64 {
         self.evaluator_max_memory_size
     }
 
-    pub(crate) fn evaluation_build_system_features(&self) -> &str {
+    pub fn evaluation_build_system_features(&self) -> &str {
         &self.evaluation_build_system_features
     }
 
-    pub(crate) fn evaluation_build_store_uri(&self) -> Option<&str> {
+    pub fn evaluation_build_store_uri(&self) -> Option<&str> {
         self.evaluation_build_store_uri.as_deref()
     }
 
-    pub(crate) fn eval_substituter(&self) -> Option<&str> {
+    pub fn eval_substituter(&self) -> Option<&str> {
         self.eval_substituter.as_deref()
     }
 }
