@@ -421,23 +421,73 @@ The Perl version of this branch split `hydra-eval-jobset` into a half that
 schedules the evaluation build and a half that reads its result back.
 `more-rust-eval` deleted that program, so the branch was rebased as a
 rewrite: one commit, `hydra: Evaluate jobsets in builds`, resolves the
-conflict by doing in Rust what the Perl did, and two commits after it
-delete what the rewrite made redundant and split the crate into
-`hydra-submit-evaluation` and `hydra-process-evaluation`.
-The two share the library and nothing else; the database joins them.
+conflict by doing in Rust what the Perl did, and the commits after it
+delete what the rewrite made redundant and replace the `hydra-evaluator`
+crate with two: `hydra-submit-evaluation` and `hydra-process-evaluation`.
+They share no code.
+What one writes and the other reads is rows.
 
 ### What was deleted
 
 - `max_concurrent_evals`, the kill and reap supervision, `running_evals`.
   Build scheduling is by builder capacity and system features.
-- `jobsets.startTime` as a lock, `unlock_all_jobsets`, `--unlock`, and the
-  `ExecStopPost` that called it.
+- The scheduler's in-memory copy of every jobset, re-read on each
+  notification, and the arithmetic over it deciding how long to sleep.
+  One query asks the database which jobsets are due, including the
+  one-at-a-time rule, and the loop wakes on a jobset event, a finished
+  submission, or a short timer.
+- `jobsets.startTime` as a lock, `unlock_all_jobsets`, `--unlock`, the
+  `ExecStopPost` that called it, and finally the column itself.
+- `JobsetEvals.evalTime`, the duration shown on the jobset page, and the
+  column.
 - The `FINISHER_INTERVAL` poll.
   `hydra-process-evaluation` listens for `build_finished` and catches up at startup.
 - The `--jobs` dry run and its test.
   It was a Perl-era debugging aid, and the Rust evaluator never had one.
-- `JobsetEvals.evalTime`, and the duration shown on the jobset page.
-  The evaluation build says how long it took.
+- The library crate the two binaries briefly shared, and the shared
+  `queries.rs` with it.
+  Splitting the queries by which half runs them showed the halves had two
+  in common, and both of those turned out to be wrong for one side or the
+  other.
+
+### What the rewrite fixed on the way
+
+- A trigger was cleared only when `startTime` was set, and nothing set it,
+  so a manually triggered jobset stayed triggered in the database.
+- `lastCheckedTime` was written only on failure; the in-memory copy hid it.
+- `forceEval` was never reset, by the Perl either, so one forced push made
+  every later evaluation skip the cache.
+- Completing an evaluation inserted a second `EvaluationErrors` row and
+  wrote the error there, while the evaluation still pointed at the empty
+  one written when it was scheduled.
+- The test harness put `evaluation_build_system_features` and
+  `evaluation_build_store_uri` in `hydra.conf`, which the Rust never reads.
+  It writes an `evaluator.toml` now, named by `HYDRA_EVALUATOR_CONFIG`.
+- The derivation builder handed `builtins.storePath` the bare names Hydra
+  keeps, and took the first `nix-eval-jobs` argument for the program.
+  Neither could have worked; the tests had not been run since the rewrite.
+- The hidden `hydra:evaluations` jobset was inserted without
+  `emailoverride`, which is `not null`.
+- `nix-eval-jobs` reports a job's `name` at the top level, not in `meta`,
+  so every build got a null `nixname`. Inherited from the base.
+- Eval inputs are stored as full paths, which is what the schema's store
+  path columns hold and what the eval page parses. The base never wrote
+  these rows at all, so nothing had noticed.
+- A failed evaluation build now announces `eval_failed`, with the changed
+  flag, the way a failed evaluation used to; the eval-error mail depends on
+  it.
+
+### Tests that fail on the base too
+
+In this environment the base branch fails these as well, so they are not
+regressions of this branch and were left alone: `api-test.t`, the
+`content-addressed/` tests (jobs come back with `"out": null`, which the
+inherited job struct rejects), `evaluate-constituents-gc.t`,
+`evaluate-dependent-jobsets.t`, `DeclarativeJobsets/basic.t` (the
+`.jobsets` jobset has no inputs; the Perl synthesised one from the
+project's declarative settings and the Rust rewrite does not), the
+`RunCommand` tests, `build-trace.t`, `dashboard.t`, `CatalystUtils.t`,
+`queue-runner/constituents.t` and the `svn` input tests.
 
 ### What was not, and why
 
