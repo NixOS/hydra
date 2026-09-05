@@ -37,5 +37,6 @@ self': {
     hydra-builder
     hydra-evaluator
     hydra-ws
+    hydra-ad-hoc
     ;
 }

@@ -152,6 +152,44 @@ store = "s3://hydra-overflow?region=eu-west-1"
 jobsets = ["nixpkgs:staging-next"]
 ```
 
+Ad hoc builds (optional, experimental)
+--------------------------------------
+
+Hydra normally only builds what its evaluator queues. The optional
+`hydra-ad-hoc` service, new and still experimental, additionally lets a Nix client submit builds
+directly: it serves the nix daemon protocol on a Unix socket, so from the
+client's point of view the whole Hydra deployment is one giant nix daemon.
+A derivation realised through it is filed as a Hydra build under a hidden
+`adhoc/adhoc` jobset and built by the queue runner and its builders; read
+operations and store uploads are proxied to the upstream nix-daemon.
+
+Nothing inside Hydra uses this socket. It exists for ad hoc jobs and ad hoc
+store usage from outside, and can be left disabled. Expect its interface and
+limitations to change.
+
+On NixOS, enable it alongside the queue runner:
+
+```nix
+{
+  services.hydra-ad-hoc-dev.enable = true;
+}
+```
+
+This creates `/run/hydra-ad-hoc/socket`, accessible to the `hydra` group.
+The service reads `/etc/hydra/ad-hoc.toml`, generated from
+`services.hydra-ad-hoc-dev.settings` (`dbUrl`, `maxDbConnections`,
+`upstreamSocket`, `storeDir`); the defaults suit a single-host install.
+
+A client then points its store at the socket:
+
+```console
+$ nix-store --store unix:///run/hydra-ad-hoc/socket --realise /nix/store/...-hello.drv
+```
+
+The `.drv` must be in the coordinator's store; a `nix-build` of an expression
+uploads it through the daemon as part of instantiation. Only input-addressed
+derivations are supported so far.
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 

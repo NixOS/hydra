@@ -7,6 +7,7 @@ You can use it as a guide to navigate the codebase or ask questions.
 
 Hydra's components are split across a coordinator machine and any number of builder machines.
 The NixOS modules in `nixos-modules/` reflect this split: `web-app` and `queue-runner` run on the master, while `builder` runs on remote machines.
+The optional `ad-hoc` module also runs on the master.
 For small installations, all three can run on a single host (the `hydra` module combines them).
 But most installation will want to use multiple build machines for scale.
 
@@ -37,6 +38,11 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **`hydra-notify`** (Perl)
     - dispatches post-build notifications to plugins (email, GitHub/GitLab status, Slack, etc.)
     - listens for PostgreSQL `NOTIFY` events from the queue runner
+- **`hydra-ad-hoc`** (Rust, optional, experimental)
+    - serves the nix daemon protocol on a Unix socket, presenting Hydra as one giant nix daemon
+    - a `nix-build` or `nix-store --realise` pointed at it has its derivations built by the queue runner and builders instead of locally
+    - files such ad hoc jobs under a hidden `adhoc/adhoc` jobset; nothing inside Hydra uses it
+    - see [Ad hoc builds](configuration.md#ad-hoc-builds-optional-experimental)
 - **Plugin system** (Perl)
     - input plugins extend the evaluator with new source types (Git, Mercurial, Darcs, etc.)
     - notification plugins react to build lifecycle events
@@ -69,6 +75,8 @@ graph BT
     nix-support --> store-path-utils
     db --> nix-support
     hydra-proto --> nix-support
+    hydra-ad-hoc --> db
+    hydra-ad-hoc --> hydra-tracing
     hydra-evaluator --> db
     hydra-evaluator --> hydra-tracing
     hydra-ws --> db
@@ -125,6 +133,8 @@ The repository is organized into subprojects:
   — the Rust queue runner
 - [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)
   — the Rust build agent
+- [`subprojects/hydra-ad-hoc/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-ad-hoc)
+  — the optional, experimental Rust nix-daemon-protocol endpoint for ad hoc builds
 - [`subprojects/crates/`](https://github.com/NixOS/hydra/tree/master/subprojects/crates)
   — shared Rust libraries
 - [`subprojects/proto/`](https://github.com/NixOS/hydra/tree/master/subprojects/proto)
