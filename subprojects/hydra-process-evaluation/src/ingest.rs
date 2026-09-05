@@ -52,7 +52,8 @@ pub(crate) async fn check_build(
     eyre::ensure!(!job.outputs.is_empty(), "job `{}` has no outputs", job.attr);
 
     // Any one output will do for the comparisons below: if one matches the
-    // others will too, since they come from the same derivation.
+    // others will too, since they come from the same derivation. A
+    // content-addressed output has no path yet, and is matched by derivation.
     let (first_name, first_path) = job
         .outputs
         .iter()
@@ -73,7 +74,7 @@ pub(crate) async fn check_build(
             jobset_id,
             &job.attr,
             &first_name,
-            Some(first_path.as_str()),
+            first_path.as_deref(),
             drv_path,
         )
         .await?;
@@ -103,7 +104,11 @@ pub(crate) async fn check_build(
 
     // Two attributes in this same evaluation producing the same output are
     // one build, not two.
-    let key = format!("{}\t{first_path}", job.attr);
+    let key = format!(
+        "{}\t{}",
+        job.attr,
+        first_path.as_deref().unwrap_or(drv_path)
+    );
     if seen.contains_key(&key) {
         return Ok(None);
     }
@@ -131,7 +136,7 @@ pub(crate) async fn check_build(
     .await
     .wrap_err_with(|| format!("failed to queue a build for `{}`", job.attr))?;
 
-    let outputs: Vec<(String, String)> = job
+    let outputs: Vec<(String, Option<String>)> = job
         .outputs
         .iter()
         .map(|(n, p)| (n.clone(), p.clone()))
@@ -327,6 +332,8 @@ pub(crate) async fn record(
         let rows: Vec<(i32, bool)> = members.iter().map(|m| (m.build, m.is_new)).collect();
         queries::insert_eval_members(tx, eval_id, &rows).await?;
         record_aggregates(tx, &members, &with_constituents).await?;
+        // What wakes the queue runner: it polls otherwise.
+        tx.notify_builds_added().await?;
     }
 
     if let Some(error_id) = eval.evaluationerror_id

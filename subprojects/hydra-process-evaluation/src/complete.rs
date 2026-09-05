@@ -71,6 +71,15 @@ pub(crate) async fn complete(db: &db::Database, eval_id: i32) -> eyre::Result<()
     queries::mark_eval_completed(&mut tx, eval_id, now()).await?;
     tx.commit().await?;
 
+    // Root every job's derivation, not only those that became builds: an
+    // aggregate is reported as a job and nothing else in the store refers to
+    // its derivation. `nix-eval-jobs --gc-roots-dir` did this while
+    // evaluation ran on this machine; the build that runs it now cannot
+    // write outside its sandbox, so the roots are made here instead.
+    if let Err(e) = add_roots(jobs.iter().filter_map(|j| j.drv_path.as_deref())) {
+        tracing::warn!("could not root the evaluated derivations: {e:#}");
+    }
+
     // Both of these touch every build of the jobset, so they run afterwards:
     // holding those row locks for the evaluation's duration deadlocks against
     // the queue runner finishing builds.
@@ -96,6 +105,31 @@ async fn repoint(conn: &mut db::Connection, repoints: &HashMap<i32, String>) -> 
     ids.sort_unstable();
     for id in ids {
         queries::repoint_build(conn, *id, &repoints[id]).await?;
+    }
+    Ok(())
+}
+
+/// Symlink each derivation into Hydra's roots directory -- the same one the
+/// queue runner uses, so `hydra-update-gc-roots` knows to tidy it.
+fn add_roots<'a>(drvs: impl Iterator<Item = &'a str>) -> eyre::Result<()> {
+    let remote = daemon_client_utils::parse_nix_remote()
+        .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
+    let logname = std::env::var("LOGNAME").wrap_err("LOGNAME is not set")?;
+    let dir = remote
+        .state_dir
+        .join("gcroots/per-user")
+        .join(logname)
+        .join("hydra-roots");
+    fs_err::create_dir_all(&dir)?;
+    for drv in drvs {
+        let Some(name) = std::path::Path::new(drv).file_name() else {
+            continue;
+        };
+        match fs_err::os::unix::fs::symlink(drv, dir.join(name)) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e).wrap_err_with(|| format!("rooting {drv}")),
+        }
     }
     Ok(())
 }

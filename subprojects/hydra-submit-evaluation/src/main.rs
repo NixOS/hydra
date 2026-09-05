@@ -16,6 +16,7 @@
 //! Decides when jobsets are due, and queues a build to evaluate each.
 
 mod config;
+mod declarative;
 mod eval_build;
 mod fetcher;
 mod inputs;
@@ -60,15 +61,11 @@ async fn main() -> color_eyre::Result<()> {
         .wrap_err("failed to connect to database")?;
     let config = config::HydraConfig::load(&cli.config_path)?;
 
-    // The store is needed both to describe inputs to the expression and to
-    // find out whether a build an input names is actually here.
+    // The store directory is needed to describe inputs to the expression.
     let remote = daemon_client_utils::parse_nix_remote()
         .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
     let available = store_paths::Availability::new(
-        daemon_client_utils::DaemonStoreReader::new(daemon_client_utils::DaemonConnector::new(
-            remote.socket.clone(),
-            remote.store_dir.clone(),
-        )),
+        remote.store_dir.clone(),
         config.eval_substituter().map(str::to_owned),
     );
 
@@ -81,6 +78,11 @@ async fn main() -> color_eyre::Result<()> {
                 }
                 Ok(submit::Outcome::Scheduled { eval, build }) => {
                     tracing::info!("scheduled evaluation {eval} as build {build}");
+                }
+                Ok(submit::Outcome::Declared) => {
+                    tracing::info!(
+                        "the declarative specification named the jobsets; nothing to evaluate"
+                    );
                 }
                 Err(e) => {
                     tracing::error!("{e:#}");

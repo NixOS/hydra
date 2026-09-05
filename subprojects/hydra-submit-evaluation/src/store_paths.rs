@@ -9,87 +9,83 @@
 //! So the path is checked, fetched from `eval_substituter` if one is
 //! configured, and checked again. An input whose build is unavailable
 //! contributes nothing, which is what it did before this was Rust.
+//!
+//! Both are asked of the `nix` command rather than the daemon: the command
+//! talks to whatever store `NIX_REMOTE` names, daemon or not, so this works
+//! wherever `nix copy` does.
 
-use daemon_client_utils::DaemonStoreReader;
 use db::StoreDir;
 
 /// Whether a build's output can be given to an evaluation.
+#[derive(Debug)]
 pub(crate) struct Availability {
-    store: DaemonStoreReader,
+    store_dir: StoreDir,
     substituter: Option<String>,
 }
 
-impl std::fmt::Debug for Availability {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Availability")
-            .field("store_dir", &self.store.store_dir())
-            .field("substituter", &self.substituter)
-            .finish_non_exhaustive()
-    }
-}
-
 impl Availability {
-    pub(crate) fn new(store: DaemonStoreReader, substituter: Option<String>) -> Self {
-        Self { store, substituter }
+    pub(crate) fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
+        Self {
+            store_dir,
+            substituter,
+        }
     }
 
     pub(crate) fn store_dir(&self) -> &StoreDir {
-        self.store.store_dir()
+        &self.store_dir
     }
 
     /// Whether `path` is in the store, fetching it first if it is not and a
     /// substituter is configured.
     ///
-    /// A path that cannot be parsed, a daemon that cannot be reached and a
-    /// fetch that fails are all "not available": this decides whether an input
-    /// has something to contribute, and none of them mean it does. They are
-    /// logged rather than raised, because a jobset with one stale `build`
+    /// A fetch that fails is "not available": this decides whether an input
+    /// has something to contribute, and a failed fetch does not mean it does.
+    /// Logged rather than raised, because a jobset with one stale `build`
     /// input should still evaluate.
     pub(crate) async fn is_available(&self, path: &str) -> bool {
-        let Ok(parsed) = self.store_dir().parse(path) else {
-            tracing::warn!("cannot read `{path}' as a store path");
-            return false;
+        // Full paths as `nix` wants them; the database keeps them full, the
+        // fetcher reports bare names. Anything malformed fails the check.
+        let full = if path.starts_with('/') {
+            path.to_owned()
+        } else {
+            format!("{}/{path}", self.store_dir.to_path().display())
         };
 
-        match self.store.is_valid_path(&parsed).await {
-            Ok(true) => return true,
-            Ok(false) => {}
-            Err(e) => {
-                tracing::warn!("could not ask the daemon about `{path}': {e}");
-                return false;
-            }
+        if is_valid(&full).await {
+            return true;
         }
-
         let Some(substituter) = &self.substituter else {
             return false;
         };
 
-        // `nix copy` wants the path as it appears on disk, not as the bare
-        // name the database keeps.
-        let full = self.store_dir().display(&parsed);
         tracing::info!("fetching `{full}' from {substituter}");
-
         let fetched = tokio::process::Command::new("nix")
             .args([
-                "--experimental-features",
+                "--extra-experimental-features",
                 "nix-command",
                 "copy",
                 "--from",
-                substituter,
-                "--",
             ])
-            .arg(full.to_string())
+            .arg(substituter)
+            .arg("--")
+            .arg(&full)
             .status()
             .await;
-
         match fetched {
             Ok(status) if status.success() => {}
-            Ok(status) => {
-                tracing::warn!("could not fetch `{full}' from {substituter}: {status}");
-            }
+            Ok(status) => tracing::warn!("could not fetch `{full}' from {substituter}: {status}"),
             Err(e) => tracing::warn!("could not run nix copy: {e}"),
         }
 
-        self.store.is_valid_path(&parsed).await.unwrap_or(false)
+        is_valid(&full).await
     }
+}
+
+async fn is_valid(full: &str) -> bool {
+    tokio::process::Command::new("nix-store")
+        .args(["--check-validity", "--", full])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await
+        .is_ok_and(|s| s.success())
 }

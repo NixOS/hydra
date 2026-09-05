@@ -2077,7 +2077,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hydra-evaluator"
+name = "hydra-process-evaluation"
 version = "0.1.0"
 dependencies = [
  "clap",
@@ -2086,15 +2086,11 @@ dependencies = [
  "db",
  "fs-err",
  "futures",
- "hex",
  "hydra-tracing",
  "serde",
  "serde_json",
- "sha2 0.11.0",
  "sqlx",
- "thiserror",
  "tokio",
- "toml 1.1.2+spec-1.1.0",
  "tracing",
 ]
 
@@ -2191,6 +2187,28 @@ dependencies = [
  "tower-http 0.7.1",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "hydra-submit-evaluation"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "color-eyre",
+ "daemon-client-utils",
+ "db",
+ "fs-err",
+ "futures",
+ "hex",
+ "hydra-tracing",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "toml 1.1.2+spec-1.1.0",
+ "tracing",
 ]
 
 [[package]]
@@ -3843,6 +3861,7 @@ dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",

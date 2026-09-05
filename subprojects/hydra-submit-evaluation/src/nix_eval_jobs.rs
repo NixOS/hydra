@@ -3,6 +3,8 @@
 //! Only the arguments: they describe the evaluation, so they are what the
 //! dedup hash is taken over and what the evaluation build is handed to run.
 
+use std::fmt::Write as _;
+
 use color_eyre::eyre;
 use db::StoreDir;
 
@@ -84,11 +86,15 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
     let mut args = Vec::new();
 
     for (name, alts) in inputs {
-        eyre::ensure!(
-            alts.len() == 1,
-            "multiple jobset input alternatives are no longer supported"
-        );
-        let alt = &alts[0];
+        // A `build` input whose job has never been built resolves to
+        // nothing, and the expression is left to default it.
+        let [alt] = alts.as_slice() else {
+            eyre::ensure!(
+                alts.is_empty(),
+                "multiple jobset input alternatives are no longer supported"
+            );
+            continue;
+        };
 
         if let Some(path) = &alt.store_path {
             args.extend(["-I".to_owned(), format!("{name}={}", full(store_dir, path))]);
@@ -100,12 +106,7 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
                 name.clone(),
                 alt.value.clone().unwrap_or_default(),
             ]),
-            "boolean" => args.extend([
-                "--arg".to_owned(),
-                name.clone(),
-                alt.value.clone().unwrap_or_default(),
-            ]),
-            "nix" => args.extend([
+            "boolean" | "nix" => args.extend([
                 "--arg".to_owned(),
                 name.clone(),
                 alt.value.clone().unwrap_or_default(),
@@ -114,10 +115,7 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
                 let jobs = alt.jobs.clone().unwrap_or_default();
                 let mut s = String::from("{ ");
                 for (job, path) in &jobs {
-                    s.push_str(&format!(
-                        "{job} = builtins.storePath {}; ",
-                        full(store_dir, path)
-                    ));
+                    let _ = write!(s, "{job} = builtins.storePath {}; ", full(store_dir, path));
                 }
                 s.push('}');
                 args.extend(["--arg".to_owned(), name.clone(), s]);
@@ -141,14 +139,15 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
 fn build_input_to_string(store_dir: &StoreDir, input: &JobsetInput) -> String {
     let mut s = String::from("{ outPath = builtins.storePath ");
     s.push_str(&full(store_dir, input.store_path.as_deref().unwrap_or("")));
-    s.push_str(&format!(
+    let _ = write!(
+        s,
         "; inputType = \"{}\"",
         input.r#type.as_deref().unwrap_or("")
-    ));
+    );
 
     let mut quoted = |key: &str, value: &Option<String>| {
         if let Some(v) = value {
-            s.push_str(&format!("; {key} = \"{v}\""));
+            let _ = write!(s, "; {key} = \"{v}\"");
         }
     };
     quoted("uri", &input.uri);
@@ -159,16 +158,13 @@ fn build_input_to_string(store_dir: &StoreDir, input: &JobsetInput) -> String {
     quoted("outputName", &input.output_name);
 
     if let Some(n) = input.rev_number {
-        s.push_str(&format!("; rev = {n}"));
+        let _ = write!(s, "; rev = {n}");
     }
     if let Some(n) = input.rev_count {
-        s.push_str(&format!("; revCount = {n}"));
+        let _ = write!(s, "; revCount = {n}");
     }
     if let Some(drv) = &input.drv_path {
-        s.push_str(&format!(
-            "; drvPath = builtins.storePath {}",
-            full(store_dir, drv)
-        ));
+        let _ = write!(s, "; drvPath = builtins.storePath {}", full(store_dir, drv));
     }
 
     s.push_str(";}");

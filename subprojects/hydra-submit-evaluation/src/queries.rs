@@ -56,6 +56,8 @@ pub(crate) struct JobsetForEval {
     pub(crate) nixexprinput: Option<String>,
     pub(crate) nixexprpath: Option<String>,
     pub(crate) forceeval: Option<bool>,
+    /// The project's declarative specification file, when it has one.
+    pub(crate) declfile: Option<String>,
 }
 
 pub(crate) async fn get_jobset_for_eval(
@@ -65,8 +67,9 @@ pub(crate) async fn get_jobset_for_eval(
 ) -> Result<Option<JobsetForEval>, sqlx::Error> {
     sqlx::query_as!(
         JobsetForEval,
-        "SELECT id, flake, nixexprinput, nixexprpath, forceeval FROM jobsets \
-         WHERE project = $1 AND name = $2",
+        "SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval, p.declfile \
+         FROM jobsets j JOIN projects p ON p.name = j.project \
+         WHERE j.project = $1 AND j.name = $2",
         project,
         jobset,
     )
@@ -276,6 +279,21 @@ pub(crate) async fn get_previous_eval(
     .await
 }
 
+/// Tell listeners an evaluation of this jobset has begun.
+pub(crate) async fn notify_eval_started(
+    conn: &mut db::Connection,
+    trace: &str,
+    jobset_id: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "SELECT pg_notify('eval_started', $1)",
+        format!("{trace}\t{jobset_id}"),
+    )
+    .execute(conn.raw())
+    .await?;
+    Ok(())
+}
+
 /// Tell listeners this evaluation was skipped as unchanged.
 pub(crate) async fn notify_eval_cached(
     conn: &mut db::Connection,
@@ -310,6 +328,27 @@ pub(crate) async fn record_checked(
         jobset_id,
         started,
         now,
+    )
+    .execute(conn.raw())
+    .await?;
+    Ok(())
+}
+
+/// Record that a declarative specification named the jobsets outright.
+///
+/// There is nothing to evaluate, so no later step will clear the jobset's
+/// error the way completing an evaluation does; whatever a previous attempt
+/// at the specification recorded is over and is cleared here.
+pub(crate) async fn record_declared(
+    conn: &mut db::Connection,
+    jobset_id: i32,
+    started: db::Timestamp,
+    now: db::Timestamp,
+) -> Result<(), sqlx::Error> {
+    record_checked(conn, jobset_id, started, now).await?;
+    sqlx::query!(
+        "UPDATE jobsets SET errormsg = '', errortime = NULL, fetcherrormsg = NULL WHERE id = $1",
+        jobset_id,
     )
     .execute(conn.raw())
     .await?;

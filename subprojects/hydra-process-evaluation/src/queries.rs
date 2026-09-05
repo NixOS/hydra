@@ -457,18 +457,19 @@ pub(crate) async fn insert_build(
 pub(crate) async fn insert_build_outputs(
     tx: &mut db::Transaction<'_>,
     build: i32,
-    outputs: &[(String, String)],
+    outputs: &[(String, Option<String>)],
 ) -> Result<(), sqlx::Error> {
     let names: Vec<String> = outputs.iter().map(|(n, _)| n.clone()).collect();
-    let paths: Vec<String> = outputs.iter().map(|(_, p)| p.clone()).collect();
-    sqlx::query!(
-        r#"
-        INSERT INTO buildoutputs (build, name, path)
-        SELECT $1, * FROM UNNEST($2::text[], $3::text[])"#,
-        build,
-        &names,
-        &paths,
+    let paths: Vec<Option<String>> = outputs.iter().map(|(_, p)| p.clone()).collect();
+    // Unchecked, because the checked macro will not take an array with nulls
+    // in it as a parameter, and a content-addressed output's path is null.
+    sqlx::query(
+        "INSERT INTO buildoutputs (build, name, path) \
+         SELECT $1, * FROM UNNEST($2::text[], $3::text[])",
     )
+    .bind(build)
+    .bind(&names)
+    .bind(&paths)
     .execute(tx.raw())
     .await?;
     Ok(())

@@ -19,8 +19,10 @@ pub(crate) struct Job {
     pub(crate) error: Option<String>,
     #[serde(default, rename = "drvPath")]
     pub(crate) drv_path: Option<String>,
+    /// Output name to path; a content-addressed output has no path until it
+    /// is built.
     #[serde(default)]
-    pub(crate) outputs: BTreeMap<String, String>,
+    pub(crate) outputs: BTreeMap<String, Option<String>>,
     #[serde(default)]
     pub(crate) system: Option<String>,
     #[serde(default)]

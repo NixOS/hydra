@@ -16,5 +16,6 @@ sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-ru
 tokio                = { workspace = true, features = [ "full" ] }
 tracing.workspace    = true
 
-db            = { path = "../crates/db" }
-hydra-tracing = { path = "../crates/tracing" }
+daemon-client-utils = { path = "../crates/daemon-client-utils" }
+db                  = { path = "../crates/db" }
+hydra-tracing       = { path = "../crates/tracing" }

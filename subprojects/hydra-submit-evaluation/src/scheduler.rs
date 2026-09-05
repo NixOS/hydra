@@ -96,6 +96,9 @@ async fn submit_due(
                 Ok(Outcome::Scheduled { eval, build }) => {
                     tracing::info!("{name}: scheduled evaluation {eval} as build {build}");
                 }
+                Ok(Outcome::Declared) => {
+                    tracing::info!("{name}: jobsets created from the declarative specification");
+                }
                 Err(e) => tracing::error!("{name}: {e:#}"),
             }
             lock(&in_flight).remove(&jobset.id);

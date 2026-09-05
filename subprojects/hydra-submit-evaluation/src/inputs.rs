@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 
 use color_eyre::eyre::{self, WrapErr as _};
+use serde::Deserialize as _;
 
 use crate::fetcher::InputFetcher;
 use crate::queries;
@@ -42,9 +43,19 @@ pub(crate) struct JobsetInput {
     pub(crate) uri: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) revision: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    // Plugins are Perl, which does not distinguish a number from the string
+    // of its digits, so either spelling is accepted.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "number_or_digits"
+    )]
     pub(crate) rev_number: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "number_or_digits"
+    )]
     pub(crate) rev_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) git_tag: Option<String>,
@@ -71,6 +82,20 @@ pub(crate) struct JobsetInput {
     /// Whether whoever owns this input should be told when it breaks.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub(crate) email_responsible: bool,
+}
+
+fn number_or_digits<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<i64>, D::Error> {
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Number(i64),
+        Digits(String),
+    }
+    match Option::<Raw>::deserialize(d)? {
+        None => Ok(None),
+        Some(Raw::Number(n)) => Ok(Some(n)),
+        Some(Raw::Digits(s)) => s.parse().map(Some).map_err(serde::de::Error::custom),
+    }
 }
 
 /// A jobset's inputs, by name, each with its alternatives.
