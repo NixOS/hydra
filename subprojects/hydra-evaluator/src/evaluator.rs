@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -52,12 +52,10 @@ impl Jobset {
 
 #[derive(Debug, Default)]
 struct State {
-    running_evals: usize,
     running_ids: HashSet<i32>,
     /// Kill switches for in-flight evals, so that forgetting a jobset
     /// (disabled/deleted while evaluating) can terminate its child, as
     /// the C++ version did via the `Pid` destructor.
-    kill_evals: HashMap<i32, tokio::sync::oneshot::Sender<()>>,
     jobsets: BTreeMap<i32, Jobset>,
 }
 
@@ -67,7 +65,6 @@ pub(crate) struct Evaluator {
     /// spawned per jobset that would read the configuration itself.
     config: Arc<HydraConfig>,
     available: Arc<crate::store_paths::Availability>,
-    max_evals: usize,
     eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
@@ -80,12 +77,10 @@ impl Evaluator {
         available: Arc<crate::store_paths::Availability>,
         eval_one: Option<(String, String)>,
     ) -> Self {
-        let max_evals = config.max_concurrent_evals();
         Self {
             db,
             config,
             available,
-            max_evals,
             eval_one,
             state: Arc::new(Mutex::new(State::default())),
             notify_work: Arc::new(Notify::new()),
@@ -93,8 +88,6 @@ impl Evaluator {
     }
 
     pub(crate) async fn run(self) -> eyre::Result<()> {
-        self.unlock().await?;
-
         let this = Arc::new(self);
 
         let monitor = {
@@ -196,10 +189,6 @@ impl Evaluator {
     }
 
     fn compute_sleep_duration(&self, state: &State) -> Duration {
-        if state.running_evals >= self.max_evals {
-            return FINISHER_INTERVAL;
-        }
-
         let now = now_epoch();
         let mut sleep_secs = i64::MAX;
 
@@ -327,11 +316,6 @@ impl Evaluator {
             if let Some(jobset) = state.jobsets.remove(&id) {
                 tracing::info!("forgetting jobset '{}'", jobset.display());
             }
-            // Kill any in-flight eval, as the C++ version did when
-            // erasing a jobset (the Pid destructor SIGKILLed the child).
-            if let Some(kill) = state.kill_evals.remove(&id) {
-                let _ = kill.send(());
-            }
         }
 
         Ok(())
@@ -436,9 +420,6 @@ impl Evaluator {
         });
 
         for (jobset_id, _, _) in candidates {
-            if state.running_evals >= self.max_evals {
-                break;
-            }
             // Re-borrow the jobset from state
             if let Some(jobset) = state.jobsets.get(&jobset_id) {
                 self.start_eval(
@@ -475,14 +456,7 @@ impl Evaluator {
             now - last_checked,
         );
 
-        queries::set_jobset_start_time(&mut self.db.get().await?, jobset_id, now)
-            .await
-            .wrap_err("failed to set startTime")?;
-
-        let (kill_tx, kill_rx) = tokio::sync::oneshot::channel();
-        state.running_evals += 1;
         state.running_ids.insert(jobset_id);
-        state.kill_evals.insert(jobset_id, kill_tx);
 
         let eval_one = self.eval_one.is_some();
         let db = self.db.clone();
@@ -513,7 +487,6 @@ impl Evaluator {
 
             reap_eval(
                 evaluation,
-                kill_rx,
                 jobset_id,
                 reap_trace,
                 jobset_display,
@@ -528,13 +501,6 @@ impl Evaluator {
 
         Ok(())
     }
-
-    async fn unlock(&self) -> eyre::Result<()> {
-        queries::unlock_all_jobsets(&mut self.db.get().await?)
-            .await
-            .wrap_err("failed to unlock jobsets")?;
-        Ok(())
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -542,7 +508,6 @@ async fn reap_eval(
     evaluation: std::pin::Pin<
         Box<dyn Future<Output = eyre::Result<crate::evaluate::Outcome>> + Send>,
     >,
-    mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     jobset_id: i32,
     trace: String,
     jobset_display: String,
@@ -552,31 +517,18 @@ async fn reap_eval(
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
 ) {
-    // Abandoning the future is how an evaluation is cancelled now that it is
-    // not a process: dropping it stops the work, and anything it had already
-    // committed stands, as it would have with a killed child.
-    let outcome = tokio::select! {
-        result = evaluation => Some(result),
-        _ = &mut kill_rx => {
-            tracing::info!("abandoning evaluation of jobset '{jobset_display}'");
-            None
-        }
-    };
-
-    let (exit_ok, status_str) = match &outcome {
-        Some(Ok(crate::evaluate::Outcome::Cached { previous })) => {
+    // Nothing to cancel: this only fetches the inputs and queues a build.
+    // Once that build exists the evaluation is the queue runner's business,
+    // and disabling a jobset cancels builds, not this.
+    let (exit_ok, status_str) = match &evaluation.await {
+        Ok(crate::evaluate::Outcome::Cached { previous }) => {
             (true, format!("cached, same as evaluation {previous}"))
         }
-        Some(Ok(crate::evaluate::Outcome::Scheduled { eval, build })) => (
+        Ok(crate::evaluate::Outcome::Scheduled { eval, build }) => (
             true,
             format!("scheduled evaluation {eval} as build {build}"),
         ),
-        Some(Ok(crate::evaluate::Outcome::Declared)) => (
-            true,
-            "jobsets created from the declarative specification".to_owned(),
-        ),
-        Some(Err(e)) => (false, format!("{e:#}")),
-        None => (true, "abandoned".to_owned()),
+        Err(e) => (false, format!("{e:#}")),
     };
 
     tracing::info!("evaluation of jobset '{}' {}", jobset_display, status_str);
@@ -594,25 +546,16 @@ async fn reap_eval(
         jobset.last_checked_time = now;
         exit_ok
     } else {
-        // The jobset was disabled or deleted mid-eval and its child
-        // killed by read_jobsets; only clear startTime and do not record
-        // the SIGKILL as an evaluation error.
+        // The jobset was disabled or deleted while this was scheduling; do
+        // not record that as an evaluation error.
         true
     };
 
-    // Hold the lock across the DB cleanup and only mark the jobset
-    // not-running afterwards (as the C++ reaper did), so a new eval
-    // of the same jobset cannot start in between and have its fresh
-    // startTime clobbered by this transaction.
     if let Err(e) = update_db_after_eval(&db, &trace, jobset_id, exit_ok, &status_str, now).await {
         tracing::error!("exception setting jobset error: {e:#}");
     }
 
-    if st.running_evals > 0 {
-        st.running_evals -= 1;
-    }
     st.running_ids.remove(&jobset_id);
-    st.kill_evals.remove(&jobset_id);
 
     notify_work.notify_one();
 

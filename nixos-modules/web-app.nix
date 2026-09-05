@@ -158,11 +158,6 @@ in
               default = 4096;
               description = "The memory each worker may use, in MiB, before it is restarted.";
             };
-            max_concurrent_evals = mkOption {
-              type = types.ints.positive;
-              default = 4;
-              description = "How many jobsets to evaluate at once.";
-            };
           };
         };
         default = { };

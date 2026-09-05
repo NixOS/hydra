@@ -512,31 +512,6 @@ pub(crate) async fn notify_eval_cached(
     Ok(())
 }
 
-/// Mark a jobset as currently evaluating.
-pub(crate) async fn set_jobset_start_time(
-    conn: &mut db::Connection,
-    jobset_id: i32,
-    start_time: db::Timestamp,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "UPDATE jobsets SET startTime = $1 WHERE id = $2",
-        start_time,
-        jobset_id,
-    )
-    .execute(conn.raw())
-    .await?;
-    Ok(())
-}
-
-/// Clear `startTime` on all jobsets, e.g. after an unclean evaluator
-/// shutdown left some marked as evaluating.
-pub(crate) async fn unlock_all_jobsets(conn: &mut db::Connection) -> Result<(), sqlx::Error> {
-    sqlx::query!("UPDATE jobsets SET startTime = null")
-        .execute(conn.raw())
-        .await?;
-    Ok(())
-}
-
 /// Record the outcome of an evaluation attempt: clear `triggerTime`
 /// and `startTime`, and record the error on failure.
 ///

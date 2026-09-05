@@ -41,10 +41,6 @@ struct Cli {
     #[arg(long)]
     finish: bool,
 
-    /// Clear startTime on all jobsets and exit
-    #[arg(long)]
-    unlock: bool,
-
     /// Project name (requires jobset)
     project: Option<String>,
 
@@ -60,14 +56,6 @@ async fn main() -> color_eyre::Result<()> {
     let db = db::Database::from_env(4)
         .await
         .wrap_err("failed to connect to database")?;
-
-    if cli.unlock {
-        queries::unlock_all_jobsets(&mut db.get().await?)
-            .await
-            .wrap_err("failed to unlock jobsets")?;
-        tracing::info!("unlocked all jobsets");
-        return Ok(());
-    }
 
     // One pass of what the daemon's loop does, for a caller that has just
     // built an evaluation and wants its results read back now.
