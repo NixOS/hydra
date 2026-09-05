@@ -11,6 +11,7 @@ use Nix::Store;
 use Hydra::Config;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 my $cfg = getHydraConfig()->{s3backup};
 my @config = defined $cfg ? ref $cfg eq "ARRAY" ? @$cfg : ($cfg) : ();
@@ -30,16 +31,20 @@ opendir my $dir, $gcRootsDir or die;
 my @roots = readdir $dir;
 closedir $dir;
 
+my $storeDir = machineLocalStore()->storeDir;
+
+# A GC root is named after the bare store path it points at. Parse it here,
+# where it enters, rather than passing names around.
 my @actual_roots = ();
 foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
-    push @actual_roots, $MACHINE_LOCAL_STORE->storeDir . "/" . $link;
+    push @actual_roots, parseStorePath($storeDir, "$storeDir/$link");
 }
 
 # Don't delete a nix-cache-info file, if present
 my %closure = ( "nix-cache-info" => undef );
-foreach my $path (computeFSClosure(0, 0, @actual_roots)) {
-    my $hash = substr basename($path), 0, 32;
+foreach my $path (machineLocalStore()->computeFSClosure(0, 0, @actual_roots)) {
+    my $hash = substr $path->to_string, 0, 32;
     $closure{"$hash.narinfo"} = undef;
     $closure{"$hash.nar"} = undef;
 }

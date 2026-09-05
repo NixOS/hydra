@@ -14,6 +14,7 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
 use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use Hydra::Model::DB;
 use Hydra::Plugin;
 use Hydra::Schema;
@@ -85,15 +86,17 @@ sub attrsToSQL {
 
 # Fetch a store path from 'eval_substituter' if not already present.
 sub getPath {
-    my ($path) = @_;
-    return 1 if $MACHINE_LOCAL_STORE->isValidPath($path);
+    my ($storePath) = @_;
+    return 1 if machineLocalStore()->isValidPath($storePath);
 
     my $substituter = $config->{eval_substituter};
 
-    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--", $path)
+    # `nix copy` is given a full path.
+    system("nix", "--experimental-features", "nix-command", "copy", "--from", $substituter, "--",
+        printStorePath(machineLocalStore()->storeDir, $storePath))
         if defined $substituter;
 
-    return $MACHINE_LOCAL_STORE->isValidPath($path);
+    return machineLocalStore()->isValidPath($storePath);
 }
 
 
@@ -144,7 +147,7 @@ sub fetchInputBuild {
         , version => $version
         , outputName => $mainOutput->name
         };
-    if ($MACHINE_LOCAL_STORE->isValidPath($prevBuild->drvpath)) {
+    if (machineLocalStore()->isValidPath($prevBuild->drvpath)) {
         $result->{drvPath} = $prevBuild->drvpath;
     }
 
@@ -234,7 +237,7 @@ sub fetchInputEval {
         my $out = $build->buildoutputs->find({ name => "out" });
         next unless defined $out;
         # FIXME: Should we fail if the path is not valid?
-        next unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
+        next unless machineLocalStore()->isValidPath($out->path);
         $jobs->{$build->get_column('job')} = $out->path;
     }
 
@@ -294,8 +297,11 @@ sub booleanToString {
 
 sub buildInputToString {
     my ($input) = @_;
+    my $storeDir = machineLocalStore()->storeDir;
+    # `builtins.storePath` takes a full path, as does `-I` below: these are
+    # Nix's vocabulary, not Hydra's.
     return
-        "{ outPath = builtins.storePath " . $input->{storePath} . "" .
+        "{ outPath = builtins.storePath " . printStorePath($storeDir, $input->{storePath}) . "" .
         "; inputType = \"" . $input->{type} . "\"" .
         (defined $input->{uri} ? "; uri = \"" . $input->{uri} . "\"" : "") .
         (defined $input->{revNumber} ? "; rev = " . $input->{revNumber} . "" : "") .
@@ -305,7 +311,7 @@ sub buildInputToString {
         (defined $input->{shortRev} ? "; shortRev = \"" . $input->{shortRev} . "\"" : "") .
         (defined $input->{version} ? "; version = \"" . $input->{version} . "\"" : "") .
         (defined $input->{outputName} ? "; outputName = \"" . $input->{outputName} . "\"" : "") .
-        (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . $input->{drvPath} . "" : "") .
+        (defined $input->{drvPath} ? "; drvPath = builtins.storePath " . printStorePath($storeDir, $input->{drvPath}) . "" : "") .
         ";}";
 }
 
@@ -315,7 +321,9 @@ sub inputsToArgs {
     my @res = ();
 
     foreach my $input (sort keys %{$inputInfo}) {
-        push @res, "-I", "$input=$inputInfo->{$input}->[0]->{storePath}"
+        push @res, "-I",
+            "$input=" . printStorePath(machineLocalStore()->storeDir,
+                $inputInfo->{$input}->[0]->{storePath})
             if scalar @{$inputInfo->{$input}} == 1
                && defined $inputInfo->{$input}->[0]->{storePath};
 
@@ -336,7 +344,8 @@ sub inputsToArgs {
         elsif ($alt->{type} eq "eval") {
             my $s = "{ ";
             # FIXME: escape $_.  But dots should not be escaped.
-            $s .= "$_ = builtins.storePath ${\$alt->{jobs}->{$_}}; "
+            $s .= "$_ = builtins.storePath "
+                . printStorePath(machineLocalStore()->storeDir, $alt->{jobs}->{$_}) . "; "
                 foreach keys %{$alt->{jobs}};
             $s .= "}";
             push @res, "--arg", $input, $s;
@@ -350,10 +359,11 @@ sub inputsToArgs {
 }
 
 
-sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
-
-    print STDERR "($jobsetName) Evaluating...\n";
+# The `nix-eval-jobs` invocation for a jobset. Separate from running it
+# because the arguments describe the evaluation regardless of who performs
+# it or where.
+sub evalJobsCmd {
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
 
     my @cmd;
 
@@ -376,7 +386,7 @@ sub evalJobs {
                 inputsToArgs($inputInfo));
     }
 
-    push @cmd, ("--gc-roots-dir", getGCRootsDir);
+    push @cmd, ("--gc-roots-dir", $gcRootsDir) if defined $gcRootsDir;
     push @cmd, ("--max-jobs", 1);
     push @cmd, "--meta";
     push @cmd, "--constituents";
@@ -384,6 +394,18 @@ sub evalJobs {
     push @cmd, ("--option", "allow-import-from-derivation", "false") if ($config->{allow_import_from_derivation} // "false") ne "true";
     push @cmd, ("--workers", $config->{evaluator_workers} // 1);
     push @cmd, ("--max-memory-size", $config->{evaluator_max_memory_size} // 4096);
+
+    return @cmd;
+}
+
+
+sub evalJobs {
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+
+    print STDERR "($jobsetName) Evaluating...\n";
+
+    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef,
+                          getGCRootsDir);
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
         sub escape {
@@ -404,7 +426,7 @@ sub evalJobs {
             '2>', \my $err,
             init => sub { %ENV = %env; };
 
-    return sub {
+    return jobsIterFromLines(sub {
         while (1) {
             $evalProc->pump;
             if (!defined $out && !defined $err) {
@@ -412,7 +434,7 @@ sub evalJobs {
                 if ($?) {
                     die "nix-eval-jobs returned " . ($? & 127 ? "signal $?" : "exit code " . ($? >> 8)) . "\n";
                 }
-                return;
+                return undef;
             }
 
             if (defined $err) {
@@ -421,17 +443,51 @@ sub evalJobs {
             }
 
             if (defined $out && $out ne '') {
-                my $job;
-                try {
-                    $job = decode_json($out);
-                } catch {
-                    warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
-                };
+                my $line = $out;
                 undef $out;
-                if (defined $job) {
-                    return $job;
-                }
+                return $line;
             }
+        }
+    });
+}
+
+
+# Turn a source of JSON lines into the job iterator the rest of this script
+# consumes: call $nextLine for the next line of `nix-eval-jobs` output, or
+# undef when there are no more.
+#
+# Separate from the line source because parsing a job is the same work
+# wherever the line came from, and because keeping it in one place is what
+# stops two readers of the same format drifting apart.
+sub jobsIterFromLines {
+    my ($nextLine) = @_;
+
+    return sub {
+        while (1) {
+            my $out = $nextLine->();
+            return unless defined $out;
+            next if $out eq '';
+
+            my $job;
+            try {
+                $job = decode_json($out);
+            } catch {
+                warn "nix-eval-jobs sent invalid JSON.\n  parse error: $_\n  invalid json: $out\n";
+            };
+            next unless defined $job;
+
+            # nix-eval-jobs speaks full paths. Strip the store directory
+            # here, where its output enters Hydra, so that everything
+            # downstream compares and keys on store paths -- notably the `ne`
+            # against a build's inflated drvpath, and the constituent
+            # lookups, which would otherwise never match.
+            my $storeDir = machineLocalStore()->storeDir;
+            $job->{drvPath} = parseStorePath($storeDir, $job->{drvPath})
+                if defined $job->{drvPath};
+            $job->{constituents} = [
+                map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
+            ] if defined $job->{constituents};
+            return $job;
         }
     };
 }
@@ -451,7 +507,7 @@ sub getPrevJobsetEval {
 
 # Check whether to add the build described by $buildInfo.
 sub checkBuild {
-    my ($db, $jobset, $eval, $inputInfo, $buildInfo, $buildMap, $prevEval, $jobOutPathMap, $plugins) = @_;
+    my ($db, $jobset, $eval, $buildInfo, $buildMap, $prevEval, $jobOutPathMap) = @_;
 
     my @outputNames = sort keys %{$buildInfo->{outputs}};
     die unless scalar @outputNames;
@@ -590,64 +646,29 @@ sub fetchInputs {
 }
 
 
+# Whether an error differs from the one the jobset already has. This has to be
+# asked before the row is updated, and the answer travels with the notification,
+# because by the time a plugin sees the jobset the previous error is gone.
+sub errorChanged {
+    my ($jobset, $errorMsg) = @_;
+    return (defined $errorMsg && $errorMsg ne ($jobset->errormsg // "")) ? 1 : 0;
+}
+
+
 sub setJobsetError {
     my ($jobset, $errorMsg, $errorTime) = @_;
-    my $prevError = $jobset->errormsg;
+    my $changed = errorChanged($jobset, $errorMsg);
 
     eval {
         $db->txn_do(sub {
             $jobset->update({ errormsg => $errorMsg, errortime => $errorTime, fetcherrormsg => undef });
         });
     };
-    if (defined $errorMsg && $errorMsg ne ($prevError // "") || $ENV{'HYDRA_MAIL_TEST'}) {
-        sendJobsetErrorNotification($jobset, $errorMsg);
-    }
+
+    return $changed;
 }
 
 
-sub sendJobsetErrorNotification() {
-    my ($jobset, $errorMsg) = @_;
-
-    chomp $errorMsg;
-
-    return unless $config->{email_notification} // 0;
-    return if $jobset->project->owner->emailonerror == 0;
-    return if $errorMsg eq "";
-
-    my $projectName = $jobset->get_column('project');
-    my $jobsetName = $jobset->name;
-    my $body = "Hi,\n"
-        . "\n"
-        . "This is to let you know that evaluation of the Hydra jobset ‘$projectName:$jobsetName’\n"
-        . "resulted in the following error:\n"
-        . "\n"
-        . "$errorMsg"
-        . "\n"
-        . "Regards,\n\nThe Hydra build daemon.\n";
-
-    try {
-        sendEmail(
-            $config,
-            $jobset->project->owner->emailaddress,
-            "Hydra $projectName:$jobsetName evaluation error",
-            $body,
-            [ 'X-Hydra-Project' => $projectName
-            , 'X-Hydra-Jobset'  => $jobsetName
-            ]);
-    } catch {
-        warn "error sending email: $_\n";
-    };
-}
-
-
-sub permute {
-    my @list = @_;
-    for (my $n = scalar @list - 1; $n > 0; $n--) {
-        my $k = int(rand($n + 1)); # 0 <= $k <= $n
-        @list[$n, $k] = @list[$k, $n];
-    }
-    return @list;
-}
 
 
 # Point the jobset's iscurrent flags at the given evaluation, in id-ordered
@@ -722,7 +743,8 @@ sub checkJobsetWrapped {
         my $declInput = $declInputs[0] or die "cannot find the input containing the declarative project specification\n";
         die "multiple alternatives for the input containing the declarative project specification are not supported\n"
             if scalar @declInputs != 1;
-        my $declFile = $declInput->{storePath} . "/" . $project->declfile;
+        my $declFile = printStorePath(machineLocalStore()->storeDir, $declInput->{storePath})
+            . "/" . $project->declfile;
         # Use `nix store cat` so the physical store location is resolved
         # by the store itself (handles root= stores where physical != logical).
         my ($res, $declText, $catErr) = captureStdoutStderr(
@@ -793,7 +815,10 @@ sub checkJobsetWrapped {
         print STDERR $fetchError;
         $db->txn_do(sub {
             $jobset->update({ lastcheckedtime => time, fetcherrormsg => $fetchError }) if !$dryRun;
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
+            # A fetch error goes to `fetcherrormsg` and leaves `errormsg` alone,
+            # so there is nothing here that could have changed, and nobody is
+            # mailed -- which is what happened before the flag existed too.
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id'), 0));
         });
         return;
     }
@@ -827,7 +852,8 @@ sub checkJobsetWrapped {
         while (defined(my $job = $jobsIter->())) {
             my $name = $job->{attr};
             if (defined $job->{drvPath}) {
-                print STDERR "good job $name: $job->{drvPath}\n";
+                print STDERR "good job $name: "
+                    . printStorePath(machineLocalStore()->storeDir, $job->{drvPath}) . "\n";
             } else {
                 print STDERR "failed job $name: $job->{error}\n";
             }
@@ -881,7 +907,7 @@ sub checkJobsetWrapped {
                 ($job->{attr} ne "" ? "in job ‘$job->{attr}’" : "at top-level") .
                 ":\n" . $job->{error} . "\n\n" if defined $job->{error};
 
-            checkBuild($db, $jobset, $ev, $inputInfo, $job, \%buildMap, $prevEval, $jobOutPathMap, $plugins)
+            checkBuild($db, $jobset, $ev, $job, \%buildMap, $prevEval, $jobOutPathMap)
                 unless defined $job->{error};
 
             if (defined $job->{constituents}) {
@@ -890,6 +916,9 @@ sub checkJobsetWrapped {
         }
 
         # Bulk-insert the outputs of all new builds in one statement.
+        # `populate` in void context goes through insert_bulk, which bypasses
+        # inflation and deflation, so these paths stay as nix-eval-jobs gave
+        # them: full path strings, or undef for a not-yet-built CA output.
         my @outputRows = map { @{$_->{outputs} // []} } values %buildMap;
         $db->resultset('BuildOutputs')->populate(\@outputRows) if @outputRows;
 
@@ -903,8 +932,11 @@ sub checkJobsetWrapped {
             nrbuilds => $jobsetChanged ? scalar(keys %buildMap) : undef
         });
 
+        # The jobset's error is not written until further down, so this still
+        # compares against the error it had coming in.
         $db->storage->dbh->do("notify eval_added, ?", undef,
-                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id));
+                              join("\t", $tmpId, $jobset->get_column('id'), $ev->id,
+                                   errorChanged($jobset, $evaluationErrorMsg)));
 
         if ($jobsetChanged) {
             # Create JobsetEvalMembers mappings in bulk.
@@ -956,7 +988,7 @@ sub checkJobsetWrapped {
                         , shortrevlength => length($input->{shortRev})
                         , value => $input->{value}
                         , dependency => $input->{id}
-                        , path => $input->{storePath} || "" # !!! temporary hack
+                        , path => $input->{storePath} // "" # !!! temporary hack
                         , sha256hash => $input->{sha256hash}
                         });
                 }
@@ -1038,8 +1070,8 @@ sub checkJobset {
         my $eventTime = time;
         $db->txn_do(sub {
             $jobset->update({lastcheckedtime => $eventTime});
-            setJobsetError($jobset, $checkError, $eventTime);
-            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id')));
+            my $changed = setJobsetError($jobset, $checkError, $eventTime);
+            $db->storage->dbh->do("notify eval_failed, ?", undef, join("\t", $tmpId, $jobset->get_column('id'), $changed));
         }) if !$dryRun;
         $failed = 1;
     }
@@ -1052,6 +1084,11 @@ die "syntax: $0 <PROJECT> <JOBSET>\n" unless @ARGV == 2;
 
 my $projectName = $ARGV[0];
 my $jobsetName = $ARGV[1];
-my $jobset = $db->resultset('Jobsets')->find($projectName, $jobsetName) or
+# With its error message: `setJobsetError` compares against it to decide
+# whether this failure is news. `Jobsets::search_rs` drops the column unless a
+# query names it, so a plain `find` leaves it undef and every error looks new.
+my $jobset = $db->resultset('Jobsets')->search(
+        { project => $projectName, name => $jobsetName },
+        { '+columns' => { errormsg => 'errormsg' } })->single or
     die "$0: specified jobset \"$projectName:$jobsetName\" does not exist\n";
 exit checkJobset($jobset);

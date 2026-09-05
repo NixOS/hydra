@@ -86,7 +86,7 @@ fn default_data_dir() -> std::path::PathBuf {
 }
 
 fn default_pg_socket_url() -> secrecy::SecretString {
-    "postgres://hydra@%2Frun%2Fpostgresql:5432/hydra".into()
+    db::DEFAULT_LOCAL_URL.into()
 }
 
 const fn default_max_db_connections() -> u32 {
@@ -372,7 +372,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             hydra_data_dir: val.hydra_data_dir,
             hydra_log_dir,
             lockfile,
-            db_url: std::env::var("HYDRA_DATABASE_URL")
+            db_url: std::env::var(db::URL_ENV_VAR)
                 .map(secrecy::SecretString::from)
                 .unwrap_or(val.db_url),
             max_db_connections: val.max_db_connections,

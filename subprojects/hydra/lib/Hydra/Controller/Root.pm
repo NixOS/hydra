@@ -8,6 +8,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
+use Nix::StorePath;
 use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
@@ -354,9 +355,9 @@ sub nar :Local :Args(1) {
     }
 
     else {
-        $path = $MACHINE_LOCAL_STORE->storeDir . "/$path";
+        $path = machineLocalStore()->storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless machineLocalStore()->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -374,7 +375,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     else {
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} =
-            "StoreDir: " . $MACHINE_LOCAL_STORE->storeDir . "\n" .
+            "StoreDir: " . machineLocalStore()->storeDir . "\n" .
             "WantMassQuery: 0\n" .
             # Give Hydra binary caches a very low priority (lower than the
             # static binary cache http://nixos.org/binary-cache).
@@ -382,16 +383,6 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
         setCacheHeaders($c, 24 * 60 * 60);
         $c->forward('Hydra::View::Plain');
     }
-}
-
-
-# The output paths recorded in the database carry the store directory; a
-# build trace names them without it.
-sub stripStoreDir {
-    my ($storeDir, $path) = @_;
-    die "path '$path' is not in the Nix store '$storeDir'\n"
-        unless substr($path, 0, length($storeDir) + 1) eq "$storeDir/";
-    return substr($path, length($storeDir) + 1);
 }
 
 
@@ -407,7 +398,7 @@ sub stripStoreDir {
 # the difference to reconcile if these are ever merged.
 sub lookupBuildTrace {
     my ($c, $drvPath, $outputName) = @_;
-    my $storeDir = $MACHINE_LOCAL_STORE->storeDir;
+    my $storeDir = machineLocalStore()->storeDir;
 
     my $drvPathInStore = "$storeDir/$drvPath";
 
@@ -434,7 +425,7 @@ sub lookupBuildTrace {
         , rows => 1
         })->single;
 
-    return defined $output ? stripStoreDir($storeDir, $output->path) : undef;
+    return defined $output ? $output->path : undef;
 }
 
 
@@ -467,7 +458,7 @@ sub build_trace :Path('build-trace-v2') :Args(StrMatch[BUILD_TRACE_DRV_REGEX], S
         # substitutable. See the note on BuildStepOutputs.
         $c->response->content_type('application/json');
         $c->stash->{plain}->{data} = encode_json(
-            { outPath => $outPath, signatures => [] });
+            { outPath => $outPath->to_string, signatures => [] });
         $c->forward('Hydra::View::Plain');
     }
 }
@@ -484,7 +475,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
+        my $path = machineLocalStore()->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);
@@ -626,7 +617,9 @@ sub serveLogFile {
 sub log :Local :Args(1) {
     my ($self, $c, $drvPath) = @_;
 
-    $drvPath = "/nix/store/$drvPath";
+    # The URL names a store path, which is what the log lookup wants: no
+    # store directory involved either way.
+    $drvPath = Nix::StorePath->new($drvPath);
 
     my $tail = $c->request->params->{"tail"};
 
@@ -642,7 +635,8 @@ sub log :Local :Args(1) {
     my $logPrefix = $c->config->{log_prefix};
 
     if (defined $logPrefix) {
-        $c->res->redirect($logPrefix . "log/" . WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath)));
+        $c->res->redirect($logPrefix . "log/"
+            . WWW::Form::UrlEncoded::PP::url_encode($drvPath->to_string));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
     }

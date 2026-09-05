@@ -10,6 +10,7 @@ my %ctx = test_init(
 );
 
 use Test2::V0;
+use Hydra::StorePath;
 
 my $db = $ctx{context}->db();
 
@@ -44,7 +45,7 @@ my $upstream2 = $db->resultset('Builds')->find({
 
 my $upstream1_out = $upstream1->buildoutputs->find({ name => "out" });
 my $upstream2_out = $upstream2->buildoutputs->find({ name => "out" });
-is($upstream1_out->path, $upstream2_out->path,
+is($upstream1_out->path->to_string, $upstream2_out->path->to_string,
     "Both upstream builds should resolve to the same content-addressed output path");
 
 my $downstream1 = $db->resultset('Builds')->find({
@@ -58,17 +59,18 @@ my $downstream2 = $db->resultset('Builds')->find({
 
 my $downstream1_out = $downstream1->buildoutputs->find({ name => "out" });
 my $downstream2_out = $downstream2->buildoutputs->find({ name => "out" });
-is($downstream1_out->path, $downstream2_out->path,
+is($downstream1_out->path->to_string, $downstream2_out->path->to_string,
     "Both downstream builds should create the same content-addressed output path");
 
 my $downstream1_step = $db->resultset('BuildSteps')->find({
     build => $downstream1->id,
-    drvPath => $downstream1->drvpath,
+    # A find condition is never deflated, so print the store directory back on.
+    drvPath => printStorePath($db->storeDir, $downstream1->drvpath),
 });
 
 my $downstream2_step = $db->resultset('BuildSteps')->find({
     build => $downstream2->id,
-    drvPath => $downstream2->drvpath,
+    drvPath => printStorePath($db->storeDir, $downstream2->drvpath),
 });
 
 ok(length($downstream1_step->resolveddrvpath) > 32,

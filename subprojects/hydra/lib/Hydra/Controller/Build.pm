@@ -5,6 +5,7 @@ use strict;
 use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::LogEndpoints;
 use File::Basename;
@@ -56,9 +57,10 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
 
 
 sub findBuildStepByOutPath {
-    my ($self, $c, $path) = @_;
+    my ($self, $c, $storePath) = @_;
+    # `search` conditions are never deflated, so print for the query.
     return $c->model('DB::BuildSteps')->search(
-        { path => $path, busy => 0 },
+        { path => printStorePath($c->model('DB')->schema->storeDir, $storePath), busy => 0 },
         { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -66,7 +68,7 @@ sub findBuildStepByOutPath {
 sub findBuildStepByDrvPath {
     my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => $drvPath, busy => 0 },
+        { drvpath => printStorePath($c->model('DB')->schema->storeDir, $drvPath), busy => 0 },
         { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -84,9 +86,9 @@ sub build_GET {
     # false because `$_->path` will be empty
     $c->stash->{available} =
         $c->stash->{isLocalStore}
-        ? all { $_->path && $MACHINE_LOCAL_STORE->isValidPath($_->path) } $build->buildoutputs->all
+        ? all { $_->path && machineLocalStore()->isValidPath($_->path) } $build->buildoutputs->all
         : 1;
-    $c->stash->{drvAvailable} = $MACHINE_LOCAL_STORE->isValidPath($build->drvpath);
+    $c->stash->{drvAvailable} = machineLocalStore()->isValidPath($build->drvpath);
 
     if ($build->finished && $build->iscachedbuild) {
         my $path = ($build->buildoutputs)[0]->path or undef;
@@ -154,7 +156,8 @@ sub view_log : Chained('buildChain') PathPart('log') {
     my ($self, $c, $mode) = @_;
 
     my $drvPath = $c->stash->{build}->drvpath;
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath))]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"),
+        [WWW::Form::UrlEncoded::PP::url_encode($drvPath->to_string)]);
     showLog($c, $mode, $log_uri);
 }
 
@@ -180,7 +183,7 @@ sub defaultUriForProduct {
 
 sub checkPath {
     my ($self, $c, $path) = @_;
-    my $p = pathIsInsidePrefix($path, $MACHINE_LOCAL_STORE->storeDir);
+    my $p = pathIsInsidePrefix($path, machineLocalStore()->storeDir);
     error($c, "Build product refers outside of the Nix store.") unless defined $p;
     return $p;
 }
@@ -256,11 +259,8 @@ sub download : Chained('buildChain') PathPart {
     }
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
-    my $storeDir = $MACHINE_LOCAL_STORE->storeDir;
-    if ($product->path !~ /^($storeDir\/[^\/]+)/) {
-        die "Invalid store path '" . $product->path . "'.\n";
-    }
-    my $storePath = $1;
+    # That the product is in the store, and where its store path ends, is
+    # settled by inflating the column; `$product->storePath` is that half.
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
         if scalar @path == 0 && ($product->name || $product->defaultpath);
@@ -274,7 +274,8 @@ sub download : Chained('buildChain') PathPart {
         error($c, "Invalid filename '$elem'.") if $elem !~ /^$pathCompRE$/;
     }
 
-    my $path = $product->path;
+    # A real file on disk, so the store directory goes back on.
+    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
     serveFile($c, $path);
@@ -290,7 +291,7 @@ sub output : Chained('buildChain') PathPart Args(1) {
     error($c, "This build is not finished yet.") unless $build->finished;
     my $output = $build->buildoutputs->find({name => $outputName});
     notFound($c, "This build has no output named ‘$outputName’") unless defined $output;
-    gone($c, "Output is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($output->path);
+    gone($c, "Output is no longer available.") unless machineLocalStore()->isValidPath($output->path);
 
     $c->response->header('Content-Disposition', "attachment; filename=\"build-${\$build->id}-${\$outputName}.nar.bz2\"");
     $c->stash->{current_view} = 'NixNAR';
@@ -322,7 +323,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
-    my $path = $product->path;
+    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
 
     $path = checkPath($self, $c, $path);
 
@@ -411,38 +412,41 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     die unless $res;
 
-    $c->stash->{title} = "Contents of ".$product->path;
+    $c->stash->{title} = "Contents of "
+        . printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
     $c->stash->{contents} = decode("utf-8", $res);
     $c->stash->{template} = 'plain.tt';
 }
 
 
 sub getDependencyGraph {
-    my ($self, $c, $runtime, $done, $path) = @_;
-    my $node = $$done{$path};
+    my ($self, $c, $runtime, $done, $storePath) = @_;
+    my $node = $$done{$storePath};
 
     if (!defined $node) {
-        $path =~ /\/[a-z0-9]+-(.*)$/;
-        my $name = $1 // $path;
+        # A bare `<hash>-<name>`, so match from the start rather than after
+        # a slash.
+        "$storePath" =~ /^[a-z0-9]+-(.*)$/;
+        my $name = $1 // "$storePath";
         $name =~ s/\.drv$//;
         $node =
-            { path => $path
+            { path => $storePath
             , name => $name
             , buildStep => $runtime
-                ? findBuildStepByOutPath($self, $c, $path)
-                : findBuildStepByDrvPath($self, $c, $path)
+                ? findBuildStepByOutPath($self, $c, $storePath)
+                : findBuildStepByDrvPath($self, $c, $storePath)
             };
-        $$done{$path} = $node;
+        $$done{$storePath} = $node;
         my @refs;
-        foreach my $ref ($MACHINE_LOCAL_STORE->queryReferences($path)) {
-            next if $ref eq $path;
+        foreach my $ref (machineLocalStore()->queryReferences($storePath)) {
+            next if $ref eq $storePath;
             next unless $runtime || $ref =~ /\.drv$/;
             getDependencyGraph($self, $c, $runtime, $done, $ref);
             push @refs, $ref;
         }
         # Show in reverse topological order to flatten the graph.
         # Should probably do a proper BFS.
-        my @sorted = reverse $MACHINE_LOCAL_STORE->topoSortPaths(@refs);
+        my @sorted = reverse machineLocalStore()->topoSortPaths(@refs);
         $node->{refs} = [map { $$done{$_} } @sorted];
     }
 
@@ -455,7 +459,7 @@ sub build_deps : Chained('buildChain') PathPart('build-deps') {
     my $build = $c->stash->{build};
     my $drvPath = $build->drvpath;
 
-    error($c, "Derivation no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($drvPath);
+    error($c, "Derivation no longer available.") unless machineLocalStore()->isValidPath($drvPath);
 
     $c->stash->{buildTimeGraph} = getDependencyGraph($self, $c, 0, {}, $drvPath);
 
@@ -470,7 +474,7 @@ sub runtime_deps : Chained('buildChain') PathPart('runtime-deps') {
 
     requireLocalStore($c);
 
-    error($c, "Build outputs no longer available.") unless all { $MACHINE_LOCAL_STORE->isValidPath($_) } @outPaths;
+    error($c, "Build outputs no longer available.") unless all { machineLocalStore()->isValidPath($_) } @outPaths;
 
     my $done = {};
     $c->stash->{runtimeGraph} = [ map { getDependencyGraph($self, $c, 1, $done, $_) } @outPaths ];
@@ -489,8 +493,10 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
 
     if (isLocalStore) {
         foreach my $out ($build->buildoutputs) {
-            notFound($c, "Path " . $out->path . " is no longer available.")
-                unless $MACHINE_LOCAL_STORE->isValidPath($out->path);
+            notFound($c, "Path "
+                . printStorePath(machineLocalStore()->storeDir, $out->path)
+                . " is no longer available.")
+                unless machineLocalStore()->isValidPath($out->path);
         }
     }
 
@@ -567,9 +573,10 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     my ($self, $c) = @_;
     my $build = $c->stash->{build};
     $c->stash->{json}->{buildId} = $build->id;
-    $c->stash->{json}->{drvPath} = $build->drvpath;
+    $c->stash->{json}->{drvPath} = printStorePath($c->model('DB')->schema->storeDir, $build->drvpath);
     my $out = getMainOutput($build);
-    $c->stash->{json}->{outPath} = $out->path if defined $out;
+    $c->stash->{json}->{outPath} = printStorePath($c->model('DB')->schema->storeDir, $out->path)
+        if defined $out;
 
     my @resolved;
     for my $step ($build->buildsteps->search({ status => 13 })) {

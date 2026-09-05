@@ -6,6 +6,7 @@ use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use Nix::Store;
 use Encode;
 use Fcntl qw(:flock);
@@ -213,9 +214,9 @@ sub fetchInput {
         {uri => $uri, branch => $branch, revision => $revision, isdeepclone => defined($deepClone) ? 1 : 0},
         {rows => 1});
 
-    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    machineLocalStore()->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && machineLocalStore()->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $revision = $cachedInput->revision;
@@ -244,10 +245,12 @@ sub fetchInput {
         }
 
         # FIXME: Don't use nix-prefetch-git.
-        ($sha256, $storePath) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
+        my $storePathStr;
+        ($sha256, $storePathStr) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
+        $storePath = parseStorePath(machineLocalStore()->storeDir, $storePathStr);
 
         # FIXME: time window between nix-prefetch-git and addTempRoot.
-        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
+        machineLocalStore()->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedGitInputs')->update_or_create(

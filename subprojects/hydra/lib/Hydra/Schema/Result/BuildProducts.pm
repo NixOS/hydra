@@ -155,4 +155,7 @@ sub json_hint {
     return \%hint;
 }
 
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_relative_store_path("path", "storePath", "subPath");
+
 1;

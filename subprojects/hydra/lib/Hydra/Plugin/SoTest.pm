@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use HTTP::Request;
 use LWP::UserAgent;
 
@@ -83,7 +85,11 @@ sub buildFinished {
               'download', $product->productnr, $product->name;
         }
         elsif ( 'sotest-config' eq $product->subtype ) {
-            $sotest_config = $product->path;
+            # The config is uploaded by filename, so this needs to be a real
+            # filesystem path rather than a store-relative one.
+            $sotest_config =
+              printRelativeStorePath( machineLocalStore()->storeDir,
+                $product->path );
         }
     }
 

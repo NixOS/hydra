@@ -42,14 +42,19 @@ sub instantiate {
 #     my ($self, $traceID, $jobset, $evaluation) = @_;
 # }
 
-# # Called when an evaluation of $jobset failed.
+# # Called when an evaluation of $jobset failed. $errorChanged is whether the
+# # jobset's error message differs from the one it had before, so that a jobset
+# # failing the same way over and over need not be reported every time.
 # sub evalFailed {
-#     my ($self, $traceID, $jobset) = @_;
+#     my ($self, $traceID, $jobset, $errorChanged) = @_;
 # }
 
-# # Called when $evaluation of $jobset has completed successfully.
+# # Called when $evaluation of $jobset has completed successfully. It may still
+# # have recorded an error -- jobs that did not evaluate do not fail the
+# # evaluation as a whole -- so $errorChanged is given here too, and means the
+# # same as it does above.
 # sub evalAdded {
-#     my ($self, $traceID, $jobset, $evaluation) = @_;
+#     my ($self, $traceID, $jobset, $evaluation, $errorChanged) = @_;
 # }
 
 # # Called when build $build has been queued.
