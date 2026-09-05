@@ -477,17 +477,38 @@ What one writes and the other reads is rows.
   flag, the way a failed evaluation used to; the eval-error mail depends on
   it.
 
-### Tests that fail on the base too
+### Tests the base failed, fixed at the base
 
-In this environment the base branch fails these as well, so they are not
-regressions of this branch and were left alone: `api-test.t`, the
-`content-addressed/` tests (jobs come back with `"out": null`, which the
-inherited job struct rejects), `evaluate-constituents-gc.t`,
-`evaluate-dependent-jobsets.t`, `DeclarativeJobsets/basic.t` (the
-`.jobsets` jobset has no inputs; the Perl synthesised one from the
-project's declarative settings and the Rust rewrite does not), the
-`RunCommand` tests, `build-trace.t`, `dashboard.t`, `CatalystUtils.t`,
-`queue-runner/constituents.t` and the `svn` input tests.
+In this environment `more-rust-eval` failed eleven test files, nearly all
+in the evaluation path. The fixes were made there first, folded into its
+`hydra: Evaluate jobsets in Rust` commit, and this branch rebased on top;
+where this branch had already rewritten the file, its version carries the
+same fix. They were:
+
+- Content-addressed jobs come back from `nix-eval-jobs` with `"out": null`,
+  which the job struct rejected, dropping every such job.
+- A declarative project's `.jobsets` jobset has no inputs of its own; the
+  Perl evaluator fetched the project's declarative input, read the
+  specification, and either created the jobsets from it or reconfigured
+  `.jobsets` to generate them, and the rewrite had dropped that.
+  `hydra-prepare-declarative-jobset` does it again, in Perl, since the
+  helpers that write jobsets from a specification are shared with the web
+  interface.
+- Evaluated derivations were not rooted, so an aggregate's could be
+  collected. Every job's derivation is rooted in the directory the queue
+  runner uses.
+- Eval inputs were stored as bare names where the schema holds full paths.
+- The svn plugin reports `revNumber` as a string.
+- A `build` input whose job has never been built was reported as "multiple
+  alternatives"; it contributes nothing, as in the Perl.
+- Whether a `build` input's output is present was asked of the daemon,
+  which in tests only runs while a build does. `nix-store` is asked instead,
+  and the harness sets `eval_substituter` to the destination store.
+- `eval_started` and `builds_added` were no longer sent. The second is what
+  wakes the queue runner; without it new builds waited for its poll.
+- A successful evaluation neither cleared the jobset's previous error nor
+  recorded when it was checked.
+- A job's `name` was read from `meta`, where `nix-eval-jobs` does not put it.
 
 ### What was not, and why
 
