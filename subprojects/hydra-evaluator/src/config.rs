@@ -37,10 +37,6 @@ pub(crate) struct HydraConfig {
     #[serde(default = "default_max_memory_size")]
     evaluator_max_memory_size: u64,
 
-    /// How many jobsets to evaluate at once.
-    #[serde(default = "default_max_concurrent_evals")]
-    max_concurrent_evals: u64,
-
     /// What an evaluation build needs of the machine that runs it. Adding
     /// paths to the store while building is what evaluating does, which under
     /// a sandbox means `recursive-nix`.
@@ -73,10 +69,6 @@ fn default_workers() -> u64 {
 
 fn default_max_memory_size() -> u64 {
     4096
-}
-
-fn default_max_concurrent_evals() -> u64 {
-    4
 }
 
 fn default_system_features() -> String {
@@ -136,11 +128,5 @@ impl HydraConfig {
 
     pub(crate) fn roots_dir(&self) -> Option<&std::path::Path> {
         self.roots_dir.as_deref()
-    }
-
-    /// At least one, so that a configuration of zero does not stop the
-    /// evaluator rather than slowing it down.
-    pub(crate) fn max_concurrent_evals(&self) -> usize {
-        usize::try_from(self.max_concurrent_evals.max(1)).unwrap_or(usize::MAX)
     }
 }

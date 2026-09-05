@@ -93,11 +93,6 @@ in
               default = 4096;
               description = "The memory each worker may use, in MiB, before it is restarted.";
             };
-            max_concurrent_evals = mkOption {
-              type = types.ints.positive;
-              default = 4;
-              description = "How many jobsets to evaluate at once.";
-            };
             roots_dir = mkOption {
               type = types.path;
               default = webCfg.gcRootsDir;
@@ -165,14 +160,6 @@ in
           "hydra-evaluator"
           "--config-path"
           "/etc/hydra/evaluator.toml"
-        ];
-        # `--unlock` goes through the same argument parsing, so it needs the
-        # path too.
-        ExecStopPost = escapeShellArgs [
-          "${cfg.package}/bin/hydra-evaluator"
-          "--config-path"
-          "/etc/hydra/evaluator.toml"
-          "--unlock"
         ];
         User = "hydra";
         Restart = "always";
