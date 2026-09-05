@@ -23,7 +23,6 @@ our @EXPORT = qw(
     cancelBuilds
     constructRunCommandLogPath
     findLog
-    gcRootFor
     getBaseUrl
     getDrvLogPath
     getEvals visibleEvalsCond getMachines

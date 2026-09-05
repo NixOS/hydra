@@ -92,7 +92,6 @@ sub jobsetToHash {
         nrfailed => $jobset->get_column("nrfailed"),
         nrtotal => $jobset->get_column("nrtotal"),
         lastcheckedtime => $jobset->lastcheckedtime,
-        starttime => $jobset->starttime,
         checkinterval => $jobset->checkinterval,
         triggertime => $jobset->triggertime,
         fetcherrormsg => $jobset->fetcherrormsg,

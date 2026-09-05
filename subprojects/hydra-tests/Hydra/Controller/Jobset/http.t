@@ -85,7 +85,6 @@ subtest 'Read newly-created jobset "job"' => sub {
      nixexprpath => "",
      project => "tests",
      schedulingshares => 100,
-     starttime => undef,
      triggertime => undef,
      type => 1
   });
@@ -151,7 +150,6 @@ subtest 'Update jobset "job" to legacy type' => sub {
     nixexprpath => "release.nix",
     project => "tests",
     schedulingshares => 50,
-    starttime => undef,
     triggertime => undef,
     type => 0
   });

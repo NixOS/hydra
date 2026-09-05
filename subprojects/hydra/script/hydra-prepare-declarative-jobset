@@ -1,7 +1,7 @@
 #! /usr/bin/env perl
 
 # Prepare a declarative project's `.jobsets` jobset for evaluation, on behalf
-# of `hydra-evaluator`.
+# of `hydra-submit-evaluation`.
 #
 # A declarative project keeps its jobsets in a specification file inside one
 # of its inputs. This fetches that input, reads the file, and does one of two
