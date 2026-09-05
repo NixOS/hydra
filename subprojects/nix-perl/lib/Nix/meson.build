@@ -10,6 +10,7 @@ nix_perl_store_xs = files('Store.xs')
 
 nix_perl_scripts = files(
   'Store.pm',
+  'StorePath.pm',
 )
 
 nix_perl_scripts_copy_tgts = []

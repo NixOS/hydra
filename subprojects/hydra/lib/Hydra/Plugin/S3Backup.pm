@@ -4,7 +4,6 @@ use strict;
 use warnings;
 use parent 'Hydra::Plugin';
 use File::Temp;
-use File::Basename;
 use Fcntl;
 use IO::File;
 use IPC::Run qw(run);
@@ -16,6 +15,7 @@ use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 sub isEnabled {
     my ($self) = @_;
@@ -55,6 +55,8 @@ sub buildFinished {
     open($lockhandle, "+>", $lockfile) or die "Opening $lockfile: $!";
     flock($lockhandle, Fcntl::LOCK_SH) or die "Read-locking $lockfile: $!";
 
+    my $storeDir = machineLocalStore()->storeDir;
+
     my @needed_paths = ();
     foreach my $output ($build->buildoutputs) {
         push @needed_paths, $output->path;
@@ -81,13 +83,15 @@ sub buildFinished {
     # Upload nars and build narinfos
     while (@needed_paths) {
         my $path = shift @needed_paths;
+        # Keyed by the bare store path, which is what a store path
+        # stringifies to.
         next if exists $seen{$path};
         $seen{$path} = undef;
-        my $hash = substr basename($path), 0, 32;
-        my ($deriver, $narHash, $time, $narSize, $refs) = queryPathInfo($path, 0);
+        my $hash = substr $path->to_string, 0, 32;
+        my ($deriver, $narHash, $time, $narSize, $refs) = machineLocalStore()->queryPathInfo($path, 0);
         my $system;
-        if (defined $deriver and $MACHINE_LOCAL_STORE->isValidPath($deriver)) {
-            $system = $MACHINE_LOCAL_STORE->derivationSystem($deriver);
+        if (defined $deriver and machineLocalStore()->isValidPath($deriver)) {
+            $system = machineLocalStore()->derivationSystem($deriver);
         }
         foreach my $reference (@{$refs}) {
             push @needed_paths, $reference;
@@ -104,13 +108,15 @@ sub buildFinished {
             }
             next unless @incomplete_buckets;
             my $compressor = $compressors{$compression_type};
+            # `nix-store --dump` is outside Hydra, so it wants the full path.
+            my $fullPath = printStorePath($storeDir, $path);
             if ($compressor eq "") {
                 # No compression - use IPC::Run3 to redirect stdout to file
-                run3(["nix-store", "--dump", $path],
+                run3(["nix-store", "--dump", $fullPath],
                      \undef, "$tempdir/nar", \undef) or die "nix-store --dump failed: $!";
             } else {
                 # With compression - use IPC::Run to pipe nix-store output to compressor
-                my $dump_cmd = ["nix-store", "--dump", $path];
+                my $dump_cmd = ["nix-store", "--dump", $fullPath];
                 my $compress_cmd = [$compressor];
                 run($dump_cmd, '|', $compress_cmd, '>', "$tempdir/nar") or die "Pipeline failed: $?";
             }
@@ -120,16 +126,18 @@ sub buildFinished {
             my @stats = stat "$tempdir/nar" or die "Couldn't stat $tempdir/nar";
             my $file_size = $stats[7];
             my $narinfo = "";
-            $narinfo .= "StorePath: $path\n";
+            # `StorePath` is a full path; `References` and `Deriver` are bare
+            # store paths, which is what these now stringify to.
+            $narinfo .= "StorePath: " . printStorePath($storeDir, $path) . "\n";
             $narinfo .= "URL: $hash.nar\n";
             $narinfo .= "Compression: $compression_type\n";
             $narinfo .= "FileHash: sha256:$file_hash\n";
             $narinfo .= "FileSize: $file_size\n";
             $narinfo .= "NarHash: $narHash\n";
             $narinfo .= "NarSize: $narSize\n";
-            $narinfo .= "References: " . join(" ", map { basename $_ } @{$refs}) . "\n";
+            $narinfo .= "References: " . join(" ", @{$refs}) . "\n";
             if (defined $deriver) {
-                $narinfo .= "Deriver: " . basename $deriver . "\n";
+                $narinfo .= "Deriver: $deriver\n";
                 if (defined $system) {
                     $narinfo .= "System: $system\n";
                 }

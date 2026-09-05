@@ -10,6 +10,8 @@ let
   user = "hydra-queue-runner";
 
   format = pkgs.formats.toml { };
+
+  otel = import ./otel.nix { inherit lib; };
 in
 {
   options = {
@@ -17,7 +19,13 @@ in
       enable = lib.mkEnableOption "QueueRunner";
 
       settings = lib.mkOption {
-        description = "Reloadable settings for queue runner";
+        description = ''
+          Reloadable settings for the queue runner, written to
+          `/etc/hydra/queue-runner.toml`.
+
+          Every service in Rust in hydra has its own separate TOML configuration file,
+          with just the settings it needs.
+        '';
         type = lib.types.submodule {
           options = {
             hydraDataDir = lib.mkOption {
@@ -272,66 +280,18 @@ in
         '';
       };
 
-      otel = lib.mkOption {
-        description = "OpenTelemetry (OTLP) tracing options.";
-        default = { };
-        type = lib.types.submodule {
-          options = {
-            enable = lib.mkEnableOption ''
-              OpenTelemetry tracing. Builds the queue runner with the `otel`
-              cargo feature and exports spans via OTLP/gRPC, configured
-              through the standard `OTEL_*` environment variables
-            '';
-
-            endpoint = lib.mkOption {
-              description = "OTLP collector endpoint (`OTEL_EXPORTER_OTLP_ENDPOINT`). The exporter uses gRPC, so point at the gRPC port (typically 4317).";
-              type = lib.types.nullOr lib.types.singleLineStr;
-              default = null;
-              example = "http://127.0.0.1:4317";
-            };
-
-            protocol = lib.mkOption {
-              description = "OTLP protocol (`OTEL_EXPORTER_OTLP_PROTOCOL`).";
-              type = lib.types.nullOr (
-                lib.types.enum [
-                  "grpc"
-                  "http/protobuf"
-                  "http/json"
-                ]
-              );
-              default = null;
-            };
-
-            headers = lib.mkOption {
-              description = "Headers sent to the collector (`OTEL_EXPORTER_OTLP_HEADERS`). Ends up in the world-readable systemd unit, so do not put secrets here.";
-              type = lib.types.nullOr lib.types.singleLineStr;
-              default = null;
-              example = "authorization=Bearer token";
-            };
-
-            serviceName = lib.mkOption {
-              description = "Service name reported to the collector (`OTEL_SERVICE_NAME`). Defaults to the binary name (`hydra-queue-runner`).";
-              type = lib.types.nullOr lib.types.singleLineStr;
-              default = null;
-            };
-
-            extraEnv = lib.mkOption {
-              description = "Additional `OTEL_*` environment variables not exposed as dedicated options.";
-              type = lib.types.attrsOf lib.types.singleLineStr;
-              default = { };
-              example = {
-                OTEL_TRACES_SAMPLER = "parentbased_traceidratio";
-                OTEL_TRACES_SAMPLER_ARG = "0.1";
-              };
-            };
-          };
-        };
+      otel = otel.mkOtelOption {
+        component = "the queue runner";
+        binary = "hydra-queue-runner";
       };
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ./. { withOtel = cfg.otel.enable; };
-        defaultText = lib.literalExpression "pkgs.callPackage ./. { withOtel = cfg.otel.enable; }";
+        # `withOtel` is a knob on the rust workspace, not on this crate: cargo
+        # resolves features once for the whole workspace build.
+        default =
+          (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-queue-runner;
+        defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-queue-runner";
       };
     };
   };
@@ -367,15 +327,7 @@ in
       // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
         AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
       }
-      // lib.optionalAttrs cfg.otel.enable (
-        lib.filterAttrs (_: v: v != null) {
-          OTEL_EXPORTER_OTLP_ENDPOINT = cfg.otel.endpoint;
-          OTEL_EXPORTER_OTLP_PROTOCOL = cfg.otel.protocol;
-          OTEL_EXPORTER_OTLP_HEADERS = cfg.otel.headers;
-          OTEL_SERVICE_NAME = cfg.otel.serviceName;
-        }
-        // cfg.otel.extraEnv
-      );
+      // otel.otelEnv cfg.otel;
 
       serviceConfig = {
         Type = "notify";

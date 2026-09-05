@@ -34,6 +34,15 @@ impl Connection {
         Ok(Transaction { tx })
     }
 
+    /// Raw access to the underlying connection, for components whose
+    /// schema knowledge deliberately lives outside this crate: they keep
+    /// their own compile-time-checked queries next to the code that owns
+    /// that slice of the schema, while still acquiring connections
+    /// through [`Database::get`](crate::Database::get) and its retry.
+    pub fn raw(&mut self) -> &mut sqlx::PgConnection {
+        &mut self.conn
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn get_not_finished_builds_fast(&mut self) -> crate::Result<Vec<BuildSmall>> {
         Ok(sqlx::query_as!(
@@ -167,7 +176,7 @@ impl Connection {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn clear_busy(&mut self, stop_time: i64) -> crate::Result<()> {
+    pub async fn clear_busy(&mut self, stop_time: crate::Timestamp) -> crate::Result<()> {
         sqlx::query!(
             "UPDATE buildsteps SET busy = 0, status = $1, stopTime = $2 WHERE busy != 0;",
             BuildStatus::Aborted as i32,
@@ -185,7 +194,7 @@ impl Connection {
         &mut self,
         build_id: crate::models::BuildID,
         step_nr: i32,
-        stop_time: i64,
+        stop_time: crate::Timestamp,
         status: BuildStatus,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -497,8 +506,8 @@ impl Transaction<'_> {
         &mut self,
         build_id: i32,
         status: BuildStatus,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         is_cached_build: bool,
     ) -> crate::Result<()> {
         sqlx::query!(
@@ -874,10 +883,25 @@ impl Transaction<'_> {
         )
         .fetch_optional(&mut *self.tx)
         .await?
-        .and_then(|v| v.drvpath)
+        .map(|v| v.drvpath)
         .map(|p| store_dir.parse(&p))
         .transpose()
         .map_err(crate::Error::from)
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn get_drv_path_from_build(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+    ) -> crate::Result<Option<StorePath>> {
+        sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
+            .fetch_optional(&mut *self.tx)
+            .await?
+            .map(|v| v.drvpath)
+            .map(|p| store_dir.parse(&p))
+            .transpose()
+            .map_err(crate::Error::from)
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
@@ -1022,7 +1046,7 @@ impl Transaction<'_> {
     pub async fn create_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: Option<i64>,
+        start_time: Option<crate::Timestamp>,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1090,7 +1114,7 @@ impl Transaction<'_> {
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
+        start_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
@@ -1142,8 +1166,8 @@ impl Transaction<'_> {
     pub async fn create_local_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         outputs: BTreeMap<OutputName, StorePath>,
@@ -1196,8 +1220,8 @@ impl Transaction<'_> {
     pub async fn create_substitution_step(
         &mut self,
         store_dir: &StoreDir,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         build_id: crate::models::BuildID,
         drv_path: &StorePath,
         output: (OutputName, Option<StorePath>),
@@ -1248,8 +1272,8 @@ impl Transaction<'_> {
         &mut self,
         build: crate::models::MarkBuildSuccessData<'_>,
         is_cached_build: bool,
-        start_time: i64,
-        stop_time: i64,
+        start_time: crate::Timestamp,
+        stop_time: crate::Timestamp,
         store_dir: &StoreDir,
     ) -> crate::Result<()> {
         if build.finished_in_db {

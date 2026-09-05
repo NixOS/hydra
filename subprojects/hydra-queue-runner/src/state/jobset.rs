@@ -89,7 +89,7 @@ impl Jobset {
         self.seconds.load(Ordering::Relaxed)
     }
 
-    pub fn add_step(&self, start_time: i64, duration: i64) {
+    pub fn add_step(&self, start_time: db::Timestamp, duration: i64) {
         self.steps.write().insert(start_time, duration);
         self.seconds.fetch_add(duration, Ordering::Relaxed);
     }

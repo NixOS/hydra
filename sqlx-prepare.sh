@@ -13,6 +13,9 @@ createdb -h "$PGDIR" hydra
 psql -h "$PGDIR" -d hydra -f subprojects/hydra/sql/hydra.sql
 
 export DATABASE_URL="postgres://?host=$PGDIR&dbname=hydra"
-#cd subprojects/crates/db
-#ln -sfn ../../../.sqlx subprojects/crates/db/.sqlx
+
+# Note: if something is not regenerating, try:
+#
+#     cargo clean -p db -p hydra-evaluator
+
 cargo sqlx prepare --workspace

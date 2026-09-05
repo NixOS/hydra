@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 sub process {
     my ($self, $c) = @_;
@@ -12,11 +14,14 @@ sub process {
     my $numThreads = $c->config->{'compress_num_threads'};
     my $pParam     = ($numThreads > 0) ? "-p$numThreads" : "";
 
+    # `nix-store --dump` is outside Hydra, so it wants the full path.
+    my $fullPath = printStorePath(machineLocalStore()->storeDir, $storePath);
+
     $c->response->content_type('application/x-nix-archive'); # !!! check MIME type
 
     my $fh = IO::Handle->new();
 
-    open($fh, "-|", "nix-store --dump '$storePath' | pixz -0 $pParam");
+    open($fh, "-|", "nix-store --dump '$fullPath' | pixz -0 $pParam");
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 

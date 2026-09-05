@@ -1,0 +1,21 @@
+[package]
+name                   = "hydra-evaluator"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+clap                 = { workspace = true, features = [ "derive" ] }
+color-eyre.workspace = true
+fs-err.workspace     = true
+futures.workspace    = true
+serde                = { workspace = true, features = [ "derive" ] }
+sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+thiserror.workspace  = true
+tokio                = { workspace = true, features = [ "full" ] }
+toml.workspace       = true
+tracing.workspace    = true
+
+db            = { path = "../crates/db" }
+hydra-tracing = { path = "../crates/tracing" }

@@ -2,6 +2,7 @@ use strict;
 use warnings;
 use Setup;
 use Test2::V0;
+use Hydra::StorePath;
 use JSON::PP;
 use LWP::UserAgent;
 use HTTP::Request;
@@ -57,7 +58,8 @@ my $slow  = $builds->{"slow"}  or die "slow build missing";
 my $input = $builds->{"input"} or die "input build missing";
 
 my ($res, $out, $err) = $ctx->capture_cmd(
-    15, "nix-store", "-q", "--outputs", $input->drvpath);
+    15, "nix-store", "-q", "--outputs",
+    printStorePath($ctx->db->storeDir, $input->drvpath));
 is($res, 0, "querying input output path succeeds") or diag($err);
 chomp(my $input_out = $out);
 like($input_out, qr{/nix/store/}, "got a store path for input");
