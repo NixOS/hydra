@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH RECURSIVE input AS (\n                SELECT (ordinality)::int AS idx,\n                       elem->>'root' AS drv,\n                       ARRAY(SELECT jsonb_array_elements_text(elem->'chain')) AS chain\n                FROM jsonb_array_elements($1::jsonb)\n                    WITH ORDINALITY AS t(elem, ordinality)\n            ),\n            resolve(idx, drv_path, step) AS (\n                SELECT idx, drv, 1 FROM input\n\n                UNION ALL\n\n                SELECT r.idx, sub.path, r.step + 1\n                FROM resolve r\n                JOIN input i ON i.idx = r.idx\n                CROSS JOIN LATERAL (\n                    SELECT o.path\n                    FROM buildsteps s\n                    -- If this step was resolved, look up outputs from\n                    -- the resolved drv's successful buildstep instead.\n                    -- resolvedDrvPath is a bare basename; drvPath is a\n                    -- full path, so strip the directory prefix to compare.\n                    LEFT JOIN buildsteps sr\n                        ON sr.drvPath = $2 || '/' || s.resolvedDrvPath\n                        AND sr.status = 0\n                    JOIN buildstepoutputs o\n                        ON o.build = COALESCE(sr.build, s.build)\n                        AND o.stepnr = COALESCE(sr.stepnr, s.stepnr)\n                    WHERE s.drvPath = r.drv_path\n                      AND o.name = i.chain[r.step]\n                      AND o.path IS NOT NULL\n                      AND (s.status = 0 OR s.status = 13)\n                    -- `+ 0`: otherwise the planner walks buildsteps_pkey\n                    -- backwards instead of using IndexBuildStepsOnDrvPath.\n                    ORDER BY s.build + 0 DESC\n                    LIMIT 1\n                ) sub\n                WHERE r.step <= array_length(i.chain, 1)\n                  AND r.drv_path IS NOT NULL\n            )\n            SELECT i.idx AS \"idx!\", r.drv_path\n            FROM input i\n            LEFT JOIN resolve r\n                ON r.idx = i.idx\n                AND r.step = array_length(i.chain, 1) + 1\n            ORDER BY i.idx\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "idx!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "drv_path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "647357964b008140d9108b9cd880225eee332b5c6173d599992e6a134987b568"
+}
