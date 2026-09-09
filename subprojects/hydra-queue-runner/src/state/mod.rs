@@ -3451,6 +3451,13 @@ impl State {
                     .await?
                     .into_iter()
                     .collect();
+                // The row carries the previous build's products and metrics but
+                // not its outputs; those are exactly the paths that made it
+                // cached, so record them for this build too.
+                res.outputs = output_paths
+                    .iter()
+                    .filter_map(|(name, path)| path.clone().map(|p| (name.clone(), p)))
+                    .collect();
 
                 return Ok(res);
             }

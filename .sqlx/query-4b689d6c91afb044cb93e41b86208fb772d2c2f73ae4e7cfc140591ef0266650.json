@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Projects (name, displayName, description, owner, enabled, hidden)\n         VALUES ('adhoc', 'Ad-hoc', 'Ad-hoc builds via hydra-ad-hoc', 'adhoc', 1, 1)\n         ON CONFLICT (name) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "4b689d6c91afb044cb93e41b86208fb772d2c2f73ae4e7cfc140591ef0266650"
+}

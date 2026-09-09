@@ -44,6 +44,16 @@ rec {
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-ws;
     };
 
+  ad-hoc =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./ad-hoc-module.nix ];
+      services.hydra-ad-hoc-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-ad-hoc;
+    };
+
   hydra =
     { ... }:
     {
@@ -53,6 +63,7 @@ rec {
         queue-runner
         builder
         ws-server
+        ad-hoc
       ];
     };
 

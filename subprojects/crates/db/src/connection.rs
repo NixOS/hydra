@@ -573,9 +573,14 @@ impl Transaction<'_> {
         path: &StorePath,
     ) -> crate::Result<()> {
         let path = store_dir.display(path).to_string();
-        // TODO: support inserting multiple at the same time
+        // The evaluator pre-inserts a build's BuildOutputs rows and this
+        // used to only update them; a build filed without an evaluation
+        // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
+        // table, so insert or update.
         sqlx::query!(
-            "UPDATE buildoutputs SET path = $3 WHERE build = $1 AND name = $2",
+            "INSERT INTO buildoutputs (build, name, path)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
             build_id,
             name,
             path.as_str(),
