@@ -48,11 +48,14 @@ sub fetchInput {
     my ($self, $type, $name, $value, $project, $jobset) = @_;
     return undef if $type ne "githubpulls";
     # TODO Allow filtering of some kind here?
-    (my $owner, my $repo) = split ' ', $value;
+    # Value is "OWNER REPO [HOST]"; HOST (e.g. git.example.com) selects a GHE API base.
+    (my $owner, my $repo, my $host) = split " ", $value;
     my $auth = $self->{config}->{github_authorization}->{$owner};
+    my $apibase = (defined $host && $host ne "" && $host ne "github.com")
+        ? "https://$host/api/v3" : "https://api.github.com";
     my %pulls;
     my $ua = LWP::UserAgent->new();
-    _iterate("https://api.github.com/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
+    _iterate("$apibase/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
     my $tempdir = File::Temp->newdir("github-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/github-pulls.json";
 
