@@ -46,25 +46,20 @@ impl PresenceCache {
             .max_connections(4)
             .connect_with(opts)
             .await?;
-        sqlx::query(
-            "CREATE TABLE IF NOT EXISTS narinfo_presence (
-                 hash   TEXT PRIMARY KEY,
-                 expiry INTEGER NOT NULL
-             )",
-        )
-        .execute(&pool)
-        .await?;
+        // The schema also feeds `sqlx-prepare.sh`, which checks the queries
+        // below against a SQLite database built from it.
+        sqlx::query(include_str!("presence_cache.sql"))
+            .execute(&pool)
+            .await?;
         Ok(Self { pool, ttl })
     }
 
     pub(crate) async fn is_present(&self, hash: &str) -> bool {
-        let row: Result<Option<(i64,)>, _> =
-            sqlx::query_as("SELECT expiry FROM narinfo_presence WHERE hash = ?")
-                .bind(hash)
-                .fetch_optional(&self.pool)
-                .await;
+        let row = sqlx::query_scalar!("SELECT expiry FROM narinfo_presence WHERE hash = ?", hash)
+            .fetch_optional(&self.pool)
+            .await;
         match row {
-            Ok(Some((expiry,))) => expiry > now_epoch(),
+            Ok(Some(expiry)) => expiry > now_epoch(),
             Ok(None) => false,
             Err(e) => {
                 tracing::warn!("presence cache read for {hash} failed: {e}");
@@ -76,12 +71,13 @@ impl PresenceCache {
     pub(crate) async fn record_present(&self, hash: &str) {
         let expiry =
             now_epoch().saturating_add(i64::try_from(self.ttl.as_secs()).unwrap_or(i64::MAX));
-        if let Err(e) =
-            sqlx::query("INSERT OR REPLACE INTO narinfo_presence (hash, expiry) VALUES (?, ?)")
-                .bind(hash)
-                .bind(expiry)
-                .execute(&self.pool)
-                .await
+        if let Err(e) = sqlx::query!(
+            "INSERT OR REPLACE INTO narinfo_presence (hash, expiry) VALUES (?, ?)",
+            hash,
+            expiry
+        )
+        .execute(&self.pool)
+        .await
         {
             tracing::warn!("presence cache write for {hash} failed: {e}");
         }
