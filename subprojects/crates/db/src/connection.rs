@@ -145,15 +145,21 @@ impl Connection {
     // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
     // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
+    /// Mark a build aborted and tell `build_finished` listeners, in one
+    /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
+    /// cares that it is finished, not why.
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
+        let mut tx = self.begin_transaction().await?;
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
             jiff::Timestamp::now().as_second(),
         )
-        .execute(&mut *self.conn)
+        .execute(&mut *tx.tx)
         .await?;
+        tx.notify_build_finished(build_id, &[]).await?;
+        tx.commit().await?;
         Ok(())
     }
 

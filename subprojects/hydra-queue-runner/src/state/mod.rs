@@ -1114,6 +1114,7 @@ impl State {
                         .collect(),
                 )
                 .await?;
+            tx.notify_step_started(build_id, step_nr).await?;
             tx.commit().await?;
             step_nr
         };

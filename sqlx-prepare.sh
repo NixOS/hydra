@@ -18,4 +18,5 @@ export DATABASE_URL="postgres://?host=$PGDIR&dbname=hydra"
 #
 #     cargo clean -p db -p hydra-evaluator
 
-cargo sqlx prepare --workspace
+# `--all-targets` so queries in tests are cached too.
+cargo sqlx prepare --workspace -- --all-targets
