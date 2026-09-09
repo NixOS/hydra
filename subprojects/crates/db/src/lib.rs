@@ -196,7 +196,7 @@ mod tests {
 
     async fn notify(db: &Database, channel: &str) {
         let mut conn = db.get().await.unwrap();
-        sqlx::query(&format!("NOTIFY {channel}"))
+        sqlx::query!("SELECT pg_notify($1::text, '')", channel)
             .execute(conn.raw())
             .await
             .unwrap();
@@ -214,11 +214,11 @@ mod tests {
         // Kill the backend that holds the LISTEN; a NOTIFY sent now would
         // be lost, so the stream must report this instead of hiding it.
         let mut conn = db.get().await.unwrap();
-        sqlx::query(
+        sqlx::query!(
             "SELECT pg_terminate_backend(pid) FROM pg_stat_activity \
              WHERE datname = current_database() AND pid <> pg_backend_pid()",
         )
-        .execute(conn.raw())
+        .fetch_all(conn.raw())
         .await
         .unwrap();
         drop(conn);

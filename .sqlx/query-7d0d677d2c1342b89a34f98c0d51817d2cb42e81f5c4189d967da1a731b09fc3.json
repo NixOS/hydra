@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7d0d677d2c1342b89a34f98c0d51817d2cb42e81f5c4189d967da1a731b09fc3"
+}
