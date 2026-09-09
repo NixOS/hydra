@@ -1,0 +1,6 @@
+# The narinfo presence cache is SQLite while the rest of the workspace is
+# PostgreSQL. sqlx checks queries against the database named by one
+# environment variable per crate; give this crate its own so that
+# `sqlx-prepare.sh` can point it at a SQLite database.
+[common]
+database-url-var = "PRESENCE_CACHE_DATABASE_URL"

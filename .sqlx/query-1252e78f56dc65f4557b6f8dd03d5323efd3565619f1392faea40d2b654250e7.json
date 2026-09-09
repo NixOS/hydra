@@ -6,37 +6,79 @@
       {
         "ordinal": 0,
         "name": "id",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "project",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "project"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "name"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "lastcheckedtime",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "lastcheckedtime"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "triggertime",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "triggertime"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "checkinterval",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "checkinterval"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "enabled",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "enabled"
+          }
+        }
       }
     ],
     "parameters": {
