@@ -1910,6 +1910,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "hydra-ad-hoc"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "build-logs",
+ "bytes",
+ "clap",
+ "color-eyre",
+ "db",
+ "fs-err",
+ "futures",
+ "harmonia-protocol",
+ "harmonia-store-content-address",
+ "harmonia-store-derivation",
+ "harmonia-store-path",
+ "harmonia-store-remote",
+ "harmonia-utils-io",
+ "hydra-tracing",
+ "listenfd",
+ "sd-notify",
+ "secrecy",
+ "serde",
+ "sqlx",
+ "test-utils",
+ "thiserror",
+ "tokio",
+ "toml 1.1.2+spec-1.1.0",
+ "tracing",
+]
+
+[[package]]
 name = "hydra-builder"
 version = "0.1.0"
 dependencies = [

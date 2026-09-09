@@ -31,6 +31,8 @@ let
       ../subprojects/hydra-evaluator/src
       ../subprojects/hydra-ws/Cargo.toml
       ../subprojects/hydra-ws/src
+      ../subprojects/hydra-ad-hoc/Cargo.toml
+      ../subprojects/hydra-ad-hoc/src
       ../subprojects/crates
       # For unit tests which want to spin up a fresh database
       ../subprojects/hydra/sql/hydra.sql
@@ -63,6 +65,7 @@ let
     "hydra-builder/otel"
     "hydra-queue-runner/otel"
     "hydra-ws/otel"
+    "hydra-ad-hoc/otel"
   ];
 
   # `cargoArtifacts` is a whole-workspace `buildDepsOnly`, so its dependencies
@@ -124,5 +127,10 @@ in
   hydra-ws = mkCrate {
     pname = "hydra-ws";
     meta.description = "Hydra ws server (Rust)";
+  };
+
+  hydra-ad-hoc = mkCrate {
+    pname = "hydra-ad-hoc";
+    meta.description = "hydra-ad-hoc (experimental, optional): Hydra Builds for ad hoc jobs and ad hoc store usage, over the nix daemon protocol";
   };
 }

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO buildoutputs (build, name, path)\n             VALUES ($1, $2, $3)\n             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b5dbec427f5ba869a8e30f8c3a9ff3afe72df9b2c034a4febb33e9c1cc3340ff"
+}

@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT keep, finished, drvPath, system FROM Builds WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "keep",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "keep"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "finished",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "finished"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "drvpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "drvpath"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "system",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "system"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e72b66e52b7485669ec0c409d661c3551e1d189107e265997678fdbd5b0b1f10"
+}
