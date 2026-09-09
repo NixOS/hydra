@@ -120,6 +120,139 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/latestbuilds:
+    get:
+      summary: Retrieve recent finished builds
+      description: |
+        Returns a bounded JSON array of finished build summaries.
+
+        Exactly one of `limit` or `nr` is required. Both accept values from 1
+        through 100. `limit` is preferred; `nr` remains supported as a legacy
+        alias.
+
+        When `order` is omitted, results retain the legacy `id DESC` ordering
+        and response fields. The project, jobset, job, and system selectors are
+        optional in this mode.
+
+        `order=stoptime` enables completion-history mode. This mode requires
+        nonempty project, jobset, and job selectors; system remains optional.
+        Results use deterministic `stoptime DESC, id DESC` ordering and add
+        `stoptime` and `releasename` fields.
+
+        A response with more history has an absolute `Link` header whose
+        relation is `next`. Follow that URL without interpreting or modifying
+        its cursor. Traversal doesn't calculate a total or provide snapshot
+        consistency, so builds completed while pages are being read may sort
+        before an already-issued cursor.
+
+        Example requests:
+
+        ```text
+        /api/latestbuilds?nr=2&project=nixos&jobset=trunk
+        /api/latestbuilds?limit=2&order=stoptime&project=nixos&jobset=trunk&job=nixpkgs.hello.x86_64-linux
+        /api/latestbuilds?limit=2&order=stoptime&project=nixos&jobset=trunk&job=nixpkgs.hello.x86_64-linux&cursor=v1%3A1700000000%3A42
+        ```
+      parameters:
+        - in: query
+          name: limit
+          description: Preferred maximum number of records to return. Specify exactly one of limit or nr.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          example: 20
+        - in: query
+          name: nr
+          description: Indefinitely supported legacy alias for limit. Specify exactly one of limit or nr.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          example: 20
+        - in: query
+          name: project
+          description: Project selector. Required and nonempty when order is stoptime.
+          schema:
+            type: string
+        - in: query
+          name: jobset
+          description: Jobset selector. Required and nonempty when order is stoptime.
+          schema:
+            type: string
+        - in: query
+          name: job
+          description: Job selector. Required and nonempty when order is stoptime.
+          schema:
+            type: string
+        - in: query
+          name: system
+          description: Optional build-system selector.
+          schema:
+            type: string
+          example: x86_64-linux
+        - in: query
+          name: order
+          description: Enables completion-history mode when set to stoptime. Omit it for legacy ID ordering.
+          schema:
+            type: string
+            enum:
+              - stoptime
+        - in: query
+          name: cursor
+          description: Server-generated exclusive continuation token. Valid only with order=stoptime and opaque to clients.
+          schema:
+            type: string
+          example: v1:1700000000:42
+      responses:
+        '200':
+          description: A bounded array of finished builds.
+          headers:
+            Link:
+              description: Absolute continuation URL with rel="next". Absent on terminal and empty pages.
+              schema:
+                type: string
+              example: '<https://hydra.nixos.org/api/latestbuilds?limit=2&order=stoptime&project=nixos&jobset=trunk&job=nixpkgs.hello.x86_64-linux&cursor=v1%3A1700000000%3A42>; rel="next"'
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 100
+                items:
+                  $ref: '#/components/schemas/LatestBuildSummary'
+              examples:
+                legacy-id-order:
+                  summary: Legacy results ordered by descending build ID
+                  value:
+                    - id: 43
+                      project: nixos
+                      jobset: trunk
+                      job: nixpkgs.hello.x86_64-linux
+                      system: x86_64-linux
+                      nixname: hello-2.12.1
+                      finished: 1
+                      timestamp: 1699999900
+                      buildstatus: 0
+                completion-history-first-page:
+                  summary: First completion-history page
+                  value:
+                    - id: 42
+                      project: nixos
+                      jobset: trunk
+                      job: nixpkgs.hello.x86_64-linux
+                      system: x86_64-linux
+                      nixname: hello-2.12.1
+                      finished: 1
+                      timestamp: 1699999800
+                      buildstatus: 0
+                      stoptime: 1700000000
+                      releasename: null
+        '400':
+          description: Invalid count, ordering, scope, or cursor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /search:
     get:
       summary: search for evaluations
@@ -733,6 +866,118 @@ components:
         error:
           description: error message
           type: string
+
+    LatestBuildSummary:
+      description: A compact finished-build record returned by GET /api/latestbuilds.
+      oneOf:
+        - $ref: '#/components/schemas/LatestBuildSummaryLegacy'
+        - $ref: '#/components/schemas/LatestBuildSummaryHistory'
+
+    LatestBuildSummaryLegacy:
+      type: object
+      additionalProperties: false
+      description: A record returned when order is omitted.
+      required:
+        - id
+        - project
+        - jobset
+        - job
+        - system
+        - nixname
+        - finished
+        - timestamp
+        - buildstatus
+      properties:
+        id:
+          description: Build identifier.
+          type: integer
+          minimum: 1
+        project:
+          description: Project containing the build's jobset.
+          type: string
+        jobset:
+          description: Jobset containing the build.
+          type: string
+        job:
+          description: Job attribute that produced the build.
+          type: string
+        system:
+          description: Nix system for the build.
+          type: string
+        nixname:
+          description: Name from the build's derivation.
+          type: string
+          nullable: true
+        finished:
+          description: This endpoint returns only finished builds.
+          type: integer
+          enum:
+            - 1
+        timestamp:
+          description: Unix time when the build was created.
+          type: integer
+        buildstatus:
+          description: Hydra terminal build status.
+          type: integer
+          nullable: true
+
+    LatestBuildSummaryHistory:
+      type: object
+      additionalProperties: false
+      description: A completion-history record returned when order=stoptime.
+      required:
+        - id
+        - project
+        - jobset
+        - job
+        - system
+        - nixname
+        - finished
+        - timestamp
+        - buildstatus
+        - stoptime
+        - releasename
+      properties:
+        id:
+          description: Build identifier.
+          type: integer
+          minimum: 1
+        project:
+          description: Project containing the build's jobset.
+          type: string
+        jobset:
+          description: Jobset containing the build.
+          type: string
+        job:
+          description: Job attribute that produced the build.
+          type: string
+        system:
+          description: Nix system for the build.
+          type: string
+        nixname:
+          description: Name from the build's derivation.
+          type: string
+          nullable: true
+        finished:
+          description: This endpoint returns only finished builds.
+          type: integer
+          enum:
+            - 1
+        timestamp:
+          description: Unix time when the build was created.
+          type: integer
+        buildstatus:
+          description: Hydra terminal build status.
+          type: integer
+          nullable: true
+        stoptime:
+          description: Unix completion time.
+          type: integer
+          minimum: 1
+        releasename:
+          description: Release name from the build. Clients may fall back to nixname when null.
+          type: string
+          nullable: true
 
     Project:
       type: object
