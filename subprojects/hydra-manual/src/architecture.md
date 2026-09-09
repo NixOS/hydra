@@ -71,6 +71,7 @@ graph BT
     hydra-proto --> nix-support
     hydra-evaluator --> db
     hydra-evaluator --> hydra-tracing
+    hydra-ws --> build-logs
     hydra-ws --> db
     hydra-ws --> hydra-tracing
     store-transfer --> daemon-client-utils
@@ -96,6 +97,9 @@ graph BT
 
 - `binary-cache`:
   reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
+
+- `build-logs`:
+  following build-step logs as the queue runner writes them, and reading its step/build notifications; shared by `hydra-ws` and anything else that shows a log live
 
 - `daemon-client-utils`:
   Various utilities for working with the daemon connection beyond what the Harmonia libraries provide.

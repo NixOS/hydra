@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use crate::config::{App, Cli, Listener};
 use crate::messages::HydraWsResponse;
 use crate::subscriptions::Subscriptions;
-use crate::tailer::{TailManager, TailSubscription};
+use build_logs::tailer::{TailManager, TailSubscription};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StateError {

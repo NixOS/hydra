@@ -6,7 +6,7 @@ license                = "GPL-3.0"
 rust-version.workspace = true
 
 [dependencies]
-bytecount.workspace           = true
+build-logs.workspace          = true
 clap                          = { workspace = true, features = [ "derive" ] }
 color-eyre.workspace          = true
 dashmap.workspace             = true
@@ -17,7 +17,6 @@ harmonia-store-path.workspace = true
 hydra-tracing                 = { workspace = true, features = [ "tonic" ] }
 jiff.workspace                = true
 listenfd.workspace            = true
-parking_lot.workspace         = true
 sd-notify.workspace           = true
 secrecy                       = { workspace = true, features = [ "serde" ] }
 serde                         = { workspace = true, features = [ "derive" ] }

@@ -575,6 +575,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-logs"
+version = "0.1.0"
+dependencies = [
+ "bytecount",
+ "dashmap",
+ "fs-err",
+ "harmonia-store-path",
+ "jiff",
+ "parking_lot",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2079,7 +2095,7 @@ dependencies = [
 name = "hydra-ws"
 version = "0.1.0"
 dependencies = [
- "bytecount",
+ "build-logs",
  "clap",
  "color-eyre",
  "dashmap",
@@ -2090,7 +2106,6 @@ dependencies = [
  "hydra-tracing",
  "jiff",
  "listenfd",
- "parking_lot",
  "sd-notify",
  "secrecy",
  "serde",
