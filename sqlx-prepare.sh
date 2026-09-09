@@ -12,7 +12,8 @@ pg_ctl -D "$PGDIR" -l "$PGDIR/log" -o "-k $PGDIR -h ''" start
 createdb -h "$PGDIR" hydra
 psql -h "$PGDIR" -d hydra -f subprojects/hydra/sql/hydra.sql
 
-export DATABASE_URL="postgres://?host=$PGDIR&dbname=hydra"
+# The role initdb created is the OS user; sqlx 0.9 no longer assumes that.
+export DATABASE_URL="postgres://$(id -un)@localhost/hydra?host=$PGDIR"
 
 # Note: if something is not regenerating, try:
 #

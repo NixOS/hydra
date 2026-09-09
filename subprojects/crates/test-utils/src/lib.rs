@@ -93,7 +93,8 @@ impl TestPg {
     /// Connection URL for this instance.
     pub fn url(&self) -> String {
         format!(
-            "postgresql://localhost:{}/test?host={}",
+            "postgresql://{}@localhost:{}/test?host={}",
+            os_user(),
             self.port,
             self.dir.display()
         )
@@ -107,4 +108,11 @@ impl Drop for TestPg {
             .output();
         let _ = fs_err::remove_dir_all(&self.dir);
     }
+}
+
+/// The role `initdb` created is the OS user, and sqlx 0.9 no longer
+/// fills that in when the URL has no user.
+fn os_user() -> String {
+    let out = Command::new("id").arg("-un").output().unwrap();
+    String::from_utf8(out.stdout).unwrap().trim().to_owned()
 }

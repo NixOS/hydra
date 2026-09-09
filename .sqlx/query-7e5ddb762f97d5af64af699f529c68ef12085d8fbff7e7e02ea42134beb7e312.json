@@ -6,12 +6,24 @@
       {
         "ordinal": 0,
         "name": "busy",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "buildsteps",
+            "name": "busy"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "status",
-        "type_info": "Int4"
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "buildsteps",
+            "name": "status"
+          }
+        }
       }
     ],
     "parameters": {
