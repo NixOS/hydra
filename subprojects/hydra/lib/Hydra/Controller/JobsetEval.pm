@@ -95,9 +95,24 @@ sub errors_GET {
 
     $c->stash->{template} = 'eval-error.tt';
 
-    $c->stash->{eval} = $c->model('DB::JobsetEvals')->find($c->stash->{eval}->id, { prefetch => 'evaluationerror' });
+    my $eval = $c->model('DB::JobsetEvals')->find(
+        $c->stash->{eval}->id,
+        { prefetch => 'evaluationerror' }
+    );
 
-    $self->status_ok($c, entity => $c->stash->{eval});
+    $c->stash->{eval} = $eval;
+
+    my $error_obj = $eval->evaluationerror;
+    my $err_str   = $error_obj ? $error_obj->errormsg : '';
+    my $has_error = ($err_str ne '') ? \1 : \0;
+
+    my $response = {
+        id        => $eval->id,
+        has_error => $has_error,
+        errormsg  => $err_str,
+    };
+
+    $self->status_ok($c, entity => $response);
 }
 
 sub create_jobset : Chained('evalChain') PathPart('create-jobset') Args(0) {
