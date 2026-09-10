@@ -2,6 +2,7 @@
 
 members = [
     "subprojects/hydra-builder",
+    "subprojects/hydra-ad-hoc",
     "subprojects/hydra-evaluator",
     "subprojects/hydra-queue-runner",
     "subprojects/hydra-ws",
@@ -94,7 +95,7 @@ serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.10"
 smallvec = "1.15"
-sqlx = "0.8"
+sqlx = "0.9"
 sysinfo = "0.38.0"
 thiserror = "2.0"
 tikv-jemallocator = "0.6"
@@ -122,6 +123,7 @@ zstd = "0.13"
 
 # Local workspace crates
 binary-cache        = { path = "subprojects/crates/binary-cache" }
+build-logs          = { path = "subprojects/crates/build-logs" }
 daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
 db                  = { path = "subprojects/crates/db" }
 hydra-proto         = { path = "subprojects/crates/proto" }

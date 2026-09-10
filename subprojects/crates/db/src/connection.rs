@@ -145,15 +145,21 @@ impl Connection {
     // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
     // queue runner apparently doesn't handle that case yet.
     #[tracing::instrument(skip(self), err)]
+    /// Mark a build aborted and tell `build_finished` listeners, in one
+    /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
+    /// cares that it is finished, not why.
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
+        let mut tx = self.begin_transaction().await?;
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
             build_id,
             BuildStatus::Aborted as i32,
             jiff::Timestamp::now().as_second(),
         )
-        .execute(&mut *self.conn)
+        .execute(&mut *tx.tx)
         .await?;
+        tx.notify_build_finished(build_id, &[]).await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -371,8 +377,8 @@ impl Connection {
                 .collect(),
         );
 
-        let rows = sqlx::query_as::<_, (i32, Option<String>)>(
-            "
+        let rows = sqlx::query!(
+            r#"
             WITH RECURSIVE input AS (
                 SELECT (ordinality)::int AS idx,
                        elem->>'root' AS drv,
@@ -413,23 +419,23 @@ impl Connection {
                 WHERE r.step <= array_length(i.chain, 1)
                   AND r.drv_path IS NOT NULL
             )
-            SELECT i.idx, r.drv_path
+            SELECT i.idx AS "idx!", r.drv_path
             FROM input i
             LEFT JOIN resolve r
                 ON r.idx = i.idx
                 AND r.step = array_length(i.chain, 1) + 1
             ORDER BY i.idx
-            ",
+            "#,
+            json_input,
+            store_dir.to_str(),
         )
-        .bind(&json_input)
-        .bind(store_dir.to_str())
         .fetch_all(&mut *self.conn)
         .await?;
 
         let mut results = vec![None; chains.len()];
-        for (idx, path) in rows {
-            let i = usize::try_from(idx - 1)?;
-            results[i] = path.map(|p| store_dir.parse(&p)).transpose()?;
+        for row in rows {
+            let i = usize::try_from(row.idx - 1)?;
+            results[i] = row.drv_path.map(|p| store_dir.parse(&p)).transpose()?;
         }
         Ok(results)
     }
@@ -444,8 +450,8 @@ impl Connection {
     ) -> crate::Result<Option<StorePath>> {
         let drv_display = store_dir.display(drv_path).to_string();
         let output_name_str: &str = output_name.as_ref();
-        let row: Option<(String,)> = sqlx::query_as(
-            r"SELECT o.path
+        let row = sqlx::query_scalar!(
+            r#"SELECT o.path AS "path!"
               FROM buildsteps s
               JOIN buildstepoutputs o
                   ON s.build = o.build AND s.stepnr = o.stepnr
@@ -454,14 +460,14 @@ impl Connection {
                 AND o.path IS NOT NULL
                 AND s.status = 0
               ORDER BY s.build DESC
-              LIMIT 1",
+              LIMIT 1"#,
+            drv_display,
+            output_name_str,
         )
-        .bind(&drv_display)
-        .bind(output_name_str)
         .fetch_optional(&mut *self.conn)
         .await?;
 
-        row.map(|(path,)| Ok(store_dir.parse(&path)?)).transpose()
+        row.map(|path| Ok(store_dir.parse(&path)?)).transpose()
     }
 }
 
@@ -567,9 +573,14 @@ impl Transaction<'_> {
         path: &StorePath,
     ) -> crate::Result<()> {
         let path = store_dir.display(path).to_string();
-        // TODO: support inserting multiple at the same time
+        // The evaluator pre-inserts a build's BuildOutputs rows and this
+        // used to only update them; a build filed without an evaluation
+        // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
+        // table, so insert or update.
         sqlx::query!(
-            "UPDATE buildoutputs SET path = $3 WHERE build = $1 AND name = $2",
+            "INSERT INTO buildoutputs (build, name, path)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
             build_id,
             name,
             path.as_str(),
@@ -813,21 +824,21 @@ impl Transaction<'_> {
         drv_path: &StorePath,
     ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
         let drv_path = store_dir.display(drv_path).to_string();
-        let items: Vec<(String, String)> = sqlx::query_as(
-            r"SELECT o.name, o.path
+        let items = sqlx::query!(
+            r#"SELECT o.name, o.path AS "path!"
               FROM buildstepoutputs o
               JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
-              WHERE s.drvpath = $1 AND o.path IS NOT NULL",
+              WHERE s.drvpath = $1 AND o.path IS NOT NULL"#,
+            drv_path,
         )
-        .bind(drv_path)
         .fetch_all(&mut *self.tx)
         .await?;
 
         items
             .into_iter()
-            .map(|(name, path)| -> crate::Result<_> {
-                let name: OutputName = name.parse()?;
-                let path: StorePath = store_dir.parse(&path)?;
+            .map(|row| -> crate::Result<_> {
+                let name: OutputName = row.name.parse()?;
+                let path: StorePath = store_dir.parse(&row.path)?;
                 Ok((name, path))
             })
             .collect()
@@ -1346,13 +1357,9 @@ impl Transaction<'_> {
 impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
     async fn notify_any(&mut self, channel: &str, msg: &str) -> crate::Result<()> {
-        sqlx::query(
-            r"SELECT pg_notify(chan, payload) from (values ($1, $2)) notifies(chan, payload)",
-        )
-        .bind(channel)
-        .bind(msg)
-        .execute(&mut *self.tx)
-        .await?;
+        sqlx::query!("SELECT pg_notify($1::text, $2::text)", channel, msg)
+            .execute(&mut *self.tx)
+            .await?;
         Ok(())
     }
 
@@ -1465,12 +1472,14 @@ mod tests {
         resolved_drv_path: Option<&StorePath>,
     ) {
         let sd = test_store_dir();
-        sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5)")
-            .bind(build)
-            .bind(stepnr)
-            .bind(sd.display(drv_path).to_string())
-            .bind(status)
-            .bind(resolved_drv_path.map(|p| p.to_string()))
+        sqlx::query!(
+            "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5)",
+            build,
+            stepnr,
+            sd.display(drv_path).to_string(),
+            status,
+            resolved_drv_path.map(ToString::to_string),
+        )
             .execute(&mut *conn.conn)
             .await
             .unwrap();
@@ -1483,13 +1492,13 @@ mod tests {
         name: &str,
         path: &StorePath,
     ) {
-        sqlx::query(
+        sqlx::query!(
             "INSERT INTO BuildStepOutputs (build, stepnr, name, path) VALUES ($1, $2, $3, $4)",
+            build,
+            stepnr,
+            name,
+            test_store_dir().display(path).to_string(),
         )
-        .bind(build)
-        .bind(stepnr)
-        .bind(name)
-        .bind(test_store_dir().display(path).to_string())
         .execute(&mut *conn.conn)
         .await
         .unwrap();
@@ -1498,24 +1507,27 @@ mod tests {
     #[tokio::test]
     async fn clear_busy_step_finalizes_only_the_named_step() {
         async fn insert_busy(conn: &mut Connection, build: i32, stepnr: i32, drv: &StorePath) {
-            sqlx::query("INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)")
-                .bind(build)
-                .bind(stepnr)
-                .bind(test_store_dir().display(drv).to_string())
+            sqlx::query!(
+                "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)",
+                build,
+                stepnr,
+                test_store_dir().display(drv).to_string(),
+            )
                 .execute(&mut *conn.conn)
                 .await
                 .unwrap();
         }
 
         async fn busy_status(conn: &mut Connection, build: i32, stepnr: i32) -> (i32, Option<i32>) {
-            sqlx::query_as::<_, (i32, Option<i32>)>(
+            let row = sqlx::query!(
                 "SELECT busy, status FROM buildsteps WHERE build = $1 AND stepnr = $2",
+                build,
+                stepnr,
             )
-            .bind(build)
-            .bind(stepnr)
             .fetch_one(&mut *conn.conn)
             .await
-            .unwrap()
+            .unwrap();
+            (row.busy, row.status)
         }
 
         let (_pg, mut conn) = setup().await;
@@ -1922,10 +1934,11 @@ mod tests {
     async fn deadlock_is_retryable_serialization_failure() {
         let (_pg, pool) = test_utils::TestPg::new().await;
 
+        // Any two rows will do; users are the simplest table to seed.
         let mut setup = Connection::new(pool.acquire().await.unwrap());
-        sqlx::raw_sql(
-            "CREATE TABLE deadlock_test (id int PRIMARY KEY, v int);
-             INSERT INTO deadlock_test VALUES (1, 0), (2, 0);",
+        sqlx::query!(
+            "INSERT INTO Users (userName, fullName, emailAddress, password)
+             VALUES ('a', '', 'a@example.org', ''), ('b', '', 'b@example.org', '')"
         )
         .execute(&mut *setup.conn)
         .await
@@ -1935,13 +1948,13 @@ mod tests {
         let mut conn_b = Connection::new(pool.acquire().await.unwrap());
 
         let mut tx_a = conn_a.begin_transaction().await.unwrap();
-        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 1")
+        sqlx::query!("UPDATE Users SET fullName = 'first' WHERE userName = 'a'")
             .execute(&mut *tx_a.tx)
             .await
             .unwrap();
 
         let mut tx_b = conn_b.begin_transaction().await.unwrap();
-        sqlx::query("UPDATE deadlock_test SET v = 1 WHERE id = 2")
+        sqlx::query!("UPDATE Users SET fullName = 'first' WHERE userName = 'b'")
             .execute(&mut *tx_b.tx)
             .await
             .unwrap();
@@ -1949,8 +1962,10 @@ mod tests {
         // Each transaction now reaches for the row the other holds, closing the
         // cycle; Postgres aborts one of them with a deadlock error.
         let (res_a, res_b) = tokio::join!(
-            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 2").execute(&mut *tx_a.tx),
-            sqlx::query("UPDATE deadlock_test SET v = 2 WHERE id = 1").execute(&mut *tx_b.tx),
+            sqlx::query!("UPDATE Users SET fullName = 'second' WHERE userName = 'b'")
+                .execute(&mut *tx_a.tx),
+            sqlx::query!("UPDATE Users SET fullName = 'second' WHERE userName = 'a'")
+                .execute(&mut *tx_b.tx),
         );
 
         let victim = match (res_a, res_b) {

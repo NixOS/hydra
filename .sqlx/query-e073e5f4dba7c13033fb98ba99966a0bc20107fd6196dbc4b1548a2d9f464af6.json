@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.path AS \"path!\"\n              FROM buildsteps s\n              JOIN buildstepoutputs o\n                  ON s.build = o.build AND s.stepnr = o.stepnr\n              WHERE s.drvPath = $1\n                AND o.name = $2\n                AND o.path IS NOT NULL\n                AND s.status = 0\n              ORDER BY s.build DESC\n              LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "path!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildstepoutputs",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "e073e5f4dba7c13033fb98ba99966a0bc20107fd6196dbc4b1548a2d9f464af6"
+}

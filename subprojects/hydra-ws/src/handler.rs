@@ -1,10 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt as _, StreamExt as _};
-use harmonia_store_path::StorePath;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::{Bytes, Message, Utf8Bytes};
@@ -14,7 +13,7 @@ use crate::config::Stream;
 use crate::messages::{HydraWsRequest, HydraWsResponse};
 use crate::state::State;
 use crate::subscriptions::Subscriptions;
-use crate::tailer::LineKind;
+use build_logs::tailer::LineKind;
 
 const OUT_CHANNEL_CAPACITY: usize = 4096;
 
@@ -24,12 +23,6 @@ const PING_INTERVAL: Duration = Duration::from_secs(20);
 pub enum ConnectionError {
     #[error("WebSocket error: {0}")]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
-}
-
-fn construct_log_path(log_prefix: &Path, drv: &StorePath) -> PathBuf {
-    let base = drv.to_string();
-    let (dir, file) = base.split_at(2);
-    log_prefix.join(dir).join(file)
 }
 
 #[tracing::instrument(skip(ws_write, out_rx))]
@@ -160,7 +153,7 @@ pub async fn handle_logs_start(
         }
     };
 
-    let path = construct_log_path(&state.get_log_prefix(), &drv_path);
+    let path = build_logs::log_path(&state.get_log_prefix(), &drv_path);
     tracing::info!("Start streaming path: {:?}", path);
 
     match fs_err::tokio::metadata(&path).await {

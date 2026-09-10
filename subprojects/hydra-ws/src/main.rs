@@ -22,7 +22,6 @@ mod messages;
 mod pg_listener;
 mod state;
 mod subscriptions;
-mod tailer;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
