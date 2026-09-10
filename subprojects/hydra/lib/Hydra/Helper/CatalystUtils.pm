@@ -6,6 +6,7 @@ use warnings;
 use Exporter;
 use ReadonlyX;
 use Nix::Store;
+use Digest::SHA qw(sha256_hex);
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -30,7 +31,19 @@ our @EXPORT = qw(
     approxTableSize
     requireLocalStore
     dbh
+    logoutToken
 );
+
+
+# Derive a CSRF token for GET /logout from the session ID. Using a hash
+# rather than the session ID directly avoids leaking the session cookie
+# via browser history or Referer headers.
+sub logoutToken {
+    my ($c) = @_;
+    my $sid = $c->sessionid;
+    return undef unless defined $sid;
+    return sha256_hex($sid . ":logout");
+}
 
 
 # Columns from the Builds table needed to render build lists.
