@@ -201,6 +201,7 @@ in
         Restart = "always";
         RestartSec = "5s";
         LimitNOFILE = 1024 * 1024; # the default of 1024 is low
+        ManagedOOMPreference = "avoid";
 
         ExecStart = lib.escapeShellArgs (
           [
