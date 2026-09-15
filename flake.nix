@@ -220,8 +220,6 @@
         hydraJobs.migrations.${system}
         // {
           systemTests = hydraJobs.systemTests.${system};
-          install = hydraJobs.nixosTests.install.${system};
-          validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
           dbix-up-to-date = pkgs.callPackage ./packaging/check-dbix-up-to-date.nix {
             inherit (packages.${system}) hydra;
           };
@@ -230,6 +228,10 @@
             src = self;
           };
         }
+        // (nixpkgs.lib.optionalAttrs (builtins.elem system linuxSystems) {
+          install = hydraJobs.nixosTests.install.${system};
+          validate-openapi = hydraJobs.nixosTests.validate-openapi.${system};
+        })
       );
 
       packages = forEachSystem (
