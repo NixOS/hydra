@@ -22,6 +22,9 @@ serde                  = { workspace = true, features = [ "derive" ] }
 sqlx                   = { workspace = true, features = [ "runtime-tokio", "postgres" ] }
 thiserror.workspace    = true
 tokio                  = { workspace = true, features = [ "full" ] }
+tokio-stream.workspace = true
+tonic.workspace        = true
+tonic-prost.workspace  = true
 toml.workspace         = true
 tracing.workspace      = true
 
@@ -32,6 +35,8 @@ harmonia-store-derivation.workspace      = true
 harmonia-store-path.workspace            = true
 harmonia-store-remote.workspace          = true
 harmonia-utils-io.workspace              = true
+hydra-proto                              = { workspace = true, features = [ "client" ] }
+
 
 [features]
 otel = [ "hydra-tracing/otel" ]

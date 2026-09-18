@@ -25,6 +25,39 @@ service RunnerService {
   rpc NotifyPresignedUploadComplete(PresignedUploadComplete) returns (Empty) {}
 }
 
+// Called by hydra-ad-hoc (not builders) to dispatch a derivation whose
+// content arrived inline over the daemon protocol: Nix's trusted-client
+// build-hook fast path never uploads a `.drv` file for it, so there is no
+// `Builds`/`Steps`/`Queues` row to hang the build off. The queue runner
+// picks a machine and dispatches directly; see
+// `State::dispatch_inline_derivation`.
+service AdHocService {
+  rpc SubmitDerivation(SubmitDerivationRequest) returns (stream SubmitDerivationEvent) {}
+}
+
+message SubmitDerivationRequest {
+  nix.store.derivation.v1.Basic drv = 1;
+  nix.store.v1.StorePath drv_path = 2;
+  repeated string wanted_outputs = 3;
+}
+
+message SubmitDerivationEvent {
+  oneof event {
+    Dispatched dispatched = 1;
+    SubmitDerivationResult result = 2;
+  }
+}
+
+message Dispatched {
+  string machine_hostname = 1;
+}
+
+message SubmitDerivationResult {
+  bool success = 1;
+  string error_msg = 2;
+  map<string, nix.store.v1.StorePath> outputs = 3;
+}
+
 message Empty {}
 
 message VersionCheckRequest {

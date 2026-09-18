@@ -154,13 +154,45 @@ fn step_log_stream(
     src: LogSource,
     ev: StepEvent,
     ids: Arc<AtomicU64>,
-    mut finished: watch::Receiver<bool>,
+    finished: watch::Receiver<bool>,
 ) -> impl Stream<Item = LogMessage> + Send {
     stream! {
         let Some(drv) = lookup_drv(&src, ev).await else {
             return;
         };
         let id = ids.fetch_add(1, Ordering::Relaxed);
+        let inner = follow_drv_log(src, drv, id, finished);
+        let mut inner = Box::pin(inner);
+        while let Some(msg) = inner.next().await {
+            yield msg;
+        }
+    }
+}
+
+/// A single build's worth of messages for a derivation that is not backed
+/// by a `BuildSteps` row: a `Build` activity, its log lines as
+/// `BuildLogLine` results, and the activity's end. Used by
+/// [`crate::handler::HydraDaemonHandler::build_derivation`]'s inline
+/// dispatch path, where the drv path (and hence the log file) is already
+/// known and there is no step announcement to look it up from.
+pub(crate) fn inline_log_stream(
+    src: LogSource,
+    drv: harmonia_store_path::StorePath,
+    finished: watch::Receiver<bool>,
+) -> impl Stream<Item = LogMessage> + Send {
+    follow_drv_log(src, drv, 1, finished)
+}
+
+/// Tail `drv`'s log file into `Build`/`BuildLogLine`/end-of-activity
+/// messages, from when this is called until `finished` turns true and the
+/// grace period after it elapses.
+fn follow_drv_log(
+    src: LogSource,
+    drv: harmonia_store_path::StorePath,
+    id: u64,
+    mut finished: watch::Receiver<bool>,
+) -> impl Stream<Item = LogMessage> + Send {
+    stream! {
         let drv_str = src.store_dir.display(&drv).to_string();
         yield LogMessage::StartActivity(Activity {
             // Nix's own `Build` activity: derivation, machine, round, rounds.
@@ -178,10 +210,10 @@ fn step_log_stream(
         });
 
         let path = build_logs::log_path(&src.log_prefix, &drv);
-        tracing::debug!(?ev, path = %path.display(), "step started; waiting for its log");
+        tracing::debug!(path = %path.display(), "step started; waiting for its log");
         if wait_for_log_file(&path, &mut finished).await {
             let mut sub = src.tails.subscribe(&path).await;
-            tracing::debug!(?ev, backlog = sub.backlog.len(), finished = *finished.borrow(), "following step log");
+            tracing::debug!(backlog = sub.backlog.len(), finished = *finished.borrow(), "following step log");
             // `step_finished` does not mean the log is complete: the builder
             // sends its log and its result on separate streams, so the queue
             // runner can still be writing the file. Close the tail a grace
@@ -231,7 +263,7 @@ fn step_log_stream(
             }
         }
 
-        tracing::debug!(?ev, "step log done");
+        tracing::debug!("step log done");
         yield LogMessage::StopActivity(StopActivity { id });
     }
 }

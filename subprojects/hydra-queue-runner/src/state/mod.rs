@@ -82,6 +82,8 @@ pub enum StateLogicError {
     MachineLookup(#[from] MachineLookupError),
     #[error(transparent)]
     DrvLookup(#[from] DrvLookupError),
+    #[error(transparent)]
+    InlineDispatch(#[from] InlineDispatchError),
 }
 
 impl From<ResolutionError> for StateError {
@@ -374,6 +376,16 @@ pub struct State {
     /// Cached from `nix_daemon_config.real_store_dir()`.
     /// `None` means the logical store dir is the filesystem path.
     pub real_store_dir: Option<std::path::PathBuf>,
+
+    /// Completion channels for builds dispatched by
+    /// [`State::dispatch_inline_derivation`]: these have no `Builds`/`Steps`
+    /// row, so `complete_build` cannot finalize them via
+    /// `succeed_step_by_uuid`/`fail_step_by_uuid`. Keyed by the job's
+    /// `internal_build_id`, resolved and removed once by whichever
+    /// `complete_build` call reports that id.
+    inline_completions: parking_lot::Mutex<
+        HashMap<uuid::Uuid, tokio::sync::oneshot::Sender<hydra_proto::BuildResultInfo>>,
+    >,
 }
 
 impl State {
@@ -491,6 +503,7 @@ impl State {
             upload_completion_rx: parking_lot::Mutex::new(Some(upload_completion_rx)),
             real_store_dir: nix_config.real_store_dir(),
             nix_daemon_config: nix_config,
+            inline_completions: parking_lot::Mutex::new(HashMap::new()),
             config,
         }))
     }
@@ -2352,7 +2365,125 @@ impl State {
         self.fail_step(machine_id, &drv_path, state, timings, error_msg)
             .await
     }
+}
 
+/// Errors dispatching a derivation received inline over the daemon
+/// protocol (see [`State::dispatch_inline_derivation`]).
+#[derive(Debug, thiserror::Error)]
+pub enum InlineDispatchError {
+    #[error("non-utf8 platform")]
+    InvalidPlatformUtf8(#[from] std::str::Utf8Error),
+
+    #[error("no machine available for system '{0}'")]
+    NoMachineForSystem(String),
+}
+
+impl From<InlineDispatchError> for StateError {
+    fn from(e: InlineDispatchError) -> Self {
+        Self::Logic(StateLogicError::InlineDispatch(e))
+    }
+}
+
+impl State {
+    /// Dispatch a derivation whose content arrived inline (no `.drv` file on
+    /// disk to read): pick a machine directly from [`Machines`], bypassing
+    /// `Builds`/`Steps`/`Queues` entirely, and hand it to the machine's
+    /// `build_drv` the same way `realise_drv_on_valid_machine` does.
+    ///
+    /// There is no `Builds` row backing this build, so it gets none of the
+    /// GC-root pinning or priority propagation a queued build gets: the
+    /// caller (`hydra-ad-hoc`) is on its own for keeping outputs alive. The
+    /// completion is delivered on the returned channel once a builder's
+    /// `complete_build` reports the minted id (see `Server::complete_build`
+    /// and `State::resolve_inline_completion`).
+    #[tracing::instrument(skip(self, drv), err)]
+    pub async fn dispatch_inline_derivation(
+        &self,
+        drv: harmonia_store_derivation::derivation::BasicDerivation,
+        drv_path: StorePath,
+        wanted_outputs: Vec<OutputName>,
+    ) -> Result<
+        (
+            uuid::Uuid,
+            String,
+            tokio::sync::oneshot::Receiver<hydra_proto::BuildResultInfo>,
+        ),
+        StateError,
+    > {
+        let _ = &wanted_outputs; // Nix always builds every output; kept for future filtering.
+        let system = std::str::from_utf8(&drv.platform)
+            .map_err(InlineDispatchError::from)?
+            .to_owned();
+        let required_features = step::required_features(&drv);
+
+        let machine = self
+            .machines
+            .get_machine_for_system(
+                &system,
+                &required_features,
+                Some(self.config.get_machine_free_fn()),
+            )
+            .ok_or_else(|| InlineDispatchError::NoMachineForSystem(system.clone()))?;
+
+        let internal_build_id = uuid::Uuid::new_v4();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.inline_completions.lock().insert(internal_build_id, tx);
+
+        let mut job = machine::Job::new(BuildID::MAX, drv_path.clone());
+        job.internal_build_id = internal_build_id;
+        job.result.set_start_time_now();
+
+        let resolved_drv = hydra_proto::nix::store::derivation::v1::Basic::from(&drv);
+
+        if let Err(e) = machine
+            .build_drv(
+                job,
+                drv_path,
+                self.config.max_log_size(),
+                self.config.max_output_size(),
+                self.config.max_silent_time(),
+                self.config.build_timeout(),
+                None,
+                resolved_drv,
+            )
+            .await
+        {
+            self.inline_completions.lock().remove(&internal_build_id);
+            return Err(e.into());
+        }
+
+        Ok((internal_build_id, machine.hostname.clone(), rx))
+    }
+
+    /// If `build_id` is a job dispatched by [`State::dispatch_inline_derivation`],
+    /// remove its machine slot and hand the reported result to whoever is
+    /// waiting on the returned receiver, and report `true` so the caller
+    /// (`complete_build`) skips the normal `Steps`/`Queues` finalization path.
+    /// Returns `false` for a `build_id` that is not an inline job (the normal
+    /// path is not this build's).
+    #[tracing::instrument(skip(self, result), fields(%build_id, %machine_id))]
+    pub fn resolve_inline_completion(
+        &self,
+        build_id: uuid::Uuid,
+        machine_id: uuid::Uuid,
+        result: hydra_proto::BuildResultInfo,
+    ) -> bool {
+        let Some(tx) = self.inline_completions.lock().remove(&build_id) else {
+            return false;
+        };
+        if let Some(machine) = self.machines.get_machine_by_id(machine_id)
+            && let Some(job) = machine.get_job_drv_for_build_id(build_id)
+        {
+            machine.remove_job(&job);
+        }
+        // The receiver may already be gone (e.g. the ad-hoc client
+        // disconnected mid-build); the builder's job is done either way.
+        let _ = tx.send(result);
+        true
+    }
+}
+
+impl State {
     #[allow(clippy::too_many_lines)]
     #[tracing::instrument(skip(self, machine, job, step), fields(%drv_path), err)]
     async fn inner_fail_job(

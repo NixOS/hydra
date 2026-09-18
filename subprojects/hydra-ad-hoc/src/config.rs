@@ -97,6 +97,10 @@ fn default_data_dir() -> PathBuf {
     "/var/lib/hydra".into()
 }
 
+fn default_queue_runner_grpc_addr() -> String {
+    "http://[::1]:50051".into()
+}
+
 /// Main configuration of the application
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -119,6 +123,11 @@ pub(crate) struct AppConfig {
     /// Hydra data directory; step logs are read from its `build-logs`.
     #[serde(default = "default_data_dir")]
     hydra_data_dir: PathBuf,
+
+    /// `hydra-queue-runner`'s gRPC endpoint, used for the trusted-client
+    /// fast path (`SubmitDerivation`) that `build_derivation` takes.
+    #[serde(default = "default_queue_runner_grpc_addr")]
+    queue_runner_grpc_addr: String,
 }
 
 impl From<AppConfig> for App {
@@ -131,6 +140,7 @@ impl From<AppConfig> for App {
             upstream_socket: val.upstream_socket,
             store_dir: val.store_dir,
             log_prefix: val.hydra_data_dir.join("build-logs"),
+            queue_runner_grpc_addr: val.queue_runner_grpc_addr,
         }
     }
 }
@@ -142,6 +152,7 @@ pub(crate) struct App {
     pub upstream_socket: PathBuf,
     pub store_dir: StoreDir,
     pub log_prefix: PathBuf,
+    pub queue_runner_grpc_addr: String,
 }
 
 #[derive(Debug, thiserror::Error)]

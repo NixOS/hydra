@@ -27,6 +27,7 @@ mod config;
 mod handler;
 mod logs;
 mod queries;
+mod queue_runner;
 mod server;
 mod submit;
 mod waiter;
@@ -55,6 +56,7 @@ async fn main() -> eyre::Result<()> {
         db::Database::new(config.db_url.expose_secret(), config.max_db_connections).await?;
     let waiter = BuildWaiter::start(&database).await?;
     let submitter = AdhocSubmitter::new(database.clone()).await?;
+    let queue_runner = queue_runner::connect(&config.queue_runner_grpc_addr)?;
     let logs = LogSource {
         db: database.clone(),
         store_dir: store_dir.clone(),
@@ -70,6 +72,7 @@ async fn main() -> eyre::Result<()> {
         waiter,
         submitter,
         logs,
+        queue_runner,
     );
 
     let server = match &cli.socket {

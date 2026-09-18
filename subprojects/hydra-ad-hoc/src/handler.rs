@@ -24,10 +24,11 @@ use harmonia_store_remote::pool::{ConnectionPool, PoolConfig};
 
 use db::StoreDir;
 use db::models::{BuildID, BuildStatus};
+use hydra_proto::ad_hoc_service_client::AdHocServiceClient;
 use sqlx::Connection as _;
 use tokio::sync::{mpsc, oneshot, watch};
 
-use crate::logs::{LogSource, build_log_stream};
+use crate::logs::{LogSource, build_log_stream, inline_log_stream};
 use crate::queries::{FinishedBuild, get_finished_build};
 use crate::submit::{AdhocSubmitter, BuildRequest};
 use crate::waiter::BuildWaiter;
@@ -45,6 +46,9 @@ pub(crate) struct HydraDaemonHandler {
     waiter: BuildWaiter,
     submitter: AdhocSubmitter,
     logs: LogSource,
+    /// `hydra-queue-runner`'s `AdHocService`, used only by
+    /// `build_derivation`'s trusted-client fast path (see its doc comment).
+    queue_runner: AdHocServiceClient<tonic::transport::Channel>,
 }
 
 impl std::fmt::Debug for HydraDaemonHandler {
@@ -63,6 +67,7 @@ impl HydraDaemonHandler {
         waiter: BuildWaiter,
         submitter: AdhocSubmitter,
         logs: LogSource,
+        queue_runner: AdHocServiceClient<tonic::transport::Channel>,
     ) -> Self {
         let upstream = ConnectionPool::with_store_dir(
             upstream_socket,
@@ -76,6 +81,7 @@ impl HydraDaemonHandler {
             waiter,
             submitter,
             logs,
+            queue_runner,
         }
     }
 
@@ -201,6 +207,70 @@ impl HydraDaemonHandler {
             self.waiter.forget(build_id).await;
         }
         result
+    }
+
+    /// Dispatch `drv` on `hydra-queue-runner`'s `AdHocService` and wait for
+    /// the result. Used only by `build_derivation`'s trusted-client fast
+    /// path: there is no `.drv` on disk and no `Builds` row, so this
+    /// bypasses `schedule_build`/`run_build` (and everything they depend
+    /// on) entirely.
+    async fn run_inline_build(
+        &self,
+        drv_path: &StorePath,
+        drv: &BasicDerivation,
+    ) -> Result<BuildResult, ProtocolError> {
+        let drv_path_str = self.store_dir.display(drv_path).to_string();
+        tracing::debug!(drv_path = %drv_path_str, "inline build requested");
+
+        let request = hydra_proto::SubmitDerivationRequest {
+            drv: Some(hydra_proto::nix::store::derivation::v1::Basic::from(drv)),
+            drv_path: Some(hydra_proto::ProtoStorePath::from(drv_path)),
+            wanted_outputs: Vec::new(),
+        };
+        let mut stream = self
+            .queue_runner
+            .clone()
+            .submit_derivation(request)
+            .await
+            .map_err(|e| ProtocolError::custom(format!("submit_derivation: {e}")))?
+            .into_inner();
+
+        // First event is always `Dispatched`; only logged, the client
+        // learns about progress from the log stream this build's tail
+        // (`inline_log_stream`) is following independently.
+        match stream
+            .message()
+            .await
+            .map_err(|e| ProtocolError::custom(format!("submit_derivation: {e}")))?
+        {
+            Some(hydra_proto::SubmitDerivationEvent {
+                event: Some(hydra_proto::submit_derivation_event::Event::Dispatched(d)),
+            }) => {
+                tracing::info!(drv_path = %drv_path_str, machine = %d.machine_hostname, "inline build dispatched");
+            }
+            _ => {
+                return Err(ProtocolError::custom(
+                    "submit_derivation: expected a Dispatched event first",
+                ));
+            }
+        }
+
+        let result = match stream
+            .message()
+            .await
+            .map_err(|e| ProtocolError::custom(format!("submit_derivation: {e}")))?
+        {
+            Some(hydra_proto::SubmitDerivationEvent {
+                event: Some(hydra_proto::submit_derivation_event::Event::Result(r)),
+            }) => r,
+            _ => {
+                return Err(ProtocolError::custom(
+                    "submit_derivation: stream ended before a Result event",
+                ));
+            }
+        };
+
+        inline_result_to_build_result(&drv_path_str, &result)
     }
 
     /// Run `work` while streaming the logs of every build it announces.
@@ -344,8 +414,55 @@ fn finished_to_build_result(
     })
 }
 
+/// Build a [`BuildResult`] straight from the queue runner's
+/// `SubmitDerivationResult` — there is no `Builds`/`buildoutputs` row for
+/// an inline build, so this bypasses `get_finished_build`/`queries.rs`
+/// entirely, unlike [`finished_to_build_result`].
+fn inline_result_to_build_result(
+    drv_path: &str,
+    result: &hydra_proto::SubmitDerivationResult,
+) -> Result<BuildResult, ProtocolError> {
+    let inner = if result.success {
+        let mut built_outputs = BTreeMap::new();
+        for (name, path) in &result.outputs {
+            let name: OutputName = name
+                .parse()
+                .map_err(|e| ProtocolError::custom(format!("invalid output name: {e}")))?;
+            built_outputs.insert(
+                name,
+                UnkeyedRealisation {
+                    out_path: path.0.clone(),
+                    signatures: BTreeSet::new(),
+                },
+            );
+        }
+        if built_outputs.is_empty() {
+            return Err(ProtocolError::custom(format!(
+                "build of {drv_path} succeeded but reported no outputs"
+            )));
+        }
+        BuildResultInner::Success(BuildResultSuccess {
+            status: SuccessStatus::Built,
+            built_outputs,
+        })
+    } else {
+        BuildResultInner::Failure(BuildResultFailure {
+            status: FailureStatus::PermanentFailure,
+            error_msg: result.error_msg.clone().into(),
+            is_non_deterministic: false,
+        })
+    };
+    Ok(BuildResult {
+        inner,
+        times_built: 1,
+        start_time: 0,
+        stop_time: 0,
+        cpu_user: None,
+        cpu_system: None,
+    })
+}
+
 /// Synthesize realisations from recorded output paths; missing paths are queue-runner bugs.
-///
 /// The result is keyed by output name, so each entry only carries the
 /// unkeyed half of the realisation — the `DrvOutput` key is implied by the
 /// derivation being built.
@@ -417,8 +534,23 @@ impl HandshakeDaemonStore for HydraDaemonHandler {
 }
 
 impl DaemonStore for HydraDaemonHandler {
+    /// `NotTrusted`, not `Trusted`: this is what a connecting client sees
+    /// during the handshake (`remoteTrustsUs` in Nix's own terms), and it
+    /// decides which code path Nix's `ssh-ng://`/`ssh://` build-hook
+    /// (`build-remote.cc`) takes for a delegated build. A `Trusted` daemon
+    /// makes the hook send input-addressed derivations inline via
+    /// `BuildDerivation` (no `.drv` ever uploaded, no `Builds` row to hang
+    /// the build off — see `build_derivation`'s `run_inline_build` path).
+    /// `NotTrusted` makes it upload the real `.drv` first and call
+    /// `build_paths` instead, so those builds get Hydra's normal
+    /// `Steps`/`Queues` graph: dedup, previous-failure caching, and
+    /// wake-on-completion across the whole build. Content-addressed
+    /// derivations are unaffected either way — Nix always takes the inline
+    /// fast path for those, trusted or not, since CA output paths are
+    /// self-verifying by content hash — so `build_derivation`'s inline path
+    /// stays load-bearing for that case.
     fn trust_level(&self) -> Option<TrustLevel> {
-        Some(TrustLevel::Trusted)
+        Some(TrustLevel::NotTrusted)
     }
 
     fn set_options<'a>(
@@ -429,6 +561,15 @@ impl DaemonStore for HydraDaemonHandler {
         ready(Ok(())).empty_logs()
     }
 
+    /// Dispatch a derivation inline: Nix's trusted-client build-hook fast
+    /// path never uploads a `.drv` for it (it sends the resolved derivation
+    /// content directly in the daemon protocol's `BuildDerivation` call),
+    /// so there is no `.drv` on disk for the queue runner's normal
+    /// ingestion pipeline to read and no `Builds` row to hang the build off
+    /// (see `hydra-queue-runner`'s `State::dispatch_inline_derivation`,
+    /// which this calls over gRPC). This bypasses `AdhocSubmitter`,
+    /// `BuildWaiter` and `queries::get_finished_build` entirely: those all
+    /// key off a `Builds` row this build never gets.
     fn build_derivation<'a>(
         &'a mut self,
         drv_path: &'a StorePath,
@@ -438,18 +579,28 @@ impl DaemonStore for HydraDaemonHandler {
         let this = self.clone();
         let drv_path = drv_path.clone();
         let drv = drv.clone();
-        self.with_live_logs(move |announce| async move {
-            require_normal_mode(mode)?;
-            this.assert_drv_uploaded(&drv_path).await?;
-            let drv_path_str = this.store_dir.display(&drv_path).to_string();
-            let nix_name: String = drv.name.to_string();
-            let system = std::str::from_utf8(&drv.platform)
-                .map_err(|e| ProtocolError::custom(format!("non-utf8 platform: {e}")))?;
-            let finished = this
-                .run_build(&drv_path_str, &nix_name, system, &announce)
-                .await?;
-            finished_to_build_result(&drv_path_str, &finished)
-        })
+        let (done_tx, done_rx) = watch::channel(false);
+        let logs_src = this.logs.clone();
+        let log_drv_path = drv_path.clone();
+        let (result_tx, result_rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let result = async {
+                require_normal_mode(mode)?;
+                this.run_inline_build(&drv_path, &drv).await
+            }
+            .await;
+            let _ = done_tx.send(true);
+            let _ = result_tx.send(result);
+        });
+        let logs = inline_log_stream(logs_src, log_drv_path, done_rx);
+        async move {
+            result_rx.await.unwrap_or_else(|_| {
+                Err(ProtocolError::custom(
+                    "build task ended without reporting a result",
+                ))
+            })
+        }
+        .with_logs(logs)
     }
 
     fn build_paths<'a>(

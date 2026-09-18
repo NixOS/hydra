@@ -129,7 +129,15 @@ pub(crate) struct StepDrvInfo {
 /// Such derivations carry the attribute only inside the `__json` blob (parsed
 /// into `structured_attrs`) with no flat env var, so reading the env alone
 /// mis-schedules them onto machines lacking the feature (e.g. `big-parallel`).
-fn required_features(drv: &Derivation) -> Vec<String> {
+///
+/// Generic over `Inputs`/`Output` so it works on both the full [`Derivation`]
+/// (parsed `.drv` with unresolved `Built` inputs) and a force-resolved
+/// [`harmonia_store_derivation::derivation::BasicDerivation`] received
+/// inline (see `crate::state::State::dispatch_inline_derivation`): both are
+/// the same `DerivationT` shape and this only reads `env`/`structured_attrs`.
+pub(crate) fn required_features<Inputs, Output>(
+    drv: &harmonia_store_derivation::derivation::DerivationT<Inputs, Output>,
+) -> Vec<String> {
     if let Some(structured) = &drv.structured_attrs {
         let Some(serde_json::Value::Array(features)) =
             structured.attrs.get("requiredSystemFeatures")
@@ -887,6 +895,29 @@ mod tests {
             attrs: attrs.as_object().unwrap().clone(),
         });
         assert_eq!(required_features(&drv), vec!["big-parallel"]);
+    }
+
+    /// `dispatch_inline_derivation` (the trusted-client fast path) calls
+    /// `required_features` on a `BasicDerivation`, not a parsed
+    /// `Derivation` -- the generic `DerivationT<Inputs, Output>` signature
+    /// must actually work on that type, not just happen to compile against
+    /// it via unused generic parameters.
+    #[test]
+    fn required_features_on_basic_derivation() {
+        let drv = harmonia_store_derivation::derivation::BasicDerivation {
+            name: "test".parse().unwrap(),
+            outputs: BTreeMap::new(),
+            inputs: harmonia_store_path::StorePathSet::new(),
+            platform: bytes::Bytes::from_static(b"x86_64-linux"),
+            builder: bytes::Bytes::from_static(b"/bin/sh"),
+            args: Vec::new(),
+            env: BTreeMap::from([(
+                bytes::Bytes::from_static(b"requiredSystemFeatures"),
+                bytes::Bytes::from_static(b"kvm"),
+            )]),
+            structured_attrs: None,
+        };
+        assert_eq!(required_features(&drv), vec!["kvm"]);
     }
 
     #[test]

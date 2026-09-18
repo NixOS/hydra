@@ -1927,6 +1927,7 @@ dependencies = [
  "harmonia-store-path",
  "harmonia-store-remote",
  "harmonia-utils-io",
+ "hydra-proto",
  "hydra-tracing",
  "listenfd",
  "sd-notify",
@@ -1936,7 +1937,10 @@ dependencies = [
  "test-utils",
  "thiserror",
  "tokio",
+ "tokio-stream",
  "toml 1.1.2+spec-1.1.0",
+ "tonic",
+ "tonic-prost",
  "tracing",
 ]
 

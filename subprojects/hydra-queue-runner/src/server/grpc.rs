@@ -216,10 +216,24 @@ impl Server {
             .build_v1()?;
 
         let (_health_reporter, health_service) = tonic_health::server::health_reporter();
+        // `AdHocServiceServer` is called by hydra-ad-hoc, not builder
+        // machines, so it does not go through `CheckAuthInterceptor` (that
+        // interceptor's token auth is a builder-only auth story). When mTLS
+        // is configured, the `tls_config` above already requires every
+        // service on this listener -- this one included -- to present a
+        // client certificate signed by `client_ca_cert`; without mTLS this
+        // service is unauthenticated, the same accepted-risk posture as the
+        // health/reflection services added alongside it here.
+        let adhoc_service = hydra_proto::ad_hoc_service_server::AdHocServiceServer::new(
+            crate::server::adhoc_grpc::Server::new(state.clone()),
+        )
+        .max_decoding_message_size(50 * 1024 * 1024)
+        .max_encoding_message_size(50 * 1024 * 1024);
         server
             .add_service(health_service)
             .add_service(reflection_service)
             .add_service(intercepted_service)
+            .add_service(adhoc_service)
             .serve_with_incoming(incoming)
             .await?;
 
@@ -505,6 +519,14 @@ impl RunnerService for Server {
             tracing::error!("Failed to parse machine_id into uuid: {e}");
             tonic::Status::invalid_argument("machine_id is not a valid uuid.")
         })?;
+
+        // Builds dispatched by `dispatch_inline_derivation` (hydra-ad-hoc's
+        // trusted-client fast path) have no `Builds`/`Steps` row to
+        // finalize; hand the result straight to whoever is waiting on it
+        // instead of falling into the normal succeed/fail-by-uuid path.
+        if state.resolve_inline_completion(build_id, machine_id, req.clone()) {
+            return Ok(tonic::Response::new(hydra_proto::Empty {}));
+        }
 
         // Finalize inline and propagate failure: remove_job must run to free
         // the machine slot, so a failed finalize has to reach the builder
