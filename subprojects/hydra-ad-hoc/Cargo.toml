@@ -23,9 +23,9 @@ sqlx                   = { workspace = true, features = [ "runtime-tokio", "post
 thiserror.workspace    = true
 tokio                  = { workspace = true, features = [ "full" ] }
 tokio-stream.workspace = true
+toml.workspace         = true
 tonic.workspace        = true
 tonic-prost.workspace  = true
-toml.workspace         = true
 tracing.workspace      = true
 
 db.workspace                             = true

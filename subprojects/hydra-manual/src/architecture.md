@@ -78,6 +78,7 @@ graph BT
     hydra-proto --> nix-support
     hydra-ad-hoc --> build-logs
     hydra-ad-hoc --> db
+    hydra-ad-hoc --> hydra-proto
     hydra-ad-hoc --> hydra-tracing
     hydra-evaluator --> db
     hydra-evaluator --> hydra-tracing
