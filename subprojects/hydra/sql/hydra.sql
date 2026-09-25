@@ -25,7 +25,7 @@ create table Users (
     emailAddress  text not null,
     password      text not null, -- sha256 hash
     emailOnError  integer not null default 0,
-    type          text not null default 'hydra', -- either "hydra", "google" or "github"
+    type          text not null default 'hydra', -- either "hydra" or "github"
     publicDashboard boolean not null default false
 );
 
