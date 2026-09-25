@@ -44,7 +44,7 @@ static VALIDATE_RELEASE_NAME: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9.@:_-]+").expect("Failed to compile regex"));
 #[allow(clippy::expect_used)]
 static VALIDATE_PRODUCT_NAME: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9.@:_ -]*").expect("Failed to compile regex"));
+    LazyLock::new(|| regex::Regex::new("^[a-zA-Z0-9.@:_+ -]+$").expect("Failed to compile regex"));
 #[allow(clippy::expect_used)]
 static BUILD_PRODUCT_PARSER: LazyLock<regex::Regex> = LazyLock::new(|| {
     regex::Regex::new(
@@ -475,6 +475,13 @@ mod tests {
     fn test_parse_release_name() {
         let o = parse_release_name("nixos-25.11pre708350");
         assert_eq!(o, Some("nixos-25.11pre708350".into()));
+    }
+
+    #[test]
+    fn test_validate_product_name() {
+        assert!(VALIDATE_PRODUCT_NAME.is_match("foo+bar-1.0.tar.gz"));
+        assert!(!VALIDATE_PRODUCT_NAME.is_match("foo$bar"));
+        assert!(!VALIDATE_PRODUCT_NAME.is_match(""));
     }
 
     /// Create a fake store dir with a file at the given sub-path,
