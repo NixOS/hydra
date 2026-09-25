@@ -1,0 +1,21 @@
+{
+    "my-static-jobset": {
+        "enabled": 1,
+        "hidden": false,
+        "description": "my-static-jobset",
+        "nixexprinput": "src",
+        "nixexprpath": "one-job.nix",
+        "checkinterval": 300,
+        "schedulingshares": 100,
+        "enableemail": false,
+        "emailoverride": "",
+        "keepnr": 3,
+        "inputs": {
+            "src": {
+                "type": "string",
+                "value": "unused",
+                "emailresponsible": false
+            }
+        }
+    }
+}

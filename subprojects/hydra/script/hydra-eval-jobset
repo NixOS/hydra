@@ -774,6 +774,7 @@ sub checkJobsetWrapped {
                 $db->txn_do(sub {
                     $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
                 });
+                setJobsetError($jobset, "", time);
                 return;
             } else {
                 # Update the jobset with the spec's inputs, and the continue
