@@ -31,7 +31,7 @@ futures.workspace      = true
 futures-util.workspace = true
 tokio                  = { workspace = true, features = [ "full" ] }
 tokio-stream.workspace = true
-tokio-util             = { workspace = true, features = [ "io", "io-util" ] }
+tokio-util             = { workspace = true, features = [ "io", "io-util", "rt" ] }
 
 async-compression          = { workspace = true, features = [ "tokio", "zstd" ] }
 h2.workspace               = true

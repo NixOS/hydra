@@ -48,6 +48,8 @@ sub runBuilds {
             shift->decoded_content =~ /"hostname"/;
         }) or die "Timed out waiting for builder to register\n";
 
+        # /build_one loads the whole step graph before responding.
+        $ua->timeout(30);
         for my $bid (@build_ids) {
             $pg->pump_logs;
             my $req = HTTP::Request->new(POST => "$base_url/build_one");
@@ -57,6 +59,7 @@ sub runBuilds {
             die "Failed to submit build $bid: " . $resp->status_line . "\n"
                 unless $resp->is_success;
         }
+        $ua->timeout(2);
 
         wait_for_builds($ua, $base_url, $pg, @build_ids);
 
