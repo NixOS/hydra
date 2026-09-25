@@ -7,11 +7,25 @@ use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 
+# 'compress_num_threads' can be declared more than once in the
+# configuration, e.g. by the NixOS module (which always sets it) and
+# again by the user, in which case Config::General hands us an array
+# ref of all declarations.  Honor the last one.  Anything non-numeric
+# falls back to 0 (pixz decides): the value is spliced into a shell
+# command below, so it must never pass through unchecked.
+sub numCompressThreads {
+    my ($config) = @_;
+    my $numThreads = $config->{'compress_num_threads'} // 0;
+    $numThreads = $numThreads->[-1] if ref($numThreads) eq 'ARRAY';
+    return 0 unless $numThreads =~ /^[0-9]+$/;
+    return int($numThreads);
+}
+
 sub process {
     my ($self, $c) = @_;
 
     my $storePath  = $c->stash->{storePath};
-    my $numThreads = $c->config->{'compress_num_threads'};
+    my $numThreads = numCompressThreads($c->config);
     my $pParam     = ($numThreads > 0) ? "-p$numThreads" : "";
 
     # `nix-store --dump` is outside Hydra, so it wants the full path.
