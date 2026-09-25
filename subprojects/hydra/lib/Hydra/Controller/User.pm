@@ -119,11 +119,6 @@ sub doEmailLogin {
     my $user = $c->find_user({ username => $email });
 
     if ($user) {
-        # Automatically upgrade legacy Persona accounts to Google accounts.
-        if ($user->type eq "persona" && $type eq "google") {
-            $user->update({type => "google"});
-        }
-
         die "You cannot login via login type '$type'.\n" if $user->type ne $type;
     } else {
         $c->model('DB::Users')->create(
@@ -140,29 +135,6 @@ sub doEmailLogin {
 
     $self->status_no_content($c);
     $c->flash->{successMsg} = "You are now signed in as <tt>" . encode_entities($email) . "</tt>.";
-}
-
-
-sub google_login :Path('/google-login') Args(0) {
-    my ($self, $c) = @_;
-    requirePost($c);
-
-    error($c, "Logging in via Google is not enabled.") unless $c->config->{enable_google_login};
-
-    my $ua = LWP::UserAgent->new();
-    my $response = $ua->post(
-        'https://www.googleapis.com/oauth2/v3/tokeninfo',
-        { id_token => ($c->stash->{params}->{id_token} // die "No token."),
-        });
-    error($c, "Did not get a response from Google.") unless $response->is_success;
-
-    my $data = decode_json($response->decoded_content) or die;
-
-    die unless $data->{aud} eq $c->config->{google_client_id};
-    die "Email address is not verified" unless $data->{email_verified};
-    # FIXME: verify hosted domain claim?
-
-    doEmailLogin($self, $c, "google", $data->{email}, $data->{name} // undef);
 }
 
 sub github_login :Path('/github-login') Args(0) {

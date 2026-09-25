@@ -53,7 +53,6 @@ sub noLoginNeeded {
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
          $c->request->path eq "api/push-gitea" ||
-         $c->request->path eq "google-login" ||
          $c->request->path eq "github-redirect" ||
          $c->request->path eq "github-login" ||
          $c->request->path eq "login" ||

@@ -12,10 +12,6 @@
     <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
     [% INCLUDE style.tt %]
 
-    [% IF c.config.enable_google_login %]
-      <meta name="google-signin-client_id" content="[% c.config.google_client_id %]">
-    [% END %]
-
     [% tracker %]
 
   </head>
@@ -72,7 +68,6 @@
           <em><a href="http://nixos.org/hydra" target="_blank" class="squiggle">Hydra</a> [% HTML.escape(version) %] (using [% HTML.escape(nixVersion) %] and [% HTML.escape(nixEvalJobsVersion) %]).</em>
           [% IF c.user_exists %]
           You are signed in as <tt>[% HTML.escape(c.user.username) %]</tt>
-            [%- IF c.user.type == 'google' %] via Google[% END %].
           [% END %]
         </small>
       </footer>
