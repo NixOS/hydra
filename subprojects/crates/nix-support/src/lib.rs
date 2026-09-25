@@ -34,14 +34,15 @@ use harmonia_store_path::StorePath;
 use store_path_utils::RelativeStorePath;
 
 #[allow(clippy::expect_used)]
-static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9._:\\[\\]-]+").expect("Failed to compile regex"));
+static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"^[a-zA-Z0-9._:\[\]-]+$").expect("Failed to compile regex")
+});
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_UNIT: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9._%-]+").expect("Failed to compile regex"));
+    LazyLock::new(|| regex::Regex::new("^[a-zA-Z0-9._%-]+$").expect("Failed to compile regex"));
 #[allow(clippy::expect_used)]
 static VALIDATE_RELEASE_NAME: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9.@:_-]+").expect("Failed to compile regex"));
+    LazyLock::new(|| regex::Regex::new("^[a-zA-Z0-9.@:_-]+$").expect("Failed to compile regex"));
 #[allow(clippy::expect_used)]
 static VALIDATE_PRODUCT_NAME: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new("^[a-zA-Z0-9.@:_+ -]+$").expect("Failed to compile regex"));
@@ -472,9 +473,23 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_metric_name_with_colons_and_brackets() {
+        let (name, _) = parse_metric("test_foo.py::test_bar[1] 42").unwrap();
+        assert_eq!(name, "test_foo.py::test_bar[1]");
+    }
+
+    #[test]
+    fn test_parse_metric_invalid_name_or_unit() {
+        assert!(parse_metric("foo$bar 1").is_none());
+        let (_, m) = parse_metric("foo 1 s/op").unwrap();
+        assert_eq!(m.unit, None);
+    }
+
+    #[test]
     fn test_parse_release_name() {
         let o = parse_release_name("nixos-25.11pre708350");
         assert_eq!(o, Some("nixos-25.11pre708350".into()));
+        assert_eq!(parse_release_name("nixos 25.11"), None);
     }
 
     #[test]
