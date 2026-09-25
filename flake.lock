@@ -52,16 +52,16 @@
     "nix-eval-jobs": {
       "flake": false,
       "locked": {
-        "lastModified": 1786358870,
-        "narHash": "sha256-EFJnN35L7UieL8zV8qPrpqfdfzztWksY8JYuXF+mr9o=",
+        "lastModified": 1787469120,
+        "narHash": "sha256-qHxk1wVKqz/UMtVC14ugkhySbqYcRQbwobyeO/fhAf0=",
         "owner": "NixOS",
         "repo": "nix-eval-jobs",
-        "rev": "5f1fe8040163c58a4a975dbe42e6624f6c948aa4",
+        "rev": "1e1ef9eec355021af2399ffd76e1dc01da524c1e",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "v2.35.1",
+        "ref": "v2.35.2",
         "repo": "nix-eval-jobs",
         "type": "github"
       }
