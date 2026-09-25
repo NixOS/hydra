@@ -17,4 +17,4 @@ fi
 
 export HYDRA_DATABASE_URL="postgres://${USER}@localhost:$HYDRA_PG_PORT/hydra"
 
-exec hydra-ws --bind - -c "$CONFIG"
+exec hydra-ws --bind "[::1]:$HYDRA_WS_PORT" -c "$CONFIG"

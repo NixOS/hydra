@@ -20,4 +20,4 @@ fi
 export HYDRA_DATABASE_URL="postgres://${USER}@localhost:$HYDRA_PG_PORT/hydra"
 export LOGNAME="${LOGNAME:-$USER}"
 
-exec hydra-queue-runner -c "$CONFIG" --rest-bind - --grpc-bind -
+exec hydra-queue-runner -c "$CONFIG" --rest-bind "[::1]:$HYDRA_QUEUE_RUNNER_REST_PORT" --grpc-bind "[::1]:$HYDRA_QUEUE_RUNNER_GRPC_PORT"
