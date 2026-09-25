@@ -125,7 +125,9 @@ sub start_queue_runner {
     {
         local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
         local $ENV{NIX_REMOTE} = $ctx->{central}{nix_daemon_uri};
-        local $ENV{RUST_LOG} = "hydra_queue_runner=debug,info";
+        # Tests with huge step graphs can lower the level: logs are not drained
+        # during /build_one, so debug output can fill the pipe and block us.
+        local $ENV{RUST_LOG} = $ENV{HYDRA_TEST_QUEUE_RUNNER_LOG} // "hydra_queue_runner=debug,info";
         local $ENV{NO_COLOR} = "1";
         local $ENV{LISTEN_FDS} = "2";
         local $ENV{LISTEN_FDNAMES} = "rest:grpc";

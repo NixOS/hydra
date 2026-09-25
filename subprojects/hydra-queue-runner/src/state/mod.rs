@@ -130,6 +130,7 @@ use futures::TryStreamExt as _;
 use harmonia_store_remote::DaemonStore as _;
 use hashbrown::{HashMap, HashSet};
 use secrecy::ExposeSecret as _;
+use tracing::Instrument as _;
 
 use db::models::{BuildID, BuildStatus};
 use harmonia_store_derivation::derivation::DerivationOutput;
@@ -1216,7 +1217,7 @@ impl State {
     #[allow(clippy::cast_possible_truncation)]
     #[tracing::instrument(skip(self, ctx), err)]
     async fn process_single_build(
-        &self,
+        self: &Arc<Self>,
         id: BuildID,
         ctx: Arc<InjectCtx>,
     ) -> Result<Option<ProcessedBuild>, StateError> {
@@ -1245,7 +1246,7 @@ impl State {
 
     #[tracing::instrument(skip(self, new_ids, new_builds_by_id, new_builds_by_path), err)]
     async fn process_new_builds(
-        &self,
+        self: &Arc<Self>,
         new_ids: Vec<BuildID>,
         new_builds_by_id: HashMap<BuildID, Arc<Build>>,
         new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
@@ -1401,7 +1402,7 @@ impl State {
 
     #[tracing::instrument(skip(self), err)]
     pub(crate) async fn manually_add_queue_build(
-        &self,
+        self: &Arc<Self>,
         build_id: BuildID,
     ) -> Result<(), StateError> {
         let mut new_ids = Vec::<BuildID>::new();
@@ -1444,7 +1445,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn get_queued_builds(&self) -> Result<bool, StateError> {
+    pub async fn get_queued_builds(self: &Arc<Self>) -> Result<bool, StateError> {
         self.metrics.queue_checks_started.inc();
 
         let mut new_ids = Vec::<BuildID>::with_capacity(1000);
@@ -1516,7 +1517,7 @@ impl State {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn queue_monitor_loop(&self) -> Result<(), StateError> {
+    async fn queue_monitor_loop(self: &Arc<Self>) -> Result<(), StateError> {
         let mut listener = self
             .db
             .listener(vec![
@@ -1875,7 +1876,7 @@ impl State {
     #[allow(clippy::too_many_lines)]
     #[tracing::instrument(skip(self, output), fields(%machine_id, %drv_path), err)]
     pub async fn succeed_step(
-        &self,
+        self: &Arc<Self>,
         machine_id: uuid::Uuid,
         drv_path: &StorePath,
         output: BuildOutput,
@@ -2323,7 +2324,7 @@ pub enum MachineLookupError {
 impl State {
     #[tracing::instrument(skip(self, output), fields(%machine_id, build_id=%build_id), err)]
     pub async fn succeed_step_by_uuid(
-        &self,
+        self: &Arc<Self>,
         build_id: uuid::Uuid,
         machine_id: uuid::Uuid,
         output: BuildOutput,
@@ -2642,7 +2643,7 @@ impl State {
     /// Inject the builds whose top-level derivation is a step just created, so
     /// their own steps and dependencies get wired into the graph.
     async fn inject_dependency_builds(
-        &self,
+        self: &Arc<Self>,
         new_steps: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
         nr_added: &Arc<AtomicI64>,
         new_runnable: &Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
@@ -2678,7 +2679,7 @@ impl State {
 
     #[tracing::instrument(skip(self, build, nr_added, new_runnable, ctx), fields(build_id=build.id))]
     async fn create_build(
-        &self,
+        self: &Arc<Self>,
         build: Arc<Build>,
         nr_added: Arc<AtomicI64>,
         new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
@@ -2751,6 +2752,35 @@ impl State {
         Ok(())
     }
 
+    /// Runs `create_step` in its own task. Dropping the returned handle aborts
+    /// the task. Boxing the future as `Send` here breaks the auto-trait
+    /// inference cycle that the recursive async fn would otherwise hit.
+    #[allow(clippy::too_many_arguments)]
+    fn spawn_create_step(
+        self: Arc<Self>,
+        build: Arc<Build>,
+        drv_path: StorePath,
+        referring_build: Option<Arc<Build>>,
+        referring_step: Option<(Arc<Step>, drv::OutputNameChain)>,
+        new_steps: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        new_runnable: Arc<parking_lot::RwLock<HashSet<Arc<Step>>>>,
+        ctx: Arc<InjectCtx>,
+    ) -> tokio_util::task::AbortOnDropHandle<CreateStepResult> {
+        let fut: futures::future::BoxFuture<'static, _> = Box::pin(async move {
+            self.create_step(
+                build,
+                drv_path,
+                referring_build,
+                referring_step,
+                new_steps,
+                new_runnable,
+                ctx,
+            )
+            .await
+        });
+        tokio_util::task::AbortOnDropHandle::new(tokio::spawn(fut.in_current_span()))
+    }
+
     #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     #[tracing::instrument(skip(
         self,
@@ -2762,7 +2792,7 @@ impl State {
         ctx
     ), fields(build_id=build.id, %drv_path))]
     async fn create_step(
-        &self,
+        self: &Arc<Self>,
         build: Arc<Build>,
         drv_path: StorePath,
         referring_build: Option<Arc<Build>>,
@@ -2860,27 +2890,25 @@ impl State {
         if !previous_failure && matches!(availability, OutputAvailability::Incomplete) {
             tracing::debug!("creating build step '{drv_path}");
 
-            let step2 = step.clone();
             let mut stream = futures::StreamExt::map(
                 tokio_stream::iter(input_drvs),
                 |(input_path, relation)| {
-                    let build = build.clone();
-                    let step = step2.clone();
-                    let new_steps = new_steps.clone();
-                    let new_runnable = new_runnable.clone();
-                    let ctx = ctx.clone();
-
+                    // Each input gets its own task. Awaiting the recursion
+                    // inline nests poll frames for every graph level on one
+                    // worker's stack, which overflowed on deep graphs (#1907).
+                    let child = self.clone().spawn_create_step(
+                        build.clone(),
+                        input_path,
+                        None,
+                        Some((step.clone(), relation)),
+                        new_steps.clone(),
+                        new_runnable.clone(),
+                        ctx.clone(),
+                    );
                     async move {
-                        Box::pin(self.create_step(
-                            build,
-                            input_path,
-                            None,
-                            Some((step, relation)),
-                            new_steps,
-                            new_runnable,
-                            ctx,
-                        ))
-                        .await
+                        child
+                            .await
+                            .unwrap_or_else(|e| std::panic::resume_unwind(e.into_panic()))
                     }
                 },
             )
