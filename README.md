@@ -117,6 +117,10 @@ In order to avoid conflicts with services that might be running on your host, hy
 Note that this is only ever meant as an ad-hoc way of executing Hydra during development.
 Please make use of the NixOS module for actually running Hydra in production.
 
+The following users can authenticate via Kanidm:
+- `andy` with password `kanidm credential` (Hydra admin)
+- `bert` with password `kanidm credential` (Hydra user)
+
 ### Checking your patches
 
 After making your changes, verify the test suite passes and perlcritic is still happy.
