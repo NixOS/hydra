@@ -15,13 +15,6 @@
     flake = false;
   };
 
-  # TODO once https://github.com/ddollar/foreman/pull/816 is merged and
-  # released, switch back to the nixpkgs foreman package.
-  inputs.foreman = {
-    url = "github:Ericson2314/foreman/socketfile";
-    flake = false;
-  };
-
   inputs.treefmt-nix = {
     url = "github:numtide/treefmt-nix";
     inputs.nixpkgs.follows = "nixpkgs";
@@ -35,7 +28,6 @@
       nixpkgs,
       nix,
       nix-eval-jobs,
-      foreman,
       treefmt-nix,
       crane,
       ...
@@ -277,9 +269,6 @@
               hydra-ad-hoc
               hydra-cargo-deps
               ;
-            foreman = pkgs.callPackage ./packaging/foreman/package.nix {
-              foreman-src = foreman;
-            };
           };
         }
       );

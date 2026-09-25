@@ -10,7 +10,6 @@
   hydra-ad-hoc,
   hydra-evaluator,
   hydra-cargo-deps,
-  foreman,
 }:
 
 let
@@ -55,7 +54,7 @@ hydra.overrideAttrs (
     sourceRoot = null;
 
     nativeBuildInputs = collectInputs "nativeBuildInputs" ++ [
-      foreman
+      pkgs.foreman
       pkgs.cargo-nextest
       pkgs.clippy
       pkgs.nixfmt
