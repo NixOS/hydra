@@ -15,23 +15,6 @@
         "type": "github"
       }
     },
-    "foreman": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1778098942,
-        "narHash": "sha256-BWVGk2CQvxy34UjIoLYYsNXgwgiQCNGFYY0ii3AW4mI=",
-        "owner": "Ericson2314",
-        "repo": "foreman",
-        "rev": "d15eded9294e6efcc5934d8e46abe3e86c8d2b01",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Ericson2314",
-        "ref": "socketfile",
-        "repo": "foreman",
-        "type": "github"
-      }
-    },
     "nix": {
       "flake": false,
       "locked": {
@@ -82,7 +65,6 @@
     "root": {
       "inputs": {
         "crane": "crane",
-        "foreman": "foreman",
         "nix": "nix",
         "nix-eval-jobs": "nix-eval-jobs",
         "nixpkgs": "nixpkgs",

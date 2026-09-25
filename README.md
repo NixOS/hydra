@@ -91,9 +91,6 @@ $ nix build
 You can use the provided flake to get a working development environment:
 ```
 $ nix develop
-$ mesonConfigurePhase
-$ ninja
-$ cargo build
 ```
 
 The development environment can also automatically be established using [nix-direnv](https://github.com/nix-community/nix-direnv).
