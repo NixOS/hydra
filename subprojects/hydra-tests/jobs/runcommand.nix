@@ -21,6 +21,7 @@ with import ./config.nix;
           mkdir -p "$(dirname "$metrics")"
           echo "lineCoverage 18 %" >> "$metrics"
           echo "maxResident 27 KiB" >> "$metrics"
+          echo "test_foo.py::best_bar[1] 42" >> "$metrics"
         '')
       ];
     })

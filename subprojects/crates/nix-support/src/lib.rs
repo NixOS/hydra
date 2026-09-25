@@ -35,7 +35,7 @@ use store_path_utils::RelativeStorePath;
 
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_NAME: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9._-]+").expect("Failed to compile regex"));
+    LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9._:\\[\\]-]+").expect("Failed to compile regex"));
 #[allow(clippy::expect_used)]
 static VALIDATE_METRICS_UNIT: LazyLock<regex::Regex> =
     LazyLock::new(|| regex::Regex::new("[a-zA-Z0-9._%-]+").expect("Failed to compile regex"));
