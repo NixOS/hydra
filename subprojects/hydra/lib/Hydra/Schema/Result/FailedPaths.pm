@@ -62,4 +62,7 @@ __PACKAGE__->set_primary_key("path");
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
+__PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
+__PACKAGE__->inflate_store_paths(qw/path/);
+
 1;

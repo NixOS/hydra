@@ -41,12 +41,11 @@ for my $build (@builds) {
     if ($newbuild->buildstatus == 0) {
       my $buildOutputs = $newbuild->buildoutputs;
       for my $output ($newbuild->buildoutputs) {
-        # XXX: This hardcodes /nix/store/.
-        # It's fine because in practice the nix store for the tests will be of
-        # the form `/some/thing/nix/store/`, but it would be cleaner if there
-        # was a way to query Nix for its store dir?
-        like(
-          $output->path, qr|/nix/store/|,
+        # No need to match against a hardcoded store directory: the column
+        # inflates to a Nix::StorePath, which is to say reading it at all
+        # would have failed had it not been a store path.
+        isa_ok(
+          $output->path, ['Nix::StorePath'],
           "Output '".$output->name."' of build '".$build->job."' should be a valid store path"
         );
       }
@@ -56,6 +55,7 @@ for my $build (@builds) {
 
 # XXX: deststoredir is undefined: Use of uninitialized value $ctx{"deststoredir"} in concatenation (.) or string at t/content-addressed/basic.t line 58.
 # XXX: This test seems to not do what it seems to be doing. See documentation: https://metacpan.org/pod/Test2::V0#isnt($got,-$do_not_want,-$name)
-isnt(<$ctx{deststoredir}/realisations/*>, "", "The destination store should have the realisations of the built derivations registered");
+isnt(<$ctx{deststoredir}/build-trace-v2/*>, "",
+    "The destination store should have the build traces of the built derivations registered");
 
 done_testing;

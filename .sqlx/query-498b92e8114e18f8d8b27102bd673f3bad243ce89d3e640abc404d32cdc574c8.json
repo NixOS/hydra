@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET triggerTime = null WHERE id = $1 AND startTime IS NOT NULL AND triggerTime <= startTime",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "498b92e8114e18f8d8b27102bd673f3bad243ce89d3e640abc404d32cdc574c8"
+}

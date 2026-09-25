@@ -1,5 +1,7 @@
 use color_eyre::eyre;
 use hashbrown::HashMap;
+
+#[cfg(target_os = "linux")]
 use procfs_core::FromRead as _;
 
 #[derive(Debug, Clone, Copy)]

@@ -24,7 +24,7 @@
   </tr>
   <tr>
     <th>Derivation:</th>
-    <td><tt>[% step.drvpath | html %]</tt></td>
+    <td><tt>[% printStorePath(step.drvpath) | html %]</tt></td>
   </tr>
   [% IF step.system %]
     <tr>
@@ -69,7 +69,7 @@
             <li>
               [% INCLUDE renderBuildIdLink id=o.get_column('build') %] step #[% HTML.escape(o.stepnr) %]
               [% IF o.drvpath %]
-                (originally <tt>[% HTML.escape(o.drvpath) %]</tt>)
+                (originally <tt>[% HTML.escape(printStorePath(o.drvpath)) %]</tt>)
               [% END %]
             </li>
           [% END %]

@@ -60,7 +60,7 @@
 
                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>curl [% HTML.escape(uri) %] | gunzip | nix-store --import</code></div></div>
 
-               <p>The build output can then be found in the path <tt>[% product.path | html %]</tt>.</p>
+               <p>The build output can then be found in the path <tt>[% printRelativeStorePath(product.path) | html %]</tt>.</p>
              [% END %]
             </td>
           </tr>
@@ -81,7 +81,7 @@
               %] <p>You can install this package using the Nix package
               manager from the command-line:</p>
 
-                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% HTML.escape(product.path) %][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</code></div></div>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% HTML.escape(printRelativeStorePath(product.path)) %][% IF binaryCachePublicUri %] --option binary-caches [% HTML.escape(binaryCachePublicUri) %][% END %]</code></div></div>
               [% END %]
               [% IF localStore %]
                 <a class="btn btn-secondary btn-sm" [% HTML.attributes(href => contents) %]>Contents</a>
@@ -101,7 +101,7 @@
               [% uri = c.uri_for('/build' build.id 'nix' 'closure' filename ) %]
 
               <a [% HTML.attributes(href => uri) %]>
-                <tt>[% product.path | html %]</tt>
+                <tt>[% printRelativeStorePath(product.path) | html %]</tt>
               </a>
             </td>
             <td>
@@ -117,9 +117,9 @@
                 <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>curl [% HTML.escape(uri) %] | gunzip | nix-store --import</code></div></div>
 
                 <p>The package can then be found in the path <tt>[%
-                product.path | html %]</tt>.  You’ll probably also want to do</p>
+                printRelativeStorePath(product.path) | html %]</tt>.  You’ll probably also want to do</p>
 
-                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% HTML.escape(product.path) %]</code></div></div>
+                <div class="card bg-light"><div class="card-body p-2"><code><span class="shell-prompt">$ </span>nix-env -i [% HTML.escape(printRelativeStorePath(product.path)) %]</code></div></div>
 
                 <p>to actually install the package in your Nix user environment.</p>
 
@@ -192,7 +192,7 @@
               [% INCLUDE renderProductLinks %]
               <tr><th>File size:</th><td>[% product.filesize %] bytes ([% mibs(product.filesize / (1024 * 1024)) %] MiB)</td></tr>
               <tr><th>SHA-256 hash:</th><td><tt>[% product.sha256hash | html %]</tt></td></tr>
-              <tr><th>Full path:</th><td><tt>[% product.path | html %]</tt></td></tr>
+              <tr><th>Full path:</th><td><tt>[% printRelativeStorePath(product.path) | html %]</tt></td></tr>
             </table>
           [% END %]
           [% IF localStore %]

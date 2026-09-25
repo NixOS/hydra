@@ -8,7 +8,7 @@ use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::View::TT;
 use Nix::Store;
-use Nix::Config;
+use Nix::StorePath;
 use Number::Bytes::Human qw(format_bytes);
 use Encode;
 use File::Basename;
@@ -22,8 +22,22 @@ use Types::Standard qw/StrMatch/;
 use WWW::Form::UrlEncoded::PP qw();
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
-# e.g.: https://hydra.example.com/realisations/sha256:a62128132508a3a32eef651d6467695944763602f226ac630543e947d9feb140!out.doi
-use constant REALISATIONS_REGEX => qr{^(sha256:[a-z0-9]{64}![a-z]+)\.doi$};
+# e.g.: https://hydra.example.com/build-trace-v2/2sxdgnzp1nlxb0kbczsjnjvlpm9zjqvv-foo.drv/out.doi
+#
+# `build-trace-v2/<drvBaseName>/<outputName>.doi`, per the binary cache
+# layout in the Nix manual:
+# https://nix.dev/manual/nix/2.35/protocols/binary-cache
+# Two path segments, encoding the key: a derivation's store path -- with
+# no store directory on it -- and an output name.
+#
+# The prefix (`build-trace-v2`) is spelled out in the `:Path` below
+# rather than kept in a constant: Catalyst does not evaluate `Path`
+# attribute values, it takes them literally, so a constant there would
+# name the route after itself. `Args` type constraints are different --
+# those are eval'd in the controller's package, which is why the regexes
+# below can be constants.
+use constant BUILD_TRACE_DRV_REGEX => qr{^[a-z0-9]{32}-[^/]+$};
+use constant BUILD_TRACE_OUTPUT_REGEX => qr{^([a-zA-Z_][a-zA-Z0-9_.-]*)\.doi$};
 
 # Put this controller at top-level.
 __PACKAGE__->config->{namespace} = '';
@@ -341,9 +355,9 @@ sub nar :Local :Args(1) {
     }
 
     else {
-        $path = $Nix::Config::storeDir . "/$path";
+        $path = machineLocalStore()->storeDir . "/$path";
 
-        gone($c, "Path " . $path . " is no longer available.") unless $MACHINE_LOCAL_STORE->isValidPath($path);
+        gone($c, "Path " . $path . " is no longer available.") unless machineLocalStore()->isValidPath($path);
 
         $c->stash->{current_view} = 'NixNAR';
         $c->stash->{storePath} = $path;
@@ -361,7 +375,7 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
     else {
         $c->response->content_type('text/plain');
         $c->stash->{plain}->{data} =
-            "StoreDir: $Nix::Config::storeDir\n" .
+            "StoreDir: " . machineLocalStore()->storeDir . "\n" .
             "WantMassQuery: 0\n" .
             # Give Hydra binary caches a very low priority (lower than the
             # static binary cache http://nixos.org/binary-cache).
@@ -372,18 +386,61 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 }
 
 
-sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
-    my ($self, $c, $realisation) = @_;
+# Which output path a derivation's output resolved to. `BuildStepOutputs`, with
+# `BuildSteps.drvPath`, records exactly that. We just need to make sure we
+# handle derivation resolution.
+#
+# TODO this duplicates a very similar SQL query in hydra queue runner:
+# `resolve_drv_output_chains` in `crates/db/src/connection.rs` joins the same
+# two tables and takes the same resolution hop, spelling it as a `LEFT JOIN`
+# on the resolved step and a `COALESCE`. It also admits a Resolved step
+# (status 13) as the outer step, where we split the two cases apart; that is
+# the difference to reconcile if these are ever merged.
+sub lookupBuildTrace {
+    my ($c, $drvPath, $outputName) = @_;
+    my $storeDir = machineLocalStore()->storeDir;
+
+    my $drvPathInStore = "$storeDir/$drvPath";
+
+    my $output = $c->model('DB::BuildStepOutputs')->search(
+        { "me.name" => $outputName
+        , "me.path" => { "!=" => undef }
+        , "buildstep.status" => 0
+        # Either the derivation asked about was built directly, or -- being
+        # content-addressed -- it was resolved first and built under the
+        # resolved name, which is the step the outputs hang off. The Resolved
+        # step records that name, without a store directory.
+        , -or =>
+            [ "buildstep.drvpath" => $drvPathInStore
+            , "buildstep.drvpath" => { -in => \[
+                "select ? || '/' || resolveddrvpath from buildsteps"
+                . " where drvpath = ? and status = 13",
+                $storeDir, $drvPathInStore ] }
+            ]
+        },
+        { join => "buildstep"
+        # A derivation may have been built more than once; any successful
+        # attempt is as good an answer as another, so take the newest.
+        , order_by => { -desc => "buildstep.stoptime" }
+        , rows => 1
+        })->single;
+
+    return defined $output ? $output->path : undef;
+}
+
+
+sub build_trace :Path('build-trace-v2') :Args(StrMatch[BUILD_TRACE_DRV_REGEX], StrMatch[BUILD_TRACE_OUTPUT_REGEX]) {
+    my ($self, $c, $drvPath, $outputFile) = @_;
 
     if (!isLocalStore) {
         notFound($c, "There is no binary cache here.");
     }
 
     else {
-        my ($rawDrvOutput) = $realisation =~ REALISATIONS_REGEX;
-        my $rawRealisation = $MACHINE_LOCAL_STORE->queryRawRealisation($rawDrvOutput);
+        my ($outputName) = $outputFile =~ BUILD_TRACE_OUTPUT_REGEX;
+        my $outPath = lookupBuildTrace($c, $drvPath, $outputName);
 
-        if (!$rawRealisation) {
+        if (!defined $outPath) {
             $c->response->status(404);
             $c->response->content_type('text/plain');
             $c->stash->{plain}->{data} = "does not exist\n";
@@ -392,8 +449,16 @@ sub realisations :Path('realisations') :Args(StrMatch[REALISATIONS_REGEX]) {
             return;
         }
 
-        $c->response->content_type('text/plain');
-        $c->stash->{plain}->{data} = $rawRealisation;
+        # A build trace entry, as described in the Nix manual:
+        # https://nix.dev/manual/nix/2.35/protocols/json/build-trace-entry
+        # Only the value is written, the key being the URL itself.
+        #
+        # TODO: sign these. `require-sigs` defaults on, so a client rejects an
+        # unsigned build trace, which makes this correct but not yet
+        # substitutable. See the note on BuildStepOutputs.
+        $c->response->content_type('application/json');
+        $c->stash->{plain}->{data} = encode_json(
+            { outPath => $outPath->to_string, signatures => [] });
         $c->forward('Hydra::View::Plain');
     }
 }
@@ -410,7 +475,7 @@ sub narinfo :Path :Args(StrMatch[NARINFO_REGEX]) {
         my ($hash) = $narinfo =~ NARINFO_REGEX;
 
         die("Hash length was not 32") if length($hash) != 32;
-        my $path = $MACHINE_LOCAL_STORE->queryPathFromHashPart($hash);
+        my $path = machineLocalStore()->queryPathFromHashPart($hash);
 
         if (!$path) {
             $c->response->status(404);
@@ -552,7 +617,9 @@ sub serveLogFile {
 sub log :Local :Args(1) {
     my ($self, $c, $drvPath) = @_;
 
-    $drvPath = "/nix/store/$drvPath";
+    # The URL names a store path, which is what the log lookup wants: no
+    # store directory involved either way.
+    $drvPath = Nix::StorePath->new($drvPath);
 
     my $tail = $c->request->params->{"tail"};
 
@@ -568,7 +635,8 @@ sub log :Local :Args(1) {
     my $logPrefix = $c->config->{log_prefix};
 
     if (defined $logPrefix) {
-        $c->res->redirect($logPrefix . "log/" . WWW::Form::UrlEncoded::PP::url_encode(basename($drvPath)));
+        $c->res->redirect($logPrefix . "log/"
+            . WWW::Form::UrlEncoded::PP::url_encode($drvPath->to_string));
     } else {
         notFound($c, "The build log of $drvPath is not available.");
     }

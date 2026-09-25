@@ -16,8 +16,6 @@ project(
 #-------------------------------------------------
 fs = import('fs')
 cpp = meson.get_compiler('cpp')
-nix_perl_conf = configuration_data()
-nix_perl_conf.set('PACKAGE_VERSION', meson.project_version())
 
 
 # set error arguments
@@ -115,6 +113,20 @@ message('Perl archlibexp: @0@'.format(perl_archlibexp))
 message('Perl install site: @0@'.format(perl_site_libdir))
 message('Assumed Nix-Perl install dir: @0@'.format(nix_perl_install_dir))
 
+# Perl's Config{ccflags} encodes build-time defines (e.g. -DNO_LOCALE_COLLATE)
+# that change the memory layout of PerlInterpreter. XS modules must be compiled
+# with the exact same flags, otherwise the running perl rejects the module at
+# boot time with:
+#   loadable library and perl binaries are mismatched (got first handshake key ...)
+#-------------------------------------------------
+perl_ccflags = run_command(
+  perl,
+  '-e',
+  'use Config; print join("\n", split(" ", $Config{ccflags}));',
+  check : true,
+).stdout().strip().split('\n')
+message('Perl ccflags: @0@'.format(' '.join(perl_ccflags)))
+
 
 # declare perl dependency
 #-------------------------------------------------
@@ -130,6 +142,7 @@ perl_dep = declare_dependency(
     ],
   ),
   include_directories : join_paths(perl_archlibexp, 'CORE'),
+  compile_args : cpp.get_supported_arguments(perl_ccflags),
 )
 
 # declare dependencies

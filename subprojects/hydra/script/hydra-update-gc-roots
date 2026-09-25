@@ -9,18 +9,23 @@ use Hydra::Config;
 use Hydra::Schema;
 use Hydra::Helper::Nix;
 use Hydra::Model::DB;
+use Hydra::StorePath;
 use POSIX qw(strftime);
 
 my $db = Hydra::Model::DB->new();
 my $config = getHydraConfig();
 
+my $storeDir = machineLocalStore()->storeDir;
+
 
 my %roots;
 
 sub addRoot {
-    my ($path) = @_;
-    registerRoot($path);
-    $roots{$path} = 1;
+    my ($storePath) = @_;
+    registerRoot($storePath);
+    # Keyed by the bare `<hash>-<name>`, which is also what reading the GC
+    # roots directory below yields, so the two can be compared directly.
+    $roots{$storePath->to_string} = 1;
 }
 
 
@@ -45,19 +50,21 @@ sub keepBuild {
     if (isLocalStore &&
         $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
     {
-        foreach my $path (split / /, $build->get_column('outpaths')) {
-            if ($MACHINE_LOCAL_STORE->isValidPath($path)) {
+        # `outpaths` is aggregated by raw SQL, so it is a list of full paths.
+        foreach my $path (map { parseStorePath($storeDir, $_) }
+                          split / /, $build->get_column('outpaths')) {
+            if (machineLocalStore()->isValidPath($path)) {
                 addRoot $path;
             } else {
-                print STDERR "    warning: output ", $path, " has disappeared\n" if $build->finished;
+                print STDERR "    warning: output ", printStorePath($storeDir, $path), " has disappeared\n" if $build->finished;
             }
         }
     }
     if (!$build->finished || ($keepFailedDrvs && $build->buildstatus != 0)) {
-        if ($MACHINE_LOCAL_STORE->isValidPath($build->drvpath)) {
+        if (machineLocalStore()->isValidPath($build->drvpath)) {
             addRoot $build->drvpath;
         } else {
-            print STDERR "    warning: derivation ", $build->drvpath, " has disappeared\n";
+            print STDERR "    warning: derivation ", printStorePath($storeDir, $build->drvpath), " has disappeared\n";
         }
     }
 }
@@ -184,8 +191,10 @@ my $now = time();
 
 foreach my $link (@roots) {
     next if $link eq "." || $link eq "..";
-    my $path = "/nix/store/$link";
-    if (!defined $roots{$path}) {
+    # A GC root is named after the bare store path it points at, which is how
+    # `%roots` is keyed; the full path is only for the messages below.
+    my $path = "$storeDir/$link";
+    if (!defined $roots{$link}) {
         # Don't delete roots that are less than a day old, to prevent
         # a race where hydra-eval-jobs has added a root but
         # hydra-evaluator hasn't added them to the database yet.

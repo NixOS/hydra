@@ -76,8 +76,8 @@ struct Message {
 struct CopyMessage {
     store_paths: Vec<StorePath>,
     log_remote_path: String,
-    /// Realisation object keys to copy alongside, best effort.
-    realisation_keys: Vec<String>,
+    /// Build trace entry keys to copy alongside, best effort.
+    build_trace_entry_keys: Vec<String>,
     /// Drv path to report on the completion channel once the copy was
     /// attempted. Set for steps whose finished flag is gated on the copy.
     notify_drv: Option<StorePath>,
@@ -181,21 +181,21 @@ impl Uploader {
         &self,
         store_paths: Vec<StorePath>,
         log_remote_path: String,
-        realisation_keys: Vec<String>,
+        build_trace_entry_keys: Vec<String>,
         notify_drv: Option<StorePath>,
     ) {
         tracing::info!("Scheduling copy from overflow store: {store_paths:?}");
         self.copy_queue.send(CopyMessage {
             store_paths,
             log_remote_path,
-            realisation_keys,
+            build_trace_entry_keys,
             notify_drv,
         });
         let _ = self.save_copy_state().await;
     }
 
     /// Process one queued overflow→default copy: the closure of its store
-    /// paths, the build log and any realisations. Returns `None` when the
+    /// paths, the build log and any build trace entries. Returns `None` when the
     /// queue is empty, otherwise whether all objects were copied.
     pub async fn copy_once(
         &self,
@@ -225,7 +225,7 @@ impl Uploader {
         }
 
         for key in std::iter::once(&msg.log_remote_path)
-            .chain(msg.realisation_keys.iter())
+            .chain(msg.build_trace_entry_keys.iter())
             .map(String::as_str)
         {
             if let Err(e) = dest.copy_object_from(source, key).await {

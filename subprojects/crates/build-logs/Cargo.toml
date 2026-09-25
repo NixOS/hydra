@@ -1,0 +1,20 @@
+[package]
+name                   = "build-logs"
+version.workspace      = true
+edition                = "2024"
+license                = "GPL-3.0"
+rust-version.workspace = true
+
+[dependencies]
+bytecount.workspace           = true
+dashmap.workspace             = true
+fs-err                        = { workspace = true, features = [ "tokio" ] }
+harmonia-store-path.workspace = true
+jiff.workspace                = true
+parking_lot.workspace         = true
+thiserror.workspace           = true
+tokio                         = { workspace = true, features = [ "full" ] }
+tracing.workspace             = true
+
+[dev-dependencies]
+tempfile = "3.23.0"

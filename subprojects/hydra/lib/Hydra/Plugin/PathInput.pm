@@ -5,6 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use IPC::Run3;
 
 sub supportedInputTypes {
@@ -42,7 +43,7 @@ sub fetchInput {
         {srcpath => $uri, lastseen => {">", $timestamp - $timeout}},
         {rows => 1, order_by => "lastseen DESC"});
 
-    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && machineLocalStore()->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
         $timestamp = $cachedInput->timestamp;
@@ -50,6 +51,7 @@ sub fetchInput {
 
         print STDERR "copying input ", $name, " from $uri\n";
         if ( $uri =~ /^\// ) {
+            # `addToStore` hands back a store path already.
             $storePath = addToStore($uri);
         } else {
             # Run nix-prefetch-url with PRINT_PATH=1
@@ -57,13 +59,14 @@ sub fetchInput {
             local $ENV{PRINT_PATH} = 1;
             run3(['nix-prefetch-url', $uri], \undef, \$stdout, \$stderr);
             die "cannot fetch $uri to the Nix store: $stderr\n" if $? != 0;
-            # Get the last line (which is the store path)
+            # Get the last line (which is the full path it printed)
             my @output_lines = split /\n/, $stdout;
-            $storePath = $output_lines[-1] if @output_lines;
+            my $storePathStr = $output_lines[-1] // die "nix-prefetch-url printed nothing\n";
+            chomp $storePathStr;
+            $storePath = parseStorePath(machineLocalStore()->storeDir, $storePathStr);
         }
-        chomp $storePath;
 
-        $sha256 = ($MACHINE_LOCAL_STORE->queryPathInfo($storePath, 0))[1] or die;
+        $sha256 = (machineLocalStore()->queryPathInfo($storePath, 0))[1] or die;
 
         ($cachedInput) = $self->{db}->resultset('CachedPathInputs')->search(
             {srcpath => $uri, sha256hash => $sha256});

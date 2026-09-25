@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Users (userName, fullName, emailAddress, password)\n         VALUES ('adhoc', 'Ad-hoc', 'adhoc@localhost', '')\n         ON CONFLICT (userName) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "445e0af460e8aedd74e7a93e15ce5e26cb304046811d166b9893a420fd940f1a"
+}

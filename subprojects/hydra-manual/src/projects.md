@@ -250,8 +250,29 @@ This provides immediate feedback to maintainers or committers when a change caus
 The feature can be turned on by adding the following line to `hydra.conf`
 
 ``` conf
-email_notification = 1
+<email_notifications>
+  build = 1
+</email_notifications>
 ```
+
+Evaluation errors are a separate switch in the same block, because they go to a
+different person --- the project's owner, rather than whoever maintains the
+job:
+
+``` conf
+<email_notifications>
+  build = 1
+  eval = 1
+</email_notifications>
+```
+
+The owner must also have "Receive evaluation error notifications" set on their
+user page; unlike build notification, it is off by default.
+
+A plain `email_notification = 1` --- without the s --- still works and turns on
+both, but it is deprecated in favour of the block above. Setting it as well as
+the block is an error rather than one of them winning: they are two ways of
+saying the same thing, and which you meant is not for Hydra to guess.
 
 By default, Hydra only sends email notifications if a previously successful build starts to fail.
 In order to force Hydra to send an email for each build (including e.g. successful or cancelled ones), the environment variable `HYDRA_FORCE_SEND_MAIL` can be declared:

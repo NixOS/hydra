@@ -14,6 +14,7 @@
     server.wait_for_unit("hydra-server.service")
     server.wait_for_unit("hydra-evaluator.service")
     server.wait_for_unit("hydra-queue-runner-dev.service")
+    server.wait_for_unit("hydra-ad-hoc-dev.socket")
     builder.wait_for_unit("hydra-queue-builder-dev.service")
     server.wait_for_open_port(3000)
     server.succeed("curl --fail http://localhost:3000/")

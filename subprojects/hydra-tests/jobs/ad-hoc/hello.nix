@@ -1,0 +1,19 @@
+# Plain derivation submitted directly to hydra-ad-hoc
+# via `nix-store --realise`, without any Hydra jobset / evaluator round-trip.
+let
+  cfg = import ../config.nix;
+in
+{
+  hello = cfg.mkDerivation {
+    name = "hello-adhoc";
+    builder = "/bin/sh";
+    args = [
+      "-c"
+      ''
+        echo "hello from hydra-ad-hoc, live"
+        mkdir -p $out
+        echo "hello from hydra-ad-hoc" > $out/result
+      ''
+    ];
+  };
+}

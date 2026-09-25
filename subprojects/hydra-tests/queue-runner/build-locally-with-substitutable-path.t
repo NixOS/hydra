@@ -3,6 +3,7 @@ use warnings;
 use Setup;
 use Data::Dumper;
 use Test2::V0;
+use Hydra::StorePath;
 
 my $ctx = test_context(
     use_external_destination_store => 1
@@ -34,7 +35,9 @@ subtest "Building, caching, and then garbage collecting the underlying job" => s
         build => 1
     );
 
-    my $path = $builds->{"underlyingJob"}->buildoutputs->find({ name => "out" })->path;
+    # Handed to `nix-store`, so it wants a full path.
+    my $path = printStorePath($ctx->db->storeDir,
+        $builds->{"underlyingJob"}->buildoutputs->find({ name => "out" })->path);
 
     # The runner pins non-presigned outputs with a GC root until a dependent
     # build consumes them; force past it to simulate the output going missing.

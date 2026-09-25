@@ -3,6 +3,7 @@ use warnings;
 use Setup;
 use Data::Dumper;
 use Test2::V0;
+use Hydra::StorePath;
 use JSON::MaybeXS qw(decode_json);
 use HTTP::Request::Common;
 
@@ -66,12 +67,15 @@ subtest "/search" => sub {
     };
 
     subtest "searching for output paths" => sub {
-        my $response = request(GET "/search?query=${\$build_output_out->path}");
+        # Searching matches on the stored value, which is a full path.
+        my $response = request(GET "/search?query="
+            . printStorePath($ctx->db->storeDir, $build_output_out->path));
         is($response->code, 200, "The search page 200's.");
     };
 
     subtest "searching for derivation path" => sub {
-        my $response = request(GET "/search?query=${\$build->drvpath}");
+        my $response = request(GET "/search?query="
+            . printStorePath($ctx->db->storeDir, $build->drvpath));
         is($response->code, 200, "The search page 200's.");
     };
 };

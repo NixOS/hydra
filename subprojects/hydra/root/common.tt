@@ -92,8 +92,7 @@ BLOCK renderDuration;
 END;
 
 BLOCK renderDrvInfo;
-  drvname = step.drvpath
-    .substr(11) # strip `/nix/store/`
+  drvname = step.drvpath # already a bare `<hash>-<name>`
     .split('-').slice(1).join("-") # strip hash part
     .substr(0, -4); # strip `.drv`
   IF drvname != releasename;
@@ -394,7 +393,7 @@ BLOCK renderInputs; %]
             [% END %]
           </td>
           <td>[% IF input.revision %]<tt class="rev-copy" onclick="copyToClipboard('[% input.revision | html %]', this)" title="Click to copy">[% HTML.escape(input.revision) %]</tt>[% END %]</td>
-          <td><tt>[% input.path | html %]</tt></td>
+          <td><tt>[% printStorePath(input.path) | html %]</tt></td>
         </tr>
       [% END %]
     </tbody>

@@ -36,7 +36,7 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 smallvec.workspace = true
-sqlx = { workspace = true, features = [ "runtime-tokio", "sqlite" ] }
+sqlx = { workspace = true, features = [ "runtime-tokio", "sqlite", "sqlx-toml" ] }
 tokio = { workspace = true, features = [ "full" ] }
 tokio-stream = { workspace = true, features = [ "io-util" ] }
 tokio-util = { workspace = true, features = [ "io", "io-util" ] }

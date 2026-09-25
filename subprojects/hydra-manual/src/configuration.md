@@ -152,6 +152,52 @@ store = "s3://hydra-overflow?region=eu-west-1"
 jobsets = ["nixpkgs:staging-next"]
 ```
 
+Ad hoc builds (optional, experimental)
+--------------------------------------
+
+Hydra normally only builds what its evaluator queues.
+The optional `hydra-ad-hoc` service, new and still experimental, additionally lets a Nix client submit builds directly.
+It serves the nix daemon protocol on a Unix socket, so from the client's point of view the whole Hydra deployment is one giant nix daemon.
+A derivation realised through it is filed as a Hydra build under a hidden `adhoc/adhoc` jobset and built by the queue runner and its builders.
+Read operations and store uploads are proxied to the upstream nix-daemon.
+
+Nothing inside Hydra uses this socket.
+It exists for ad hoc jobs and ad hoc store usage from outside, and can be left disabled.
+Expect its interface and limitations to change.
+
+On NixOS, enable it alongside the queue runner:
+
+```nix
+{
+  services.hydra-ad-hoc-dev.enable = true;
+}
+```
+
+This creates `/run/hydra-ad-hoc/socket`, with a `hydra-ad-hoc` group of its own.
+Add the users who may submit builds to that group.
+It is separate from `hydra`, the group Hydra's services run as, on purpose: this socket is for use from outside Hydra.
+
+Be aware of what membership grants.
+The daemon is a trusted user of the upstream nix-daemon, and it forwards uploads and build requests on a client's behalf without any checks of its own yet.
+So, until the daemon gains its own access control, anyone in the `hydra-ad-hoc` group is effectively a trusted Nix user on the coordinator, and the group should be handed out as carefully as `trusted-users`.
+
+The service reads `/etc/hydra/ad-hoc.toml`, generated from `services.hydra-ad-hoc-dev.settings` (`dbUrl`, `maxDbConnections`, `upstreamSocket`, `storeDir`, `hydraDataDir`).
+The defaults suit a single-host install.
+
+A client then points its store at the socket:
+
+```console
+$ nix-store --store unix:///run/hydra-ad-hoc/socket --realise /nix/store/...-hello.drv
+```
+
+The `.drv` must be in the coordinator's store; a `nix-build` of an expression uploads it through the daemon as part of instantiation.
+Content-addressed and dynamic derivations work too: the daemon answers output-path queries from what the queue runner recorded, and builds a dynamic derivation's producer first.
+
+While the client waits, the daemon streams the build's progress back to it the way a local build would report it.
+Each build step the queue runner dispatches appears as a build activity, and the step's log lines follow as they are written.
+So `nix build -L` shows the log live, and `--log-format bar-with-logs` does the same for the classic commands.
+The daemon reads the logs from `hydraDataDir`, so it has to run on the same host as the queue runner.
+
 Using LDAP as authentication backend (optional)
 -----------------------------------------------
 

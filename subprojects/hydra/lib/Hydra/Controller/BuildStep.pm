@@ -6,7 +6,6 @@ use warnings;
 use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::LogEndpoints;
-use File::Basename;
 use WWW::Form::UrlEncoded::PP qw();
 
 
@@ -55,7 +54,8 @@ sub view_nixlog : Chained('buildStepChain') PathPart('log') {
         notFound($c, "Build step " . $step->stepnr . " was resolved to another derivation and has no log of its own.");
     }
 
-    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"), [WWW::Form::UrlEncoded::PP::url_encode(basename($step->drvpath))]);
+    my $log_uri = $c->uri_for($c->controller('Root')->action_for("log"),
+        [WWW::Form::UrlEncoded::PP::url_encode($step->drvpath->to_string)]);
     showLog($c, $mode, $log_uri);
 }
 

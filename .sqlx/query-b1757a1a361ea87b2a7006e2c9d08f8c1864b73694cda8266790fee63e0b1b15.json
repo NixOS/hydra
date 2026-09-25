@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE Users SET fullName = 'first' WHERE userName = 'a'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "b1757a1a361ea87b2a7006e2c9d08f8c1864b73694cda8266790fee63e0b1b15"
+}

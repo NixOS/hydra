@@ -90,7 +90,7 @@ pub struct Build<StorePath = harmonia_store_path::StorePath> {
     pub maxsilent: Option<i32>,
     /// timeout integer default 36000
     pub timeout: Option<i32>,
-    pub timestamp: i64,
+    pub timestamp: crate::Timestamp,
     pub globalpriority: i32,
     pub priority: i32,
 }
@@ -115,8 +115,8 @@ impl Build<String> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildSteps {
-    pub starttime: Option<i32>,
-    pub stoptime: Option<i32>,
+    pub starttime: Option<crate::Timestamp>,
+    pub stoptime: Option<crate::Timestamp>,
 }
 
 #[repr(i32)]
@@ -129,8 +129,8 @@ pub enum BuildType {
 #[derive(Debug)]
 pub struct UpdateBuild<'a> {
     pub status: BuildStatus,
-    pub start_time: i32,
-    pub stop_time: i32,
+    pub start_time: crate::Timestamp,
+    pub stop_time: crate::Timestamp,
     pub size: i64,
     pub closure_size: i64,
     pub release_name: Option<&'a str>,
@@ -144,8 +144,8 @@ pub struct InsertBuildStep<'a> {
     pub drv_path: &'a StorePath,
     pub status: BuildStatus,
     pub busy: bool,
-    pub start_time: Option<i32>,
-    pub stop_time: Option<i32>,
+    pub start_time: Option<crate::Timestamp>,
+    pub stop_time: Option<crate::Timestamp>,
     pub platform: Option<&'a str>,
     pub propagated_from: Option<i32>,
     pub error_msg: Option<&'a str>,
@@ -162,7 +162,7 @@ pub struct InsertBuildStep<'a> {
 pub struct InsertResolvedBuildStep<'a> {
     pub build_id: BuildID,
     pub drv_path: &'a StorePath,
-    pub start_time: i32,
+    pub start_time: crate::Timestamp,
     pub platform: Option<&'a str>,
     pub machine: &'a str,
     pub resolved_drv_path: &'a StorePath,
@@ -203,8 +203,8 @@ pub struct UpdateBuildStepInFinish<'a> {
     pub step_nr: i32,
     pub status: BuildStatus,
     pub error_msg: Option<&'a str>,
-    pub start_time: i32,
-    pub stop_time: i32,
+    pub start_time: crate::Timestamp,
+    pub stop_time: crate::Timestamp,
     pub machine: Option<&'a str>,
     pub overhead: Option<i32>,
     pub times_built: Option<i32>,
@@ -233,7 +233,7 @@ pub(crate) struct InsertBuildMetric<'a> {
     pub project: &'a str,
     pub jobset: &'a str,
     pub job: &'a str,
-    pub timestamp: i32,
+    pub timestamp: crate::Timestamp,
 }
 
 #[derive(Debug)]
@@ -327,7 +327,7 @@ pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_path::StorePath> 
     pub project_name: &'a str,
     pub jobset_name: &'a str,
     pub finished_in_db: bool,
-    pub timestamp: i64,
+    pub timestamp: crate::Timestamp,
 
     pub failed: bool,
     pub closure_size: u64,

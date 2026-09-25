@@ -37,8 +37,26 @@ subtest "/HASH.narinfo" => sub {
     my $narinfo_response = request(GET "/$hash.narinfo");
     ok($narinfo_response->is_success, "Getting the narinfo of a build");
 
-    my ($storepath) = $narinfo_response->content =~ qr{StorePath: (.*)};
-    is($storepath, $outpath, "The returned store path is the same as the out path")
+    my $narinfo = $narinfo_response->content;
+
+    my ($storepath) = $narinfo =~ qr{StorePath: (.*)};
+    is($storepath, $outpath, "The returned store path is the same as the out path");
+
+    # Which of these fields carry a full path and which carry a bare
+    # `<hash>-<name>` is fixed by the narinfo format, and getting it wrong is
+    # not something the field above would catch: a bare store path in
+    # `StorePath`, or a full path in `References`, still parses.
+    my ($url) = $narinfo =~ qr{URL: (.*)};
+    like($url, qr{^nar/[a-z0-9]{32}-}, "URL names the NAR by bare store path");
+
+    my ($references) = $narinfo =~ qr{References: (.*)};
+    for my $reference (split(" ", $references // "")) {
+        unlike($reference, qr{/}, "Reference '$reference' is a bare store path");
+    }
+
+    if (my ($deriver) = $narinfo =~ qr{Deriver: (.*)}) {
+        unlike($deriver, qr{/}, "Deriver is a bare store path");
+    }
 };
 
 done_testing;

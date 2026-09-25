@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO narinfo_presence (hash, expiry) VALUES (?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a4d8647ae8b66da0732a0b831fc16d48bcd93e4ec1b786cea96379537bd79c97"
+}

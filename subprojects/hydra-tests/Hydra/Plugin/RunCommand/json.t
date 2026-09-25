@@ -11,11 +11,13 @@ my %ctx = test_init(
 |);
 
 require Hydra::Schema;
+use Hydra::StorePath;
 
 use Test2::V0;
 use Hydra::Plugin::RunCommand;
 
 my $db = $ctx{context}->db();
+my $storeDir = $db->storeDir;
 
 my $project = $db->resultset('Projects')->create({name => "tests", displayname => "", owner => "root"});
 
@@ -47,7 +49,7 @@ subtest "Validate the top level fields match" => sub {
     is($dat->{job}, "metrics", "The job matches.");
     is($dat->{nixName}, "my-build-product", "The nixName matches.");
     is($dat->{system}, $build->system, "The system matches.");
-    is($dat->{drvPath}, $build->drvpath, "The derivation path matches.");
+    is($dat->{drvPath}, printStorePath($storeDir, $build->drvpath), "The derivation path matches.");
     is($dat->{timestamp}, $build->timestamp, "The result has a timestamp field.");
     is($dat->{startTime}, $build->starttime, "The result has a startTime field.");
     is($dat->{stopTime}, $build->stoptime, "The result has a stopTime field.");
@@ -65,7 +67,7 @@ subtest "Validate the outputs match" => sub {
         my $expectedoutput = $build->buildoutputs->find({name => "out"});
 
         is($output->{name}, "out", "Output is named corrrectly");
-        is($output->{path}, $expectedoutput->path, "The output path matches the database's path.");
+        is($output->{path}, printStorePath($storeDir, $expectedoutput->path), "The output path matches the database's path.");
     };
 
     subtest "output: bin" => sub {
@@ -73,7 +75,7 @@ subtest "Validate the outputs match" => sub {
         my $expectedoutput = $build->buildoutputs->find({name => "bin"});
 
         is($output->{name}, "bin", "Output is named corrrectly");
-        is($output->{path}, $expectedoutput->path, "The output path matches the database's path.");
+        is($output->{path}, printStorePath($storeDir, $expectedoutput->path), "The output path matches the database's path.");
     };
 };
 
@@ -107,7 +109,7 @@ subtest "Validate the products match" => sub {
         is($product->{subtype}, "", "The subtype is empty.");
         is($product->{productNr}, $expectedproduct->productnr, "The product number matches.");
         is($product->{defaultPath}, "", "The default path matches.");
-        is($product->{path}, $expectedproduct->path, "The path matches the output.");
+        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->path), "The path matches the output.");
         is($product->{fileSize}, undef, "The fileSize is undefined for the nix-build output type.");
         is($product->{sha256hash}, undef, "The sha256hash is undefined for the nix-build output type.");
     };
@@ -120,7 +122,7 @@ subtest "Validate the products match" => sub {
         is($product->{subtype}, "bin", "The subtype matches the output name");
         is($product->{productNr}, $expectedproduct->productnr, "The product number matches.");
         is($product->{defaultPath}, "", "The default path matches.");
-        is($product->{path}, $expectedproduct->path, "The path matches the output.");
+        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->path), "The path matches the output.");
         is($product->{fileSize}, undef, "The fileSize is undefined for the nix-build output type.");
         is($product->{sha256hash}, undef, "The sha256hash is undefined for the nix-build output type.");
     };

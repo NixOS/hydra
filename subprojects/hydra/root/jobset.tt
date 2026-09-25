@@ -163,9 +163,9 @@
         <th>Enable Dynamic RunCommand Hooks:</th>
         <td>[% c.config.dynamicruncommand.enable ? project.enable_dynamic_run_command ? jobset.enable_dynamic_run_command ? "Yes" : "No (not enabled by jobset)" : "No (not enabled by project)" : "No (not enabled by server)" %]</td>
       </tr>
-      [% IF emailNotification %]
+      [% IF buildEmailNotification %]
       <tr>
-        <th>Enable email notification:</th>
+        <th>Enable build email notification:</th>
         <td>[% jobset.enableemail ? "Yes" : "No" %]</td>
       </tr>
       <tr>

@@ -4,6 +4,8 @@ use strict;
 use warnings;
 use base 'Catalyst::View::TT';
 use Template::Plugin::HTML;
+# Not imported: the exposed methods below deliberately share these names.
+require Hydra::StorePath;
 use Hydra::Helper::Nix;
 use Time::Seconds;
 use Digest::SHA qw(sha1_hex);
@@ -27,7 +29,25 @@ __PACKAGE__->config(
     relativeDuration
     stripSSHUser
     metricDivId
+    printStorePath
+    printRelativeStorePath
     /]);
+
+# Store-path columns inflate to a bare `<hash>-<name>`; the store directory
+# goes back on only here, at the point of rendering.
+sub printStorePath {
+    my ($self, $c, $storePath) = @_;
+    # Some store-path columns are optional. Template Toolkit hands an absent
+    # one over as the empty string rather than undef, so test for the object.
+    return "" unless ref $storePath;
+    return Hydra::StorePath::printStorePath($c->model('DB')->schema->storeDir, $storePath);
+}
+
+sub printRelativeStorePath {
+    my ($self, $c, $split) = @_;
+    return "" unless ref $split;
+    return Hydra::StorePath::printRelativeStorePath($c->model('DB')->schema->storeDir, $split);
+}
 
 sub metricDivId {
     my ($self, $c, $text) = @_;

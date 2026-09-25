@@ -7,6 +7,7 @@ use Digest::SHA qw(sha256_hex);
 use File::Path;
 use Hydra::Helper::Nix;
 use Hydra::Helper::Exec;
+use Hydra::StorePath;
 use Fcntl qw(:flock);
 
 sub supportedInputTypes {
@@ -67,9 +68,9 @@ sub fetchInput {
     (my $cachedInput) = $self->{db}->resultset('CachedHgInputs')->search(
         {uri => $uri, branch => $branch, revision => $revision});
 
-    $MACHINE_LOCAL_STORE->addTempRoot($cachedInput->storepath) if defined $cachedInput;
+    machineLocalStore()->addTempRoot($cachedInput->storepath) if defined $cachedInput;
 
-    if (defined $cachedInput && $MACHINE_LOCAL_STORE->isValidPath($cachedInput->storepath)) {
+    if (defined $cachedInput && machineLocalStore()->isValidPath($cachedInput->storepath)) {
         $storePath = $cachedInput->storepath;
         $sha256 = $cachedInput->sha256hash;
     } else {
@@ -81,10 +82,12 @@ sub fetchInput {
             "nix-prefetch-hg", $clonePath, $revision);
         die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
 
-        ($sha256, $storePath) = split ' ', $stdout;
+        my $storePathStr;
+        ($sha256, $storePathStr) = split ' ', $stdout;
+        $storePath = parseStorePath(machineLocalStore()->storeDir, $storePathStr);
 
         # FIXME: time window between nix-prefetch-hg and addTempRoot.
-        $MACHINE_LOCAL_STORE->addTempRoot($storePath);
+        machineLocalStore()->addTempRoot($storePath);
 
         $self->{db}->txn_do(sub {
             $self->{db}->resultset('CachedHgInputs')->update_or_create(

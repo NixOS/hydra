@@ -6,7 +6,8 @@ use Nix::Store;
 
 my $s = Nix::Store->new("dummy://");
 
-my $res = $s->isValidPath("/nix/store/g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bar");
+# Base name only: the bindings do not know about the store directory.
+my $res = $s->isValidPath("g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bar");
 
 ok(!$res, "should not have path");
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET startTime = null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "f0759c6cbf28d6c513df4911eb19212a2bdaa62ab8756bcd87c275b52f2a3171"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Jobsets\n            (name, project, description, nixExprInput, nixExprPath, emailOverride, type, hidden)\n         VALUES ('adhoc', 'adhoc', 'Ad-hoc builds via hydra-ad-hoc', '', '', '', 0, 1)\n         ON CONFLICT (project, name) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "3277b8eab224c83a1d7ba632687c2f610aa8caa3e3d79bc7637fbf5c2d998c78"
+}

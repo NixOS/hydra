@@ -159,15 +159,15 @@ impl Stats {
         }
     }
 
-    pub fn get_idle_since(&self) -> i64 {
+    pub fn get_idle_since(&self) -> db::Timestamp {
         self.idle_since.load(Ordering::Relaxed)
     }
 
-    pub fn get_last_failure(&self) -> i64 {
+    pub fn get_last_failure(&self) -> db::Timestamp {
         self.last_failure.load(Ordering::Relaxed)
     }
 
-    pub fn get_disabled_until(&self) -> i64 {
+    pub fn get_disabled_until(&self) -> db::Timestamp {
         self.disabled_until.load(Ordering::Relaxed)
     }
 
@@ -205,7 +205,7 @@ impl Stats {
         self.consecutive_failures.fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn get_last_ping(&self) -> i64 {
+    pub fn get_last_ping(&self) -> db::Timestamp {
         self.last_ping.load(Ordering::Relaxed)
     }
 

@@ -166,6 +166,13 @@ sub db {
         require Hydra::Schema;
         $self->{_db} = Hydra::Schema->connect($self->{db_handle}->dsn);
 
+        # Say which store these path columns belong to, rather than letting the
+        # schema fall back to asking `Hydra::Helper::Nix`. That fallback opens
+        # a store, and opening one here would take the ambient `/nix/store`:
+        # the test's own settings are only ever in scope around a spawn. It is
+        # also what the schema asks callers to do.
+        $self->{_db}->storeDir($self->{central}->{nix_store_dir});
+
         if (!(defined $setup && $setup == 0)) {
             $self->{_db}->resultset('Users')->create({
                 username => "root",

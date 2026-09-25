@@ -6,6 +6,7 @@ HYDRA_PG_PORT=64444
 HYDRA_SERVER_PORT=63333
 HYDRA_PROMETHEUS_PORT=64445
 HYDRA_QUEUE_RUNNER_REST_PORT=64446
+HYDRA_WS_PORT=9283
 HYDRA_QUEUE_RUNNER_GRPC_PORT=50051
 
 # Paths
@@ -14,7 +15,9 @@ HYDRA_HOME=$(pwd)/subprojects/hydra
 HYDRA_PG_SOCKET_DIR=$HYDRA_DATA/postgres
 
 # Connection strings
-HYDRA_DATABASE_URL="postgres://localhost:$HYDRA_PG_PORT/hydra"
+# Name the OS user explicitly: sqlx 0.9 no longer fills it in for a URL
+# without a user, and initdb created the role as the OS user.
+HYDRA_DATABASE_URL="postgres://$(id -un)@localhost:$HYDRA_PG_PORT/hydra"
 
 # Cargo target dir picked from the meson build type set in the dev shell.
 if [ "${mesonBuildType:-}" = "debug" ]; then

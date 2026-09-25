@@ -6,9 +6,9 @@ use utf8;
 use Encode;
 use JSON::MaybeXS;
 use Nix::Store;
-use Nix::Config;
 use Hydra::Model::DB;
 use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use Digest::SHA qw(sha256_hex);
 use File::Basename;
 use File::stat;
@@ -130,7 +130,9 @@ sub handleDeclarativeJobsetBuild {
     eval {
         my $id = $build->id;
         die "Declarative jobset build $id failed" unless $build->buildstatus == 0;
-        my $declPath = ($build->buildoutputs)[0]->path;
+        # `readNixFile` shells out to `nix store cat`, so it wants the full path.
+        my $declPath = printStorePath(
+            machineLocalStore()->storeDir, ($build->buildoutputs)[0]->path);
         my $declText = eval {
             readNixFile($declPath)
         } or do {

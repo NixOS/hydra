@@ -6,6 +6,8 @@ use parent 'Hydra::Plugin';
 use File::Basename;
 use LWP::UserAgent;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
+use Hydra::StorePath;
 
 sub isEnabled {
     my ($self) = @_;
@@ -49,7 +51,9 @@ sub buildFinished {
 
     # Get tarball locations
     my $storePath = ($build->buildoutputs)[0]->path;
-    my $tarballs  = "$storePath/tarballs";
+    # A real filesystem path is needed here to read the build's tarballs, so
+    # the store directory has to go back on.
+    my $tarballs  = printStorePath(machineLocalStore()->storeDir, $storePath) . "/tarballs";
     my $covTarball;
 
     opendir my $tarballs_handle, $tarballs or die;

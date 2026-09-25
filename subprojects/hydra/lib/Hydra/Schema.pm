@@ -17,4 +17,23 @@ __PACKAGE__->load_namespaces;
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
+
+# The store directory that this database's path columns are relative to, used
+# by Hydra::Component::InflateStorePath to strip and restore it.
+#
+# It lives here, on the schema, rather than being read from a global at the
+# point of use: it is a property of the store whose paths were written to these
+# columns. Defaulted lazily from the machine-local store, which is where Hydra
+# opens its store today; setting it explicitly is what tests and any future
+# configured store should do.
+sub storeDir {
+    my ($self, @value) = @_;
+    $self->{_storeDir} = $value[0] if @value;
+    $self->{_storeDir} //= do {
+        require Hydra::Helper::Nix;
+        Hydra::Helper::Nix::machineLocalStore()->storeDir;
+    };
+    return $self->{_storeDir};
+}
+
 1;

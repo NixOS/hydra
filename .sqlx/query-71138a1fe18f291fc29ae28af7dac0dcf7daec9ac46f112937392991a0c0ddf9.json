@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT expiry FROM narinfo_presence WHERE hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "expiry",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "narinfo_presence",
+            "name": "expiry"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "71138a1fe18f291fc29ae28af7dac0dcf7daec9ac46f112937392991a0c0ddf9"
+}

@@ -413,12 +413,12 @@ mod tests {
         let products = format!("file json /nix/store/{output}/data.json\n");
         let events = vec![
             start_dir(""),
+            file("data.json", b"{}"),
             start_dir("nix-support"),
             file("hydra-build-products", products.as_bytes()),
             file("hydra-metrics", b"coverage 87.5 %\n"),
             file("hydra-release-name", b"cached-1.0\n"),
             NarEvent::EndDirectory,
-            file("data.json", b"{}"),
             NarEvent::EndDirectory,
         ];
 

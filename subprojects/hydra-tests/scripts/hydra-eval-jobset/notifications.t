@@ -71,6 +71,7 @@ subtest "on the initial evaluation" => sub {
     expectEvent($listener, "eval_added", sub {
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
         is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
+        is($_->{"error_changed"}, 0, "a clean evaluation has no error to report");
     });
     is($listener->block_for_messages(0)->()->{"channel"}, "builds_added", "new builds have been scheduled");
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
@@ -158,6 +159,7 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
     expectEvent($listener, "eval_failed", sub {
         is($_->{"trace_id"}, $traceID, "Trace ID matches");
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
+        is($_->{"error_changed"}, 1, "the jobset had not failed this way before");
     });
 
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");

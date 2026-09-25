@@ -455,8 +455,8 @@ impl State {
         // releases them. Pin them onto the persistent roots connection first,
         // or a GC in the gap collects the outputs and the upload fails.
         if let BuildResultInner::Success(s) = &build_result.inner {
-            for realisation in s.built_outputs.values() {
-                pin_path(roots, &realisation.out_path).await;
+            for entry in s.built_outputs.values() {
+                pin_path(roots, &entry.out_path).await;
             }
         }
         drop(conn);
@@ -582,7 +582,7 @@ impl State {
         let outputs: BTreeMap<OutputName, StorePath> = success
             .built_outputs
             .into_iter()
-            .map(|(name, realisation)| (name, realisation.out_path))
+            .map(|(name, entry)| (name, entry.out_path))
             .collect();
 
         timings.build_elapsed = before_build.elapsed();

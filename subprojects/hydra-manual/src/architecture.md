@@ -7,6 +7,7 @@ You can use it as a guide to navigate the codebase or ask questions.
 
 Hydra's components are split across a coordinator machine and any number of builder machines.
 The NixOS modules in `nixos-modules/` reflect this split: `web-app` and `queue-runner` run on the master, while `builder` runs on remote machines.
+The optional `ad-hoc` module also runs on the master.
 For small installations, all three can run on a single host (the `hydra` module combines them).
 But most installation will want to use multiple build machines for scale.
 
@@ -19,7 +20,11 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **`hydra-server`** (Perl, Catalyst)
     - web frontend and REST API
     - user authentication (built-in or LDAP)
-- **`hydra-evaluator`** (C++)
+- **`hydra-ws`** (Rust)
+    - WebSocket service for streaming live build logs
+    - reads build metadata from PostgreSQL and tails log files from the coordinator's store
+    - listens for PostgreSQL build-completion notifications and forwards events to clients
+- **`hydra-evaluator`** (Rust)
     - periodically evaluates jobsets by invoking the Nix evaluator
     - writes `.drv` files into the coordinator's Nix store
     - adds new builds to the queue when evaluation results change
@@ -33,6 +38,12 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **`hydra-notify`** (Perl)
     - dispatches post-build notifications to plugins (email, GitHub/GitLab status, Slack, etc.)
     - listens for PostgreSQL `NOTIFY` events from the queue runner
+- **`hydra-ad-hoc`** (Rust, optional, experimental)
+    - serves the nix daemon protocol on a Unix socket, presenting Hydra as one giant nix daemon
+    - a `nix-build` or `nix-store --realise` pointed at it has its derivations built by the queue runner and builders instead of locally
+    - files such ad hoc jobs under a hidden `adhoc/adhoc` jobset; nothing inside Hydra uses it
+    - streams each build step's log back to the waiting client, via `build-logs`
+    - see [Ad hoc builds](configuration.md#ad-hoc-builds-optional-experimental)
 - **Plugin system** (Perl)
     - input plugins extend the evaluator with new source types (Git, Mercurial, Darcs, etc.)
     - notification plugins react to build lifecycle events
@@ -65,6 +76,14 @@ graph BT
     nix-support --> store-path-utils
     db --> nix-support
     hydra-proto --> nix-support
+    hydra-ad-hoc --> build-logs
+    hydra-ad-hoc --> db
+    hydra-ad-hoc --> hydra-tracing
+    hydra-evaluator --> db
+    hydra-evaluator --> hydra-tracing
+    hydra-ws --> build-logs
+    hydra-ws --> db
+    hydra-ws --> hydra-tracing
     store-transfer --> daemon-client-utils
     store-transfer --> hydra-proto
     hydra-builder --> binary-cache
@@ -88,6 +107,9 @@ graph BT
 
 - `binary-cache`:
   reading and writing Nix binary cache artifacts (NARinfo, NAR files, signatures, presigned uploads)
+
+- `build-logs`:
+  following build-step logs as the queue runner writes them, and reading its step/build notifications; shared by `hydra-ws` and `hydra-ad-hoc`
 
 - `daemon-client-utils`:
   Various utilities for working with the daemon connection beyond what the Harmonia libraries provide.
@@ -117,6 +139,8 @@ The repository is organized into subprojects:
   — the Rust queue runner
 - [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)
   — the Rust build agent
+- [`subprojects/hydra-ad-hoc/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-ad-hoc)
+  — the optional, experimental Rust nix-daemon-protocol endpoint for ad hoc builds
 - [`subprojects/crates/`](https://github.com/NixOS/hydra/tree/master/subprojects/crates)
   — shared Rust libraries
 - [`subprojects/proto/`](https://github.com/NixOS/hydra/tree/master/subprojects/proto)
@@ -128,14 +152,14 @@ The repository is organized into subprojects:
 - [`subprojects/hydra-manual/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-manual)
   — this manual (mdbook)
 
-The build system uses Meson for the C++ and Perl components and Cargo for the Rust workspace.
+The build system uses Meson for the Perl components and Cargo for the Rust workspace.
 
 ## Database Schema
 
 The canonical schema lives in [`subprojects/hydra/sql/hydra.sql`](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/hydra.sql).
 Incremental migrations are in `migrations/upgrade-N.sql`; see the [SQL README](https://github.com/NixOS/hydra/blob/master/subprojects/hydra/sql/README.md) for details on making schema changes.
 
-The database is accessed by all three language runtimes: Perl (DBI/DBIx::Class), C++ (libpqxx), and Rust (SQLx).
+The database is accessed by both language runtimes: Perl (DBI/DBIx::Class) and Rust (SQLx).
 
 Key tables:
 

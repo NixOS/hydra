@@ -66,12 +66,12 @@ __PACKAGE__->table("runcommandlogs");
 
 =head2 start_time
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 end_time
 
-  data_type: 'integer'
+  data_type: 'bigint'
   is_nullable: 1
 
 =head2 error_number
@@ -113,9 +113,9 @@ __PACKAGE__->add_columns(
   "command",
   { data_type => "text", is_nullable => 0 },
   "start_time",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "end_time",
-  { data_type => "integer", is_nullable => 1 },
+  { data_type => "bigint", is_nullable => 1 },
   "error_number",
   { data_type => "integer", is_nullable => 1 },
   "exit_code",
@@ -170,11 +170,11 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2022-01-24 10:24:52
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:ZVpYU6k3d/k/nitjpdgf/A
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rx/pdpjrwL1eaQwhd+1svA
 
 use POSIX qw(WEXITSTATUS WIFEXITED WIFSIGNALED WTERMSIG);
-use UUID4::Tiny qw(create_uuid_string);
+use UUID::URandom qw(create_uuid_string);
 
 
 =head2 new

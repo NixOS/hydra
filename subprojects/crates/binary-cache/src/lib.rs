@@ -25,7 +25,7 @@ use smallvec::SmallVec;
 
 use harmonia_store_path::{StoreDir, StorePath};
 
-// Realisation writing is now done by the caller, not via FFI query.
+// Build trace entries are written by the caller, not via an FFI query.
 
 mod cfg;
 mod compression;
@@ -254,6 +254,15 @@ async fn run_multipart_upload(
 /// Stream a NAR by serializing the store path directly from the
 /// filesystem, like harmonia-cache does when serving NARs. This avoids
 /// holding a nix-daemon connection for the duration of the stream.
+/// Where one build trace entry lives in a binary cache:
+/// `build-trace-v2/<drvBaseName>/<outputName>.doi`, two path segments
+/// encoding the key. See
+/// <https://nix.dev/manual/nix/2.35/protocols/binary-cache>.
+#[must_use]
+pub fn build_trace_entry_key(id: &harmonia_store_derivation::realisation::DrvOutput) -> String {
+    format!("build-trace-v2/{}/{}.doi", id.drv_path, id.output_name)
+}
+
 fn read_nar_stream(
     store_dir: &StoreDir,
     path: &StorePath,
@@ -720,7 +729,7 @@ impl S3BinaryCacheClient {
             narinfo.info.download_size = Some(file_size as u64);
         }
 
-        // Realisation writing for CA derivations is handled by the caller
+        // Build trace entries for CA derivations are written by the caller
         // (e.g. the queue-runner after resolving and building a CA drv),
         // not here during path copy.
 
@@ -755,24 +764,24 @@ impl S3BinaryCacheClient {
         Ok(())
     }
 
-    /// Write a pre-constructed [`Realisation`] to the binary cache.
+    /// Write one build trace entry to the binary cache.
     ///
-    /// Signs the realisation with the cache's secret keys before uploading.
-    #[tracing::instrument(skip(self, realisation), err)]
-    pub async fn write_realisation(
+    /// Signs it with the cache's secret keys before uploading. Only the value
+    /// is written: the key is the object's own path.
+    #[tracing::instrument(skip(self, entry), err)]
+    pub async fn write_build_trace_entry(
         &self,
-        mut realisation: harmonia_store_derivation::realisation::Realisation,
+        mut entry: harmonia_store_derivation::realisation::Realisation,
     ) -> Result<(), CacheError> {
         let keys = self
             .signing_keys
             .iter()
             .filter_map(|s| s.expose_secret().parse().ok())
             .collect::<SmallVec<[harmonia_utils_signature::SecretKey; 4]>>();
-        realisation.value.sign_mut(&realisation.key, &keys);
+        entry.value.sign_mut(&entry.key, &keys);
 
-        let json = serde_json::to_string(&realisation)?;
-        let id = &realisation.key;
-        self.upsert_file(&format!("realisations/{id}.doi"), json, "application/json")
+        let json = serde_json::to_string(&entry.value)?;
+        self.upsert_file(&build_trace_entry_key(&entry.key), json, "application/json")
             .await?;
         Ok(())
     }
@@ -973,19 +982,19 @@ impl S3BinaryCacheClient {
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn download_realisation(
+    pub async fn download_build_trace_entry(
         &self,
         id: &harmonia_store_derivation::realisation::DrvOutput,
     ) -> Result<Option<Bytes>, CacheError> {
-        self.get_object(&format!("realisations/{id}.doi")).await
+        self.get_object(&build_trace_entry_key(id)).await
     }
 
     #[tracing::instrument(skip(self), err)]
-    pub async fn has_realisation(
+    pub async fn has_build_trace_entry(
         &self,
         id: &harmonia_store_derivation::realisation::DrvOutput,
     ) -> Result<bool, CacheError> {
-        Ok(self.download_realisation(id).await?.is_some())
+        Ok(self.download_build_trace_entry(id).await?.is_some())
     }
 
     #[tracing::instrument(skip(self, paths))]
@@ -1253,7 +1262,7 @@ impl S3BinaryCacheClient {
         narinfo.info.download_size = Some(file_size);
 
         let narinfo = clear_sigs_and_sign(narinfo, &self.cfg.store_dir, &self.signing_keys);
-        // TODO: we also need to integrate realisation into this!
+        // TODO: we also need to integrate build trace entries into this!
         let path = narinfo.path.clone();
         let key = self.upload_narinfo(narinfo.clone()).await?;
         self.presence_cache

@@ -15,6 +15,8 @@ let
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
+  evaluatorFormat = pkgs.formats.toml { };
+
   hydraEnv = {
     HYDRA_DATABASE_URL = cfg.dbUrl;
     HYDRA_CONFIG = "${baseDir}/hydra.conf";
@@ -104,6 +106,11 @@ in
         description = "The Hydra package.";
       };
 
+      evaluatorExecutable = mkOption {
+        type = types.path;
+        description = "Path to the hydra-evaluator executable.";
+      };
+
       hydraURL = mkOption {
         type = types.str;
         description = ''
@@ -126,6 +133,26 @@ in
         default = 3000;
         description = ''
           TCP port the web server should listen to.
+        '';
+      };
+
+      evaluatorSettings = mkOption {
+        type = types.submodule {
+          freeformType = evaluatorFormat.type;
+          options = {
+            max_concurrent_evals = mkOption {
+              type = types.ints.positive;
+              default = 4;
+              description = "How many jobsets to evaluate at once.";
+            };
+          };
+        };
+        default = { };
+        description = ''
+          Settings for `hydra-evaluator`, written to `/etc/hydra/evaluator.toml`.
+
+          Every service in Rust in hydra has its own separate TOML configuration file,
+          with just the settings it needs.
         '';
       };
 
@@ -308,16 +335,25 @@ in
       };
     };
 
+    environment.etc."hydra/evaluator.toml".source =
+      evaluatorFormat.generate "evaluator.toml" cfg.evaluatorSettings;
+
     systemd.services.hydra-evaluator = {
       wantedBy = [ "multi-user.target" ];
       requires = [ "hydra-init.service" ];
-      restartTriggers = [ hydraConf ];
+      restartTriggers = [
+        hydraConf
+        config.environment.etc."hydra/evaluator.toml".source
+      ];
       after = [
         "hydra-init.service"
         "network.target"
       ];
       path = with pkgs; [
         hostname-debian
+        # Because hydra-evaluator calls `hydra-eval-jobset`. If we
+        # move that perl script into rust, then we can get rid of
+        # this.
         cfg.package
       ];
       environment = env // {
@@ -325,11 +361,17 @@ in
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
-          "@${cfg.package}/bin/hydra-evaluator"
+          "@${cfg.evaluatorExecutable}"
           "hydra-evaluator"
+          "--config-path"
+          "/etc/hydra/evaluator.toml"
         ];
+        # `--unlock` goes through the same argument parsing, so it needs the
+        # path too.
         ExecStopPost = escapeShellArgs [
-          "${cfg.package}/bin/hydra-evaluator"
+          "${cfg.evaluatorExecutable}"
+          "--config-path"
+          "/etc/hydra/evaluator.toml"
           "--unlock"
         ];
         User = "hydra";

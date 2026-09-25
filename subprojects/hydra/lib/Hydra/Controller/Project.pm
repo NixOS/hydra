@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Config;
 
 
 sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
@@ -126,7 +127,7 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
     $c->stash->{template} = 'edit-jobset.tt';
     $c->stash->{create} = 1;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
-    $c->stash->{emailNotification} = $c->config->{email_notification} // 0;
+    $c->stash->{buildEmailNotification} = buildEmailNotificationEnabled($c->config);
 }
 
 
