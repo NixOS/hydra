@@ -336,6 +336,7 @@ in
         # The runner holds a gRPC stream per builder plus DB pool and HTTP
         # connections; the default 1024 soft limit is easily exhausted.
         LimitNOFILE = 65536;
+        ManagedOOMPreference = "avoid";
 
         ExecStart = lib.escapeShellArgs (
           [
