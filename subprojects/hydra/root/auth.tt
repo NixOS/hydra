@@ -16,6 +16,7 @@
 
 [% ELSE %]
 
+  [% IF signinForm %]
   <div id="hydra-signin" class="modal hide fade" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
       <div class="modal-content">
@@ -38,11 +39,13 @@
       </div>
     </div>
   </div>
+  [% END %]
 
   <script>
 
     function finishSignOut() { }
 
+    [% IF signinForm %]
     $("#signin-form").submit(function(e) {
       e.preventDefault();
       requestJSON({
@@ -55,6 +58,7 @@
       });
       return false;
     });
+    [% END %]
 
   </script>
 

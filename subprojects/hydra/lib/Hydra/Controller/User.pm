@@ -7,7 +7,7 @@ use base 'Hydra::Base::Controller::REST';
 use File::Slurper qw(read_text);
 use Crypt::RandPasswd;
 use Digest::SHA1 qw(sha1_hex);
-use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Config qw(getLDAPConfigAmbient localAuthEnabled passwordSigninEnabled);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Email;
@@ -29,6 +29,9 @@ sub login :Local :Args(0) :ActionClass('REST') { }
 sub login_POST {
     my ($self, $c) = @_;
 
+    accessDenied($c, "Signing in with a password is disabled on this Hydra.")
+        unless passwordSigninEnabled($c->config);
+
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
@@ -37,7 +40,7 @@ sub login_POST {
 
     if ($c->get_auth_realm('ldap') && $c->authenticate({username => $username, password => $password}, 'ldap')) {
         doLDAPLogin($self, $c, $username);
-    } elsif ($c->authenticate({username => $username, password => $password})) {}
+    } elsif (localAuthEnabled($c->config) && $c->authenticate({username => $username, password => $password})) {}
     else {
         accessDenied($c, "Bad username or password.")
     }

@@ -139,22 +139,21 @@
         <a class="nav-link" href="#" onclick="signOut();">Sign out</a>
       [% END %]
     </li>
-  [% ELSE %]
+  [% ELSIF signinMethods.size > 1 %]
     [% WRAPPER makeSubMenu title="Sign in" id="sign-in-menu" align="right" %]
-      [% IF c.config.github_client_id %]
-        <a class="dropdown-item" href="/github-redirect?after=[% c.req.path | uri %]">Sign in with GitHub</a>
-        <div class="dropdown-divider"></div>
+      [% FOREACH method IN signinMethods %]
+        [% # The password form is the fallback, so it gets a divider above it
+             # only when something precedes it. %]
+        [% IF method.form && !loop.first %]<div class="dropdown-divider"></div>[% END %]
+        <a class="dropdown-item" href="[% HTML.escape(method.href) %]"[% IF method.form %] data-toggle="modal"[% END %]>[% HTML.escape(method.label) %]</a>
       [% END %]
-      [% IF c.config.oidc.provider %]
-        [% FOREACH provider_name IN c.config.oidc.provider.keys.sort %]
-          [% provider = c.config.oidc.provider.$provider_name %]
-          [% display_name = provider.display_name || "OIDC ($provider_name)" %]
-          <a class="dropdown-item" href="/oidc-redirect/[% provider_name | uri %]?after=[% c.req.path | uri %]">Sign in with [% HTML.escape(display_name) %]</a>
-        [% END %]
-        <div class="dropdown-divider"></div>
-      [% END %]
-      <a class="dropdown-item" href="#hydra-signin" data-toggle="modal">Sign in with a Hydra account</a>
     [% END %]
+  [% ELSIF signinMethods.size == 1 %]
+    [% # With one way in, a menu of one is just a button. %]
+    [% method = signinMethods.0 %]
+    <li class="nav-item">
+      <a class="nav-link" href="[% HTML.escape(method.href) %]"[% IF method.form %] data-toggle="modal"[% END %]>Sign in</a>
+    </li>
   [% END %]
 
 </ul>

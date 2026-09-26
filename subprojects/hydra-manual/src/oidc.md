@@ -2,7 +2,10 @@
 
 Hydra can delegate login to one or more OpenID Connect providers, alongside the built-in accounts and
 LDAP or instead of them.
-Each provider gets a *"Sign in with &lt;display name&gt;"* entry in the sign-in menu.
+Each provider gets a *"Sign in with &lt;display name&gt;"* entry in the sign-in menu,
+or a plain **Sign in** button when a provider is the only way to sign in.
+To make it the only way, set `local_auth_enabled = 0` in `hydra.conf` as well; see
+[Turning off Hydra's own user management](configuration.md#turning-off-hydras-own-user-management).
 
 ## How a login works
 

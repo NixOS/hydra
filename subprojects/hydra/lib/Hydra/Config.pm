@@ -5,6 +5,7 @@ use warnings;
 use feature qw(signatures);
 use Config::General;
 use List::SomeUtils qw(none);
+use URI::Escape qw(uri_escape);
 use YAML qw(LoadFile);
 
 our @ISA = qw(Exporter);
@@ -21,6 +22,9 @@ our %configGeneralOpts = (-UseApacheInclude => 1, -IncludeAgain => 1, -IncludeRe
 our @EXPORT_OK = qw(
     normalize_oidc_role_mappings
     oidc_roles_from_claim
+    signinMethods
+    localAuthEnabled
+    passwordSigninEnabled
 );
 
 my $hydraConfigCache;
@@ -138,6 +142,51 @@ sub buildEmailNotificationEnabled {
 sub evalEmailNotificationEnabled {
     my ($config) = @_;
     return emailNotificationEnabled($config, "eval");
+}
+
+sub signinMethods($config, $path) {
+    my @methods;
+
+    if ($config->{github_client_id}) {
+        push @methods, {
+            label => "Sign in with GitHub",
+            href => externalSigninHref("/github-redirect", $path),
+        };
+    }
+
+    my $providers = ($config->{oidc} // {})->{provider} // {};
+    for my $name (sort keys %$providers) {
+        push @methods, {
+            label => "Sign in with " . ($providers->{$name}->{display_name} // "OIDC ($name)"),
+            href => externalSigninHref("/oidc-redirect/" . uri_escape($name), $path),
+        };
+    }
+
+    if (passwordSigninEnabled($config)) {
+        push @methods, {
+            label => localAuthEnabled($config) ? "Sign in with a Hydra account" : "Sign in with LDAP",
+            href => "#hydra-signin",
+            form => 1,
+        };
+    }
+
+    return \@methods;
+}
+
+# Whether Hydra's own accounts can sign in with a password.
+sub localAuthEnabled($config) {
+    return ($config->{local_auth_enabled} // "1") ne "0";
+}
+
+# Whether the password form is offered at all: for Hydra accounts, LDAP, or both.
+sub passwordSigninEnabled($config) {
+    return localAuthEnabled($config)
+        || defined $config->{ldap}
+        || defined $ENV{"HYDRA_LDAP_CONFIG"};
+}
+
+sub externalSigninHref($path_to, $path) {
+    return $path_to . "?after=" . uri_escape($path // "");
 }
 
 sub is_ldap_in_legacy_mode {
