@@ -37,6 +37,34 @@ fn listing_debug_build_ids<C>(tree: &FileTree<C>) -> Vec<String> {
     ids
 }
 
+/// Open a build log as plain text. If hydra-notify's `CompressLog` plugin
+/// already replaced it with a `.bz2` or `.zst` file, decompress that instead.
+/// Returns `None` if no log file exists.
+async fn open_build_log(
+    path: &std::path::Path,
+) -> std::io::Result<Option<Box<dyn tokio::io::AsyncBufRead + Unpin + Send>>> {
+    use binary_cache::Compression;
+    use tokio::io::BufReader;
+
+    // Try the plain file first. `bzip2` and `zstd --rm` delete it only after
+    // the compressed file is complete.
+    for (ext, compression) in [
+        ("", Compression::None),
+        ("bz2", Compression::Bzip2),
+        ("zst", Compression::Zstd),
+    ] {
+        match fs_err::tokio::File::open(path.with_added_extension(ext)).await {
+            Ok(f) => {
+                let decoded = compression.get_decompression_fn()(BufReader::new(f));
+                return Ok(Some(Box::new(BufReader::new(decoded))));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(None)
+}
+
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum UploaderError {
     #[error("uploader state I/O")]
@@ -384,34 +412,26 @@ impl Uploader {
         // Steps that did not run here (substituted paths, builds finished
         // before a restart) have no log file. A missing log must not block
         // the NAR upload.
-        match fs_err::tokio::metadata(msg.log_local_path.as_path()).await {
-            Ok(_) => {
-                (|| async {
-                    let file = fs_err::tokio::File::open(msg.log_local_path.as_path()).await?;
-                    let reader = Box::new(tokio::io::BufReader::new(file));
-                    remote_store
-                        .upsert_file_stream(
-                            &msg.log_remote_path,
-                            reader,
-                            "text/plain; charset=utf-8",
-                        )
-                        .await?;
-                    Ok::<(), UploaderError>(())
-                })
-                .retry(
-                    ExponentialBuilder::default()
-                        .with_max_delay(std::time::Duration::from_secs(30))
-                        .with_max_times(3),
-                )
+        let uploaded = (|| async {
+            let Some(reader) = open_build_log(&msg.log_local_path).await? else {
+                return Ok(false);
+            };
+            remote_store
+                .upsert_file_stream(&msg.log_remote_path, reader, "text/plain; charset=utf-8")
                 .await?;
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                tracing::warn!(
-                    "no build log at {}, skipping log upload",
-                    msg.log_local_path.display()
-                );
-            }
-            Err(e) => return Err(e.into()),
+            Ok::<bool, UploaderError>(true)
+        })
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_delay(std::time::Duration::from_secs(30))
+                .with_max_times(3),
+        )
+        .await?;
+        if !uploaded {
+            tracing::warn!(
+                "no build log at {}, skipping log upload",
+                msg.log_local_path.display()
+            );
         }
 
         // Copy NARs
@@ -535,5 +555,43 @@ impl Uploader {
             .into_iter()
             .flat_map(|m| m.store_paths.iter().cloned().collect::<Vec<_>>())
             .collect()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use binary_cache::Compression;
+    use tokio::io::AsyncReadExt as _;
+
+    use super::open_build_log;
+
+    const LOG: &[u8] = b"building trivial\n";
+
+    async fn read_all(mut reader: impl tokio::io::AsyncRead + Unpin) -> Vec<u8> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await.unwrap();
+        buf
+    }
+
+    #[tokio::test]
+    async fn open_build_log_decompresses_compressed_logs() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("log.drv");
+        assert!(open_build_log(&path).await.unwrap().is_none());
+
+        for (ext, compression) in [
+            ("", Compression::None),
+            ("bz2", Compression::Bzip2),
+            ("zst", Compression::Zstd),
+        ] {
+            let file = path.with_added_extension(ext);
+            let encoded =
+                compression.get_compression_fn(async_compression::Level::Default, false)(LOG);
+            fs_err::write(&file, read_all(encoded).await).unwrap();
+            let log = open_build_log(&path).await.unwrap().unwrap();
+            assert_eq!(read_all(log).await, LOG, "{compression:?}");
+            fs_err::remove_file(&file).unwrap();
+        }
     }
 }

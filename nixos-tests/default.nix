@@ -29,6 +29,7 @@ in
     import ./s3-nar-listing.nix {
       inherit system nixpkgs common;
       presigned = true;
+      compressLogs = false;
     }
   );
 

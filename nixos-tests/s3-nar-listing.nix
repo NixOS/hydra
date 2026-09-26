@@ -5,6 +5,9 @@
   # When true, builders upload NARs via presigned URLs instead of the queue
   # runner doing the upload.
   presigned ? false,
+  # When true, hydra-notify compresses each build log as soon as its step
+  # finishes. This can happen before the queue runner uploads the log.
+  compressLogs ? true,
 }:
 
 let
@@ -47,7 +50,7 @@ let
       preferLocalBuild = true;
       args = [
         "-c"
-        "mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
+        "echo trivial-build-log; mkdir -p $out/subdir; echo hello > $out/greeting; echo nested > $out/subdir/file; printf '#!/bin/sh\\necho hi\\n' > $out/run.sh; chmod +x $out/run.sh; ln -s greeting $out/link; head -c ${toString blobSize} /dev/zero > $out/blob; exit 0"
       ];
     }
   '';
@@ -164,6 +167,10 @@ in
     { pkgs, ... }:
     {
       imports = [ common.serverConfig ];
+
+      services.hydra-dev.extraConfig = ''
+        compress_build_logs = ${if compressLogs then "1" else "0"}
+      '';
 
       services.hydra-queue-runner-dev = {
         settings.remoteStoreAddr = [ s3StoreUri ];
@@ -343,7 +350,8 @@ in
     )
 
     drv_name = build_info["drvpath"].split("/")[-1]
-    server.wait_until_succeeds(s3_curl(f"log/{drv_name}"), timeout=60)
+    build_log = server.wait_until_succeeds(s3_curl(f"log/{drv_name}"), timeout=60)
+    assert "trivial-build-log" in build_log, f"unexpected build log: {build_log!r}"
 
     ${lib.optionalString presigned ''
       # Regression: a closure path already in the cache must not be re-uploaded
