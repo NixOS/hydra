@@ -132,6 +132,38 @@ sub doLDAPLogin {
     $c->set_authenticated($user);
 }
 
+# Addresses as they turn up in claims from an identity provider or in the
+# preferences form. Hydra stores them, mails them and puts them in URLs, so this
+# is stricter than "has an @ in it" and looser than a full RFC 5322 parser:
+# quoted local parts, comments, IP-literal domains and non-ASCII addresses are
+# not accepted, and single-label domains such as `localhost` are, since Hydra
+# runs on internal networks.
+#
+# A `+` is allowed in the local part, because subaddressed addresses are common.
+sub valid_email_address {
+    my ($email) = @_;
+    return 0 unless defined $email;
+    return 0 if length($email) > 254;
+
+    # The local part is a dot-atom: runs of the allowed characters joined by
+    # single dots, so no leading, trailing or doubled dots. The set is kept to
+    # the characters that survive a round trip through a URL path segment, since
+    # Hydra puts usernames (which are email addresses for GitHub logins) in
+    # URLs: `+` is there because subaddressed addresses are common, and the rest
+    # of the RFC 5322 atext set is not, because Catalyst escapes `/`, `?` and
+    # `#` but not `%`, so a `%41` in an address would decode to a different
+    # username in every link.
+    my $atext = qr{[a-zA-Z0-9_+-]};
+    # A domain is DNS labels, which may not start or end with a dash or be
+    # empty.
+    my $label = qr{[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?};
+
+    return 0 unless $email =~ m{\A ($atext+ (?: \. $atext+ )*) \@ ($label (?: \. $label )*) \z}x;
+
+    # RFC 5321 length limits.
+    return length($1) <= 64 && length($2) <= 253;
+}
+
 sub doEmailLogin {
     my ($self, $c, %args) = @_;
     my ($type, $email, $fullName) = @args{qw(type email fullName)};
@@ -139,9 +171,7 @@ sub doEmailLogin {
 
     die "No email address provided.\n" unless defined $email;
 
-    # Be paranoid about the email address format, since we do use it
-    # in URLs.
-    die "Illegal email address.\n" unless $email =~ /^[a-zA-Z0-9\.\-\_]+@[a-zA-Z0-9\.\-\_]+$/;
+    die "Illegal email address.\n" unless valid_email_address($email);
 
     # If allowed_domains is set, check if the email address
     # returned is on these domains.  When not configured, allow all
@@ -381,7 +411,10 @@ sub updatePreferences {
     }
 
     my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
-    # FIXME: validate email address?
+    # Not setting an email address is allowed, but anything that claims to be
+    # one has to look like one.
+    error($c, "The email address is not a valid email address.", 400)
+        if $emailAddress ne "" && !valid_email_address($emailAddress);
 
     $user->update(
         { fullname => $fullName
