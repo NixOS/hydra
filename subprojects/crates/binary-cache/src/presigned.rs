@@ -22,8 +22,7 @@ pub struct PresignedUpload {
     pub url: String,
     pub compression: Compression,
     pub compression_level: async_compression::Level,
-    /// Set on the NAR upload when the object is large enough to need multipart;
-    /// the single presigned `PUT` in `url` is then unused.
+    /// Set on NAR uploads, which then ignore `url`.
     pub multipart: Option<PresignedMultipart>,
 }
 
@@ -420,8 +419,8 @@ impl PresignedUploadClient {
                 request = request.header("If-None-Match", "*");
             }
 
-            // TODO: We need multipart signed urls to fix this!
-            //       object_store currently doesnt have support for this.
+            // Buffers the whole object. This is fine for listings and debug
+            // info. NARs use multipart.
             let mut buffer = Vec::new();
             reader.read_to_end(&mut buffer).await?;
 

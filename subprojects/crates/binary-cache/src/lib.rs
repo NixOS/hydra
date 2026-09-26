@@ -40,8 +40,8 @@ pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Schem
 pub use crate::compression::Compression;
 pub use crate::debug_info::get_debug_info_build_ids;
 pub use crate::multipart::{
-    CompletedPart, MORE_PARTS_BATCH, MorePartsSource, MultipartCompletion, MultipartPresigner,
-    PresignedMultipart, PresignedPart, S3_MAX_PARTS, WriteOutcome, part_size_for_nar,
+    CompletedPart, MORE_PARTS_BATCH, MorePartsSource, MultipartCompletion, PresignedMultipart,
+    PresignedPart, S3_MAX_PARTS, WriteOutcome, part_size_for_nar,
 };
 pub use crate::narinfo::{
     NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
@@ -188,9 +188,7 @@ pub struct S3BinaryCacheClient {
     upload_locks: Arc<
         parking_lot::Mutex<hashbrown::HashMap<StorePath, std::sync::Weak<tokio::sync::Mutex<()>>>>,
     >,
-    /// `None` when no static credentials are available; large NARs then fall
-    /// back to a single presigned `PUT` (which fails above S3's 5 GiB limit).
-    multipart: Option<MultipartPresigner>,
+    multipart: multipart::MultipartPresigner,
 }
 
 #[tracing::instrument(skip(stream, chunk), err)]
@@ -336,13 +334,10 @@ impl S3BinaryCacheClient {
         let presence_cache =
             presence_cache::PresenceCache::open(path, cfg.presence_cache_ttl).await?;
 
+        let s3 = Self::construct_client(&cfg.client_config)?;
         Ok(Self {
-            s3: Self::construct_client(&cfg.client_config)?,
-            multipart: MultipartPresigner::from_config(&cfg.client_config)
-                .inspect_err(|e| {
-                    tracing::warn!("multipart presigning disabled: {e}");
-                })
-                .ok(),
+            multipart: multipart::MultipartPresigner::new(s3.clone()),
+            s3,
             presence_cache,
             cfg: cfg.into(),
             s3_stats: Arc::new(AtomicS3Stats::default()),
@@ -787,23 +782,22 @@ impl S3BinaryCacheClient {
     }
 
     /// Server-side copy of one object from `source` into this cache.
-    /// Requires the same endpoint and static credentials with read access to the source bucket.
+    /// Both caches must share an endpoint, and this cache's credentials must be able to read `source`.
     /// Returns `false` if the source object does not exist.
     #[tracing::instrument(skip(self, source), err)]
     pub async fn copy_object_from(&self, source: &Self, key: &str) -> Result<bool, CacheError> {
-        let (Some(dst), Some(src)) = (&self.multipart, &source.multipart) else {
-            return Err(CacheError::ConfigurationError {
-                message: "copying between buckets requires static S3 credentials".to_owned(),
-            });
-        };
-        if !dst.same_endpoint(src) {
+        if !self
+            .cfg
+            .client_config
+            .same_endpoint(&source.cfg.client_config)
+        {
             return Err(CacheError::ConfigurationError {
                 message: "copying between buckets requires both behind the same S3 endpoint"
                     .to_owned(),
             });
         }
 
-        // HEAD via get_opts to learn size and content type/encoding without the body.
+        // `get_opts` with `head: true` fetches size and attributes without the body.
         let head = match source
             .s3
             .get_opts(
@@ -820,21 +814,15 @@ impl S3BinaryCacheClient {
             Err(e) => return Err(CacheError::ObjectStore(e)),
         };
         source.s3_stats.head.fetch_add(1, Ordering::Relaxed);
-        let attr = |a: object_store::Attribute| {
-            head.attributes
-                .get(&a)
-                .map(|v| v.as_ref().to_owned())
-                .unwrap_or_default()
-        };
 
-        dst.copy_object_from(
-            src.bucket(),
-            key,
-            head.meta.size,
-            &attr(object_store::Attribute::ContentType),
-            &attr(object_store::Attribute::ContentEncoding),
-        )
-        .await?;
+        self.multipart
+            .copy_object_from(
+                &source.cfg.client_config.bucket,
+                key,
+                head.meta.size,
+                head.attributes,
+            )
+            .await?;
         Ok(true)
     }
 
@@ -1076,7 +1064,16 @@ impl S3BinaryCacheClient {
                 reason: format!("Failed to generate presigned URL for NAR: {e}"),
             })?;
 
-        let multipart = self.create_multipart(&nar_url, nar_size).await?;
+        let multipart = Some(
+            self.multipart
+                .create(
+                    &nar_url,
+                    self.cfg.compression.content_type(),
+                    nar_size,
+                    self.cfg.presigned_url_expiry,
+                )
+                .await?,
+        );
         let ls_upload = if self.cfg.write_nar_listing {
             let s3_file_path = format!("{}.ls", path.hash());
             Some(PresignedUpload {
@@ -1155,48 +1152,23 @@ impl S3BinaryCacheClient {
         })
     }
 
-    /// Initiate a multipart upload so the compressed NAR streams to S3
-    /// part-by-part instead of being buffered whole in memory. Returns `None`
-    /// only when no multipart presigner is configured, in which case the caller
-    /// falls back to a single buffered `PUT`.
-    async fn create_multipart(
-        &self,
-        nar_url: &str,
-        nar_size: u64,
-    ) -> Result<Option<PresignedMultipart>, CacheError> {
-        let Some(presigner) = &self.multipart else {
-            return Ok(None);
-        };
-        Ok(Some(
-            presigner
-                .create(
-                    nar_url,
-                    self.cfg.compression.content_type(),
-                    // No Content-Encoding: NAR compression lives in the URL + narinfo.
-                    "",
-                    nar_size,
-                    self.cfg.presigned_url_expiry,
-                )
-                .await?,
-        ))
-    }
-
     /// Presign more `UploadPart` URLs for an in-progress multipart upload.
-    pub fn presign_more_multipart_parts(
+    pub async fn presign_more_multipart_parts(
         &self,
         key: &str,
         upload_id: &str,
         start_part: u32,
         count: u32,
     ) -> Result<Vec<PresignedPart>, CacheError> {
-        let presigner = self.require_multipart()?;
         let end = start_part.saturating_add(count.saturating_sub(1));
-        presigner.presign_parts(
-            key,
-            upload_id,
-            start_part..=end,
-            self.cfg.presigned_url_expiry,
-        )
+        self.multipart
+            .presign_parts(
+                key,
+                upload_id,
+                start_part..=end,
+                self.cfg.presigned_url_expiry,
+            )
+            .await
     }
 
     /// Finalise a multipart upload from the builder-reported part `ETag`s.
@@ -1206,17 +1178,7 @@ impl S3BinaryCacheClient {
         upload_id: &str,
         parts: Vec<CompletedPart>,
     ) -> Result<WriteOutcome, CacheError> {
-        self.require_multipart()?
-            .complete(key, upload_id, parts)
-            .await
-    }
-
-    fn require_multipart(&self) -> Result<&MultipartPresigner, CacheError> {
-        self.multipart
-            .as_ref()
-            .ok_or_else(|| CacheError::ConfigurationError {
-                message: "multipart uploads require static S3 credentials".to_owned(),
-            })
+        self.multipart.complete(key, upload_id, parts).await
     }
 
     #[tracing::instrument(skip(self, narinfo), err)]

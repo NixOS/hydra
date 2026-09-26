@@ -19,9 +19,6 @@ async-compression = { workspace = true, features = [
     "brotli",
     "zstd",
 ] }
-aws-credential-types.workspace = true
-aws-sigv4.workspace = true
-aws-smithy-runtime-api.workspace = true
 backon.workspace = true
 configparser.workspace = true
 fs-err = { workspace = true, features = [ "tokio" ] }
@@ -52,7 +49,6 @@ harmonia-store-path-info.workspace  = true
 harmonia-utils-hash.workspace       = true
 harmonia-utils-io.workspace         = true
 harmonia-utils-signature.workspace  = true
-percent-encoding.workspace          = true
 
 [dev-dependencies]
 hydra-tracing.workspace = true

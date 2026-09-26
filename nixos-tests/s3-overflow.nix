@@ -253,12 +253,22 @@ in
         s3_curl("hydra-cache", f"{trivial2_hash}.narinfo"), timeout=60
     )
 
-    # The copy brought trivial's NAR and listing along.
+    # Copying trivial2 also copied trivial's NAR and listing. Compression is
+    # off, so the NAR must hash to the narinfo's NarHash. It must also keep its
+    # content type.
     narinfo = server.succeed(s3_curl("hydra-cache", f"{trivial_hash}.narinfo"))
-    nar_url = next(
-        l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith("URL:")
+    def narinfo_field(name):
+        return next(
+            l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith(f"{name}:")
+        )
+    nar_url = narinfo_field("URL")
+    server.succeed(s3_curl("hydra-cache", nar_url, extra="-o /tmp/trivial.nar"))
+    nar_hash = server.succeed("nix-hash --type sha256 --flat --base32 /tmp/trivial.nar").strip()
+    assert narinfo_field("NarHash") == f"sha256:{nar_hash}", (
+        f"NAR hash mismatch: narinfo {narinfo_field('NarHash')}, object sha256:{nar_hash}"
     )
-    server.succeed(s3_curl("hydra-cache", nar_url, extra="-I"))
+    nar_headers = server.succeed(s3_curl("hydra-cache", nar_url, extra="-I")).lower()
+    assert "content-type: application/x-nix-nar" in nar_headers, nar_headers
     server.succeed(s3_curl("hydra-cache", f"{trivial_hash}.ls"))
 
     server.fail(s3_curl("hydra-overflow", f"{trivial2_hash}.narinfo"))

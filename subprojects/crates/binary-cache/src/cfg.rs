@@ -358,6 +358,14 @@ pub struct S3ClientConfig {
 }
 
 impl S3ClientConfig {
+    /// True if one signed request can reach the buckets of both configs.
+    #[must_use]
+    pub fn same_endpoint(&self, other: &Self) -> bool {
+        self.scheme == other.scheme
+            && self.endpoint == other.endpoint
+            && (self.endpoint.is_some() || self.region == other.region)
+    }
+
     #[must_use]
     pub fn new(bucket: String) -> Self {
         Self {
@@ -1132,6 +1140,22 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert_eq!(config.client_config.bucket, "test-bucket");
         assert_eq!(config.client_config.region, "us-east-1");
         assert_eq!(config.compression, Compression::Xz);
+    }
+
+    #[test]
+    fn same_endpoint_compares_endpoint_or_region() {
+        let cfg = |region: &str, endpoint: Option<&str>| S3ClientConfig {
+            region: region.into(),
+            endpoint: endpoint.map(Into::into),
+            ..S3ClientConfig::new("bucket".into())
+        };
+        // With a custom endpoint, the region doesn't matter.
+        assert!(cfg("a", Some("http://s3:3900")).same_endpoint(&cfg("b", Some("http://s3:3900"))));
+        assert!(!cfg("a", Some("http://s3:3900")).same_endpoint(&cfg("a", Some("http://s4:3900"))));
+        // Without one, the region picks the AWS endpoint.
+        assert!(cfg("eu-west-1", None).same_endpoint(&cfg("eu-west-1", None)));
+        assert!(!cfg("eu-west-1", None).same_endpoint(&cfg("us-east-1", None)));
+        assert!(!cfg("a", Some("http://s3:3900")).same_endpoint(&cfg("a", None)));
     }
 
     #[test]

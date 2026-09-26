@@ -1,28 +1,27 @@
 //! Presigned S3 multipart uploads.
 //!
-//! `object_store`'s signer only presigns a single `PUT`, capping uploads at
-//! S3's 5 GiB single-object limit. For larger NARs the server presigns the S3
-//! multipart `UploadPart` operations with `aws-sigv4` so the builder can PUT
-//! the parts directly to S3. `CreateMultipartUpload`, `CompleteMultipartUpload`
-//! and `AbortMultipartUpload` stay server-side (signed and executed here): the
-//! builder only ever holds part URLs and reports the resulting `ETag`s back for
-//! completion.
+//! A presigned `PUT` is capped at 5 GiB, so builders upload NARs in parts.
+//! The queue runner creates the upload, presigns `UploadPart` URLs for the
+//! builder with [`Signer::signed_url_opts`], and completes it from the `ETag`s
+//! the builder reports.
+//!
+//! The queue runner sends completion and cross-bucket copy requests itself,
+//! because `object_store` can't complete with `If-None-Match` or copy between
+//! buckets.
+//!
+//! [`Signer::signed_url_opts`]: object_store::signer::Signer::signed_url_opts
 
 use std::future::Future;
 use std::pin::Pin;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
-use aws_credential_types::Credentials;
-use aws_sigv4::http_request::{
-    PayloadChecksumKind, SignableBody, SignableRequest, SignatureLocation, SigningParams,
-    SigningSettings, sign,
-};
-use aws_sigv4::sign::v4;
-use aws_smithy_runtime_api::client::identity::Identity;
-use secrecy::ExposeSecret as _;
+use object_store::aws::AmazonS3;
+use object_store::multipart::MultipartStore as _;
+use object_store::path::Path;
+use object_store::signer::{HeaderName, HeaderValue, Method, SignedUrlOptions, Signer as _, Url};
+use object_store::{Attribute, Attributes, PutMultipartOptions};
 
 use crate::CacheError;
-use crate::cfg::{S3ClientConfig, S3Scheme};
 
 const MIN_PART_SIZE: u64 = 10 * 1024 * 1024;
 const MAX_PART_SIZE: u64 = 5 * 1024 * 1024 * 1024;
@@ -35,6 +34,10 @@ const COPY_PART_SIZE: u64 = 1024 * 1024 * 1024;
 /// zstd grows slightly still fits the presigned part count without a refill.
 const TARGET_MAX_PARTS: u64 = 9000;
 pub const S3_MAX_PARTS: u32 = 10_000;
+/// Expiry of URLs for requests the queue runner sends itself.
+const SERVER_REQUEST_EXPIRY: Duration = Duration::from_mins(15);
+const COPY_SOURCE: HeaderName = HeaderName::from_static("x-amz-copy-source");
+const COPY_SOURCE_RANGE: HeaderName = HeaderName::from_static("x-amz-copy-source-range");
 
 /// Part size for a NAR of `nar_size` uncompressed bytes. The compressed size is
 /// unknown up front, but the uncompressed size is a safe upper bound; rounding
@@ -105,231 +108,60 @@ pub trait MorePartsSource: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<Vec<PresignedPart>, CacheError>> + Send + 'a>>;
 }
 
-/// Presigns and drives S3 multipart operations for a configured bucket using
-/// static credentials. Mirrors the URL/credential handling of the
-/// `object_store` client in [`crate::S3BinaryCacheClient`] so presigned part
-/// PUTs and the server-side create/complete/abort requests hit the same URL.
+/// Signs with the cache's `object_store` client, so any credential source it
+/// supports works.
 #[derive(Debug, Clone)]
-pub struct MultipartPresigner {
-    credentials: Credentials,
-    region: String,
-    scheme: S3Scheme,
-    /// Host portion of the endpoint, e.g. `s3.us-east-1.amazonaws.com`.
-    host: String,
-    bucket: String,
+pub(crate) struct MultipartPresigner {
+    s3: AmazonS3,
     http_client: reqwest::Client,
 }
 
 impl MultipartPresigner {
-    /// Build a presigner from the cache's S3 client config. Errors if no static
-    /// credentials are available, since presigning requires them.
-    pub fn from_config(cfg: &S3ClientConfig) -> Result<Self, CacheError> {
-        let (access_key_id, secret_access_key) = resolve_static_credentials(cfg)?;
-        let credentials = Credentials::new(
-            access_key_id,
-            secret_access_key.expose_secret().to_owned(),
-            None,
-            None,
-            "binary-cache",
-        );
-
-        let host = match &cfg.endpoint {
-            Some(endpoint) => endpoint
-                .rsplit("://")
-                .next()
-                .unwrap_or(endpoint)
-                .trim_end_matches('/')
-                .to_owned(),
-            None => format!("s3.{}.amazonaws.com", cfg.region),
-        };
-
-        Ok(Self {
-            credentials,
-            region: cfg.region.clone(),
-            scheme: cfg.scheme,
-            host,
-            bucket: cfg.bucket.clone(),
+    pub(crate) fn new(s3: AmazonS3) -> Self {
+        Self {
+            s3,
             http_client: reqwest::Client::new(),
-        })
-    }
-
-    fn scheme_str(&self) -> &'static str {
-        match self.scheme {
-            S3Scheme::HTTP => "http",
-            S3Scheme::HTTPS => "https",
         }
     }
 
-    // Path-style so presigned and object_store requests hit the same URL.
-    fn object_url(&self, key: &str) -> String {
-        format!(
-            "{}://{}/{}/{}",
-            self.scheme_str(),
-            self.host,
-            self.bucket,
-            key
-        )
-    }
-
-    fn signing_params<'a>(
-        &'a self,
-        identity: &'a Identity,
-        settings: SigningSettings,
-        url: &str,
-    ) -> Result<SigningParams<'a>, CacheError> {
-        Ok(v4::SigningParams::builder()
-            .identity(identity)
-            .region(&self.region)
-            .name("s3")
-            .time(SystemTime::now())
-            .settings(settings)
-            .build()
-            .map_err(|e| presign_err(url, e))?
-            .into())
-    }
-
-    // Returns (URL to sign, URL to send): raw query values for aws-sigv4 to
-    // encode, and the same encoding applied ourselves, so the two match.
-    fn query_urls(&self, key: &str, query: &[(&str, &str)]) -> (String, String) {
-        let object_url = self.object_url(key);
-        if query.is_empty() {
-            return (object_url.clone(), object_url);
-        }
-        let join = |encode: bool| {
-            query
-                .iter()
-                .map(|(k, v)| {
-                    if encode {
-                        format!("{k}={}", sigv4_encode(v))
-                    } else {
-                        format!("{k}={v}")
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("&")
-        };
-        (
-            format!("{object_url}?{}", join(false)),
-            format!("{object_url}?{}", join(true)),
-        )
-    }
-
-    // Payload is signed as UNSIGNED-PAYLOAD so bodies can stream / be omitted.
-    fn presign(
+    async fn presign(
         &self,
-        method: &str,
-        url: &str,
-        query: &[(&str, &str)],
+        method: Method,
+        key: &str,
+        options: &SignedUrlOptions,
         expires: Duration,
-    ) -> Result<String, CacheError> {
-        let mut settings = SigningSettings::default();
-        settings.signature_location = SignatureLocation::QueryParams;
-        settings.expires_in = Some(expires);
-
-        let identity: Identity = self.credentials.clone().into();
-        let signing_params = self.signing_params(&identity, settings, url)?;
-
-        // Sign with raw operation values; aws-sigv4 percent-encodes them for the
-        // canonical request exactly as we do when building the final URL below.
-        let full_url = if query.is_empty() {
-            url.to_owned()
-        } else {
-            let qs = query
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join("&");
-            format!("{url}?{qs}")
-        };
-
-        let (instructions, _signature) =
-            sign(signable_request(method, &full_url)?, &signing_params)
-                .map_err(|e| presign_err(url, e))?
-                .into_parts();
-        let (_headers, auth_params) = instructions.into_parts();
-
-        // Assemble the query ourselves with SigV4 percent-encoding. Routing
-        // through `url`'s form-encoding would turn a `+` in an S3 uploadId into
-        // a space, breaking the signature.
-        let pairs = query
-            .iter()
-            .map(|(name, value)| format!("{name}={}", sigv4_encode(value)))
-            .chain(
-                auth_params
-                    .iter()
-                    .map(|(name, value)| format!("{name}={}", sigv4_encode(value.as_ref()))),
-            )
-            .collect::<Vec<_>>()
-            .join("&");
-        Ok(format!("{url}?{pairs}"))
+    ) -> Result<Url, CacheError> {
+        self.s3
+            .signed_url_opts(method, &Path::from(key), expires, options)
+            .await
+            .map_err(|e| presign_err(key, e))
     }
 
-    /// Bucket this presigner writes to.
-    #[must_use]
-    pub fn bucket(&self) -> &str {
-        &self.bucket
-    }
-
-    /// Whether one signed request can address both buckets,
-    /// i.e. a server-side copy from `source` into this bucket is possible.
-    #[must_use]
-    pub fn same_endpoint(&self, source: &Self) -> bool {
-        self.host == source.host && self.scheme == source.scheme
-    }
-
-    /// Sign a request with header-based `SigV4` auth for the queue runner executes itself.
-    /// Returns extra plus signing headers to apply.
-    fn sign_headers(
+    /// Builds a request to a short-lived presigned URL and sets the signed headers on it.
+    async fn signed_request(
         &self,
-        method: &str,
-        url: &str,
-        extra_headers: &[(&str, String)],
-    ) -> Result<Vec<(String, String)>, CacheError> {
-        let mut settings = SigningSettings::default();
-        // S3 requires the payload checksum header for header-auth requests.
-        settings.payload_checksum_kind = PayloadChecksumKind::XAmzSha256;
-
-        let identity: Identity = self.credentials.clone().into();
-        let signing_params = self.signing_params(&identity, settings, url)?;
-
-        let signable = SignableRequest::new(
-            method,
-            url,
-            extra_headers.iter().map(|(k, v)| (*k, v.as_str())),
-            SignableBody::UnsignedPayload,
-        )
-        .map_err(|e| presign_err(url, e))?;
-        let (instructions, _signature) = sign(signable, &signing_params)
-            .map_err(|e| presign_err(url, e))?
-            .into_parts();
-        let (signed, _params) = instructions.into_parts();
-
-        Ok(extra_headers
-            .iter()
-            .map(|(k, v)| ((*k).to_owned(), v.clone()))
-            .chain(
-                signed
-                    .into_iter()
-                    .map(|h| (h.name().to_owned(), h.value().to_owned())),
-            )
-            .collect())
+        method: Method,
+        key: &str,
+        options: SignedUrlOptions,
+    ) -> Result<reqwest::RequestBuilder, CacheError> {
+        let url = self
+            .presign(method.clone(), key, &options, SERVER_REQUEST_EXPIRY)
+            .await?;
+        Ok(self
+            .http_client
+            .request(method, url)
+            .headers(options.signed_headers))
     }
 
-    /// Send a directly signed, empty-body S3 request and return the response body.
     async fn send_signed(
         &self,
-        method: reqwest::Method,
+        method: Method,
         key: &str,
-        query: &[(&str, &str)],
-        extra_headers: &[(&str, String)],
+        options: SignedUrlOptions,
     ) -> Result<String, CacheError> {
-        let (url_for_signing, url_to_send) = self.query_urls(key, query);
-        let headers = self.sign_headers(method.as_str(), &url_for_signing, extra_headers)?;
-        let mut request = self.http_client.request(method, &url_to_send);
-        for (name, value) in headers {
-            request = request.header(name, value);
-        }
-        let body = request
+        let body = self
+            .signed_request(method, key, options)
+            .await?
             .send()
             .await
             .map_err(|e| presign_err(key, e))?
@@ -350,51 +182,42 @@ impl MultipartPresigner {
 
     /// Server-side copy of `key` from `source_bucket` (same endpoint) into this
     /// bucket: `CopyObject`, or `UploadPartCopy` above the single-copy limit.
-    #[tracing::instrument(skip(self, content_type, content_encoding), err)]
-    pub async fn copy_object_from(
+    /// `CopyObject` keeps the source's metadata; multipart copies get `attributes`.
+    #[tracing::instrument(skip(self, attributes), err)]
+    pub(crate) async fn copy_object_from(
         &self,
         source_bucket: &str,
         key: &str,
         size: u64,
-        content_type: &str,
-        content_encoding: &str,
+        attributes: Attributes,
     ) -> Result<(), CacheError> {
-        let copy_source = format!("/{source_bucket}/{key}");
+        let copy_source = HeaderValue::try_from(format!("/{source_bucket}/{key}"))
+            .map_err(|e| presign_err(key, e))?;
+        let options = SignedUrlOptions::default().with_signed_header(COPY_SOURCE, copy_source);
 
         if size <= MAX_COPY_OBJECT_SIZE {
-            self.send_signed(
-                reqwest::Method::PUT,
-                key,
-                &[],
-                &[("x-amz-copy-source", copy_source)],
-            )
-            .await?;
+            self.send_signed(Method::PUT, key, options).await?;
             return Ok(());
         }
 
-        let upload_id = self
-            .initiate_upload(key, content_type, content_encoding)
-            .await?;
+        let upload_id = self.initiate_upload(key, attributes).await?;
         let mut parts = Vec::new();
         let mut start = 0u64;
         let mut part_number = 1u32;
         while start < size {
             let end = start.saturating_add(COPY_PART_SIZE).min(size) - 1;
-            let part_number_str = part_number.to_string();
-            let body = self
-                .send_signed(
-                    reqwest::Method::PUT,
-                    key,
-                    &[
-                        ("partNumber", part_number_str.as_str()),
-                        ("uploadId", upload_id.as_str()),
-                    ],
-                    &[
-                        ("x-amz-copy-source", copy_source.clone()),
-                        ("x-amz-copy-source-range", format!("bytes={start}-{end}")),
-                    ],
-                )
-                .await?;
+            let part_options = options
+                .clone()
+                .with_query([
+                    ("partNumber", part_number.to_string()),
+                    ("uploadId", upload_id.clone()),
+                ])
+                .with_signed_header(
+                    COPY_SOURCE_RANGE,
+                    HeaderValue::try_from(format!("bytes={start}-{end}"))
+                        .map_err(|e| presign_err(key, e))?,
+                );
+            let body = self.send_signed(Method::PUT, key, part_options).await?;
             let result: CopyResult = quick_xml::de::from_str(&body).map_err(|e| {
                 CacheError::Other(format!("invalid UploadPartCopy response for {key}: {e}"))
             })?;
@@ -411,21 +234,22 @@ impl MultipartPresigner {
 
     /// Initiate a multipart upload and presign the part URLs the builder needs.
     #[tracing::instrument(skip(self), err)]
-    pub async fn create(
+    pub(crate) async fn create(
         &self,
         key: &str,
         content_type: &str,
-        content_encoding: &str,
         nar_size: u64,
         expires: Duration,
     ) -> Result<PresignedMultipart, CacheError> {
-        let upload_id = self
-            .initiate_upload(key, content_type, content_encoding)
-            .await?;
+        // NARs get no Content-Encoding, because their compression is in the URL and narinfo.
+        let attributes = Attributes::from_iter([(Attribute::ContentType, content_type.to_owned())]);
+        let upload_id = self.initiate_upload(key, attributes).await?;
 
         let part_size = part_size_for_nar(nar_size);
         let part_count = estimated_part_count(nar_size, part_size);
-        let parts = self.presign_parts(key, &upload_id, 1..=part_count, expires)?;
+        let parts = self
+            .presign_parts(key, &upload_id, 1..=part_count, expires)
+            .await?;
 
         Ok(PresignedMultipart {
             key: key.to_owned(),
@@ -436,28 +260,27 @@ impl MultipartPresigner {
     }
 
     /// Presign additional `UploadPart` URLs for an in-progress upload.
-    pub fn presign_parts(
+    pub(crate) async fn presign_parts(
         &self,
         key: &str,
         upload_id: &str,
         part_numbers: std::ops::RangeInclusive<u32>,
         expires: Duration,
     ) -> Result<Vec<PresignedPart>, CacheError> {
-        let object_url = self.object_url(key);
-        part_numbers
-            .map(|part_number| {
-                let url = self.presign(
-                    "PUT",
-                    &object_url,
-                    &[
-                        ("partNumber", &part_number.to_string()),
-                        ("uploadId", upload_id),
-                    ],
-                    expires,
-                )?;
-                Ok(PresignedPart { part_number, url })
-            })
-            .collect()
+        let mut parts = Vec::new();
+        for part_number in part_numbers {
+            // S3 rejects UploadPart unless partNumber and uploadId are signed.
+            let options = SignedUrlOptions::default().with_query([
+                ("partNumber", part_number.to_string()),
+                ("uploadId", upload_id.to_owned()),
+            ]);
+            let url = self.presign(Method::PUT, key, &options, expires).await?;
+            parts.push(PresignedPart {
+                part_number,
+                url: url.into(),
+            });
+        }
+        Ok(parts)
     }
 
     /// Finalise the upload from the builder-reported part `ETag`s, sent with
@@ -466,7 +289,7 @@ impl MultipartPresigner {
     /// copy). A 412 means another upload already stored a valid compression, so
     /// it counts as success: the object decompresses to the same `NarHash`.
     #[tracing::instrument(skip(self, parts), err)]
-    pub async fn complete(
+    pub(crate) async fn complete(
         &self,
         key: &str,
         upload_id: &str,
@@ -475,10 +298,10 @@ impl MultipartPresigner {
         parts.sort_by_key(|p| p.part_number);
         let body = complete_multipart_xml(&parts);
 
-        let url = self.signed_object_request("POST", key, upload_id)?;
+        let options = SignedUrlOptions::default().with_query([("uploadId", upload_id)]);
         let response = self
-            .http_client
-            .post(&url)
+            .signed_request(Method::POST, key, options)
+            .await?
             .header("Content-Type", "application/xml")
             .header("If-None-Match", "*")
             .body(body)
@@ -494,66 +317,23 @@ impl MultipartPresigner {
         Ok(WriteOutcome::Created)
     }
 
-    fn signed_object_request(
-        &self,
-        method: &str,
-        key: &str,
-        upload_id: &str,
-    ) -> Result<String, CacheError> {
-        self.presign(
-            method,
-            &self.object_url(key),
-            &[("uploadId", upload_id)],
-            Duration::from_mins(15),
-        )
-    }
-
     /// Execute `CreateMultipartUpload` and return the `UploadId`.
     async fn initiate_upload(
         &self,
         key: &str,
-        content_type: &str,
-        content_encoding: &str,
+        attributes: Attributes,
     ) -> Result<String, CacheError> {
-        let url = self.presign(
-            "POST",
-            &self.object_url(key),
-            &[("uploads", "")],
-            Duration::from_mins(15),
-        )?;
-
-        let mut request = self
-            .http_client
-            .post(&url)
-            .header("Content-Type", content_type);
-        if !content_encoding.is_empty() {
-            request = request.header("Content-Encoding", content_encoding);
-        }
-
-        let body = request
-            .send()
-            .await
-            .map_err(|e| presign_err(key, e))?
-            .error_for_status()
-            .map_err(|e| presign_err(key, e))?
-            .text()
-            .await
-            .map_err(|e| presign_err(key, e))?;
-
-        let result: InitiateMultipartUploadResult =
-            quick_xml::de::from_str(&body).map_err(|e| CacheError::PresignedUrlError {
-                path: key.to_owned(),
-                reason: format!("invalid CreateMultipartUpload response: {e}"),
-            })?;
-        Ok(result.upload_id)
+        Ok(self
+            .s3
+            .create_multipart_opts(
+                &Path::from(key),
+                PutMultipartOptions {
+                    attributes,
+                    ..Default::default()
+                },
+            )
+            .await?)
     }
-}
-
-/// `CreateMultipartUpload` response body.
-#[derive(Debug, serde::Deserialize)]
-struct InitiateMultipartUploadResult {
-    #[serde(rename = "UploadId")]
-    upload_id: String,
 }
 
 /// `CopyObjectResult` / `CopyPartResult` response body.
@@ -570,27 +350,6 @@ struct S3ErrorResponse {
     code: String,
     #[serde(rename = "Message", default)]
     message: String,
-}
-
-fn signable_request<'a>(method: &'a str, url: &'a str) -> Result<SignableRequest<'a>, CacheError> {
-    SignableRequest::new(
-        method,
-        url,
-        std::iter::empty(),
-        SignableBody::UnsignedPayload,
-    )
-    .map_err(|e| presign_err(url, e))
-}
-
-/// Percent-encode a query value per `SigV4`: everything except the unreserved
-/// set `A-Za-z0-9-_.~`.
-fn sigv4_encode(value: &str) -> std::borrow::Cow<'_, str> {
-    const UNRESERVED: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
-        .remove(b'-')
-        .remove(b'_')
-        .remove(b'.')
-        .remove(b'~');
-    percent_encoding::utf8_percent_encode(value, UNRESERVED).into()
 }
 
 fn presign_err(path: &str, e: impl std::fmt::Display) -> CacheError {
@@ -626,27 +385,6 @@ fn complete_multipart_xml(parts: &[CompletedPart]) -> String {
     xml
 }
 
-fn resolve_static_credentials(
-    cfg: &S3ClientConfig,
-) -> Result<(String, secrecy::SecretString), CacheError> {
-    if let Some(credentials) = &cfg.credentials {
-        return Ok((
-            credentials.access_key_id.clone(),
-            credentials.secret_access_key.clone(),
-        ));
-    }
-    if let (Ok(access_key_id), Ok(secret)) = (
-        std::env::var("AWS_ACCESS_KEY_ID"),
-        std::env::var("AWS_SECRET_ACCESS_KEY"),
-    ) {
-        return Ok((access_key_id, secret.into()));
-    }
-    let profile = cfg.profile.as_deref().unwrap_or("default");
-    crate::cfg::read_aws_credentials_file(profile).map_err(|e| CacheError::ConfigurationError {
-        message: format!("no static S3 credentials for presigned multipart uploads: {e}"),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -662,14 +400,6 @@ mod tests {
         assert!(big > MIN_PART_SIZE && big <= MAX_PART_SIZE);
         assert_eq!(big % (16 * 1024 * 1024), 0);
         assert_eq!(part_size_for_nar(u64::MAX), MAX_PART_SIZE);
-    }
-
-    #[test]
-    fn sigv4_encode_matches_unreserved_set() {
-        // The chars that broke url form-encoding must be percent-encoded.
-        assert_eq!(sigv4_encode("ab+cd/ef=gh"), "ab%2Bcd%2Fef%3Dgh");
-        // Unreserved characters pass through untouched.
-        assert_eq!(sigv4_encode("AZaz09-_.~"), "AZaz09-_.~");
     }
 
     #[test]
@@ -693,15 +423,6 @@ mod tests {
             )
             .is_err()
         );
-    }
-
-    #[test]
-    fn parses_upload_id() {
-        let xml = r#"<?xml version="1.0"?><InitiateMultipartUploadResult><Bucket>b</Bucket><Key>k</Key><UploadId>abc123==</UploadId></InitiateMultipartUploadResult>"#;
-        let result: InitiateMultipartUploadResult =
-            quick_xml::de::from_str(xml).unwrap_or_else(|e| panic!("{e}"));
-        assert_eq!(result.upload_id, "abc123==");
-        assert!(quick_xml::de::from_str::<InitiateMultipartUploadResult>("<nope/>").is_err());
     }
 
     #[test]

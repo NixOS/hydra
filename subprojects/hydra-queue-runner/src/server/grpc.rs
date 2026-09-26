@@ -797,6 +797,7 @@ impl RunnerService for Server {
                 req.start_part_number,
                 req.num_parts,
             )
+            .await
             .map_err(|e| {
                 tracing::error!("Failed to presign more multipart parts: {e}");
                 tonic::Status::internal("Failed to presign multipart parts")
