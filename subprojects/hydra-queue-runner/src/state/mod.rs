@@ -2011,31 +2011,13 @@ impl State {
             }
         }
 
-        let has_s3_stores = {
-            let r = self.remote_stores.read();
-            r.iter().any(|s| matches!(s, RemoteStoreBackend::S3(_)))
+        let outputs_to_upload = if self.config.use_presigned_uploads() {
+            Vec::new()
+        } else {
+            output.outputs.values().cloned().collect()
         };
-        if has_s3_stores {
-            // Only upload outputs if presigned uploads are NOT enabled
-            // When presigned uploads are enabled, builder handles NAR uploads directly
-            if !self.config.use_presigned_uploads() {
-                let outputs_to_upload = output
-                    .outputs
-                    .values()
-                    .map(Clone::clone)
-                    .collect::<Vec<_>>();
-
-                self.uploader
-                    .schedule_upload(
-                        outputs_to_upload,
-                        format!("log/{}", job.path),
-                        job.result.log_file.clone(),
-                        self.step_wants_overflow(&item.step_info.step),
-                        None,
-                    )
-                    .await;
-            }
-        }
+        self.schedule_step_upload(&job, &item.step_info.step, outputs_to_upload)
+            .await;
 
         // Write build trace entries for CA floating outputs to binary caches.
         // These map (resolved_drv_path, output_name) -> concrete_output_path,
@@ -2301,6 +2283,7 @@ impl State {
             .await;
 
         let step = item.step_info.step.clone();
+        self.schedule_step_upload(&job, &step, Vec::new()).await;
         let result = self
             .inner_fail_job(drv_path, Some(item.machine), job, step)
             .await;
@@ -3334,6 +3317,32 @@ impl State {
             RemoteStoreBackend::S3(s) => Some((**s).clone()),
             RemoteStoreBackend::NixCopy(_) => None,
         })
+    }
+
+    /// Upload the step's build log and `store_paths` to the S3 stores.
+    async fn schedule_step_upload(
+        &self,
+        job: &machine::Job,
+        step: &Step,
+        store_paths: Vec<StorePath>,
+    ) {
+        let has_s3_stores = self
+            .remote_stores
+            .read()
+            .iter()
+            .any(|s| matches!(s, RemoteStoreBackend::S3(_)));
+        if !has_s3_stores {
+            return;
+        }
+        self.uploader
+            .schedule_upload(
+                store_paths,
+                format!("log/{}", job.path),
+                job.result.log_file.clone(),
+                self.step_wants_overflow(step),
+                None,
+            )
+            .await;
     }
 
     /// Whether this step's uploads go to the overflow store.
