@@ -59,7 +59,7 @@ my $ctx = test_context(
 CFG
 );
 
-Catalyst::Test->import('Hydra');
+setup_catalyst_test($ctx);
 
 subtest "OIDC discovery configuration is loaded" => sub {
     require Hydra;
@@ -67,10 +67,20 @@ subtest "OIDC discovery configuration is loaded" => sub {
 
     ok($config, "OIDC provider config exists");
     is($config->{display_name}, "Test Provider", "Display name is correct");
+    is($config->{discovery_url}, $kanidm->discovery_url('hydra'), "Discovery URL is configured");
+
+    # Discovery is done lazily on the first login attempt, not at config load
+    # time, so the endpoints are only filled in after a request has gone
+    # through the app.
+    my $res = request(GET '/oidc-redirect/test?after=/');
+    is($res->code, 302, "OIDC login redirect works");
+
     is($config->{issuer}, $kanidm->issuer('hydra'), "Issuer is set from discovery");
     is($config->{authorization_endpoint}, $kanidm->authorization_url('hydra'), "Auth endpoint is set");
     is($config->{token_endpoint}, $kanidm->token_url('hydra'), "Token endpoint is set");
     ok($config->{jwks_uri}, "JWKS URI is set");
+    # Explicitly configured, so discovery must not have clobbered it.
+    is($config->{end_session_endpoint}, $kanidm->url . "/fake-end-session", "Configured end_session_endpoint is kept");
 };
 
 subtest "OIDC redirect initiates authorization flow" => sub {
