@@ -79,6 +79,14 @@ sub begin :Private {
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
     $c->stash->{enableSearch} = $c->config->{search_enable} // "1" ne "0";
 
+    if ($c->user) {
+        if ($c->user->type eq "github") {
+            $c->stash->{authMethodName} = "GitHub";
+        } elsif ($c->user->type eq "oidc") {
+            $c->stash->{authMethodName} = $c->config->{oidc}->{provider}->{$c->session->{oidc_provider}}->{display_name} // "OIDC";
+        }
+    }
+
     if ($c->stash->{isPrivateHydra} && ! noLoginNeeded($c)) {
         requireUser($c);
     }
