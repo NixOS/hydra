@@ -15,6 +15,8 @@ use IPC::Run3;
 use KanidmContext;
 use IO::File;
 
+$| = 1;
+
 mkdir ".hydra-data/kanidm";
 my $kanidm_dir = abs_path(".hydra-data/kanidm");
 
@@ -41,20 +43,27 @@ $SIG{INT} = $SIG{TERM} = $SIG{HUP} = sub {
 $ctx->start();
 print "Kanidm running at ${\ $ctx->url() } with admin password ${\ $ctx->admin_password }\n";
 
+open my $logfh, '<', $ctx->logfile or die "Cannot open logfile: $!";
+
 $ctx->allow_passwords();
+drain_log();
 $ctx->create_group('hydra_users');
+drain_log();
 $ctx->create_group('hydra_admins');
+drain_log();
 $ctx->create_user(
     'andy',
     groups => ['hydra_users', 'hydra_admins'],
     # Annoyingly password quality checks in kanidm cannot be disabled.
     password => 'kanidm credential',
 );
+drain_log();
 $ctx->create_user(
     'bert',
     groups => ['hydra_users'],
     password => 'kanidm credential',
 );
+drain_log();
 $ctx->create_oauth2_client(
     name => 'hydra',
     redirect_uris => ['http://localhost:63333/oidc-callback/kanidm'],
@@ -66,24 +75,27 @@ $ctx->create_oauth2_client(
         }
     }
 );
+drain_log();
 IO::File->new('.hydra-data/kanidm/hydra_client_secret', 'w')->print($ctx->get_oauth2_secret('hydra'));
 
-open my $logfh, '<', $ctx->logfile or die "Cannot open logfile: $!";
-
 while ($running) {
+    drain_log();
+    $ctx->assert_running();
+    sleep 0.2;
+}
+
+drain_log();
+$ctx->kill();
+print "Kanidm stopped.\n";
+
+sub drain_log {
     while (my $line = <$logfh>) {
         print $line;
     }
-    $ctx->assert_running();
 
-    # At EOF, sleep briefly and try again
-    # Clear EOF condition so we can read new data appended to the file
+    # At EOF, clear the EOF condition so we can read data appended to the file
     seek($logfh, 0, 1);
-    sleep 1;
 }
-
-$ctx->kill();
-print "Kanidm stopped.\n";
 
 sub kill_orphaned_kanidm {
     my ($dir) = @_;

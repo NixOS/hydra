@@ -51,4 +51,4 @@ ws_endpoint = ws://localhost:$HYDRA_WS_PORT
 </oidc>
 EOF
 fi
-HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-server -f -d --port "$HYDRA_SERVER_PORT"
+HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-dev-server -r -d --port "$HYDRA_SERVER_PORT"
