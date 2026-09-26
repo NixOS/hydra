@@ -1,6 +1,6 @@
 # Hydra
 
-[![CI](https://github.com/NixOS/hydra/workflows/Test/badge.svg)](https://github.com/NixOS/hydra/actions)
+[![CI](https://github.com/NixOS/hydra/actions/workflows/test.yml/badge.svg?branch=master&event=push)](https://github.com/NixOS/hydra/actions/workflows/test.yml)
 
 Hydra is a [Continuous Integration](https://en.wikipedia.org/wiki/Continuous_integration) service for [Nix](https://nixos.org/nix) based projects.
 
