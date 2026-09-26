@@ -9,6 +9,7 @@ use File::Which qw(which);
 use Cwd qw(abs_path getcwd);
 use CliRunners;
 use Hydra::Helper::Exec;
+use ShortSocketDir qw(short_socket_dir);
 
 # Set up the environment for running tests.
 #
@@ -47,6 +48,13 @@ sub new {
     # up, but can be kept to aid in debugging test failures.
     my $dir = File::Temp->newdir(CLEANUP => 0);
 
+    # nix-daemon listens on a unix socket, whose path has a hard length limit,
+    # and $dir is under TMPDIR, which can be deep enough to exceed it. Give each
+    # daemon a short socket directory instead; the objects are kept alive in
+    # $self so the directories outlive the daemons.
+    my $builder_sockdir = short_socket_dir('hydra-nixd-XXXXXXXX');
+    my $central_sockdir = short_socket_dir('hydra-nixd-XXXXXXXX');
+
     # Logical store dir — shared between evaluator and builder so store
     # paths are compatible.  The builder's physical store matches this
     # (physical = logical), which is required on Darwin where we cannot
@@ -58,7 +66,7 @@ sub new {
     $builder->{nix_state_dir} = "$builder->{root}/nix/var/nix";
     $builder->{nix_log_dir} = "$builder->{root}/nix/var/log/nix";
     $builder->{nix_store_uri} = "local?root=$builder->{root}&store=$builder->{nix_store_dir}";
-    $builder->{nix_daemon_socket_path} = "$builder->{nix_state_dir}/daemon-socket/socket";
+    $builder->{nix_daemon_socket_path} = "$builder_sockdir/builder.sock";
     $builder->{nix_daemon_uri} = "unix://$builder->{nix_daemon_socket_path}?root=$builder->{root}&store=$builder->{nix_store_dir}";
 
     # Physical dirs for centralized services (queue runner, main web app, etc.)
@@ -72,7 +80,7 @@ sub new {
     $central->{nix_state_dir} = "$central->{root}/nix/var/nix";
     $central->{nix_log_dir} = "$central->{root}/nix/var/log/nix";
     $central->{nix_store_uri} = "local?root=$central->{root}&store=$central->{nix_store_dir}";
-    $central->{nix_daemon_socket_path} = "$central->{nix_state_dir}/daemon-socket/socket";
+    $central->{nix_daemon_socket_path} = "$central_sockdir/central.sock";
     $central->{nix_daemon_uri} = "unix://$central->{nix_daemon_socket_path}?root=$central->{root}&store=$central->{nix_store_dir}";
 
     {
@@ -116,6 +124,9 @@ sub new {
         _db => undef,
         db_handle => $pgsql,
         tmpdir => $dir,
+        # Holds the File::Temp objects for the nix-daemon socket directories,
+        # so they are only removed once we are done with the daemons.
+        sockdirs => [$builder_sockdir, $central_sockdir],
         builder => $builder,
         central => $central,
         testdir => abs_path(dirname(__FILE__) . "/.."),

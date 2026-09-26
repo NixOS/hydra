@@ -3,6 +3,7 @@
 - [Introduction](introduction.md)
 - [Installation](installation.md)
 - [Configuration](configuration.md)
+- [Single sign-on with OIDC](oidc.md)
 - [Creating and Managing Projects](projects.md)
 - [Hydra jobs](./jobs.md)
 - [Plugins](./plugins/README.md)
