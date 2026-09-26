@@ -190,11 +190,14 @@ in
         + '|  jq .buildstatus | xargs test 0 -eq'
     )
 
-    data = server.succeed(
+    statuses_cmd = (
         'curl -Lf -s "http://localhost:3001/api/v1/repos/root/repo/statuses/$(cd /tmp/repo && git show | head -n1 | awk "{print \\$2}")" '
         + "-H 'Accept: application/json' -H 'Content-Type: application/json' "
         + f"-H 'Authorization: token ${api_token}'"
     )
+    # wait for rather than success otherwise its flaky
+    server.wait_until_succeeds(statuses_cmd + " | jq -e 'length >= 2'")
+    data = server.succeed(statuses_cmd)
 
     response = json.loads(data)
 
