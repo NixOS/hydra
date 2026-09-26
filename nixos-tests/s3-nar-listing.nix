@@ -23,6 +23,11 @@ let
   # and Nix reports them sorted.
   s3StoreUri = "s3://hydra-cache?compression=none&endpoint=http://s3:${toString garagePort}&region=garage&scheme=http&write-nar-listing=1";
 
+  # Test-only signing keys. The builder and the cache each sign the output, so
+  # the uploaded narinfo must contain both signatures.
+  builderKey = pkgs.writeText "builder-1.sk" "builder-1:dVHg4O8y07/DNdNj90WwtDlHsGGpTtMyurSPUVJoAG1nNv5gnLcXbC0W2CO2ljE8Gxa2VpVQaMWxAwLIAMZ8yA==";
+  cacheKey = pkgs.writeText "cache-1.sk" "cache-1:NrvFOHmwiZHlSCglebVOC5xj2HIPTw6bPM+gpxYzk8uxOuxG75PyOw5jJZ+OS0nF21hZiRvK/pEk/KIx3qSMGQ==";
+
   # 32-byte hex RPC secret for garage
   rpcSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -173,7 +178,7 @@ in
       '';
 
       services.hydra-queue-runner-dev = {
-        settings.remoteStoreAddr = [ s3StoreUri ];
+        settings.remoteStoreAddr = [ "${s3StoreUri}&secret-key=${cacheKey}" ];
         settings.usePresignedUploads = presigned;
         settings.forcedSubstituters = lib.optionals presigned [ s3StoreUri ];
         awsCredentialsFile = "/var/lib/hydra/queue-runner/.aws-credentials";
@@ -188,6 +193,7 @@ in
     # substituter with substitution enabled, or the queue runner rejects it.
     services.hydra-queue-builder-dev.settings.useSubstitutes = lib.mkForce presigned;
     nix.settings.substituters = lib.mkForce (lib.optionals presigned [ s3StoreUri ]);
+    nix.settings.secret-key-files = [ "${builderKey}" ];
   };
 
   skipLint = true;
@@ -349,6 +355,15 @@ in
         f"Actual:\n{json.dumps(actual, indent=2)}"
     )
 
+    # The uploaded narinfo must contain the builder's and the cache's signature (#1914).
+    narinfo = server.wait_until_succeeds(s3_curl(f"{store_hash}.narinfo"), timeout=60)
+    sig_names = {
+        l.split()[1].split(":")[0] for l in narinfo.splitlines() if l.startswith("Sig:")
+    }
+    assert sig_names == {"builder-1", "cache-1"}, (
+        f"unexpected signatures in narinfo:\n{narinfo}"
+    )
+
     drv_name = build_info["drvpath"].split("/")[-1]
     build_log = server.wait_until_succeeds(s3_curl(f"log/{drv_name}"), timeout=60)
     assert "trivial-build-log" in build_log, f"unexpected build log: {build_log!r}"
@@ -364,7 +379,6 @@ in
                   return line.split(":", 1)[1].strip()
           raise Exception(f"no Last-Modified for {nar_url}:\n{headers}")
 
-      narinfo = server.succeed(s3_curl(f"{store_hash}.narinfo"))
       trivial_nar = next(
           l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith("URL:")
       )

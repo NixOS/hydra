@@ -27,7 +27,8 @@ pub fn parse_nar_hash(raw: &str) -> Option<NarHash> {
     parse_hash(raw).and_then(|h| NarHash::try_from(h).ok())
 }
 
-/// Build a `NarInfo` from a `PathInfo` (`UnkeyedValidPathInfo`), optionally signing it.
+/// Build a `NarInfo` from a `PathInfo` (`UnkeyedValidPathInfo`), adding a signature per signing
+/// key to the signatures it already carries.
 #[must_use]
 pub fn narinfo_from_path_info(
     path: &StorePath,
@@ -36,34 +37,11 @@ pub fn narinfo_from_path_info(
     store_dir: &StoreDir,
     signing_keys: &[secrecy::SecretString],
 ) -> NarInfo {
-    let nar_hash_url = {
-        let h: Hash = path_info.nar_hash.into();
-        format!("{:#}", h.as_base32())
-    };
-
-    let original_signatures = path_info.signatures.clone();
-    let url = format!("nar/{}.{}", nar_hash_url, compression.ext());
-
-    let mut narinfo = NarInfo {
-        path: path.clone(),
-        info: UnkeyedNarInfo {
-            info: path_info,
-            url: Some(url),
-            compression: Some(compression.as_str().to_owned()),
-            download_hash: None,
-            download_size: None,
-        },
-    };
-
-    // Sign with the provided signing keys (clears existing sigs first)
-    narinfo = clear_sigs_and_sign(narinfo, store_dir, signing_keys);
-
-    // If signing produced no sigs but path_info had sigs, restore them
-    if narinfo.info.info.signatures.is_empty() && !original_signatures.is_empty() {
-        narinfo.info.info.signatures = original_signatures;
-    }
-
-    narinfo
+    sign_narinfo(
+        narinfo_simple(path, path_info, compression),
+        store_dir,
+        signing_keys,
+    )
 }
 
 /// Build a simple `NarInfo` without signing.
@@ -90,26 +68,24 @@ pub fn narinfo_simple(
     }
 }
 
-/// Clear signatures and re-sign with the provided signing keys.
+/// Add a signature per signing key. Like Nix's `ValidPathInfo::sign`, this keeps existing
+/// signatures, e.g. those from the builder's `secret-key-files`.
 #[must_use]
-pub fn clear_sigs_and_sign(
+pub fn sign_narinfo(
     mut narinfo: NarInfo,
     store_dir: &StoreDir,
     signing_keys: &[secrecy::SecretString],
 ) -> NarInfo {
-    narinfo.info.info.signatures.clear();
-    if !signing_keys.is_empty() {
-        let fp = fingerprint_path(
-            store_dir,
-            &narinfo.path,
-            &narinfo.info.info.nar_hash,
-            narinfo.info.info.nar_size,
-            &narinfo.info.info.references,
-        );
-        for s in signing_keys {
-            if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
-                narinfo.info.info.signatures.insert(sk.sign(&fp));
-            }
+    let fp = fingerprint_path(
+        store_dir,
+        &narinfo.path,
+        &narinfo.info.info.nar_hash,
+        narinfo.info.info.nar_size,
+        &narinfo.info.info.references,
+    );
+    for s in signing_keys {
+        if let Ok(sk) = s.expose_secret().parse::<SecretKey>() {
+            narinfo.info.info.signatures.insert(sk.sign(&fp));
         }
     }
     narinfo
@@ -119,4 +95,47 @@ pub fn clear_sigs_and_sign(
 #[must_use]
 pub fn get_ls_path(narinfo: &NarInfo) -> String {
     format!("{}.ls", narinfo.path.hash())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::collections::BTreeSet;
+
+    use harmonia_utils_signature::Signature;
+
+    use super::*;
+
+    #[test]
+    fn sign_narinfo_keeps_existing_signatures() {
+        let store_dir = StoreDir::default();
+        let path: StorePath = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-hello".parse().unwrap();
+        let builder_sig: Signature = "builder-1:0CpHca+06TwFp9VkMyz5OaphT3E8mnS+1SWymYlvFaghKSYPCMQ66TS1XPAr1+y9rfQZPLaHrBjjnIRktE/nAA==".parse().unwrap();
+        let path_info = UnkeyedValidPathInfo {
+            deriver: None,
+            nar_hash: NarHash::from_slice(&[0xab; 32]).unwrap(),
+            references: BTreeSet::new(),
+            registration_time: None,
+            nar_size: 42,
+            ultimate: false,
+            signatures: BTreeSet::from([builder_sig.clone()]),
+            ca: None,
+            store_dir: store_dir.clone(),
+        };
+        let cache_key = SecretKey::generate("cache-1".into()).unwrap();
+
+        let narinfo = narinfo_from_path_info(
+            &path,
+            path_info,
+            Compression::None,
+            &store_dir,
+            &[cache_key.to_string().into()],
+        );
+
+        let sigs = &narinfo.info.info.signatures;
+        assert_eq!(sigs.len(), 2);
+        assert!(sigs.contains(&builder_sig));
+        assert!(sigs.iter().any(|s| s.name() == "cache-1"));
+    }
 }
