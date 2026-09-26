@@ -299,8 +299,8 @@ pub enum RemoteStoreBackend {
 /// Presence-cache filename derived from the store URI, so reordering the
 /// store list cannot alias one store's cache onto another.
 fn presence_cache_file(uri: &str) -> String {
-    let digest = Sha256::digest(uri.as_bytes());
-    format!("narinfo-presence-{digest:x}.db")
+    let digest = hex::encode(Sha256::digest(uri.as_bytes()));
+    format!("narinfo-presence-{digest}.db")
 }
 
 /// Build the S3 client for the configured overflow store, if any.
