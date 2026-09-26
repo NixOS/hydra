@@ -338,11 +338,15 @@ impl Uploader {
             _ => remote_stores,
         };
 
-        let closure = match store.query_closure_infos(msg.store_paths.to_vec()).await {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::error!("Failed to query requisites: {e}");
-                return;
+        let closure = if msg.store_paths.is_empty() {
+            Vec::new()
+        } else {
+            match store.query_closure_infos(msg.store_paths.to_vec()).await {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("Failed to query requisites: {e}");
+                    return;
+                }
             }
         };
         tracing::info!(

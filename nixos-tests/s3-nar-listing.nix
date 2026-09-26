@@ -323,20 +323,15 @@ in
     out_path = build_info["buildoutputs"]["out"]["path"]
     store_hash = out_path.split("/")[-1][:32]
 
-    # Wait for the .ls listing to appear in S3 (upload may still be in progress)
-    server.wait_until_succeeds(
-        f"curl -sf http://s3:${toString garagePort}/hydra-cache/{store_hash}.ls"
-        f" --aws-sigv4 'aws:amz:garage:s3'"
-        f" -u '{key_id}:{key_secret}'",
-        timeout=60,
-    )
+    def s3_curl(args):
+        return (
+            f"curl -sf http://s3:${toString garagePort}/hydra-cache/{args}"
+            f" --aws-sigv4 'aws:amz:garage:s3' -u '{key_id}:{key_secret}'"
+        )
 
-    # Fetch the .ls listing
-    ls_json = server.succeed(
-        f"curl -sf http://s3:${toString garagePort}/hydra-cache/{store_hash}.ls"
-        f" --aws-sigv4 'aws:amz:garage:s3'"
-        f" -u '{key_id}:{key_secret}'"
-    )
+    # Wait for the .ls listing to appear in S3 (upload may still be in progress)
+    server.wait_until_succeeds(s3_curl(f"{store_hash}.ls"), timeout=60)
+    ls_json = server.succeed(s3_curl(f"{store_hash}.ls"))
 
     # Exact comparison with the expected listing
     expected = json.loads('${expectedListing}')
@@ -347,16 +342,13 @@ in
         f"Actual:\n{json.dumps(actual, indent=2)}"
     )
 
+    drv_name = build_info["drvpath"].split("/")[-1]
+    server.wait_until_succeeds(s3_curl(f"log/{drv_name}"), timeout=60)
+
     ${lib.optionalString presigned ''
       # Regression: a closure path already in the cache must not be re-uploaded
       # by a later build. trivial2 references trivial, so trivial is in its
       # closure; building trivial2 must NOT re-PUT trivial's NAR.
-      def s3_curl(args):
-          return (
-              f"curl -sf http://s3:${toString garagePort}/hydra-cache/{args}"
-              f" --aws-sigv4 'aws:amz:garage:s3' -u '{key_id}:{key_secret}'"
-          )
-
       def last_modified(nar_url):
           headers = server.succeed(s3_curl(nar_url) + " -I")
           for line in headers.splitlines():
