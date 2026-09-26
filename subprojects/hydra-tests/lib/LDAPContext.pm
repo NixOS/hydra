@@ -6,6 +6,7 @@ use POSIX qw(SIGKILL);
 use File::Path qw(make_path);
 use WWW::Form::UrlEncoded::PP qw();
 use Hydra::Helper::Exec;
+use ShortSocketDir qw(short_socket_dir);
 
 # Set up an LDAP server to run during the test.
 #
@@ -33,13 +34,18 @@ sub new {
     my $db_dir = "$root/db";
     mkdir $db_dir;
 
-    my $socket = "$root/slapd.socket";
+    # slapd listens on a unix socket, whose path has a hard length limit, and
+    # $root is under TMPDIR, which can be deep. Short directory of its own; the
+    # object is kept alive below so it outlives slapd.
+    my $sockdir = short_socket_dir('hydra-slapd-XXXXXXXX');
+    my $socket = "$sockdir/slapd.socket";
 
     my $self = {
         _db_dir => $db_dir,
         _openldap_source => $ENV{"OPENLDAP_ROOT"},
         _pid_file => $pid_file,
         _slapd_dir => $slapd_dir,
+        _sockdir => $sockdir,
         _socket => $socket,
         _tmpdir => $root,
         root_password => $rootPassword,

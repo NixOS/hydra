@@ -8,6 +8,8 @@ use JSON::MaybeXS qw(decode_json encode_json);
 use POSIX qw(SIGTERM WNOHANG);
 use Data::Dumper;
 use URI;
+use File::Temp;
+use ShortSocketDir qw(short_socket_dir);
 
 # Starts a new Kanidm process with a temporary database, a random port, and an oauth client for
 # Hydra to use.
@@ -17,12 +19,19 @@ sub new {
     # CLEANUP => 0, yath will delete the directory.
     my $kanidm_dir = $opts{'kanidm_dir'} // File::Temp->newdir(CLEANUP => 0);
 
+    # The admin socket is a unix domain socket, so it can't live in
+    # kanidm_dir: that is under TMPDIR, which may be deep enough that the path
+    # is over the 108-byte sockaddr_un limit. It gets a short directory of its
+    # own instead; keep the object around so the directory outlives the server.
+    my $sockdir = short_socket_dir('hydra-kanidm-XXXXXXXX');
+
     my $self = {
         kanidm_dir => $kanidm_dir,
         kanidm_config => "$kanidm_dir/kanidm.toml",
         # Might get overwritten by generate_config if it's undef here.
         port => $opts{'port'},
         _explicit_port => defined $opts{'port'},
+        _sockdir => $sockdir,
         _logfile => "$kanidm_dir/kanidm.log"
     };
     my $blessed = bless $self, $class;
@@ -79,7 +88,7 @@ tls_chain = "$self->{kanidm_dir}/chain.pem"
 tls_key = "$self->{kanidm_dir}/key.pem"
 domain = "localhost"
 origin = "https://localhost:$self->{port}"
-adminbindpath = "$self->{kanidm_dir}/admin.sock"
+adminbindpath = "$self->{_sockdir}/admin.sock"
 EOF
     close($fh);
 

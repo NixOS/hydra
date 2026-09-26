@@ -17,6 +17,7 @@ use IPC::Run;
 use LWP::UserAgent;
 use URI::Escape qw(uri_escape);
 use ProcessGroup;
+use ShortSocketDir qw(short_socket_dir);
 use QueueRunnerContext qw(
     start_queue_runner
     start_builder
@@ -38,8 +39,11 @@ sub new {
         or die "AdHocContext requires a HydraTestContext\n";
 
     my $tmpdir = $ctx->{tmpdir};
-    my $upstream_sock = "$tmpdir/upstream-nix-daemon.sock";
-    my $daemon_sock = "$tmpdir/ad-hoc.sock";
+    # Unix socket paths are length-limited (see ShortSocketDir), and the test's
+    # tmpdir can be deep, so both sockets get a short directory of their own.
+    my $sockdir = short_socket_dir('hydra-ad-hoc-XXXXXXXX');
+    my $upstream_sock = "$sockdir/upstream-nix-daemon.sock";
+    my $daemon_sock = "$sockdir/ad-hoc.sock";
 
     # The upstream nix-daemon and hydra-ad-hoc have to be up before the
     # queue runner, so they get their own group; start_queue_runner builds
@@ -48,6 +52,7 @@ sub new {
 
     my $self = bless {
         ctx           => $ctx,
+        sockdir       => $sockdir,
         upstream_sock => $upstream_sock,
         daemon_sock   => $daemon_sock,
         pre_pg        => $pre_pg,
