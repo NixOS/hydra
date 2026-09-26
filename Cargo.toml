@@ -80,7 +80,7 @@ procfs = "0.18"
 procfs-core = "0.18"
 prometheus = { version = "0.14.0", default-features = false }
 prost = "0.14"
-quick-xml = { version = "0.39", features = [ "serialize" ] }
+quick-xml = { version = "0.42", features = [ "serialize" ] }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = [
     "http2",
