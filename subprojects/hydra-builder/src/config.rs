@@ -172,13 +172,10 @@ pub struct AppConfig {
 /// default settings, mirroring the queue runner's behaviour.
 #[tracing::instrument(err)]
 pub fn load_config(filepath: &str) -> Result<AppConfig, ConfigError> {
-    let content = match fs_err::read_to_string(filepath) {
-        Ok(content) => content,
-        Err(_) => {
-            tracing::warn!("no config file found at {filepath}! Using default config");
-            String::new()
-        }
-    };
+    let content = fs_err::read_to_string(filepath).unwrap_or_else(|_| {
+        tracing::warn!("no config file found at {filepath}! Using default config");
+        String::new()
+    });
     let config: AppConfig = toml::from_str(&content).map_err(|source| ConfigError::Toml {
         context: format!("loading config from '{filepath}'"),
         source,

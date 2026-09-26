@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         nix_config.socket.clone(),
         nix_config.store_dir.clone(),
     );
-    let store = daemon_client_utils::DaemonStoreReader::new(connector.clone());
+    let store = daemon_client_utils::DaemonStoreReader::new(connector);
     let client = S3BinaryCacheClient::new(
         format!(
             "s3://store2?region=unknown&endpoint=http://localhost:9000&scheme=http&write-nar-listing=1&write-debug-info=1&compression=zstd&ls-compression=br&log-compression=br&secret-key={}/../../example-secret-key&profile=local_nix_store",
@@ -61,7 +61,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|p| {
             let client = client.clone();
             let upload_client = upload_client.clone();
-            let connector = connector.clone();
             let store = store.clone();
             async move {
                 let narinfo = path_to_narinfo(&store, &p).await?;
