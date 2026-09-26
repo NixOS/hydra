@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::OIDC qw(configuredProvider);
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::StorePath;
@@ -74,9 +75,19 @@ sub begin :Private {
     $c->stash->{flashMsg} = $c->flash->{flashMsg};
     $c->stash->{successMsg} = $c->flash->{successMsg};
     $c->stash->{localStore} = isLocalStore;
+    $c->stash->{logoutToken} = logoutToken($c) if $c->user_exists;
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
     $c->stash->{enableSearch} = $c->config->{search_enable} // "1" ne "0";
+
+    if ($c->user) {
+        if ($c->user->type eq "github") {
+            $c->stash->{authMethodName} = "GitHub";
+        } elsif ($c->user->type eq "oidc") {
+            my $provider = configuredProvider($c, $c->session->{oidc_provider});
+            $c->stash->{authMethodName} = ($provider && $provider->{display_name}) // "OIDC";
+        }
+    }
 
     if ($c->stash->{isPrivateHydra} && ! noLoginNeeded($c)) {
         requireUser($c);

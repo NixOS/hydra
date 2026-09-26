@@ -17,6 +17,7 @@ srcs = files(
   'src/jobs.md',
   'src/monitoring/README.md',
   'src/notifications.md',
+  'src/oidc.md',
   'src/plugins/README.md',
   'src/plugins/RunCommand.md',
   'src/plugins/declarative-projects.md',

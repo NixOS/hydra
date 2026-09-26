@@ -55,6 +55,7 @@ hydra.overrideAttrs (
 
     nativeBuildInputs = collectInputs "nativeBuildInputs" ++ [
       pkgs.foreman
+      hydra-tests.KANIDM_ROOT
       pkgs.cargo-nextest
       pkgs.clippy
       pkgs.nixfmt
