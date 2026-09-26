@@ -2,6 +2,7 @@ package Hydra::Config;
 
 use strict;
 use warnings;
+use feature qw(signatures);
 use Config::General;
 use List::SomeUtils qw(none);
 use YAML qw(LoadFile);
@@ -16,6 +17,11 @@ our @EXPORT = qw(
 );
 
 our %configGeneralOpts = (-UseApacheInclude => 1, -IncludeAgain => 1, -IncludeRelative => 1);
+
+our @EXPORT_OK = qw(
+    normalize_oidc_role_mappings
+    oidc_roles_from_claim
+);
 
 my $hydraConfigCache;
 
@@ -223,6 +229,46 @@ sub normalize_ldap_role_mappings {
     return $mapping;
 }
 
+# An OIDC provider's role_mapping translates the values the IDP puts in its
+# role claim into Hydra roles. The IDP's idea of a role or group need not be
+# spelled the way Hydra spells its roles, so the mapping is keyed by whatever
+# the IDP sends instead.
+sub normalize_oidc_role_mappings {
+    my ($input_map) = @_;
+
+    return undef unless defined $input_map;
+
+    my $mapping = {};
+
+    my @errors;
+
+    for my $claim_value (keys %{$input_map}) {
+        my $input = $input_map->{$claim_value};
+
+        if (ref $input eq "ARRAY") {
+            $mapping->{$claim_value} = $input;
+        } elsif (ref $input eq "") {
+            $mapping->{$claim_value} = [ $input ];
+        } else {
+            push @errors, "On claim value '$claim_value': the value is of type ${\ref $input}. Only strings and lists are acceptable.";
+            $mapping->{$claim_value} = [ ];
+        }
+
+        eval {
+            validate_roles($mapping->{$claim_value});
+        };
+        if ($@) {
+            push @errors, "On claim value '$claim_value': $@";
+        }
+    }
+
+    if (@errors) {
+        die "Failed to normalize OIDC role mappings:\n" . (join "\n", @errors);
+    }
+
+    return $mapping;
+}
+
 sub validate_roles {
     my ($roles) = @_;
 
@@ -260,6 +306,46 @@ sub valid_roles {
 sub normalize_role_name {
     my ($role) = @_;
     return $role =~ s/_/-/gr;
+}
+
+# The claim we look for roles in if a provider doesn't configure `role_claim`.
+our $default_oidc_role_claim = "hydra_roles";
+
+# Work out which Hydra roles a set of ID token claims grants. Returns undef if
+# the IDP presented no role claim at all, so the caller can tell "no roles"
+# apart from "nothing said about roles".
+sub oidc_roles_from_claim ($conf, $claims) {
+    my $claim_name = $conf->{role_claim} // $default_oidc_role_claim;
+    my $value = $claims->{$claim_name};
+
+    return undef unless defined $value;
+
+    my @values = ref $value eq "ARRAY" ? @{$value} : ($value);
+    my $mapping = $conf->{role_mapping};
+
+    if ($mapping && keys %$mapping) {
+        # IDP-provided values are only as trustworthy as the rest of the
+        # token, so grant the mapped roles and nothing else. resolveOIDCConfig
+        # has already rejected a mapping with a role Hydra does not know
+        # about, but check again here since nothing stops a caller from
+        # passing in a config that never went through it.
+        my %is_valid_role = map { $_ => 1 } @{valid_roles()};
+        my @mapped;
+        for my $value (@values) {
+            my $roles = $mapping->{$value};
+            next unless defined $roles;
+            push @mapped, ref $roles eq "ARRAY" ? @{$roles} : ($roles);
+        }
+        my %seen;
+        return [ grep { !$seen{$_}++ && $is_valid_role{$_} } @mapped ];
+    }
+
+    # Without a mapping the claim is expected to name Hydra roles directly.
+    # Some OIDC identity provider implementations (e.g. kanidm) have
+    # restrictions on what values can be put in custom claims, and cannot put
+    # dashes in them, so accept underscores in place of dashes.
+    my %is_valid_role = map { $_ => 1 } @{valid_roles()};
+    return [ grep { $is_valid_role{$_} } map { normalize_role_name($_) } @values ];
 }
 
 1;

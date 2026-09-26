@@ -15,6 +15,7 @@ use File::Slurper qw(read_text);
 use Crypt::JWT qw(decode_jwt);
 use String::Compare::ConstantTime qw(equals);
 use Hydra::Helper::CatalystUtils qw(error);
+use Hydra::Config qw(normalize_oidc_role_mappings);
 
 our @EXPORT_OK = qw(
     resolveOIDCConfig
@@ -357,6 +358,12 @@ sub resolveOIDCConfig ($oidc_config) {
                     or die "OIDC provider '$provider_name' is missing '$field' "
                          . "(set discovery_url or configure it explicitly)\n";
             }
+        }
+
+        # Fail at startup on a typo in the role mapping, rather than silently
+        # handing out no roles at login time.
+        if ($provider->{role_mapping}) {
+            $provider->{role_mapping} = normalize_oidc_role_mappings($provider->{role_mapping});
         }
     }
 }

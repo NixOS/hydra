@@ -275,20 +275,18 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
         username => $provider_name . ":" . $claims->{sub},
     );
 
-    # If a hydra_roles claim was presented, set roles with it.
-    # We don't support any kind of role mapping other than this at the moment; you have to
-    # explicitly configure your IDP to present the hydra_roles claim in the ID token with the
-    # desired list of roles. I tested this with a couple of IDP's and it worked:
+    # Roles come from the IDP's role claim. A provider can configure
+    # `role_mapping` to translate the values the IDP sends into Hydra roles,
+    # so the two need not agree on what a role is called; without a mapping the
+    # claim is expected to name Hydra roles directly. Either way you have to
+    # configure your IDP to put the claim in the ID token:
     #  * Keycloak: You need to set up a "protocol mapper" to bind client-scoped role values to
     #    ID token claims
     #  * Kanidm: You have to use `kanidm system oauth2 update-claim-map`
-    if ($claims->{hydra_roles}) {
-        # Take the intersection of hydra_roles that are in valid_roles
-        my %valid_roles = map { $_ => 1 } @{Hydra::Config::valid_roles()};
-        my @normalized_roles = map { Hydra::Config::normalize_role_name($_) } @{$claims->{hydra_roles}};
-        my @roles = grep { $valid_roles{$_} } @normalized_roles;
-        $c->user->setRoles(@roles);
-    }
+    my $roles = Hydra::Config::oidc_roles_from_claim($oidc->{conf}, $claims);
+    # Only touch the user's roles if the IDP had something to say about them;
+    # otherwise leave them be.
+    $c->user->setRoles(@$roles) if $roles;
 
     $oidc->clear_session();
     # Remember which OIDC provider was used so we can perform RP-Initiated

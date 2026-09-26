@@ -18,6 +18,11 @@ $kanidm->start();
 $kanidm->allow_passwords();
 $kanidm->create_group('hydra_users');
 $kanidm->create_group('hydra_admins');
+# Group the IdP maps to a value Hydra's role_mapping does not mention.
+$kanidm->create_group('hydra_strangers');
+# Group the IdP maps to a value Hydra's role_mapping does not mention either,
+# and which is the only group its user is in.
+$kanidm->create_group('hydra_nobody');
 $kanidm->create_user(
     'andy',
     groups => ['hydra_users', 'hydra_admins'],
@@ -29,14 +34,33 @@ $kanidm->create_user(
     groups => ['hydra_users'],
     password => 'kanidm credential',
 );
+$kanidm->create_user(
+    'carl',
+    groups => ['hydra_users', 'hydra_strangers'],
+    password => 'kanidm credential',
+);
+# Only in hydra_nobody, whose IdP claim value is not in Hydra's role_mapping.
+$kanidm->create_user(
+    'dana',
+    groups => ['hydra_nobody'],
+    password => 'kanidm credential',
+);
 $kanidm->create_oauth2_client(
     name => 'hydra',
     redirect_uris => ['http://localhost/oidc-callback/test'],
-    scopes => { hydra_users => ['openid', 'email', 'profile']},
+    scopes => {
+        hydra_users => ['openid', 'email', 'profile'],
+        hydra_nobody => ['openid', 'email', 'profile'],
+    },
+    # The IdP calls its role claim `idp_roles` and its values have nothing to
+    # do with Hydra's role names; the provider's role_mapping below is what
+    # turns them into roles.
     claims => {
-        hydra_roles => {
-            hydra_admins => ['admin'],
-            hydra_users => ['restart_jobs', 'bump_to_front', 'cancel_build'],
+        idp_roles => {
+            hydra_admins => ['powerusers'],
+            hydra_users => ['builders'],
+            hydra_strangers => ['idiots'],
+            hydra_nobody => ['ghosts'],
         }
     }
 );
@@ -54,12 +78,82 @@ my $ctx = test_context(
                 # Kanidm does not implement RP-Initiated Logout, so we set this
                 # manually to exercise the logout redirect path.
                 end_session_endpoint = "${\$kanidm->url}/fake-end-session"
+                role_claim = "idp_roles"
+                <role_mapping>
+                    powerusers = admin
+                    builders = restart-jobs
+                    builders = cancel-build
+                    # The IdP's `idiots` and `ghosts` values are deliberately
+                    # left out: they must not grant anything.
+                </role_mapping>
             </provider>
         </oidc>
 CFG
 );
 
 setup_catalyst_test($ctx);
+
+# Drive a full OIDC login for $username and return the Mechanize object (which
+# the caller may want to keep poking at) and the cookie jar holding the Hydra
+# session cookie.
+sub login_as {
+    my ($username) = @_;
+
+    # We need a better cookie jar implementation than the normal one, because HTTP::Cookies
+    # does not seem to separate the cookies for kanidm & hydra running on different ports.
+    # The kanidm cookies don't seem to get set in the Mechanize _at all_ without this.
+    my $cookie_jar = HTTP::CookieJar::LWP->new();
+    my $mech = Test::WWW::Mechanize::Catalyst->new(
+        catalyst_app => 'Hydra',
+        ssl_opts => {
+           SSL_ca_file => $kanidm->ca_file,
+        },
+        cookie_jar => $cookie_jar,
+    );
+    $mech->allow_external(1);
+    $mech->get_ok('/queue_summary');
+    ok($mech->follow_link(text => 'Sign in with Test Provider'), "Follow login link");
+    my $auth_url = $kanidm->authorization_url('hydra');
+    like($mech->uri()->as_string, qr/^\Q$auth_url\E/, "redirect to login page");
+    ok($mech->submit_form(
+        form_id => 'login',
+        fields => { username => $username }
+    ), "Submit username form");
+    ok($mech->submit_form(
+        form_id => 'login',
+        fields => { password => 'kanidm credential' }
+    ), "Submit password form");
+    # Kanidm can still have a page of its own in front of us after the
+    # password: a consent page the first time this client logs in, or a
+    # "resume" page for subsequent logins. Both just want their form
+    # submitted. (kanidm has an option to skip consent, but it is not in a
+    # released version in nixpkgs yet.)
+    my $kanidm_url = $kanidm->url;
+    foreach my $attempt (1 .. 3) {
+        last unless $mech->uri->as_string =~ /^\Q$kanidm_url\E/;
+        my @forms = $mech->forms;
+        ok(scalar @forms, "[$username] kanidm still has a form for us to submit");
+        last unless @forms;
+        # Whatever the page is, its form is the only way forward.
+        ok($mech->submit_form(form_number => 1), "[$username] submit kanidm form");
+    }
+    # Now we should be back in Hydra, on the queue_summary page
+    like($mech->uri()->as_string, qr/\/queue_summary/, "redirect to queue_summary page");
+
+    return ($mech, $cookie_jar);
+}
+
+# Fetch a page as the user logged in via login_as(), and return the roles Hydra
+# ended up with for them.
+sub roles_after_login {
+    my ($username) = @_;
+
+    my (undef, $cookie_jar) = login_as($username);
+    my ($res, $c) = ctx_request(GET '/', Cookie => $cookie_jar->cookie_header('http://localhost'));
+    is($res->code, 200, "[$username] fetching with ctx_request should succeed");
+
+    return [sort map { $_->role } $c->user->userroles];
+}
 
 subtest "OIDC discovery configuration is loaded" => sub {
     require Hydra;
@@ -106,37 +200,7 @@ subtest "OIDC redirect initiates authorization flow" => sub {
 };
 
 subtest "OIDC login flow works end-to-end" => sub {
-    # We need a better cookie jar implementation than the normal one, because HTTP::Cookies
-    # does not seem to separate the cookies for kanidm & hydra running on different ports.
-    # The kanidm cookies don't seem to get set in the Mechanize _at all_ without this.
-    my $cookie_jar = HTTP::CookieJar::LWP->new();
-    my $mech = Test::WWW::Mechanize::Catalyst->new(
-        catalyst_app => 'Hydra',
-        ssl_opts => {
-           SSL_ca_file => $kanidm->ca_file,
-        },
-        cookie_jar => $cookie_jar,
-    );
-    $mech->allow_external(1);
-    $mech->get_ok('/queue_summary');
-    ok($mech->follow_link(text => 'Sign in with Test Provider'), "Follow login link");
-    my $auth_url = $kanidm->authorization_url('hydra');
-    like($mech->uri()->as_string, qr/^\Q$auth_url\E/, "redirect to login page");
-    ok($mech->submit_form(
-        form_id => 'login',
-        fields => { username => 'bert' }
-    ), "Submit username form");
-    ok($mech->submit_form(
-        form_id => 'login',
-        fields => { password => 'kanidm credential' }
-    ), "Submit password form");
-    # If the consent page is displayed, submit that.
-    # (kanidm now has an option to skip this, but it's not in a released version in nixpkgs yet)
-    if ($mech->title =~ /Consent Required/) {
-        ok($mech->submit_form(form_id => 'login'), "Submit consent form");
-    }
-    # Now we should be back in Hydra, on the queue_summary page
-    like($mech->uri()->as_string, qr/\/queue_summary/, "redirect to queue_summary page");
+    my ($mech, $cookie_jar) = login_as('bert');
 
     # We should be logged in as the idm user, and have the roles in that role.
     # Make another request with ctx_request to get $c, but keep the cookies we just got from the
@@ -145,7 +209,7 @@ subtest "OIDC login flow works end-to-end" => sub {
     is($res->code, 200, "Fetching with ctx_request should succeed");
     like($c->user->username, qr/^test:/, "username is prefixed with OIDC IDM name");
     is($c->user->emailaddress, 'bert@localhost', "User has email from IDM");
-    is([sort map { $_->role } $c->user->userroles], ['bump-to-front', 'cancel-build', 'restart-jobs'], 'User has roles from IDM');
+    is([sort map { $_->role } $c->user->userroles], ['cancel-build', 'restart-jobs'], 'User has the roles the IDM maps to');
 
     # Session should remember the OIDC provider for RP-Initiated Logout
     is($c->session->{oidc_provider}, 'test', "OIDC provider stored in session");
@@ -183,6 +247,29 @@ subtest "OIDC login flow works end-to-end" => sub {
         my ($res2, $c2) = ctx_request(GET '/', Cookie => $cookie_jar->cookie_header('http://localhost'));
         ok(!$c2->user_exists, "User is logged out after /logout");
     };
+};
+
+subtest "OIDC role mappings" => sub {
+    # The IdP sends `powerusers` and `builders` in its `idp_roles` claim; the
+    # roles Hydra ends up with are its own, because that is what the
+    # provider's role_mapping says they mean.
+    is(roles_after_login('andy'),
+        ['admin', 'cancel-build', 'restart-jobs'],
+        "IdP values the role_mapping mentions become Hydra roles, for every group the user is in");
+
+    is(roles_after_login('bert'),
+        ['cancel-build', 'restart-jobs'],
+        "One IdP value can map to several Hydra roles");
+
+    # The IdP presents `builders` and `idiots` for this user, and only
+    # `builders` is in the role_mapping.
+    is(roles_after_login('carl'),
+        ['cancel-build', 'restart-jobs'],
+        "IdP values the role_mapping does not mention grant nothing");
+
+    is(roles_after_login('dana'),
+        [],
+        "A user whose only IdP value is unmapped gets no roles");
 };
 
 done_testing;
