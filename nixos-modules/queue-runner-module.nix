@@ -145,6 +145,8 @@ in
                 If enabled the queue runner will no longer upload to s3 but rather the builder will do the uploads.
                 This also requires a s3 remote store, as well as substitution on the builders.
                 You can use forcedSubstituters setting to specify the required substituter on the builders.
+                Presigned URLs stop working when the credentials that signed them expire.
+                With temporary credentials, such as instance profiles or STS, uploads can fail before `presigned-url-expiry` is reached.
               '';
               type = lib.types.bool;
               default = false;
