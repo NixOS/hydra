@@ -15,8 +15,10 @@ Hydra validates the ID token's signature against the provider's JWKS, and checks
 An unknown key ID triggers one JWKS refetch, so key rotation needs no restart.
 
 Hydra logs the user in as `<provider>:<sub>`, with the `email` and `name` claims from the ID token.
+Hydra updates both on every login, so changes at the provider carry over.
 Hydra's pages show OIDC users by their email address, since `sub` is often an opaque ID.
 Hydra needs a usable `email` claim in the ID token and does not call the userinfo endpoint.
+If the token has `email_verified: false`, Hydra refuses the login.
 If `allowed_domains` is set, the address must be in one of those domains.
 OIDC users have no password, so they can only sign in through their provider.
 

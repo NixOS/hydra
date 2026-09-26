@@ -53,7 +53,7 @@ START_DAEMON:
         # having to take permenant responsibility for draining an actual pipe connected to that
         # process.
         open(STDOUT, '>', $self->{_logfile}) or die "Cannot redirect STDOUT: $!";
-        open(STDERR, '>&STDOUT') or die "Cannot dup STDERR: $!";
+        open(STDERR, '>&', \*STDOUT) or die "Cannot dup STDERR: $!";
         exec('kanidmd', '--config-path', $self->{kanidm_config}, "server")
             or die "Could not start kanidm: $!";
     } else {

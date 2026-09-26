@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::OIDC qw(configuredProvider);
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::StorePath;
@@ -83,7 +84,8 @@ sub begin :Private {
         if ($c->user->type eq "github") {
             $c->stash->{authMethodName} = "GitHub";
         } elsif ($c->user->type eq "oidc") {
-            $c->stash->{authMethodName} = $c->config->{oidc}->{provider}->{$c->session->{oidc_provider}}->{display_name} // "OIDC";
+            my $provider = configuredProvider($c, $c->session->{oidc_provider});
+            $c->stash->{authMethodName} = ($provider && $provider->{display_name}) // "OIDC";
         }
     }
 

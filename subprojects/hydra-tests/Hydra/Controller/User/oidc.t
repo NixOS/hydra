@@ -199,6 +199,19 @@ subtest "OIDC redirect initiates authorization flow" => sub {
     ok($params{code_challenge}, "PKCE code challenge is present");
 };
 
+subtest "OIDC redirect keeps 'after' on this host" => sub {
+    # Browsers drop tabs and treat '\' as '/', so all of these would otherwise
+    # end up as the protocol-relative '//evil.example'.
+    foreach my $after ('//evil.example', '%09/evil.example', '/%0A/evil.example', '/%5C/evil.example') {
+        my $res = request(GET "/oidc-redirect/test?after=$after");
+        # ctx_request's $c is already finalized, so its session is reloaded
+        # from the request cookie. Send the cookie we just got to see what was stored.
+        my ($cookie) = ($res->header('Set-Cookie') // '') =~ /^([^;]+)/;
+        my (undef, $c) = ctx_request(GET '/', Cookie => $cookie);
+        is($c->session->{oidc}->{after}, '/evil.example', "after=$after is made a local path");
+    }
+};
+
 subtest "OIDC login flow works end-to-end" => sub {
     my ($mech, $cookie_jar) = login_as('bert');
 

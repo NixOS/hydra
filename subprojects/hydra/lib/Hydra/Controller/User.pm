@@ -77,8 +77,11 @@ sub logout_GET {
 
     # If this was an OIDC session and the IdP advertises an end_session_endpoint,
     # redirect there so the user is also logged out of the IdP (RP-Initiated Logout).
+    # The endpoint may come from discovery, which this worker may not have done
+    # yet. If the IdP is unreachable, still complete the local logout.
     if (defined $oidc_provider) {
-        my $provider = $c->config->{oidc}->{provider}->{$oidc_provider};
+        my $provider = eval { Hydra::Helper::OIDC::providerConf($c, $oidc_provider) };
+        $c->log->warn("Skipping OIDC RP-Initiated Logout: $@") unless $provider;
         if (defined $provider && defined $provider->{end_session_endpoint}) {
             my $uri = URI->new($provider->{end_session_endpoint});
             $uri->query_form(
@@ -245,12 +248,13 @@ sub github_redirect :Path('/github-redirect') Args(0) {
 sub oidc_redirect :Path('/oidc-redirect') Args(1) {
     my ($self, $c, $provider_name) = @_;
 
-    # Sanitize the 'after' parameter to prevent open redirects: strip any
-    # leading slashes so that e.g. '//evil.com' cannot become a
-    # protocol-relative URL, and only allow same-origin paths.
+    # Sanitize the 'after' parameter to prevent open redirects, so that e.g.
+    # '//evil.com' cannot become a protocol-relative URL. Browsers drop
+    # tabs/newlines from URLs and treat '\' like '/', so remove control
+    # characters and backslashes before stripping leading slashes.
     my $after = $c->req->params->{after} // "";
+    $after =~ s{[[:cntrl:]\\]}{}g;
     $after =~ s{^/+}{};
-    $after =~ s{\\}{}g;  # also strip backslashes (some browsers normalize \\ to //)
 
     my $oidc = Hydra::Helper::OIDC->new($c,
         provider_name => $provider_name,
@@ -268,12 +272,24 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
     my $token = $oidc->exchangeCodeForToken($authorization_code);
     my $claims = $oidc->validateToken($token);
 
+    # doEmailLogin checks allowed_domains against this address, so refuse
+    # addresses the IdP says it has not verified.
+    my $verified = $claims->{email_verified};
+    error($c, "Your OIDC provider has not verified your email address.", 403)
+        if defined $verified && (!$verified || $verified eq 'false');
+
     doEmailLogin($self, $c,
         type => 'oidc',
         email => $claims->{email},
         fullName => $claims->{name},
         username => $provider_name . ":" . $claims->{sub},
     );
+
+    # Keep the profile in sync with the IdP for returning users.
+    $c->user->get_object->update({
+        emailaddress => $claims->{email},
+        defined $claims->{name} ? (fullname => $claims->{name}) : (),
+    });
 
     # See the OIDC documentation for how the role claim and the provider's
     # role_mapping turn the IDP's claims into roles. $roles is undef if the

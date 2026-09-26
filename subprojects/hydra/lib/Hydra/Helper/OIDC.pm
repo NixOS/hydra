@@ -6,6 +6,7 @@ use feature qw(signatures try);
 no warnings 'experimental::try';
 use Exporter 'import';
 use LWP::UserAgent;
+use HTTP::Request::Common qw(POST);
 use JSON::MaybeXS qw(decode_json);
 use Digest::SHA qw(sha256);
 use MIME::Base64 qw(encode_base64url);
@@ -19,15 +20,27 @@ use Hydra::Config qw(normalize_oidc_role_mappings);
 
 our @EXPORT_OK = qw(
     resolveOIDCConfig
+    configuredProvider
+    providerConf
 );
 
+# The static configuration of a provider, or undef if there is no such
+# provider. A plain hash lookup would autovivify an empty entry in $c->config,
+# and the topbar would then list it as a sign-in option.
+sub configuredProvider ($c, $provider_name) {
+    return undef unless defined $provider_name;
+    my $providers = ($c->config->{oidc} // {})->{provider} // {};
+    return $providers->{$provider_name};
+}
+
 # Resolve the effective provider configuration, merging static config
-# with (lazily fetched, cached) discovery endpoints. This is called on
-# every new()/load() so that an IdP that was down at Hydra startup will
-# start working once it recovers, without requiring a Hydra restart.
-sub _resolvedConf ($c, $provider_name) {
-    my $static = $c->config->{oidc}->{provider}->{$provider_name}
-        or error($c, "OIDC provider $provider_name is not configured", 404);
+# with (lazily fetched, cached) discovery endpoints. Resolution is lazy so
+# that an IdP that was down at Hydra startup will start working once it
+# recovers, without requiring a Hydra restart. Dies if the provider is not
+# configured or discovery fails.
+sub providerConf ($c, $provider_name) {
+    my $static = configuredProvider($c, $provider_name)
+        or die "OIDC provider '$provider_name' is not configured\n";
 
     # If all endpoints are already set (either manually or by a previous
     # discovery), no network I/O needed.
@@ -36,8 +49,7 @@ sub _resolvedConf ($c, $provider_name) {
                    && $static->{jwks_uri}
                    && $static->{issuer};
 
-    error($c, "OIDC provider $provider_name has no discovery_url and is "
-            . "missing required endpoints", 500)
+    die "OIDC provider '$provider_name' has no discovery_url and is missing required endpoints\n"
         unless $static->{discovery_url};
 
     my $cache_key = "oidc.$provider_name.discovery";
@@ -46,7 +58,7 @@ sub _resolvedConf ($c, $provider_name) {
         try {
             $discovery = getOIDCDiscovery($static);
         } catch ($e) {
-            error($c, "OIDC discovery for '$provider_name' failed: $e", 503);
+            die "OIDC discovery for '$provider_name' failed: $e";
         }
         $c->cache_set($cache_key, $discovery, expires => 3600);
     }
@@ -59,6 +71,19 @@ sub _resolvedConf ($c, $provider_name) {
         $static->{$k} //= $discovery->{$k};
     }
     return $static;
+}
+
+# Like providerConf, but request handlers get HTTP errors instead of a die.
+sub _resolvedConf ($c, $provider_name) {
+    configuredProvider($c, $provider_name)
+        or error($c, "OIDC provider $provider_name is not configured", 404);
+    my $conf;
+    try {
+        $conf = providerConf($c, $provider_name);
+    } catch ($e) {
+        error($c, $e, 503);
+    }
+    return $conf;
 }
 
 # Start a new OIDC login session
@@ -186,7 +211,7 @@ sub exchangeCodeForToken ($self, $code) {
     my $c = $self->{c};
 
     my $ua = $self->make_ua();
-    my $req = HTTP::Request::Common::POST($self->{conf}->{token_endpoint}, [
+    my $req = POST($self->{conf}->{token_endpoint}, [
         # Per RFC 6747 Section 4.1.3:
         #   grant_type... Value MUST be set to "authorization_code"
         grant_type => 'authorization_code',
@@ -257,7 +282,10 @@ sub validateToken ($self, $token) {
                 token      => $token,
                 kid_keys   => $jwks,
                 verify_iss => sub { $_[0] eq $self->{conf}->{issuer} },
-                verify_aud => sub { $_[0] eq $self->{conf}->{client_id} },
+                # OIDC Core §2 allows aud to be a single string or an array.
+                verify_aud => sub ($aud) {
+                    grep { $_ eq $self->{conf}->{client_id} } ref $aud eq 'ARRAY' ? @$aud : ($aud)
+                },
                 verify_exp => 1,
                 verify_nbf => 1,
             );
