@@ -139,10 +139,10 @@ S3 bucket, for example to keep large staging rebuilds out of the main cache.
 A step is uploaded to the overflow bucket only when every jobset referencing it
 is listed. Shared steps go to the default bucket.
 
-Both buckets must live on the same S3
-endpoint and use static credentials: when a later build from a regular jobset
-needs outputs that only exist in the overflow bucket, the queue runner copies
-them back to the default bucket server-side instead of rebuilding.
+When a build from a regular jobset needs outputs that only exist in the
+overflow bucket, the queue runner copies them to the default bucket server-side
+instead of rebuilding. For that, both buckets must be on the same S3 endpoint,
+and the default bucket's credentials need read access to the overflow bucket.
 
 Configured in `queue-runner.toml`:
 

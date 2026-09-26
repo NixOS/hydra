@@ -349,6 +349,23 @@ in
         f"Actual:\n{json.dumps(actual, indent=2)}"
     )
 
+    # Compression is off, so the NAR must hash to the narinfo's NarHash. It must
+    # also keep its content type. With presigned uploads, the builder uploads
+    # it in several parts.
+    narinfo = server.succeed(s3_curl(f"{store_hash}.narinfo"))
+    def narinfo_field(name):
+        return next(
+            l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith(f"{name}:")
+        )
+    trivial_nar = narinfo_field("URL")
+    server.succeed(s3_curl(trivial_nar) + " -o /tmp/trivial.nar")
+    nar_hash = server.succeed("nix-hash --type sha256 --flat --base32 /tmp/trivial.nar").strip()
+    assert narinfo_field("NarHash") == f"sha256:{nar_hash}", (
+        f"NAR hash mismatch: narinfo {narinfo_field('NarHash')}, object sha256:{nar_hash}"
+    )
+    nar_headers = server.succeed(s3_curl(trivial_nar) + " -I").lower()
+    assert "content-type: application/x-nix-nar" in nar_headers, nar_headers
+
     drv_name = build_info["drvpath"].split("/")[-1]
     build_log = server.wait_until_succeeds(s3_curl(f"log/{drv_name}"), timeout=60)
     assert "trivial-build-log" in build_log, f"unexpected build log: {build_log!r}"
@@ -364,10 +381,6 @@ in
                   return line.split(":", 1)[1].strip()
           raise Exception(f"no Last-Modified for {nar_url}:\n{headers}")
 
-      narinfo = server.succeed(s3_curl(f"{store_hash}.narinfo"))
-      trivial_nar = next(
-          l.split(":", 1)[1].strip() for l in narinfo.splitlines() if l.startswith("URL:")
-      )
       before_lm = last_modified(trivial_nar)
 
       # Build trivial2 in its own jobset. Use a fresh source dir: the queue
