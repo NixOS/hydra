@@ -133,7 +133,9 @@ impl Database {
 
     pub async fn get(&self) -> Result<Connection> {
         for attempt in 1..=ACQUIRE_ATTEMPTS {
-            match self.pool.acquire().await {
+            // Boxed: sqlx's acquire future is ~15 KB in release builds, and
+            // every caller holding a connection would inherit that size.
+            match Box::pin(self.pool.acquire()).await {
                 Ok(conn) => return Ok(Connection::new(conn)),
                 Err(sqlx::Error::PoolTimedOut) if attempt < ACQUIRE_ATTEMPTS => {
                     tracing::warn!(

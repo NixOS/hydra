@@ -1,5 +1,5 @@
-// We need to allow pedantic here because of generated code
-#![allow(clippy::pedantic, unused_qualifications)]
+// We need to allow these here because of generated code
+#![allow(clippy::pedantic, clippy::large_enum_variant, unused_qualifications)]
 
 use harmonia_utils_hash::HashView;
 

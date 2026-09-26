@@ -83,6 +83,7 @@ let
   '';
 
   # The exact NAR listing we expect, used for an exact JSON comparison.
+  # NAR entries are sorted, so `blob` comes first and later offsets include it.
   expectedListing = builtins.toJSON {
     version = 1;
     root = {
@@ -92,6 +93,7 @@ let
           type = "regular";
           executable = false;
           size = 6; # "hello\n"
+          narOffset = blobSize + 416;
         };
         link = {
           type = "symlink";
@@ -101,6 +103,7 @@ let
           type = "regular";
           executable = true;
           size = 18; # printf "#!/bin/sh\necho hi\n" (no extra trailing newline)
+          narOffset = blobSize + 832;
         };
         subdir = {
           type = "directory";
@@ -109,6 +112,7 @@ let
               type = "regular";
               executable = false;
               size = 7; # "nested\n"
+              narOffset = blobSize + 1176;
             };
           };
         };
@@ -116,6 +120,7 @@ let
           type = "regular";
           executable = false;
           size = blobSize;
+          narOffset = 232;
         };
       };
     };

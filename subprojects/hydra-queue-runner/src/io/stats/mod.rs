@@ -13,6 +13,7 @@ pub struct Process {
 }
 
 impl Process {
+    #[must_use]
     pub fn new() -> Option<Self> {
         Some(Self {
             pid: std::process::id().try_into().ok()?,

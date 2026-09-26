@@ -212,6 +212,8 @@
         hydraJobs.migrations.${system}
         // {
           systemTests = hydraJobs.systemTests.${system};
+          clippy = packages.${system}.hydra-clippy;
+          clippyAll = packages.${system}.hydra-clippy-all;
           dbix-up-to-date = pkgs.callPackage ./packaging/check-dbix-up-to-date.nix {
             inherit (packages.${system}) hydra;
           };

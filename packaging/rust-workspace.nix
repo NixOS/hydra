@@ -87,6 +87,29 @@ let
       doCheck = false;
     }
   );
+
+  # Lints with the default features only: enabling more would not match
+  # `cargoArtifacts` and recompile every dependency.
+  clippy = craneLib.cargoClippy (
+    commonArgs
+    // {
+      inherit cargoArtifacts;
+      cargoClippyExtraArgs = "--workspace --all-targets -- -D warnings";
+    }
+  );
+
+  # Lints feature-gated code (e.g. `otel`) too, at the cost of its own
+  # dependency build, since the features change the dependency graph.
+  allFeaturesArgs = commonArgs // {
+    cargoExtraArgs = "--locked --workspace --all-features";
+  };
+  clippyAll = craneLib.cargoClippy (
+    allFeaturesArgs
+    // {
+      cargoArtifacts = craneLib.buildDepsOnly allFeaturesArgs;
+      cargoClippyExtraArgs = "--all-targets -- -D warnings";
+    }
+  );
   # Each crate is just its binary lifted out of the shared build, so there is
   # nothing crate-specific left to keep in a `package.nix` of its own.
   mkCrate =
@@ -107,7 +130,12 @@ let
       '';
 in
 {
-  inherit cargoArtifacts workspace;
+  inherit
+    cargoArtifacts
+    workspace
+    clippy
+    clippyAll
+    ;
 
   hydra-builder = mkCrate {
     pname = "hydra-builder";
