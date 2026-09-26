@@ -6,7 +6,7 @@ use parent 'Catalyst';
 use Moose;
 use Hydra::Plugin;
 use Hydra::Model::DB;
-use Hydra::Config qw(getLDAPConfigAmbient);
+use Hydra::Config qw(getLDAPConfigAmbient signinMethods);
 use Hydra::Helper::OIDC qw(resolveOIDCConfig);
 use Catalyst::Runtime '5.70';
 use Catalyst qw/ConfigLoader
@@ -116,6 +116,15 @@ after setup_finalize => sub {
 after setup_finalize => sub {
     my $class = shift;
     $plugins = [Hydra::Plugin->instantiate(db => $class->model('DB'), config => $class->config)];
+};
+
+after setup_finalize => sub {
+    my $class = shift;
+    my $config = $class->config;
+    warn "hydra.conf sets `local_auth_enabled = 0', and no LDAP server, GitHub\n"
+        . "application or OIDC provider is configured, so there is no way to sign\n"
+        . "in. A private Hydra will be unreachable.\n"
+        unless @{signinMethods($config, "")};
 };
 
 __PACKAGE__->setup();

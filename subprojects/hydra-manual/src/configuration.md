@@ -308,6 +308,30 @@ When Hydra uses the deprecated YAML file, Hydra applies the following default ro
 
 Note that configuring both the LDAP parameters in the hydra.conf and via the environment variable is a fatal error.
 
+Turning off Hydra's own user management
+---------------------------------------
+
+By default anyone with a Hydra account can sign in with a user name and a password.
+Set
+
+```
+local_auth_enabled = 0
+```
+
+to turn that off, for a Hydra whose users are meant to come from somewhere else.
+
+This does not affect [LDAP](#using-ldap-as-authentication-backend-optional), which is a
+separate backend that happens to use the same form: with LDAP configured, the form
+stays, labelled *"Sign in with LDAP"*, and works as before.
+It does not affect [OIDC](oidc.md) or GitHub either, which have endpoints of their own.
+
+Turning off the password form leaves nobody able to sign in at all if no other
+method is configured, which on a private Hydra means nobody gets in; Hydra warns
+about that at startup.
+
+Local accounts are not deleted by this and `hydra-create-user` still works, so
+switching it back on needs no changes to the users.
+
 Single sign-on with OIDC
 -----------------------
 

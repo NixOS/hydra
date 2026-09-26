@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::OIDC qw(configuredProvider);
+use Hydra::Config qw(signinMethods passwordSigninEnabled);
 use Hydra::View::TT;
 use Nix::Store;
 use Nix::StorePath;
@@ -54,8 +55,8 @@ sub noLoginNeeded {
   return $whitelisted ||
          $c->request->path eq "api/push-github" ||
          $c->request->path eq "api/push-gitea" ||
-         $c->request->path eq "github-redirect" ||
-         $c->request->path eq "github-login" ||
+         $c->request->path =~ m{^github-(?:redirect|login)$} ||
+         $c->request->path =~ m{^oidc-(?:redirect|callback)/} ||
          $c->request->path eq "login" ||
          $c->request->path eq "logo" ||
          $c->request->path =~ /^static\//;
@@ -79,6 +80,9 @@ sub begin :Private {
 
     $c->stash->{isPrivateHydra} = $c->config->{private} // "0" ne "0";
     $c->stash->{enableSearch} = $c->config->{search_enable} // "1" ne "0";
+
+    $c->stash->{signinMethods} = signinMethods($c->config, $c->req->path);
+    $c->stash->{signinForm} = passwordSigninEnabled($c->config) ? 1 : 0;
 
     if ($c->user) {
         if ($c->user->type eq "github") {
