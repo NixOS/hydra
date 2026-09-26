@@ -363,11 +363,17 @@ sub inputsToArgs {
 # because the arguments describe the evaluation regardless of who performs
 # it or where.
 sub evalJobsCmd {
-    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $gcRootsDir) = @_;
+    my ($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $attr, $gcRootsDir) = @_;
 
     my @cmd;
 
     if (defined $flakeRef) {
+        my $select;
+        if (defined $attr) {
+            $select = "flake: flake.outputs.$attr";
+        } else {
+            $select = "flake: flake.outputs.hydraJobs or flake.outputs.checks or (throw \"flake does not provide any Hydra jobs or checks\")";
+        }
         @cmd = ("nix-eval-jobs",
                 # Disable the eval cache to prevent SQLite database contention.
                 # Since Hydra typically evaluates each revision only once,
@@ -375,7 +381,7 @@ sub evalJobsCmd {
                 # providing any benefit from caching.
                 "--option", "eval-cache", "false",
                 "--flake", $flakeRef,
-                "--select", "flake: flake.outputs.hydraJobs or flake.outputs.checks or (throw \"flake does not provide any Hydra jobs or checks\")");
+                "--select", $select);
     } else {
         my $nixExprInput = $inputInfo->{$nixExprInputName}->[0]
             or die "cannot find the input containing the job expression\n";
@@ -400,11 +406,11 @@ sub evalJobsCmd {
 
 
 sub evalJobs {
-    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef) = @_;
+    my ($jobsetName, $inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $attr) = @_;
 
     print STDERR "($jobsetName) Evaluating...\n";
 
-    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef,
+    my @cmd = evalJobsCmd($inputInfo, $nixExprInputName, $nixExprPath, $flakeRef, $attr,
                           getGCRootsDir);
 
     if (defined $ENV{'HYDRA_DEBUG'}) {
@@ -798,9 +804,14 @@ sub checkJobsetWrapped {
     my $fetchError = $@;
 
     my $flakeRef = $jobset->flake;
+    my $attr;
+
     if (defined $flakeRef) {
+        my $ref;
+        ($ref, $attr) = split '#', $flakeRef, 2;
+
         (my $res, my $json, my $stderr) = captureStdoutStderr(
-            600, "nix", "flake", "metadata", "--refresh", "--json", "--", $flakeRef);
+            600, "nix", "flake", "metadata", "--refresh", "--json", "--", $ref);
         die "'nix flake metadata' returned " . ($res & 127 ? "signal $res" : "exit code " . ($res >> 8))
             . ":\n" . ($stderr ? decode("utf-8", $stderr) : "(no output)\n")
             if $res;
@@ -847,7 +858,7 @@ sub checkJobsetWrapped {
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my $evalStop;
-    my $jobsIter = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef);
+    my $jobsIter = evalJobs($project->name . ":" . $jobset->name, $inputInfo, $jobset->nixexprinput, $jobset->nixexprpath, $flakeRef, $attr);
 
     if ($dryRun) {
         while (defined(my $job = $jobsIter->())) {
