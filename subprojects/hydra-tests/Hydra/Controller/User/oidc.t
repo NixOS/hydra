@@ -45,6 +45,14 @@ $kanidm->create_user(
     groups => ['hydra_nobody'],
     password => 'kanidm credential',
 );
+# Email address with a `+` in the local part, which is how subaddressed
+# accounts (GitHub's noreply addresses, for one) turn up in claims.
+$kanidm->create_user(
+    'erin',
+    groups => ['hydra_users'],
+    mail => 'erin+ci@localhost',
+    password => 'kanidm credential',
+);
 $kanidm->create_oauth2_client(
     name => 'hydra',
     redirect_uris => ['http://localhost/oidc-callback/test'],
@@ -283,6 +291,17 @@ subtest "OIDC role mappings" => sub {
     is(roles_after_login('dana'),
         [],
         "A user whose only IdP value is unmapped gets no roles");
+};
+
+subtest "OIDC login with a + in the email address" => sub {
+    my ($mech, $cookie_jar) = login_as('erin');
+
+    my ($res, $c) = ctx_request(GET '/', Cookie => $cookie_jar->cookie_header('http://localhost'));
+    is($res->code, 200, "Fetching with ctx_request should succeed");
+    is($c->user->emailaddress, 'erin+ci@localhost',
+        "The + in the IdP's email address does not stop the login, and is kept");
+    is([sort map { $_->role } $c->user->userroles], ['cancel-build', 'restart-jobs'],
+        "Roles are set as usual");
 };
 
 done_testing;
