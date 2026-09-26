@@ -7,4 +7,4 @@ rust-version.workspace = true
 
 [dependencies]
 fs-err.workspace = true
-sqlx             = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+sqlx             = { workspace = true, features = [ "runtime-tokio", "tls-rustls-aws-lc-rs", "postgres" ] }

@@ -20,7 +20,7 @@ jiff.workspace       = true
 serde_json.workspace = true
 tokio                = { workspace = true, features = [ "time" ] }
 
-sqlx = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+sqlx = { workspace = true, features = [ "runtime-tokio", "tls-rustls-aws-lc-rs", "postgres" ] }
 
 [dev-dependencies]
 test-utils.workspace = true

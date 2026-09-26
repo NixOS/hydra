@@ -66,7 +66,7 @@ md5 = "0.7"
 moka = { version = "0.12", features = [ "future" ] }
 nix = { version = "0.31", default-features = false }
 num_enum = "0.7"
-object_store = "0.13.0"
+object_store = "0.14.0"
 opentelemetry = "0.33.0"
 opentelemetry-http = "0.33.0"
 opentelemetry-otlp = "0.33.0"
@@ -82,10 +82,10 @@ prometheus = { version = "0.14.0", default-features = false }
 prost = "0.14"
 quick-xml = { version = "0.39", features = [ "serialize" ] }
 regex = "1"
-reqwest = { version = "0.12", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
     "http2",
     "charset",
-    "rustls-tls-webpki-roots",
+    "rustls",
     "system-proxy",
 ] }
 ring = "0.17"
