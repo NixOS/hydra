@@ -55,7 +55,7 @@ harmonia-utils-base-encoding = { git = "https://github.com/nix-community/harmoni
 harmonia-utils-hash = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-io = { git = "https://github.com/nix-community/harmonia.git" }
 harmonia-utils-signature = { git = "https://github.com/nix-community/harmonia.git" }
-hashbrown = "0.16"
+hashbrown = "0.17"
 http = "1.1"
 http-body-util = "0.1"
 hyper = { version = "1", features = [ "full" ] }

@@ -472,7 +472,7 @@ dependencies = [
  "harmonia-utils-hash",
  "harmonia-utils-io",
  "harmonia-utils-signature",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "hydra-tracing",
  "object_store",
  "parking_lot",
@@ -1088,7 +1088,7 @@ dependencies = [
  "harmonia-store-derivation",
  "harmonia-store-path",
  "harmonia-utils-hash",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "jiff",
  "nix-support",
  "serde_json",
@@ -1852,8 +1852,6 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.2.0",
- "serde",
- "serde_core",
 ]
 
 [[package]]
@@ -1861,6 +1859,13 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+ "serde",
+ "serde_core",
+]
 
 [[package]]
 name = "hashlink"
@@ -2041,7 +2046,7 @@ dependencies = [
  "harmonia-store-path-info",
  "harmonia-store-remote",
  "harmonia-utils-hash",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "http 1.4.0",
  "hydra-proto",
  "hydra-tracing",
@@ -2144,7 +2149,7 @@ dependencies = [
  "harmonia-store-path-info",
  "harmonia-store-remote",
  "harmonia-utils-hash",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "http-body-util",
  "hydra-proto",
  "hydra-tracing",
@@ -4397,7 +4402,7 @@ dependencies = [
  "harmonia-protocol",
  "harmonia-store-path",
  "harmonia-store-path-info",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "hydra-proto",
  "thiserror",
  "tokio",
