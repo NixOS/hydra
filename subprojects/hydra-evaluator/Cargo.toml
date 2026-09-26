@@ -11,7 +11,7 @@ color-eyre.workspace = true
 fs-err.workspace     = true
 futures.workspace    = true
 serde                = { workspace = true, features = [ "derive" ] }
-sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-ring-webpki", "postgres" ] }
+sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-aws-lc-rs", "postgres" ] }
 thiserror.workspace  = true
 tokio                = { workspace = true, features = [ "full" ] }
 toml.workspace       = true
