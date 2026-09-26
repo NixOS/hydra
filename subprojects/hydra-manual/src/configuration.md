@@ -308,6 +308,33 @@ When Hydra uses the deprecated YAML file, Hydra applies the following default ro
 
 Note that configuring both the LDAP parameters in the hydra.conf and via the environment variable is a fatal error.
 
+Single sign-on with OIDC
+-----------------------
+
+Hydra can delegate login to one or more OpenID Connect providers, configured in the `<oidc>` block:
+
+```
+<oidc>
+  <provider authentik>
+    display_name = "Authentik"
+    discovery_url = "https://authentik.example.com/application/o/hydra/.well-known/openid-configuration"
+    client_id = "hydra"
+    client_secret_file = "/var/lib/hydra/secrets/authentik-client-secret"
+    role_claim = "groups"
+    <role_mapping>
+      hydra-admins = admin
+      hydra-builders = create-projects
+      hydra-builders = eval-jobset
+    </role_mapping>
+  </provider>
+</oidc>
+```
+
+The `role_mapping` block translates the values the IdP sends in its role claim into Hydra roles, so
+the two need not use the same names. Hydra validates the mapping at startup.
+
+See the [OIDC documentation](oidc.md) for all settings, role handling, sign-out, and examples for Authentik and GitHub.
+
 Webhook Authentication
 ---------------------
 

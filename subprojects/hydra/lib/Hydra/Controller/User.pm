@@ -275,17 +275,11 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
         username => $provider_name . ":" . $claims->{sub},
     );
 
-    # Roles come from the IDP's role claim. A provider can configure
-    # `role_mapping` to translate the values the IDP sends into Hydra roles,
-    # so the two need not agree on what a role is called; without a mapping the
-    # claim is expected to name Hydra roles directly. Either way you have to
-    # configure your IDP to put the claim in the ID token:
-    #  * Keycloak: You need to set up a "protocol mapper" to bind client-scoped role values to
-    #    ID token claims
-    #  * Kanidm: You have to use `kanidm system oauth2 update-claim-map`
+    # See the OIDC documentation for how the role claim and the provider's
+    # role_mapping turn the IDP's claims into roles. $roles is undef if the
+    # IDP did not present a role claim at all, in which case we leave the
+    # user's roles alone rather than revoking them.
     my $roles = Hydra::Config::oidc_roles_from_claim($oidc->{conf}, $claims);
-    # Only touch the user's roles if the IDP had something to say about them;
-    # otherwise leave them be.
     $c->user->setRoles(@$roles) if $roles;
 
     $oidc->clear_session();
