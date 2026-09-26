@@ -6,16 +6,20 @@ license                = "GPL-3.0"
 rust-version.workspace = true
 
 [dependencies]
-clap                 = { workspace = true, features = [ "derive" ] }
+clap                 = { workspace = true, features = [ "derive", "env" ] }
 color-eyre.workspace = true
 fs-err.workspace     = true
 futures.workspace    = true
-serde                = { workspace = true, features = [ "derive" ] }
+hex.workspace        = true
+serde               = { workspace = true, features = [ "derive" ] }
+serde_json.workspace = true
+sha2.workspace       = true
 sqlx                 = { workspace = true, features = [ "runtime-tokio", "tls-rustls-aws-lc-rs", "postgres" ] }
 thiserror.workspace  = true
 tokio                = { workspace = true, features = [ "full" ] }
 toml.workspace       = true
 tracing.workspace    = true
 
-db            = { path = "../crates/db" }
-hydra-tracing = { path = "../crates/tracing" }
+daemon-client-utils = { path = "../crates/daemon-client-utils" }
+db                  = { path = "../crates/db" }
+hydra-tracing       = { path = "../crates/tracing" }

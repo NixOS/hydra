@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT i.name, i.type, a.value, i.emailresponsible\n        FROM jobsetinputs i\n        LEFT JOIN jobsetinputalts a\n          ON a.project = i.project AND a.jobset = i.jobset AND a.input = i.name\n        WHERE i.project = $1 AND i.jobset = $2\n        ORDER BY i.name, a.altnr",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsetinputs",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsetinputs",
+            "name": "type"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsetinputalts",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "emailresponsible",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsetinputs",
+            "name": "emailresponsible"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9933cfbb4cd519e2708b26794b8f185d6ffb519fb6b5ed08d14cafa22b872aa1"
+}
