@@ -65,6 +65,7 @@ harmonia-store-path.workspace            = true
 harmonia-store-path-info.workspace       = true
 harmonia-store-remote.workspace          = true
 harmonia-utils-hash.workspace            = true
+hex.workspace                            = true
 hydra-proto                              = { workspace = true, features = [ "db", "server" ] }
 hydra-tracing                            = { workspace = true, features = [ "tonic" ] }
 nix-support.workspace                    = true

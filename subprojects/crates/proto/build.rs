@@ -22,7 +22,7 @@ fn main() -> Result<(), BuildError> {
     let mut hasher = sha2::Sha256::new();
     hasher.update(fs_err::read_to_string("../../proto/v1/streaming.proto")?.as_bytes());
     hasher.update(fs_err::read_to_string("../../proto/v1/nix-support.proto")?.as_bytes());
-    let proto_hash = format!("{:x}", hasher.finalize());
+    let proto_hash = hex::encode(hasher.finalize());
     let version = format!("{}-{}", workspace_version, &proto_hash[..8]);
 
     fs_err::write(
