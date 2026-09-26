@@ -96,7 +96,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 smallvec = "1.15"
 sqlx = "0.9"
-sysinfo = "0.38.0"
+sysinfo = "0.39.0"
 thiserror = "2.0"
 tikv-jemallocator = "0.6"
 tokio = { version = "1.34", features = [ "full" ] }
