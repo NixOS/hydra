@@ -16,8 +16,8 @@ use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 use Hydra::Model::DB;
-use Hydra::Plugin;
 use Hydra::Schema;
+use IPC::Open2;
 use IPC::Run;
 use JSON::MaybeXS;
 use Net::Statsd;
@@ -33,8 +33,6 @@ my $db = Hydra::Model::DB->new();
 my $notifyAdded = $db->storage->dbh->prepare("notify builds_added, ?");
 
 my $config = getHydraConfig();
-
-my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
 
 my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
 
@@ -245,8 +243,47 @@ sub fetchInputEval {
 }
 
 
+# An input as `hydra-fetch-input` and `hydra-prepare-declarative-jobset`
+# report it, with its store path, which arrives as the bare name it prints
+# as, made a store path again.
+sub inputFromJson {
+    my ($input) = @_;
+    $input->{storePath} = Nix::StorePath->new($input->{storePath})
+        if defined $input->{storePath};
+    return $input;
+}
+
+
+# Plugin input types are fetched by `hydra-fetch-input`, one worker for the
+# whole run; see there for the protocol.
+my ($fetcherOut, $fetcherIn);
+
+sub fetchPluginInput {
+    my ($type, $name, $value, $project, $jobset) = @_;
+    unless (defined $fetcherIn) {
+        open2($fetcherOut, $fetcherIn, "hydra-fetch-input");
+        $fetcherIn->autoflush(1);
+    }
+
+    my $json = JSON::MaybeXS->new(utf8 => 1, canonical => 1);
+    print $fetcherIn $json->encode({
+        type => $type,
+        name => $name,
+        value => $value,
+        project => $project->name,
+        jobset => $jobset->name,
+    }), "\n";
+
+    my $line = <$fetcherOut>;
+    die "hydra-fetch-input exited while fetching `$name'\n" unless defined $line;
+    my $reply = $json->decode($line);
+    die "$reply->{error}\n" if defined $reply->{error};
+    return map { inputFromJson($_) } @{$reply->{inputs}};
+}
+
+
 sub fetchInput {
-    my ($plugins, $db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
+    my ($db, $project, $jobset, $name, $type, $value, $emailresponsible) = @_;
     my @inputs;
 
     print STDERR "(" . $project->name . ":" . $jobset->name . ") Fetching input `$name` ($type) $value\n";
@@ -269,15 +306,7 @@ sub fetchInput {
         @inputs = { value => $value };
     }
     else {
-        my $found = 0;
-        foreach my $plugin (@{$plugins}) {
-            @inputs = $plugin->fetchInput($type, $name, $value, $project, $jobset);
-            if (defined $inputs[0]) {
-                $found = 1;
-                last;
-            }
-        }
-        die "input `$name' has unknown type `$type'." unless $found;
+        @inputs = fetchPluginInput($type, $name, $value, $project, $jobset);
     }
 
     foreach my $input (@inputs) {
@@ -640,7 +669,7 @@ sub fetchInputs {
     foreach my $input ($jobset->jobsetinputs->all) {
         foreach my $alt ($input->jobsetinputalts->all) {
             push @{$$inputInfo{$input->name}}, $_
-                foreach fetchInput($plugins, $db, $project, $jobset, $input->name, $input->type, $alt->value, $input->emailresponsible);
+                foreach fetchInput($db, $project, $jobset, $input->name, $input->type, $alt->value, $input->emailresponsible);
         }
     }
 }
@@ -739,54 +768,29 @@ sub checkJobsetWrapped {
     my $jobsetsJobset = length($project->declfile) && $jobset->name eq ".jobsets";
     my $inputInfo = {};
     if ($jobsetsJobset) {
-        my @declInputs = fetchInput($plugins, $db, $project, $jobset, "decl", $project->decltype, $project->declvalue, 0);
-        my $declInput = $declInputs[0] or die "cannot find the input containing the declarative project specification\n";
-        die "multiple alternatives for the input containing the declarative project specification are not supported\n"
-            if scalar @declInputs != 1;
-        my $declFile = printStorePath(machineLocalStore()->storeDir, $declInput->{storePath})
-            . "/" . $project->declfile;
-        # Use `nix store cat` so the physical store location is resolved
-        # by the store itself (handles root= stores where physical != logical).
-        my ($res, $declText, $catErr) = captureStdoutStderr(
-            60,
-            "nix", "--extra-experimental-features", "nix-command",
-            "store", "cat", $declFile);
-        die "Couldn't read declarative specification file $declFile: $catErr\n" if $res != 0;
-        my $declSpec;
-        eval {
-            $declSpec = decode_json($declText);
-        };
-
-        die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
-
-        if (ref $declSpec eq "HASH") {
-            my $isStatic = 1;
-            foreach my $elem (values %$declSpec) {
-                if (ref $elem ne "HASH") {
-                    $isStatic = 0;
-                    last;
-                }
-            }
-            if ($isStatic) {
-                # Since all of its keys are hashes, assume the json document
-                # itself is the entire set of jobs
-                handleDeclarativeJobsetJson($db, $project, $declSpec);
-                $db->txn_do(sub {
-                    $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
-                });
-                setJobsetError($jobset, "", time);
-                return;
-            } else {
-                # Update the jobset with the spec's inputs, and the continue
-                # evaluating the .jobsets jobset.
-                updateDeclarativeJobset($config, $db, $project, ".jobsets", $declSpec);
-                $jobset->discard_changes;
-                $inputInfo->{"declInput"} = [ $declInput ];
-                $inputInfo->{"projectName"} = [ fetchInput($plugins, $db, $project, $jobset, "projectName", "string", $project->name, 0) ];
-
-            }
-        } else {
-            die "Declarative specification file $declFile is not a dictionary"
+        # `hydra-prepare-declarative-jobset` fetches the specification and
+        # applies it; see there for what it replies.
+        my ($res, $stdout, $stderr) = captureStdoutStderr(
+            3600, "hydra-prepare-declarative-jobset", $project->name);
+        if ($res) {
+            chomp $stderr;
+            die "$stderr\n";
+        }
+        my $reply = decode_json($stdout);
+        if ($reply->{declared}) {
+            $db->txn_do(sub {
+                $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
+            });
+            setJobsetError($jobset, "", time);
+            return;
+        }
+        # The specification reconfigured this jobset.
+        $jobset->discard_changes;
+        foreach my $name (keys %{$reply->{inputs}}) {
+            $inputInfo->{$name} = [
+                map { $_->{emailresponsible} //= 0; inputFromJson($_) }
+                    @{$reply->{inputs}->{$name}}
+            ];
         }
     }
 
