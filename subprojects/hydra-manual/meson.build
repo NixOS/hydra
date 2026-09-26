@@ -6,6 +6,7 @@ project('hydra-manual',
 mdbook = find_program('mdbook', native: true)
 
 srcs = files(
+  'book.toml',
   'src/SUMMARY.md',
   'src/about.md',
   'src/api.md',

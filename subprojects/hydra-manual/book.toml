@@ -1,0 +1,6 @@
+[book]
+title = "Hydra User's Guide"
+
+[output.html]
+# Served from GitHub Pages under /hydra/; used for absolute links in 404.html.
+site-url = "/hydra/"
