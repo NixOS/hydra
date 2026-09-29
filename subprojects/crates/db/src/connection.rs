@@ -10,28 +10,18 @@ use super::models::{
     UpdateBuild, UpdateBuildStep, UpdateBuildStepInFinish,
 };
 
+/// A pooled [`Connection`] or a [`Transaction`] on one. Both can run
+/// single-statement queries. Writes that span several statements run
+/// in a [`Transaction`] so they are atomic. Most are methods on it, and
+/// `Connection::abort_build` opens its own.
 #[derive(Debug)]
-pub struct Connection {
-    conn: sqlx::pool::PoolConnection<sqlx::Postgres>,
+pub struct Handle<C> {
+    conn: C,
 }
 
-#[derive(Debug)]
-pub struct Transaction<'a> {
-    tx: sqlx::PgTransaction<'a>,
-}
-
-impl Connection {
-    #[must_use]
-    pub(crate) const fn new(conn: sqlx::pool::PoolConnection<sqlx::Postgres>) -> Self {
-        Self { conn }
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn begin_transaction(&mut self) -> crate::Result<Transaction<'_>> {
-        let tx = self.conn.begin().await?;
-        Ok(Transaction { tx })
-    }
-
+pub type Connection = Handle<sqlx::pool::PoolConnection<sqlx::Postgres>>;
+pub type Transaction<'a> = Handle<sqlx::PgTransaction<'a>>;
+impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     /// Raw access to the underlying connection, for components whose
     /// schema knowledge deliberately lives outside this crate: they keep
     /// their own compile-time-checked queries next to the code that owns
@@ -137,25 +127,6 @@ impl Connection {
         )
         .fetch_all(&mut *self.conn)
         .await?)
-    }
-
-    /// Mark a build aborted and tell `build_finished` listeners, in one
-    /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
-    /// cares that it is finished, not why.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
-        let mut tx = self.begin_transaction().await?;
-        sqlx::query!(
-            "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
-            build_id,
-            BuildStatus::Aborted as i32,
-            jiff::Timestamp::now().as_second(),
-        )
-        .execute(&mut *tx.tx)
-        .await?;
-        tx.notify_build_finished(build_id, &[]).await?;
-        tx.commit().await?;
-        Ok(())
     }
 
     #[tracing::instrument(skip_all, err)]
@@ -475,43 +446,6 @@ impl Connection {
 
         row.map(|path| Ok(store_dir.parse(&path)?)).transpose()
     }
-}
-
-impl Transaction<'_> {
-    #[tracing::instrument(skip(self), err)]
-    pub async fn commit(self) -> crate::Result<()> {
-        Ok(self.tx.commit().await?)
-    }
-
-    #[tracing::instrument(skip(self, v), err)]
-    async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE builds SET
-              finished = 1,
-              buildStatus = $2,
-              startTime = $3,
-              stopTime = $4,
-              size = $5,
-              closureSize = $6,
-              releaseName = $7,
-              isCachedBuild = $8,
-              notificationPendingSince = $4
-            WHERE
-              id = $1"#,
-            build_id,
-            v.status as i32,
-            v.start_time,
-            v.stop_time,
-            v.size,
-            v.closure_size,
-            v.release_name,
-            i32::from(v.is_cached_build),
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
-    }
 
     #[tracing::instrument(skip(self, status, start_time, stop_time, is_cached_build), err)]
     pub async fn update_build_after_failure(
@@ -539,7 +473,7 @@ impl Transaction<'_> {
             stop_time,
             i32::from(is_cached_build),
         )
-        .execute(&mut *self.tx)
+        .execute(&mut *self.conn)
         .await?;
         Ok(())
     }
@@ -555,32 +489,6 @@ impl Transaction<'_> {
             .await
     }
 
-    #[tracing::instrument(skip(self, store_dir, name, path), err)]
-    async fn update_build_output(
-        &mut self,
-        store_dir: &StoreDir,
-        build_id: i32,
-        name: &str,
-        path: &StorePath,
-    ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
-        // The evaluator pre-inserts a build's BuildOutputs rows and this
-        // used to only update them; a build filed without an evaluation
-        // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
-        // table, so insert or update.
-        sqlx::query!(
-            "INSERT INTO buildoutputs (build, name, path)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
-            build_id,
-            name,
-            path.as_str(),
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
-    }
-
     #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn get_last_build_step_id(
         &mut self,
@@ -589,7 +497,7 @@ impl Transaction<'_> {
     ) -> crate::Result<Option<i32>> {
         let path = store_dir.display(path).to_string();
         Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1", path.as_str())
-            .fetch_optional(&mut *self.tx)
+            .fetch_optional(&mut *self.conn)
             .await?
             .and_then(|v| v.max))
     }
@@ -612,7 +520,7 @@ impl Transaction<'_> {
                 "#,
             path.as_str(),
         )
-        .fetch_optional(&mut *self.tx)
+        .fetch_optional(&mut *self.conn)
         .await?
         .and_then(|v| v.max))
     }
@@ -638,9 +546,279 @@ impl Transaction<'_> {
             drv_path,
             name,
         )
-        .fetch_optional(&mut *self.tx)
+        .fetch_optional(&mut *self.conn)
         .await?
         .and_then(|v| v.max))
+    }
+
+    #[tracing::instrument(skip(self, store_dir, name, path), err)]
+    pub async fn update_build_step_output(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+        step_nr: i32,
+        name: &str,
+        path: &StorePath,
+    ) -> crate::Result<()> {
+        let path = store_dir.display(path).to_string();
+        // TODO: support inserting multiple at the same time
+        sqlx::query!(
+            "UPDATE buildstepoutputs SET path = $4 WHERE build = $1 AND stepnr = $2 AND name = $3",
+            build_id,
+            step_nr,
+            name,
+            path.as_str(),
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, store_dir), err)]
+    pub async fn find_build_step_outputs(
+        &mut self,
+        store_dir: &StoreDir,
+        drv_path: &StorePath,
+    ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
+        let drv_path = store_dir.display(drv_path).to_string();
+        let items = sqlx::query!(
+            r#"SELECT o.name, o.path AS "path!"
+              FROM buildstepoutputs o
+              JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
+              WHERE s.drvpath = $1 AND o.path IS NOT NULL"#,
+            drv_path,
+        )
+        .fetch_all(&mut *self.conn)
+        .await?;
+
+        items
+            .into_iter()
+            .map(|row| -> crate::Result<_> {
+                let name: OutputName = row.name.parse()?;
+                let path: StorePath = store_dir.parse(&row.path)?;
+                Ok((name, path))
+            })
+            .collect()
+    }
+
+    #[tracing::instrument(skip(self, res), err)]
+    pub async fn update_build_step_in_finish(
+        &mut self,
+        res: UpdateBuildStepInFinish<'_>,
+    ) -> crate::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE buildsteps SET
+              busy = 0,
+              status = $1,
+              errorMsg = $4,
+              startTime = $5,
+              stopTime = $6,
+              machine = $7,
+              overhead = $8,
+              timesBuilt = $9,
+              isNonDeterministic = $10
+            WHERE
+              build = $2 AND stepnr = $3
+            "#,
+            res.status as i32,
+            res.build_id,
+            res.step_nr,
+            res.error_msg,
+            res.start_time,
+            res.stop_time,
+            res.machine,
+            res.overhead,
+            res.times_built,
+            res.is_non_deterministic,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, store_dir, build_id, step_nr), err)]
+    pub async fn get_drv_path_from_build_step(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+        step_nr: i32,
+    ) -> crate::Result<Option<StorePath>> {
+        Ok(sqlx::query!(
+            "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
+            build_id,
+            step_nr
+        )
+        .fetch_optional(&mut *self.conn)
+        .await?
+        .map(|v| store_dir.parse(&v.drvpath))
+        .transpose()?)
+    }
+
+    #[tracing::instrument(skip(self, store_dir), err)]
+    pub async fn get_drv_path_from_build(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+    ) -> crate::Result<Option<StorePath>> {
+        Ok(
+            sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
+                .fetch_optional(&mut *self.conn)
+                .await?
+                .map(|v| store_dir.parse(&v.drvpath))
+                .transpose()?,
+        )
+    }
+
+    #[tracing::instrument(skip(self, store_dir, path), err)]
+    pub async fn insert_failed_paths(
+        &mut self,
+        store_dir: &StoreDir,
+        path: &StorePath,
+    ) -> crate::Result<()> {
+        let path = store_dir.display(path).to_string();
+        sqlx::query!(
+            r#"
+              INSERT INTO failedpaths (
+                path
+              ) VALUES (
+                $1
+              )
+            "#,
+            path.as_str(),
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    async fn notify_any(&mut self, channel: &str, msg: &str) -> crate::Result<()> {
+        sqlx::query!("SELECT pg_notify($1::text, $2::text)", channel, msg)
+            .execute(&mut *self.conn)
+            .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_builds_added(&mut self) -> crate::Result<()> {
+        self.notify_any("builds_added", "?").await
+    }
+
+    #[tracing::instrument(skip(self, build_id), err)]
+    pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
+        self.notify_any("build_started", &build_id.to_string())
+            .await
+    }
+
+    #[tracing::instrument(skip(self, build_id, step_nr, log_file,), err)]
+    pub async fn notify_step_finished(
+        &mut self,
+        build_id: i32,
+        step_nr: i32,
+        log_file: &str,
+    ) -> crate::Result<()> {
+        self.notify_any(
+            "step_finished",
+            &format!("{build_id}\t{step_nr}\t{log_file}"),
+        )
+        .await
+    }
+}
+
+impl Connection {
+    #[must_use]
+    pub(crate) const fn new(conn: sqlx::pool::PoolConnection<sqlx::Postgres>) -> Self {
+        Self { conn }
+    }
+
+    #[tracing::instrument(skip(self), err)]
+    pub async fn begin_transaction(&mut self) -> crate::Result<Transaction<'_>> {
+        Ok(Handle {
+            conn: self.conn.begin().await?,
+        })
+    }
+
+    /// Mark a build aborted and tell `build_finished` listeners, in one
+    /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
+    /// cares that it is finished, not why.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
+        let mut tx = self.begin_transaction().await?;
+        sqlx::query!(
+            "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
+            build_id,
+            BuildStatus::Aborted as i32,
+            jiff::Timestamp::now().as_second(),
+        )
+        .execute(&mut *tx.conn)
+        .await?;
+        tx.notify_build_finished(build_id, &[]).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+}
+
+impl Transaction<'_> {
+    #[tracing::instrument(skip(self), err)]
+    pub async fn commit(self) -> crate::Result<()> {
+        Ok(self.conn.commit().await?)
+    }
+
+    #[tracing::instrument(skip(self, v), err)]
+    async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
+        sqlx::query!(
+            r#"
+            UPDATE builds SET
+              finished = 1,
+              buildStatus = $2,
+              startTime = $3,
+              stopTime = $4,
+              size = $5,
+              closureSize = $6,
+              releaseName = $7,
+              isCachedBuild = $8,
+              notificationPendingSince = $4
+            WHERE
+              id = $1"#,
+            build_id,
+            v.status as i32,
+            v.start_time,
+            v.stop_time,
+            v.size,
+            v.closure_size,
+            v.release_name,
+            i32::from(v.is_cached_build),
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
+    #[tracing::instrument(skip(self, store_dir, name, path), err)]
+    async fn update_build_output(
+        &mut self,
+        store_dir: &StoreDir,
+        build_id: i32,
+        name: &str,
+        path: &StorePath,
+    ) -> crate::Result<()> {
+        let path = store_dir.display(path).to_string();
+        // The evaluator pre-inserts a build's BuildOutputs rows and this
+        // used to only update them; a build filed without an evaluation
+        // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
+        // table, so insert or update.
+        sqlx::query!(
+            "INSERT INTO buildoutputs (build, name, path)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
+            build_id,
+            name,
+            path.as_str(),
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
     }
 
     #[tracing::instrument(skip(self, store_dir, step), err)]
@@ -700,7 +878,7 @@ impl Transaction<'_> {
             step.machine,
             step.resolved_drv_path.map(ToString::to_string),
         )
-        .fetch_optional(&mut *self.tx)
+        .fetch_optional(&mut *self.conn)
         .await?
         .map(|v| v.stepnr);
         Ok(success)
@@ -729,127 +907,8 @@ impl Transaction<'_> {
                 .push_bind(path.map(|p| store_dir.display(&p).to_string()));
         });
         let query = query_builder.build();
-        query.execute(&mut *self.tx).await?;
+        query.execute(&mut *self.conn).await?;
         Ok(())
-    }
-
-    #[tracing::instrument(skip(self, store_dir, name, path), err)]
-    pub async fn update_build_step_output(
-        &mut self,
-        store_dir: &StoreDir,
-        build_id: i32,
-        step_nr: i32,
-        name: &str,
-        path: &StorePath,
-    ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
-        // TODO: support inserting multiple at the same time
-        sqlx::query!(
-            "UPDATE buildstepoutputs SET path = $4 WHERE build = $1 AND stepnr = $2 AND name = $3",
-            build_id,
-            step_nr,
-            name,
-            path.as_str(),
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self, store_dir), err)]
-    pub async fn find_build_step_outputs(
-        &mut self,
-        store_dir: &StoreDir,
-        drv_path: &StorePath,
-    ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
-        let drv_path = store_dir.display(drv_path).to_string();
-        let items = sqlx::query!(
-            r#"SELECT o.name, o.path AS "path!"
-              FROM buildstepoutputs o
-              JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
-              WHERE s.drvpath = $1 AND o.path IS NOT NULL"#,
-            drv_path,
-        )
-        .fetch_all(&mut *self.tx)
-        .await?;
-
-        items
-            .into_iter()
-            .map(|row| -> crate::Result<_> {
-                let name: OutputName = row.name.parse()?;
-                let path: StorePath = store_dir.parse(&row.path)?;
-                Ok((name, path))
-            })
-            .collect()
-    }
-
-    #[tracing::instrument(skip(self, res), err)]
-    pub async fn update_build_step_in_finish(
-        &mut self,
-        res: UpdateBuildStepInFinish<'_>,
-    ) -> crate::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE buildsteps SET
-              busy = 0,
-              status = $1,
-              errorMsg = $4,
-              startTime = $5,
-              stopTime = $6,
-              machine = $7,
-              overhead = $8,
-              timesBuilt = $9,
-              isNonDeterministic = $10
-            WHERE
-              build = $2 AND stepnr = $3
-            "#,
-            res.status as i32,
-            res.build_id,
-            res.step_nr,
-            res.error_msg,
-            res.start_time,
-            res.stop_time,
-            res.machine,
-            res.overhead,
-            res.times_built,
-            res.is_non_deterministic,
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self, store_dir, build_id, step_nr), err)]
-    pub async fn get_drv_path_from_build_step(
-        &mut self,
-        store_dir: &StoreDir,
-        build_id: i32,
-        step_nr: i32,
-    ) -> crate::Result<Option<StorePath>> {
-        Ok(sqlx::query!(
-            "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
-            build_id,
-            step_nr
-        )
-        .fetch_optional(&mut *self.tx)
-        .await?
-        .map(|v| store_dir.parse(&v.drvpath))
-        .transpose()?)
-    }
-
-    #[tracing::instrument(skip(self, store_dir), err)]
-    pub async fn get_drv_path_from_build(
-        &mut self,
-        store_dir: &StoreDir,
-        build_id: i32,
-    ) -> crate::Result<Option<StorePath>> {
-        Ok(
-            sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
-                .fetch_optional(&mut *self.tx)
-                .await?
-                .map(|v| store_dir.parse(&v.drvpath))
-                .transpose()?,
-        )
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -858,7 +917,7 @@ impl Transaction<'_> {
             "SELECT id FROM builds WHERE id = $1 AND finished = 0",
             build_id,
         )
-        .fetch_optional(&mut *self.tx)
+        .fetch_optional(&mut *self.conn)
         .await?
         .is_some())
     }
@@ -897,7 +956,7 @@ impl Transaction<'_> {
             p.name,
             p.default_path,
         )
-        .execute(&mut *self.tx)
+        .execute(&mut *self.conn)
         .await?;
         Ok(())
     }
@@ -905,7 +964,7 @@ impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
     async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildproducts WHERE build = $1", build_id)
-            .execute(&mut *self.tx)
+            .execute(&mut *self.conn)
             .await?;
         Ok(())
     }
@@ -941,7 +1000,7 @@ impl Transaction<'_> {
             build.name,
             build.timestamp,
         )
-        .execute(&mut *self.tx)
+        .execute(&mut *self.conn)
         .await?;
         Ok(())
     }
@@ -949,30 +1008,8 @@ impl Transaction<'_> {
     #[tracing::instrument(skip(self), err)]
     async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildmetrics WHERE build = $1", build_id)
-            .execute(&mut *self.tx)
+            .execute(&mut *self.conn)
             .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self, store_dir, path), err)]
-    pub async fn insert_failed_paths(
-        &mut self,
-        store_dir: &StoreDir,
-        path: &StorePath,
-    ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
-        sqlx::query!(
-            r#"
-              INSERT INTO failedpaths (
-                path
-              ) VALUES (
-                $1
-              )
-            "#,
-            path.as_str(),
-        )
-        .execute(&mut *self.tx)
-        .await?;
         Ok(())
     }
 
@@ -1157,27 +1194,6 @@ impl Transaction<'_> {
         }
         Ok(())
     }
-}
-
-impl Transaction<'_> {
-    #[tracing::instrument(skip(self), err)]
-    async fn notify_any(&mut self, channel: &str, msg: &str) -> crate::Result<()> {
-        sqlx::query!("SELECT pg_notify($1::text, $2::text)", channel, msg)
-            .execute(&mut *self.tx)
-            .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_builds_added(&mut self) -> crate::Result<()> {
-        self.notify_any("builds_added", "?").await
-    }
-
-    #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
-        self.notify_any("build_started", &build_id.to_string())
-            .await
-    }
 
     #[tracing::instrument(skip(self, build_id, dependent_ids,), err)]
     pub async fn notify_build_finished(
@@ -1212,20 +1228,6 @@ impl Transaction<'_> {
     async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> crate::Result<()> {
         self.notify_any("step_started", &format!("{build_id}\t{step_nr}"))
             .await
-    }
-
-    #[tracing::instrument(skip(self, build_id, step_nr, log_file,), err)]
-    pub async fn notify_step_finished(
-        &mut self,
-        build_id: i32,
-        step_nr: i32,
-        log_file: &str,
-    ) -> crate::Result<()> {
-        self.notify_any(
-            "step_finished",
-            &format!("{build_id}\t{step_nr}\t{log_file}"),
-        )
-        .await
     }
 }
 
@@ -1746,13 +1748,13 @@ mod tests {
 
         let mut tx_a = conn_a.begin_transaction().await.unwrap();
         sqlx::query!("UPDATE Users SET fullName = 'first' WHERE userName = 'a'")
-            .execute(&mut *tx_a.tx)
+            .execute(&mut *tx_a.conn)
             .await
             .unwrap();
 
         let mut tx_b = conn_b.begin_transaction().await.unwrap();
         sqlx::query!("UPDATE Users SET fullName = 'first' WHERE userName = 'b'")
-            .execute(&mut *tx_b.tx)
+            .execute(&mut *tx_b.conn)
             .await
             .unwrap();
 
@@ -1760,9 +1762,9 @@ mod tests {
         // cycle; Postgres aborts one of them with a deadlock error.
         let (res_a, res_b) = tokio::join!(
             sqlx::query!("UPDATE Users SET fullName = 'second' WHERE userName = 'b'")
-                .execute(&mut *tx_a.tx),
+                .execute(&mut *tx_a.conn),
             sqlx::query!("UPDATE Users SET fullName = 'second' WHERE userName = 'a'")
-                .execute(&mut *tx_b.tx),
+                .execute(&mut *tx_b.conn),
         );
 
         let victim = match (res_a, res_b) {

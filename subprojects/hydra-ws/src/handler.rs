@@ -127,10 +127,9 @@ pub async fn handle_logs_start(
     })?;
 
     let drv_path = {
-        let mut tx = conn.begin_transaction().await?;
         if let Some(step_id) = step_id {
             let step_id = i32::try_from(step_id).map_err(|_| LogsStartError::StepIdOutOfRange)?;
-            tx.get_drv_path_from_build_step(&state.store_dir, build_id_i32, step_id)
+            conn.get_drv_path_from_build_step(&state.store_dir, build_id_i32, step_id)
                 .await
                 .map_err(|e| {
                     tracing::error!("DB query failed: {e}");
@@ -141,7 +140,7 @@ pub async fn handle_logs_start(
                     step_id,
                 })?
         } else {
-            tx.get_drv_path_from_build(&state.store_dir, build_id_i32)
+            conn.get_drv_path_from_build(&state.store_dir, build_id_i32)
                 .await
                 .map_err(|e| {
                     tracing::error!("DB query failed: {e}");

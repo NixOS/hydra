@@ -247,8 +247,7 @@ fn log_line(id: u64, line: String) -> LogMessage {
 async fn lookup_drv(src: &LogSource, ev: StepEvent) -> Option<harmonia_store_path::StorePath> {
     let result = async {
         let mut conn = src.db.get().await?;
-        let mut tx = conn.begin_transaction().await?;
-        tx.get_drv_path_from_build_step(&src.store_dir, ev.build_id, ev.step_nr)
+        conn.get_drv_path_from_build_step(&src.store_dir, ev.build_id, ev.step_nr)
             .await
     }
     .await;

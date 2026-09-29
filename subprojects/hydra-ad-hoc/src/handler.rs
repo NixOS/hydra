@@ -111,11 +111,7 @@ impl HydraDaemonHandler {
             .get()
             .await
             .map_err(|e| ProtocolError::custom(format!("hydra db: {e}")))?;
-        let mut tx = conn
-            .begin_transaction()
-            .await
-            .map_err(|e| ProtocolError::custom(format!("hydra db: {e}")))?;
-        tx.find_build_step_outputs(&self.store_dir, drv_path)
+        conn.find_build_step_outputs(&self.store_dir, drv_path)
             .await
             .map_err(|e| ProtocolError::custom(format!("build step outputs: {e}")))
     }
