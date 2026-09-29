@@ -1035,7 +1035,6 @@ dependencies = [
  "harmonia-store-derivation",
  "harmonia-store-path",
  "harmonia-utils-hash",
- "hashbrown 0.17.1",
  "jiff",
  "nix-support",
  "serde_json",

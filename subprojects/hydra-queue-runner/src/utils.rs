@@ -138,7 +138,7 @@ pub async fn substitute_output(
         stoptime,
         build_id,
         drv_path,
-        (name.clone(), Some(path.clone())),
+        BTreeMap::from([(name.clone(), path.clone())]),
     )
     .await?;
     tx.commit().await?;
@@ -158,7 +158,7 @@ pub async fn make_local_step(
 
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
-    tx.create_local_step(
+    tx.create_substitution_step(
         store_dir,
         time,
         time,

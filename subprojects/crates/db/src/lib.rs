@@ -112,21 +112,26 @@ const ACQUIRE_ATTEMPTS: u32 = 6;
 impl Database {
     /// Connect using [`URL_ENV_VAR`] (or the local-socket default).
     pub async fn from_env(max_connections: u32) -> Result<Self> {
-        Ok(Self {
-            pool: sqlx::postgres::PgPoolOptions::new()
-                .max_connections(max_connections)
-                .acquire_timeout(ACQUIRE_TIMEOUT)
-                .connect_with(options_from_env()?)
-                .await?,
-        })
+        Self::connect_with(options_from_env()?, max_connections).await
     }
 
     pub async fn new(url: &str, max_connections: u32) -> Result<Self> {
+        Self::connect_with(
+            sqlx::postgres::PgConnectOptions::from_str(url)?,
+            max_connections,
+        )
+        .await
+    }
+
+    async fn connect_with(
+        options: sqlx::postgres::PgConnectOptions,
+        max_connections: u32,
+    ) -> Result<Self> {
         Ok(Self {
             pool: sqlx::postgres::PgPoolOptions::new()
                 .max_connections(max_connections)
                 .acquire_timeout(ACQUIRE_TIMEOUT)
-                .connect(url)
+                .connect_with(options)
                 .await?,
         })
     }

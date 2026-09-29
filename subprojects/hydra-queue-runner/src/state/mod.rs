@@ -986,14 +986,9 @@ impl State {
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
-                        machine.hostname.clone(),
+                        &machine.hostname,
                         &resolved_path,
-                        step_info
-                            .step
-                            .get_output_paths()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
+                        step_info.step.get_output_paths().unwrap_or_default(),
                     )
                     .await?;
                     tx.commit().await?;
@@ -1107,19 +1102,13 @@ impl State {
                     build_id,
                     step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
-                    machine.hostname.clone(),
+                    &machine.hostname,
                     BuildStatus::Busy,
                     None,
                     None,
-                    step_info
-                        .step
-                        .get_output_paths()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .collect(),
+                    step_info.step.get_output_paths().unwrap_or_default(),
                 )
                 .await?;
-            tx.notify_step_started(build_id, step_nr).await?;
             tx.commit().await?;
             step_nr
         };
@@ -2407,21 +2396,15 @@ impl State {
                         b.id,
                         step.get_drv_path(),
                         step.get_system().as_deref(),
-                        machine
-                            .as_deref()
-                            .map(|m| m.hostname.clone())
-                            .unwrap_or_default(),
+                        machine.as_deref().map_or("", |m| &m.hostname),
                         job.result.step_status,
-                        job.result.error_msg.clone(),
+                        job.result.error_msg.as_deref(),
                         if job.build_id == b.id {
                             None
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_output_paths()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
+                        step.get_output_paths().unwrap_or_default(),
                     )
                     .await?;
                 }
@@ -2572,14 +2555,11 @@ impl State {
                 build.id,
                 step.get_drv_path(),
                 step.get_system().as_deref(),
-                String::new(),
+                "",
                 BuildStatus::CachedFailure,
                 None,
                 Some(propagated_from),
-                step.get_output_paths()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect(),
+                step.get_output_paths().unwrap_or_default(),
             )
             .await?;
             tx.update_build_after_previous_failure(
@@ -3143,7 +3123,7 @@ impl State {
             Ok(mut conn) => conn
                 .check_if_paths_failed(
                     self.connector.store_dir(),
-                    &output_paths.values().flatten().cloned().collect::<Vec<_>>(),
+                    &output_paths.values().flatten().collect::<Vec<_>>(),
                 )
                 .await
                 .unwrap_or_default(),
@@ -3411,7 +3391,7 @@ impl State {
 
         conn.check_if_paths_failed(
             self.connector.store_dir(),
-            &drv_outputs.values().flatten().cloned().collect::<Vec<_>>(),
+            &drv_outputs.values().flatten().collect::<Vec<_>>(),
         )
         .await
         .unwrap_or_default()

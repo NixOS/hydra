@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use sqlx::Acquire;
 
@@ -7,9 +6,8 @@ use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
 use super::models::{
-    Build, BuildSmall, BuildStatus, BuildSteps, InsertBuildMetric, InsertBuildProduct,
-    InsertBuildStep, InsertBuildStepOutput, InsertResolvedBuildStep, Jobset, UpdateBuild,
-    UpdateBuildStep, UpdateBuildStepInFinish,
+    Build, BuildID, BuildSmall, BuildStatus, BuildSteps, BuildType, InsertBuildStep, Jobset,
+    UpdateBuild, UpdateBuildStep, UpdateBuildStepInFinish,
 };
 
 #[derive(Debug)]
@@ -24,7 +22,7 @@ pub struct Transaction<'a> {
 
 impl Connection {
     #[must_use]
-    pub const fn new(conn: sqlx::pool::PoolConnection<sqlx::Postgres>) -> Self {
+    pub(crate) const fn new(conn: sqlx::pool::PoolConnection<sqlx::Postgres>) -> Self {
         Self { conn }
     }
 
@@ -141,13 +139,10 @@ impl Connection {
         .await?)
     }
 
-    // TODO Currently unused. In the old C++ queue-runner, this was called
-    // in queue-monitor.cc to mark GC'ed builds as aborted. The Rust
-    // queue runner apparently doesn't handle that case yet.
-    #[tracing::instrument(skip(self), err)]
     /// Mark a build aborted and tell `build_finished` listeners, in one
     /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
     /// cares that it is finished, not why.
+    #[tracing::instrument(skip(self), err)]
     pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
         let mut tx = self.begin_transaction().await?;
         sqlx::query!(
@@ -163,16 +158,19 @@ impl Connection {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, store_dir, paths), err)]
+    #[tracing::instrument(skip_all, err)]
     pub async fn check_if_paths_failed(
         &mut self,
         store_dir: &StoreDir,
-        paths: &[StorePath],
+        paths: &[&StorePath],
     ) -> crate::Result<bool> {
         let paths: Vec<String> = paths
             .iter()
-            .map(|p| store_dir.display(p).to_string())
+            .map(|p| store_dir.display(*p).to_string())
             .collect();
+        if paths.is_empty() {
+            return Ok(false);
+        }
         Ok(
             !sqlx::query!("SELECT path FROM failedpaths where path = ANY($1)", &paths)
                 .fetch_all(&mut *self.conn)
@@ -198,7 +196,7 @@ impl Connection {
     /// step.
     pub async fn clear_busy_step(
         &mut self,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         step_nr: i32,
         stop_time: crate::Timestamp,
         status: BuildStatus,
@@ -330,8 +328,7 @@ impl Connection {
         &mut self,
         build_id: i32,
     ) -> crate::Result<Vec<(nix_support::BuildMetricName, nix_support::BuildMetric)>> {
-        let rows = sqlx::query_as!(
-            crate::models::OwnedBuildMetric,
+        let rows = sqlx::query!(
             r#"
             SELECT
               name, unit, value
@@ -341,7 +338,16 @@ impl Connection {
         )
         .fetch_all(&mut *self.conn)
         .await?;
-        Ok(rows.into_iter().map(Into::into).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let metric = nix_support::BuildMetric {
+                    unit: r.unit,
+                    value: r.value,
+                };
+                (r.name, metric)
+            })
+            .collect())
     }
 
     /// Resolve output paths for derivation chains via `buildstepoutputs`.
@@ -478,7 +484,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, v), err)]
-    pub async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
+    async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
         sqlx::query!(
             r#"
             UPDATE builds SET
@@ -544,28 +550,13 @@ impl Transaction<'_> {
         build_id: i32,
         status: BuildStatus,
     ) -> crate::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE builds SET
-              finished = 1,
-              buildStatus = $2,
-              startTime = $3,
-              stopTime = $3,
-              isCachedBuild = 1,
-              notificationPendingSince = $3
-            WHERE
-              id = $1 AND finished = 0"#,
-            build_id,
-            status as i32,
-            jiff::Timestamp::now().as_second(),
-        )
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(())
+        let now = jiff::Timestamp::now().as_second();
+        self.update_build_after_failure(build_id, status, now, now, true)
+            .await
     }
 
     #[tracing::instrument(skip(self, store_dir, name, path), err)]
-    pub async fn update_build_output(
+    async fn update_build_output(
         &mut self,
         store_dir: &StoreDir,
         build_id: i32,
@@ -653,7 +644,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, store_dir, step), err)]
-    pub async fn insert_build_step(
+    async fn insert_build_step(
         &mut self,
         store_dir: &StoreDir,
         step: InsertBuildStep<'_>,
@@ -684,9 +675,10 @@ impl Transaction<'_> {
                 status,
                 propagatedFrom,
                 errorMsg,
-                machine
+                machine,
+                resolvedDrvPath
               ) VALUES (
-                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
               )
               ON CONFLICT DO NOTHING
               RETURNING stepnr
@@ -694,7 +686,7 @@ impl Transaction<'_> {
             step.build_id,
             step.r#type as i32,
             drv_path.as_str(),
-            i32::from(step.busy),
+            i32::from(step.status == BuildStatus::Busy),
             step.start_time,
             step.stop_time,
             step.platform,
@@ -706,58 +698,7 @@ impl Transaction<'_> {
             step.propagated_from,
             step.error_msg,
             step.machine,
-        )
-        .fetch_optional(&mut *self.tx)
-        .await?
-        .map(|v| v.stepnr);
-        Ok(success)
-    }
-
-    /// Insert a step row recording that its derivation was resolved to
-    /// another derivation. Like [`insert_build_step`](Self::insert_build_step),
-    /// returns `None` on a `stepnr` conflict so the caller can retry.
-    #[tracing::instrument(skip(self, store_dir, step), err)]
-    pub async fn insert_resolved_build_step(
-        &mut self,
-        store_dir: &StoreDir,
-        step: InsertResolvedBuildStep<'_>,
-    ) -> crate::Result<Option<i32>> {
-        let drv_path = store_dir.display(step.drv_path).to_string();
-        let success = sqlx::query!(
-            r#"
-              WITH max AS (SELECT MAX(stepnr) AS val FROM buildsteps WHERE build = $1),
-                new_stepnr AS (SELECT
-                    CASE
-                        WHEN val IS NULL THEN 1
-                        ELSE val + 1
-                    END
-                    AS val FROM max)
-              INSERT INTO buildsteps (
-                build,
-                stepnr,
-                type,
-                drvPath,
-                busy,
-                startTime,
-                stopTime,
-                system,
-                status,
-                machine,
-                resolvedDrvPath
-              ) VALUES (
-                $1, (SELECT val FROM new_stepnr), $2, $3, 0, $4, $4, $5, $6, $7, $8
-              )
-              ON CONFLICT DO NOTHING
-              RETURNING stepnr
-            "#,
-            step.build_id,
-            crate::models::BuildType::Build as i32,
-            drv_path.as_str(),
-            step.start_time,
-            step.platform,
-            BuildStatus::Resolved as i32,
-            step.machine,
-            step.resolved_drv_path.to_string(),
+            step.resolved_drv_path.map(ToString::to_string),
         )
         .fetch_optional(&mut *self.tx)
         .await?
@@ -766,28 +707,26 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self, store_dir, outputs), err)]
-    pub async fn insert_build_step_outputs(
+    async fn insert_build_step_outputs(
         &mut self,
         store_dir: &StoreDir,
-        outputs: &[InsertBuildStepOutput],
+        build_id: BuildID,
+        step_nr: i32,
+        outputs: impl IntoIterator<Item = (OutputName, Option<StorePath>)>,
     ) -> crate::Result<()> {
-        if outputs.is_empty() {
+        let mut outputs = outputs.into_iter().peekable();
+        if outputs.peek().is_none() {
             return Ok(());
         }
 
         let mut query_builder =
             sqlx::QueryBuilder::new("INSERT INTO buildstepoutputs (build, stepnr, name, path) ");
 
-        query_builder.push_values(outputs, |mut b, output| {
-            b.push_bind(output.build_id)
-                .push_bind(output.step_nr)
-                .push_bind(output.name.as_ref())
-                .push_bind(
-                    output
-                        .path
-                        .as_ref()
-                        .map(|p| store_dir.display(p).to_string()),
-                );
+        query_builder.push_values(outputs, |mut b, (name, path)| {
+            b.push_bind(build_id)
+                .push_bind(step_nr)
+                .push_bind(name.to_string())
+                .push_bind(path.map(|p| store_dir.display(&p).to_string()));
         });
         let query = query_builder.build();
         query.execute(&mut *self.tx).await?;
@@ -887,17 +826,15 @@ impl Transaction<'_> {
         build_id: i32,
         step_nr: i32,
     ) -> crate::Result<Option<StorePath>> {
-        sqlx::query!(
+        Ok(sqlx::query!(
             "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
             build_id,
             step_nr
         )
         .fetch_optional(&mut *self.tx)
         .await?
-        .map(|v| v.drvpath)
-        .map(|p| store_dir.parse(&p))
-        .transpose()
-        .map_err(crate::Error::from)
+        .map(|v| store_dir.parse(&v.drvpath))
+        .transpose()?)
     }
 
     #[tracing::instrument(skip(self, store_dir), err)]
@@ -906,17 +843,17 @@ impl Transaction<'_> {
         store_dir: &StoreDir,
         build_id: i32,
     ) -> crate::Result<Option<StorePath>> {
-        sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
-            .fetch_optional(&mut *self.tx)
-            .await?
-            .map(|v| v.drvpath)
-            .map(|p| store_dir.parse(&p))
-            .transpose()
-            .map_err(crate::Error::from)
+        Ok(
+            sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
+                .fetch_optional(&mut *self.tx)
+                .await?
+                .map(|v| store_dir.parse(&v.drvpath))
+                .transpose()?,
+        )
     }
 
-    #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> crate::Result<bool> {
+    #[tracing::instrument(skip(self), err)]
+    async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> crate::Result<bool> {
         Ok(sqlx::query!(
             "SELECT id FROM builds WHERE id = $1 AND finished = 0",
             build_id,
@@ -926,10 +863,13 @@ impl Transaction<'_> {
         .is_some())
     }
 
-    #[tracing::instrument(skip(self, p), err)]
-    pub(crate) async fn insert_build_product(
+    #[tracing::instrument(skip(self, store_dir, p), err)]
+    async fn insert_build_product(
         &mut self,
-        p: InsertBuildProduct<'_>,
+        store_dir: &StoreDir,
+        build_id: BuildID,
+        product_nr: i32,
+        p: &nix_support::BuildProduct,
     ) -> crate::Result<()> {
         sqlx::query!(
             r#"
@@ -947,19 +887,13 @@ impl Transaction<'_> {
                 $1, $2, $3, $4, $5, $6, $7, $8, $9
               )
             "#,
-            p.build_id,
-            p.product_nr,
+            build_id,
+            product_nr,
             p.r#type,
             p.subtype,
-            p.file_size,
-            p.sha256hash.map(|h| {
-                let bytes: &[u8] = h.as_ref();
-                bytes.iter().fold(String::new(), |mut output, b| {
-                    let _ = write!(output, "{b:02x}");
-                    output
-                })
-            }) as Option<String>,
-            p.path,
+            p.file_size.and_then(|s| i64::try_from(s).ok()),
+            p.sha256hash.as_ref().map(|h| format!("{h:x}")),
+            p.path.print(store_dir),
             p.name,
             p.default_path,
         )
@@ -968,18 +902,20 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
+    #[tracing::instrument(skip(self), err)]
+    async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildproducts WHERE build = $1", build_id)
             .execute(&mut *self.tx)
             .await?;
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, metric), err)]
-    pub(crate) async fn insert_build_metric(
+    #[tracing::instrument(skip(self, build, metric), err)]
+    async fn insert_build_metric(
         &mut self,
-        metric: InsertBuildMetric<'_>,
+        build: &crate::models::MarkBuildSuccessData<'_>,
+        name: &str,
+        metric: &nix_support::BuildMetric,
     ) -> crate::Result<()> {
         sqlx::query!(
             r#"
@@ -996,22 +932,22 @@ impl Transaction<'_> {
                 $1, $2, $3, $4, $5, $6, $7, $8
               )
             "#,
-            metric.build_id,
-            metric.name,
+            build.id,
+            name,
             metric.unit,
             metric.value,
-            metric.project,
-            metric.jobset,
-            metric.job,
-            metric.timestamp,
+            build.project_name,
+            build.jobset_name,
+            build.name,
+            build.timestamp,
         )
         .execute(&mut *self.tx)
         .await?;
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
+    #[tracing::instrument(skip(self), err)]
+    async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
         sqlx::query!("DELETE FROM buildmetrics WHERE build = $1", build_id)
             .execute(&mut *self.tx)
             .await?;
@@ -1040,240 +976,129 @@ impl Transaction<'_> {
         Ok(())
     }
 
+    /// Insert `step`, retrying on a `stepnr` conflict, then insert its outputs.
+    async fn insert_build_step_with_outputs(
+        &mut self,
+        store_dir: &StoreDir,
+        step: InsertBuildStep<'_>,
+        outputs: impl IntoIterator<Item = (OutputName, Option<StorePath>)>,
+    ) -> crate::Result<i32> {
+        let step_nr = loop {
+            if let Some(step_nr) = self.insert_build_step(store_dir, step).await? {
+                break step_nr;
+            }
+        };
+        self.insert_build_step_outputs(store_dir, step.build_id, step_nr, outputs)
+            .await?;
+        Ok(step_nr)
+    }
+
+    /// Create a build step with its outputs. A [`Busy`](BuildStatus::Busy)
+    /// step stays open, and this sends `step_started` for it. Any other
+    /// status finishes the step at `start_time`.
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(
-        skip(
-            self,
-            store_dir,
-            start_time,
-            build_id,
-            platform,
-            machine,
-            status,
-            error_msg,
-            propagated_from
-        ),
-        err
-    )]
+    #[tracing::instrument(skip_all, fields(build_id, %drv_path, ?status), err)]
     pub async fn create_build_step(
         &mut self,
         store_dir: &StoreDir,
         start_time: Option<crate::Timestamp>,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
-        machine: String,
+        machine: &str,
         status: BuildStatus,
-        error_msg: Option<String>,
-        propagated_from: Option<crate::models::BuildID>,
+        error_msg: Option<&str>,
+        propagated_from: Option<BuildID>,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> crate::Result<i32> {
-        let step_nr = loop {
-            if let Some(step_nr) = self
-                .insert_build_step(
-                    store_dir,
-                    InsertBuildStep {
-                        build_id,
-                        r#type: crate::models::BuildType::Build,
-                        drv_path,
-                        status,
-                        busy: status == BuildStatus::Busy,
-                        start_time,
-                        stop_time: if status == BuildStatus::Busy {
-                            None
-                        } else {
-                            start_time
-                        },
-                        platform,
-                        propagated_from,
-                        error_msg: error_msg.as_deref(),
-                        machine: &machine,
-                    },
-                )
-                .await?
-            {
-                break step_nr;
-            }
+        let busy = status == BuildStatus::Busy;
+        let step = InsertBuildStep {
+            build_id,
+            r#type: BuildType::Build,
+            drv_path,
+            status,
+            start_time,
+            stop_time: if busy { None } else { start_time },
+            platform,
+            propagated_from,
+            error_msg,
+            machine,
+            resolved_drv_path: None,
         };
-
-        self.insert_build_step_outputs(
-            store_dir,
-            &outputs
-                .into_iter()
-                .map(|(name, path)| InsertBuildStepOutput {
-                    build_id,
-                    step_nr,
-                    name,
-                    path,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await?;
-
-        if status == BuildStatus::Busy {
+        let step_nr = self
+            .insert_build_step_with_outputs(store_dir, step, outputs)
+            .await?;
+        if busy {
             self.notify_step_started(build_id, step_nr).await?;
         }
-
         Ok(step_nr)
     }
 
     /// Create a build step recording that `drv_path` was resolved to
     /// `resolved_drv_path`, along with its outputs. The counterpart of
-    /// [`create_build_step`](Self::create_build_step) for the resolved
-    /// (`status = 13`) case.
+    /// [`create_build_step`](Self::create_build_step) for steps with status
+    /// [`Resolved`](BuildStatus::Resolved).
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, store_dir, start_time, build_id, platform, machine), err)]
+    #[tracing::instrument(skip_all, fields(build_id, %drv_path, %resolved_drv_path), err)]
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
         start_time: crate::Timestamp,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
         platform: Option<&str>,
-        machine: String,
+        machine: &str,
         resolved_drv_path: &StorePath,
         outputs: BTreeMap<OutputName, Option<StorePath>>,
     ) -> crate::Result<i32> {
-        let step_nr = loop {
-            if let Some(step_nr) = self
-                .insert_resolved_build_step(
-                    store_dir,
-                    InsertResolvedBuildStep {
-                        build_id,
-                        drv_path,
-                        start_time,
-                        platform,
-                        machine: &machine,
-                        resolved_drv_path,
-                    },
-                )
-                .await?
-            {
-                break step_nr;
-            }
+        let step = InsertBuildStep {
+            build_id,
+            r#type: BuildType::Build,
+            drv_path,
+            status: BuildStatus::Resolved,
+            start_time: Some(start_time),
+            stop_time: Some(start_time),
+            platform,
+            propagated_from: None,
+            error_msg: None,
+            machine,
+            resolved_drv_path: Some(resolved_drv_path),
         };
-
-        self.insert_build_step_outputs(
-            store_dir,
-            &outputs
-                .into_iter()
-                .map(|(name, path)| InsertBuildStepOutput {
-                    build_id,
-                    step_nr,
-                    name,
-                    path,
-                })
-                .collect::<Vec<_>>(),
-        )
-        .await?;
-
-        Ok(step_nr)
+        self.insert_build_step_with_outputs(store_dir, step, outputs)
+            .await
     }
 
-    #[tracing::instrument(
-        skip(self, store_dir, start_time, stop_time, build_id, drv_path, outputs,),
-        err,
-        ret
-    )]
-    pub async fn create_local_step(
-        &mut self,
-        store_dir: &StoreDir,
-        start_time: crate::Timestamp,
-        stop_time: crate::Timestamp,
-        build_id: crate::models::BuildID,
-        drv_path: &StorePath,
-        outputs: BTreeMap<OutputName, StorePath>,
-    ) -> crate::Result<i32> {
-        let step_nr = loop {
-            if let Some(step_nr) = self
-                .insert_build_step(
-                    store_dir,
-                    InsertBuildStep {
-                        build_id,
-                        r#type: crate::models::BuildType::Substitution,
-                        drv_path,
-                        status: BuildStatus::Success,
-                        busy: false,
-                        start_time: Some(start_time),
-                        stop_time: Some(stop_time),
-                        platform: None,
-                        propagated_from: None,
-                        error_msg: None,
-                        machine: "",
-                    },
-                )
-                .await?
-            {
-                break step_nr;
-            }
-        };
-
-        let output_items: Vec<_> = outputs
-            .into_iter()
-            .map(|(name, path)| InsertBuildStepOutput {
-                build_id,
-                step_nr,
-                name,
-                path: Some(path),
-            })
-            .collect();
-
-        self.insert_build_step_outputs(store_dir, &output_items)
-            .await?;
-
-        Ok(step_nr)
-    }
-
-    #[tracing::instrument(
-        skip(self, store_dir, start_time, stop_time, build_id, drv_path, output,),
-        err,
-        ret
-    )]
+    /// Create a finished step for outputs that the queue runner substituted
+    /// or found already valid locally, instead of building them.
+    #[tracing::instrument(skip_all, fields(build_id, %drv_path), err, ret)]
     pub async fn create_substitution_step(
         &mut self,
         store_dir: &StoreDir,
         start_time: crate::Timestamp,
         stop_time: crate::Timestamp,
-        build_id: crate::models::BuildID,
+        build_id: BuildID,
         drv_path: &StorePath,
-        output: (OutputName, Option<StorePath>),
+        outputs: BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<i32> {
-        let step_nr = loop {
-            if let Some(step_nr) = self
-                .insert_build_step(
-                    store_dir,
-                    InsertBuildStep {
-                        build_id,
-                        r#type: crate::models::BuildType::Substitution,
-                        drv_path,
-                        status: BuildStatus::Success,
-                        busy: false,
-                        start_time: Some(start_time),
-                        stop_time: Some(stop_time),
-                        platform: None,
-                        propagated_from: None,
-                        error_msg: None,
-                        machine: "",
-                    },
-                )
-                .await?
-            {
-                break step_nr;
-            }
+        let step = InsertBuildStep {
+            build_id,
+            r#type: BuildType::Substitution,
+            drv_path,
+            status: BuildStatus::Success,
+            start_time: Some(start_time),
+            stop_time: Some(stop_time),
+            platform: None,
+            propagated_from: None,
+            error_msg: None,
+            machine: "",
+            resolved_drv_path: None,
         };
-
-        self.insert_build_step_outputs(
+        self.insert_build_step_with_outputs(
             store_dir,
-            &[InsertBuildStepOutput {
-                build_id,
-                step_nr,
-                name: output.0,
-                path: output.1,
-            }],
+            step,
+            outputs.into_iter().map(|(name, path)| (name, Some(path))),
         )
-        .await?;
-
-        Ok(step_nr)
+        .await
     }
 
     #[tracing::instrument(
@@ -1314,7 +1139,7 @@ impl Transaction<'_> {
         )
         .await?;
 
-        for (name, path) in &build.outputs {
+        for (name, path) in build.outputs {
             self.update_build_output(store_dir, build.id, name.as_ref(), path)
                 .await?;
         }
@@ -1322,34 +1147,13 @@ impl Transaction<'_> {
         self.delete_build_products_by_build_id(build.id).await?;
 
         for (nr, p) in build.products.iter().enumerate() {
-            let path_str = p.path.print(store_dir);
-            self.insert_build_product(InsertBuildProduct {
-                build_id: build.id,
-                product_nr: i32::try_from(nr + 1)?,
-                r#type: &p.r#type,
-                subtype: &p.subtype,
-                file_size: p.file_size.and_then(|s| i64::try_from(s).ok()),
-                sha256hash: p.sha256hash.as_ref(),
-                path: &path_str,
-                name: &p.name,
-                default_path: &p.default_path,
-            })
-            .await?;
+            self.insert_build_product(store_dir, build.id, i32::try_from(nr + 1)?, p)
+                .await?;
         }
 
         self.delete_build_metrics_by_build_id(build.id).await?;
-        for (name, m) in &build.metrics {
-            self.insert_build_metric(InsertBuildMetric {
-                build_id: build.id,
-                name,
-                unit: m.unit.as_deref(),
-                value: m.value,
-                project: build.project_name,
-                jobset: build.jobset_name,
-                job: build.name,
-                timestamp: build.timestamp,
-            })
-            .await?;
+        for (name, m) in build.metrics {
+            self.insert_build_metric(&build, name, m).await?;
         }
         Ok(())
     }
@@ -1366,15 +1170,13 @@ impl Transaction<'_> {
 
     #[tracing::instrument(skip(self), err)]
     pub async fn notify_builds_added(&mut self) -> crate::Result<()> {
-        self.notify_any("builds_added", "?").await?;
-        Ok(())
+        self.notify_any("builds_added", "?").await
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
     pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
         self.notify_any("build_started", &build_id.to_string())
-            .await?;
-        Ok(())
+            .await
     }
 
     #[tracing::instrument(skip(self, build_id, dependent_ids,), err)]
@@ -1406,11 +1208,10 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, build_id, step_nr,), err)]
-    pub async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> crate::Result<()> {
+    #[tracing::instrument(skip(self), err)]
+    async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> crate::Result<()> {
         self.notify_any("step_started", &format!("{build_id}\t{step_nr}"))
-            .await?;
-        Ok(())
+            .await
     }
 
     #[tracing::instrument(skip(self, build_id, step_nr, log_file,), err)]
@@ -1424,8 +1225,7 @@ impl Transaction<'_> {
             "step_finished",
             &format!("{build_id}\t{step_nr}\t{log_file}"),
         )
-        .await?;
-        Ok(())
+        .await
     }
 }
 
@@ -1452,11 +1252,7 @@ mod tests {
 
     async fn setup() -> (test_utils::TestPg, Connection) {
         let (pg, pool) = test_utils::TestPg::new().await;
-        let mut conn = Connection::new(pool.acquire().await.unwrap());
-        sqlx::raw_sql("SET session_replication_role = 'replica';")
-            .execute(&mut *conn.conn)
-            .await
-            .unwrap();
+        let conn = replica_conn(&pool).await;
         (pg, conn)
     }
 
@@ -1864,16 +1660,16 @@ mod tests {
     fn substitution_step(build_id: i32, drv_path: &StorePath) -> InsertBuildStep<'_> {
         InsertBuildStep {
             build_id,
-            r#type: crate::models::BuildType::Substitution,
+            r#type: BuildType::Substitution,
             drv_path,
             status: BuildStatus::Success,
-            busy: false,
             start_time: Some(0),
             stop_time: Some(0),
             platform: None,
             propagated_from: None,
             error_msg: None,
             machine: "",
+            resolved_drv_path: None,
         }
     }
 

@@ -530,13 +530,9 @@ pub(super) fn get_mark_build_sccuess_data<'a>(
         closure_size: res.closure_size,
         size: res.size,
         release_name: res.release_name.as_deref(),
-        outputs: res
-            .outputs
-            .iter()
-            .map(|(name, path)| (name.clone(), path.clone()))
-            .collect(),
-        products: res.products.clone(),
-        metrics: res.metrics.clone(),
+        outputs: &res.outputs,
+        products: &res.products,
+        metrics: &res.metrics,
     }
 }
 
