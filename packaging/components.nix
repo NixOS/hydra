@@ -20,6 +20,7 @@ self': {
   hydra-cargo-deps = self'.rustWorkspace.cargoArtifacts;
   hydra-clippy = self'.rustWorkspace.clippy;
   hydra-clippy-all = self'.rustWorkspace.clippyAll;
+  hydra-rust-tests = self'.rustWorkspace.tests;
   nix-eval-jobs = self'.callPackage nix-eval-jobs-src {
     inherit nixComponents;
   };

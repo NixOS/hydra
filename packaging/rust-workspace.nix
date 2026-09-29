@@ -8,6 +8,7 @@
   protobuf,
   pkg-config,
   rust-jemalloc-sys,
+  postgresql_17,
   # Features are a property of the workspace, not of an individual crate: cargo
   # resolves them once for the whole `--workspace` build, so a per-crate knob
   # would just fork the build. Override this on the scope to move every crate
@@ -83,7 +84,7 @@ let
         [ "--workspace" ]
         ++ lib.optional (features != [ ]) "--features ${lib.concatStringsSep "," features}"
       );
-      # FIXME: get these passing in a prod build
+      # Tests run in the separate `tests` check below.
       doCheck = false;
     }
   );
@@ -95,6 +96,17 @@ let
     // {
       inherit cargoArtifacts;
       cargoClippyExtraArgs = "--workspace --all-targets -- -D warnings";
+    }
+  );
+
+  # Runs the workspace's unit tests. DB tests spin up their own Postgres via
+  # `test-utils`, so it only has to be on PATH.
+  tests = craneLib.cargoNextest (
+    commonArgs
+    // {
+      inherit cargoArtifacts;
+      nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ postgresql_17 ];
+      cargoNextestExtraArgs = "--workspace";
     }
   );
 
@@ -135,6 +147,7 @@ in
     workspace
     clippy
     clippyAll
+    tests
     ;
 
   hydra-builder = mkCrate {
