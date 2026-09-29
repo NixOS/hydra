@@ -19,7 +19,7 @@ jobs:
     - uses: cachix/install-nix-action@v31
     - uses: Mic92/hestia@v3
     - run: nix-build -A packages.x86_64-linux.hydra-manual
-    - uses: actions/upload-pages-artifact@v4
+    - uses: actions/upload-pages-artifact@v5
       with:
         path: result/share/doc/hydra
   deploy:
