@@ -383,12 +383,6 @@ pub struct BuildOutput {
 /// parsing an incoming `BuildResultInfo`/db row or reading from the store.
 #[derive(Debug, thiserror::Error)]
 pub enum BuildOutputError {
-    #[error("buildstatus missing")]
-    BuildStatusMissing,
-
-    #[error("buildstatus value did not map to a known status")]
-    BuildStatusUnknown,
-
     #[error("output missing path")]
     OutputMissingPath,
 
@@ -402,15 +396,10 @@ pub enum BuildOutputError {
     Io(#[from] std::io::Error),
 }
 
-impl TryFrom<db::models::BuildOutput> for BuildOutput {
-    type Error = BuildOutputError;
-
-    fn try_from(v: db::models::BuildOutput) -> Result<Self, Self::Error> {
-        let build_status =
-            BuildStatus::from_i32(v.buildstatus.ok_or(BuildOutputError::BuildStatusMissing)?)
-                .ok_or(BuildOutputError::BuildStatusUnknown)?;
-        Ok(Self {
-            failed: build_status != BuildStatus::Success,
+impl From<db::models::BuildOutput> for BuildOutput {
+    fn from(v: db::models::BuildOutput) -> Self {
+        Self {
+            failed: v.buildstatus != BuildStatus::Success,
             timings: BuildTimings::default(),
             release_name: v.releasename,
             #[allow(clippy::cast_sign_loss)]
@@ -420,7 +409,7 @@ impl TryFrom<db::models::BuildOutput> for BuildOutput {
             products: vec![],
             outputs: BTreeMap::new(),
             metrics: BTreeMap::new(),
-        })
+        }
     }
 }
 

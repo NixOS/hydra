@@ -7,7 +7,7 @@ use harmonia_utils_hash::fmt::{Bare, Base16};
 pub type BuildID = i32;
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 pub enum BuildStatus {
     Success = 0,
     Failed = 1,
@@ -28,29 +28,6 @@ pub enum BuildStatus {
     Resolved = 13,
     /// not stored
     Busy = 100,
-}
-
-impl BuildStatus {
-    #[must_use]
-    pub const fn from_i32(v: i32) -> Option<Self> {
-        match v {
-            0 => Some(Self::Success),
-            1 => Some(Self::Failed),
-            2 => Some(Self::DepFailed),
-            3 => Some(Self::Aborted),
-            4 => Some(Self::Cancelled),
-            6 => Some(Self::FailedWithOutput),
-            7 => Some(Self::TimedOut),
-            8 => Some(Self::CachedFailure),
-            9 => Some(Self::Unsupported),
-            10 => Some(Self::LogLimitExceeded),
-            11 => Some(Self::NarSizeLimitExceeded),
-            12 => Some(Self::NotDeterministic),
-            13 => Some(Self::Resolved),
-            100 => Some(Self::Busy),
-            _ => None,
-        }
-    }
 }
 
 #[repr(i32)]
@@ -147,7 +124,7 @@ pub(crate) struct InsertBuildStep<'a> {
     pub start_time: Option<crate::Timestamp>,
     pub stop_time: Option<crate::Timestamp>,
     pub platform: Option<&'a str>,
-    pub propagated_from: Option<i32>,
+    pub propagated_from: Option<BuildID>,
     pub error_msg: Option<&'a str>,
     pub machine: &'a str,
     /// Set if and only if `status` is [`Resolved`](BuildStatus::Resolved).
@@ -178,8 +155,8 @@ pub struct UpdateBuildStepInFinish<'a> {
 
 #[derive(Debug)]
 pub struct BuildOutput {
-    pub id: i32,
-    pub buildstatus: Option<i32>,
+    pub id: BuildID,
+    pub buildstatus: BuildStatus,
     pub releasename: Option<String>,
     pub closuresize: Option<i64>,
     pub size: Option<i64>,
@@ -194,7 +171,7 @@ pub struct BuildOutput {
 /// [`nix_support::BuildProduct`].
 #[derive(Debug)]
 pub(crate) struct BuildProductRow {
-    pub build: i32,
+    pub build: BuildID,
     pub productnr: i32,
     pub r#type: String,
     pub subtype: String,

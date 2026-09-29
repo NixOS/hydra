@@ -142,12 +142,12 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         if paths.is_empty() {
             return Ok(false);
         }
-        Ok(
-            !sqlx::query!("SELECT path FROM failedpaths where path = ANY($1)", &paths)
-                .fetch_all(&mut *self.conn)
-                .await?
-                .is_empty(),
+        Ok(sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM failedpaths WHERE path = ANY($1)) AS "exists!""#,
+            &paths
         )
+        .fetch_one(&mut *self.conn)
+        .await?)
     }
 
     #[tracing::instrument(skip(self), err)]
@@ -256,10 +256,11 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
             super::models::BuildOutput,
             r#"
             SELECT
-              id, buildStatus, releaseName, closureSize, size
+              id, buildStatus AS "buildstatus!: BuildStatus", releaseName, closureSize, size
             FROM builds b
             JOIN buildoutputs o on b.id = o.build
-            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1;"#,
+            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1
+            LIMIT 1;"#,
             out_path.as_str(),
         )
         .fetch_optional(&mut *self.conn)
@@ -268,7 +269,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
 
     pub async fn get_build_products_for_build_id(
         &mut self,
-        build_id: i32,
+        build_id: BuildID,
         store_dir: &StoreDir,
     ) -> crate::Result<Vec<nix_support::BuildProduct>> {
         let rows = sqlx::query_as!(
@@ -297,7 +298,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
 
     pub async fn get_build_metrics_for_build_id(
         &mut self,
-        build_id: i32,
+        build_id: BuildID,
     ) -> crate::Result<Vec<(nix_support::BuildMetricName, nix_support::BuildMetric)>> {
         let rows = sqlx::query!(
             r#"
@@ -436,7 +437,8 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
                 AND o.name = $2
                 AND o.path IS NOT NULL
                 AND s.status = 0
-              ORDER BY s.build DESC
+              -- `+ 0`: see resolve_drv_output_chains.
+              ORDER BY s.build + 0 DESC
               LIMIT 1"#,
             drv_display,
             output_name_str,
@@ -450,7 +452,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     #[tracing::instrument(skip(self, status, start_time, stop_time, is_cached_build), err)]
     pub async fn update_build_after_failure(
         &mut self,
-        build_id: i32,
+        build_id: BuildID,
         status: BuildStatus,
         start_time: crate::Timestamp,
         stop_time: crate::Timestamp,
@@ -481,7 +483,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     #[tracing::instrument(skip(self, status), err)]
     pub async fn update_build_after_previous_failure(
         &mut self,
-        build_id: i32,
+        build_id: BuildID,
         status: BuildStatus,
     ) -> crate::Result<()> {
         let now = jiff::Timestamp::now().as_second();
@@ -494,7 +496,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         &mut self,
         store_dir: &StoreDir,
         path: &StorePath,
-    ) -> crate::Result<Option<i32>> {
+    ) -> crate::Result<Option<BuildID>> {
         let path = store_dir.display(path).to_string();
         Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1", path.as_str())
             .fetch_optional(&mut *self.conn)
@@ -507,7 +509,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         &mut self,
         store_dir: &StoreDir,
         path: &StorePath,
-    ) -> crate::Result<Option<i32>> {
+    ) -> crate::Result<Option<BuildID>> {
         let path = store_dir.display(path).to_string();
         Ok(sqlx::query!(
             r#"
@@ -531,7 +533,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         drv_path: &StorePath,
         name: &str,
-    ) -> crate::Result<Option<i32>> {
+    ) -> crate::Result<Option<BuildID>> {
         let drv_path = store_dir.display(drv_path).to_string();
         Ok(sqlx::query!(
             r#"
@@ -551,23 +553,23 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         .and_then(|v| v.max))
     }
 
-    #[tracing::instrument(skip(self, store_dir, name, path), err)]
-    pub async fn update_build_step_output(
+    #[tracing::instrument(skip(self, store_dir, outputs), err)]
+    pub async fn update_build_step_outputs(
         &mut self,
         store_dir: &StoreDir,
-        build_id: i32,
+        build_id: BuildID,
         step_nr: i32,
-        name: &str,
-        path: &StorePath,
+        outputs: &BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
-        // TODO: support inserting multiple at the same time
+        let (names, paths) = names_and_paths(store_dir, outputs);
         sqlx::query!(
-            "UPDATE buildstepoutputs SET path = $4 WHERE build = $1 AND stepnr = $2 AND name = $3",
+            "UPDATE buildstepoutputs o SET path = v.path
+             FROM UNNEST($3::text[], $4::text[]) AS v(name, path)
+             WHERE o.build = $1 AND o.stepnr = $2 AND o.name = v.name",
             build_id,
             step_nr,
-            name,
-            path.as_str(),
+            &names,
+            &paths,
         )
         .execute(&mut *self.conn)
         .await?;
@@ -582,10 +584,11 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
         let drv_path = store_dir.display(drv_path).to_string();
         let items = sqlx::query!(
-            r#"SELECT o.name, o.path AS "path!"
+            r#"SELECT DISTINCT ON (o.name) o.name, o.path AS "path!"
               FROM buildstepoutputs o
               JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
-              WHERE s.drvpath = $1 AND o.path IS NOT NULL"#,
+              WHERE s.drvpath = $1 AND o.path IS NOT NULL
+              ORDER BY o.name, s.build DESC, s.stepnr DESC"#,
             drv_path,
         )
         .fetch_all(&mut *self.conn)
@@ -641,7 +644,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     pub async fn get_drv_path_from_build_step(
         &mut self,
         store_dir: &StoreDir,
-        build_id: i32,
+        build_id: BuildID,
         step_nr: i32,
     ) -> crate::Result<Option<StorePath>> {
         Ok(sqlx::query!(
@@ -659,7 +662,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     pub async fn get_drv_path_from_build(
         &mut self,
         store_dir: &StoreDir,
-        build_id: i32,
+        build_id: BuildID,
     ) -> crate::Result<Option<StorePath>> {
         Ok(
             sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
@@ -706,7 +709,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     }
 
     #[tracing::instrument(skip(self, build_id), err)]
-    pub async fn notify_build_started(&mut self, build_id: i32) -> crate::Result<()> {
+    pub async fn notify_build_started(&mut self, build_id: BuildID) -> crate::Result<()> {
         self.notify_any("build_started", &build_id.to_string())
             .await
     }
@@ -714,7 +717,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     #[tracing::instrument(skip(self, build_id, step_nr, log_file,), err)]
     pub async fn notify_step_finished(
         &mut self,
-        build_id: i32,
+        build_id: BuildID,
         step_nr: i32,
         log_file: &str,
     ) -> crate::Result<()> {
@@ -743,7 +746,7 @@ impl Connection {
     /// transaction: whoever is waiting on the row (hydra-ad-hoc, say)
     /// cares that it is finished, not why.
     #[tracing::instrument(skip(self), err)]
-    pub async fn abort_build(&mut self, build_id: i32) -> crate::Result<()> {
+    pub async fn abort_build(&mut self, build_id: BuildID) -> crate::Result<()> {
         let mut tx = self.begin_transaction().await?;
         sqlx::query!(
             "UPDATE builds SET finished = 1, buildStatus = $2, startTime = $3, stopTime = $3 where id = $1 and finished = 0",
@@ -765,9 +768,10 @@ impl Transaction<'_> {
         Ok(self.conn.commit().await?)
     }
 
+    /// Mark an unfinished build finished. Returns false if it already was.
     #[tracing::instrument(skip(self, v), err)]
-    async fn update_build(&mut self, build_id: i32, v: UpdateBuild<'_>) -> crate::Result<()> {
-        sqlx::query!(
+    async fn update_build(&mut self, build_id: BuildID, v: UpdateBuild<'_>) -> crate::Result<bool> {
+        let result = sqlx::query!(
             r#"
             UPDATE builds SET
               finished = 1,
@@ -780,7 +784,7 @@ impl Transaction<'_> {
               isCachedBuild = $8,
               notificationPendingSince = $4
             WHERE
-              id = $1"#,
+              id = $1 AND finished = 0"#,
             build_id,
             v.status as i32,
             v.start_time,
@@ -792,29 +796,28 @@ impl Transaction<'_> {
         )
         .execute(&mut *self.conn)
         .await?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 
-    #[tracing::instrument(skip(self, store_dir, name, path), err)]
-    async fn update_build_output(
+    #[tracing::instrument(skip(self, store_dir, outputs), err)]
+    async fn upsert_build_outputs(
         &mut self,
         store_dir: &StoreDir,
-        build_id: i32,
-        name: &str,
-        path: &StorePath,
+        build_id: BuildID,
+        outputs: &BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
+        let (names, paths) = names_and_paths(store_dir, outputs);
         // The evaluator pre-inserts a build's BuildOutputs rows and this
         // used to only update them; a build filed without an evaluation
         // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
         // table, so insert or update.
         sqlx::query!(
             "INSERT INTO buildoutputs (build, name, path)
-             VALUES ($1, $2, $3)
+             SELECT $1, name, path FROM UNNEST($2::text[], $3::text[]) AS o(name, path)
              ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
             build_id,
-            name,
-            path.as_str(),
+            &names,
+            &paths,
         )
         .execute(&mut *self.conn)
         .await?;
@@ -911,90 +914,83 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
-    async fn check_if_build_is_not_finished(&mut self, build_id: i32) -> crate::Result<bool> {
-        Ok(sqlx::query!(
-            "SELECT id FROM builds WHERE id = $1 AND finished = 0",
-            build_id,
-        )
-        .fetch_optional(&mut *self.conn)
-        .await?
-        .is_some())
-    }
-
-    #[tracing::instrument(skip(self, store_dir, p), err)]
-    async fn insert_build_product(
+    #[tracing::instrument(skip_all, fields(build_id), err)]
+    async fn replace_build_products(
         &mut self,
         store_dir: &StoreDir,
         build_id: BuildID,
-        product_nr: i32,
-        p: &nix_support::BuildProduct,
+        products: &[nix_support::BuildProduct],
     ) -> crate::Result<()> {
+        sqlx::query!("DELETE FROM buildproducts WHERE build = $1", build_id)
+            .execute(&mut *self.conn)
+            .await?;
+        if products.is_empty() {
+            return Ok(());
+        }
+        let column = |f: fn(&nix_support::BuildProduct) -> String| -> Vec<String> {
+            products.iter().map(f).collect()
+        };
+        let file_sizes: Vec<Option<i64>> = products
+            .iter()
+            .map(|p| p.file_size.and_then(|s| i64::try_from(s).ok()))
+            .collect();
+        let hashes: Vec<Option<String>> = products
+            .iter()
+            .map(|p| p.sha256hash.as_ref().map(|h| format!("{h:x}")))
+            .collect();
+        // sqlx expects array parameters to have non-null elements, so `as _`
+        // skips its type check for the arrays that hold NULLs.
         sqlx::query!(
             r#"
-              INSERT INTO buildproducts (
-                build,
-                productnr,
-                type,
-                subtype,
-                fileSize,
-                sha256hash,
-                path,
-                name,
-                defaultPath
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9
-              )
+            INSERT INTO buildproducts
+              (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath)
+            SELECT $1, nr::int, type, subtype, fileSize, sha256hash, path, name, defaultPath
+            FROM UNNEST($2::text[], $3::text[], $4::int8[], $5::text[], $6::text[], $7::text[], $8::text[])
+              WITH ORDINALITY AS p(type, subtype, fileSize, sha256hash, path, name, defaultPath, nr)
             "#,
             build_id,
-            product_nr,
-            p.r#type,
-            p.subtype,
-            p.file_size.and_then(|s| i64::try_from(s).ok()),
-            p.sha256hash.as_ref().map(|h| format!("{h:x}")),
-            p.path.print(store_dir),
-            p.name,
-            p.default_path,
+            &column(|p| p.r#type.clone()),
+            &column(|p| p.subtype.clone()),
+            &file_sizes as _,
+            &hashes as _,
+            &products
+                .iter()
+                .map(|p| p.path.print(store_dir))
+                .collect::<Vec<_>>(),
+            &column(|p| p.name.clone()),
+            &column(|p| p.default_path.clone()),
         )
         .execute(&mut *self.conn)
         .await?;
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
-    async fn delete_build_products_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
-        sqlx::query!("DELETE FROM buildproducts WHERE build = $1", build_id)
-            .execute(&mut *self.conn)
-            .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self, build, metric), err)]
-    async fn insert_build_metric(
+    #[tracing::instrument(skip_all, fields(build_id = build.id), err)]
+    async fn replace_build_metrics(
         &mut self,
         build: &crate::models::MarkBuildSuccessData<'_>,
-        name: &str,
-        metric: &nix_support::BuildMetric,
     ) -> crate::Result<()> {
+        sqlx::query!("DELETE FROM buildmetrics WHERE build = $1", build.id)
+            .execute(&mut *self.conn)
+            .await?;
+        if build.metrics.is_empty() {
+            return Ok(());
+        }
+        let names: Vec<&str> = build.metrics.keys().map(String::as_str).collect();
+        let units: Vec<Option<&str>> = build.metrics.values().map(|m| m.unit.as_deref()).collect();
+        let values: Vec<f64> = build.metrics.values().map(|m| m.value).collect();
+        // `query!` types `text[]` parameters as `&[String]`. `as _` turns that
+        // check off for `names`, which holds `&str`, and `units`, which holds NULLs.
         sqlx::query!(
             r#"
-              INSERT INTO buildmetrics (
-                build,
-                name,
-                unit,
-                value,
-                project,
-                jobset,
-                job,
-                timestamp
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8
-              )
+            INSERT INTO buildmetrics (build, name, unit, value, project, jobset, job, timestamp)
+            SELECT $1, name, unit, value, $5, $6, $7, $8
+            FROM UNNEST($2::text[], $3::text[], $4::float8[]) AS m(name, unit, value)
             "#,
             build.id,
-            name,
-            metric.unit,
-            metric.value,
+            &names as _,
+            &units as _,
+            &values,
             build.project_name,
             build.jobset_name,
             build.name,
@@ -1002,14 +998,6 @@ impl Transaction<'_> {
         )
         .execute(&mut *self.conn)
         .await?;
-        Ok(())
-    }
-
-    #[tracing::instrument(skip(self), err)]
-    async fn delete_build_metrics_by_build_id(&mut self, build_id: i32) -> crate::Result<()> {
-        sqlx::query!("DELETE FROM buildmetrics WHERE build = $1", build_id)
-            .execute(&mut *self.conn)
-            .await?;
         Ok(())
     }
 
@@ -1154,52 +1142,40 @@ impl Transaction<'_> {
             return Ok(());
         }
 
-        if !self.check_if_build_is_not_finished(build.id).await? {
+        let updated = self
+            .update_build(
+                build.id,
+                UpdateBuild {
+                    status: if build.failed {
+                        BuildStatus::FailedWithOutput
+                    } else {
+                        BuildStatus::Success
+                    },
+                    start_time,
+                    stop_time,
+                    size: i64::try_from(build.size)?,
+                    closure_size: i64::try_from(build.closure_size)?,
+                    release_name: build.release_name,
+                    is_cached_build,
+                },
+            )
+            .await?;
+        if !updated {
             return Ok(());
         }
 
-        self.update_build(
-            build.id,
-            UpdateBuild {
-                status: if build.failed {
-                    BuildStatus::FailedWithOutput
-                } else {
-                    BuildStatus::Success
-                },
-                start_time,
-                stop_time,
-                size: i64::try_from(build.size)?,
-                closure_size: i64::try_from(build.closure_size)?,
-                release_name: build.release_name,
-                is_cached_build,
-            },
-        )
-        .await?;
-
-        for (name, path) in build.outputs {
-            self.update_build_output(store_dir, build.id, name.as_ref(), path)
-                .await?;
-        }
-
-        self.delete_build_products_by_build_id(build.id).await?;
-
-        for (nr, p) in build.products.iter().enumerate() {
-            self.insert_build_product(store_dir, build.id, i32::try_from(nr + 1)?, p)
-                .await?;
-        }
-
-        self.delete_build_metrics_by_build_id(build.id).await?;
-        for (name, m) in build.metrics {
-            self.insert_build_metric(&build, name, m).await?;
-        }
-        Ok(())
+        self.upsert_build_outputs(store_dir, build.id, build.outputs)
+            .await?;
+        self.replace_build_products(store_dir, build.id, build.products)
+            .await?;
+        self.replace_build_metrics(&build).await
     }
 
     #[tracing::instrument(skip(self, build_id, dependent_ids,), err)]
     pub async fn notify_build_finished(
         &mut self,
-        build_id: i32,
-        dependent_ids: &[i32],
+        build_id: BuildID,
+        dependent_ids: &[BuildID],
     ) -> crate::Result<()> {
         // Postgres limits NOTIFY payloads to slightly less than 8000 bytes.
         // A cached build can finish thousands of dependent builds at once,
@@ -1225,10 +1201,22 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(skip(self), err)]
-    async fn notify_step_started(&mut self, build_id: i32, step_nr: i32) -> crate::Result<()> {
+    async fn notify_step_started(&mut self, build_id: BuildID, step_nr: i32) -> crate::Result<()> {
         self.notify_any("step_started", &format!("{build_id}\t{step_nr}"))
             .await
     }
+}
+
+/// Split outputs into the parallel `name` and `path` arrays that `UNNEST`
+/// takes.
+fn names_and_paths(
+    store_dir: &StoreDir,
+    outputs: &BTreeMap<OutputName, StorePath>,
+) -> (Vec<String>, Vec<String>) {
+    outputs
+        .iter()
+        .map(|(name, path)| (name.to_string(), store_dir.display(path).to_string()))
+        .unzip()
 }
 
 #[cfg(test)]
@@ -1258,16 +1246,16 @@ mod tests {
         (pg, conn)
     }
 
-    async fn insert_step(conn: &mut Connection, build: i32, stepnr: i32, drv_path: &StorePath) {
-        insert_step_with_status(conn, build, stepnr, drv_path, 0, None).await;
+    async fn insert_step(conn: &mut Connection, build: BuildID, stepnr: i32, drv_path: &StorePath) {
+        insert_step_with_status(conn, build, stepnr, drv_path, BuildStatus::Success, None).await;
     }
 
     async fn insert_step_with_status(
         conn: &mut Connection,
-        build: i32,
+        build: BuildID,
         stepnr: i32,
         drv_path: &StorePath,
-        status: i32,
+        status: BuildStatus,
         resolved_drv_path: Option<&StorePath>,
     ) {
         let sd = test_store_dir();
@@ -1276,7 +1264,7 @@ mod tests {
             build,
             stepnr,
             sd.display(drv_path).to_string(),
-            status,
+            status as i32,
             resolved_drv_path.map(ToString::to_string),
         )
             .execute(&mut *conn.conn)
@@ -1286,7 +1274,7 @@ mod tests {
 
     async fn insert_output(
         conn: &mut Connection,
-        build: i32,
+        build: BuildID,
         stepnr: i32,
         name: &str,
         path: &StorePath,
@@ -1305,7 +1293,7 @@ mod tests {
 
     #[tokio::test]
     async fn clear_busy_step_finalizes_only_the_named_step() {
-        async fn insert_busy(conn: &mut Connection, build: i32, stepnr: i32, drv: &StorePath) {
+        async fn insert_busy(conn: &mut Connection, build: BuildID, stepnr: i32, drv: &StorePath) {
             sqlx::query!(
                 "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)",
                 build,
@@ -1317,7 +1305,11 @@ mod tests {
                 .unwrap();
         }
 
-        async fn busy_status(conn: &mut Connection, build: i32, stepnr: i32) -> (i32, Option<i32>) {
+        async fn busy_status(
+            conn: &mut Connection,
+            build: BuildID,
+            stepnr: i32,
+        ) -> (i32, Option<i32>) {
             let row = sqlx::query!(
                 "SELECT busy, status FROM buildsteps WHERE build = $1 AND stepnr = $2",
                 build,
@@ -1477,7 +1469,7 @@ mod tests {
             1,
             1,
             &sp("unresolved.drv"),
-            13,
+            BuildStatus::Resolved,
             Some(&sp("resolved.drv")),
         )
         .await;
@@ -1507,7 +1499,7 @@ mod tests {
             1,
             1,
             &sp("unresolved.drv"),
-            13,
+            BuildStatus::Resolved,
             Some(&sp("resolved.drv")),
         )
         .await;
@@ -1630,7 +1622,7 @@ mod tests {
             1,
             1,
             &sp("unresolved-ca-dep.drv"),
-            13,
+            BuildStatus::Resolved,
             Some(&sp("resolved-ca-dep.drv")),
         )
         .await;
@@ -1659,7 +1651,7 @@ mod tests {
         conn
     }
 
-    fn substitution_step(build_id: i32, drv_path: &StorePath) -> InsertBuildStep<'_> {
+    fn substitution_step(build_id: BuildID, drv_path: &StorePath) -> InsertBuildStep<'_> {
         InsertBuildStep {
             build_id,
             r#type: BuildType::Substitution,
@@ -1789,7 +1781,7 @@ mod tests {
             .unwrap();
         listener.listen("build_finished").await.unwrap();
 
-        let dependent_ids: Vec<i32> = (1_000_000..1_005_000).collect();
+        let dependent_ids: Vec<BuildID> = (1_000_000..1_005_000).collect();
         let mut conn = Connection::new(pool.acquire().await.unwrap());
         let mut tx = conn.begin_transaction().await.unwrap();
         tx.notify_build_finished(42, &dependent_ids).await.unwrap();
@@ -1802,8 +1794,113 @@ mod tests {
             assert!(payload.len() <= 8000, "payload too long: {}", payload.len());
             let mut fields = payload.split('\t');
             assert_eq!(fields.next(), Some("42"));
-            received.extend(fields.map(|f| f.parse::<i32>().unwrap()));
+            received.extend(fields.map(|f| f.parse::<BuildID>().unwrap()));
         }
         assert!(dependent_ids.iter().all(|id| received.contains(id)));
+    }
+
+    /// The product and metric inserts bind their arrays with `as _`, which
+    /// turns off sqlx's compile-time type check. Read the rows back instead.
+    #[tokio::test]
+    async fn mark_succeeded_build_writes_products_and_metrics_once() {
+        let (_pg, mut conn) = setup().await;
+        let sd = test_store_dir();
+        sqlx::query!(
+            "INSERT INTO builds (id, finished, timestamp, jobset_id, job, drvPath, system)
+             VALUES (1, 0, 0, 1, 'job', 'job.drv', 'x86_64-linux')"
+        )
+        .execute(&mut *conn.conn)
+        .await
+        .unwrap();
+
+        let product = |name: &str, sha256hash, file_size| nix_support::BuildProduct {
+            path: (sp("out"), name.into()).into(),
+            default_path: String::new(),
+            r#type: "file".into(),
+            subtype: "doc".into(),
+            name: name.into(),
+            is_regular: true,
+            sha256hash,
+            file_size,
+        };
+        let products = [
+            product(
+                "a",
+                Some(harmonia_utils_hash::Sha256::from_slice(&[0xab; 32]).unwrap()),
+                Some(42),
+            ),
+            product("b", None, None),
+        ];
+        let metric = |unit: Option<&str>, value| nix_support::BuildMetric {
+            unit: unit.map(Into::into),
+            value,
+        };
+        let metrics = BTreeMap::from([
+            ("count".to_owned(), metric(None, 3.0)),
+            ("time".to_owned(), metric(Some("s"), 1.5)),
+        ]);
+        let outputs = BTreeMap::from([(on("out"), sp("out"))]);
+        let data = |products| crate::models::MarkBuildSuccessData {
+            id: 1,
+            name: "job",
+            project_name: "project",
+            jobset_name: "jobset",
+            finished_in_db: false,
+            timestamp: 0,
+            failed: false,
+            closure_size: 0,
+            size: 0,
+            release_name: None,
+            outputs: &outputs,
+            products,
+            metrics: &metrics,
+        };
+
+        let mut tx = conn.begin_transaction().await.unwrap();
+        tx.mark_succeeded_build(data(&products), false, 1, 2, &sd)
+            .await
+            .unwrap();
+        // The build is finished now, so this call changes nothing.
+        tx.mark_succeeded_build(data(&[]), false, 1, 2, &sd)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+
+        let rows = sqlx::query!(
+            "SELECT productnr, path, filesize, sha256hash FROM buildproducts WHERE build = 1 ORDER BY productnr"
+        )
+        .fetch_all(&mut *conn.conn)
+        .await
+        .unwrap();
+        let rows: Vec<_> = rows
+            .into_iter()
+            .map(|r| (r.productnr, r.path, r.filesize, r.sha256hash))
+            .collect();
+        let out = sd.display(&sp("out")).to_string();
+        assert_eq!(
+            rows,
+            [
+                (1, Some(format!("{out}/a")), Some(42), Some("ab".repeat(32))),
+                (2, Some(format!("{out}/b")), None, None),
+            ]
+        );
+
+        let rows = sqlx::query!(
+            "SELECT name, unit, value FROM buildmetrics WHERE build = 1 ORDER BY name"
+        )
+        .fetch_all(&mut *conn.conn)
+        .await
+        .unwrap();
+        let rows: Vec<_> = rows
+            .into_iter()
+            .map(|r| (r.name, r.unit, r.value))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("count".to_owned(), None, 3.0),
+                ("time".to_owned(), Some("s".to_owned()), 1.5),
+            ]
+        );
     }
 }

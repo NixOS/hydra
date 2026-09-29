@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT buildStatus, startTime, stopTime\n         FROM builds\n         WHERE id = $1 AND finished = 1",
+  "query": "SELECT buildStatus AS \"buildstatus: BuildStatus\", startTime, stopTime\n         FROM builds\n         WHERE id = $1 AND finished = 1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "buildstatus",
+        "name": "buildstatus: BuildStatus",
         "type_info": "Int4",
         "origin": {
           "Table": {
@@ -48,5 +48,5 @@
       true
     ]
   },
-  "hash": "d42d737784b6e13f68531b008e9a2d3e93c382237c409532b89d17e05ab29e2e"
+  "hash": "9dc3cee775bf2a90d3bf71e7a46e3f709a6ac0ed0864dc23cf2858ba8584e19d"
 }

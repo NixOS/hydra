@@ -3455,9 +3455,7 @@ impl State {
                     continue;
                 };
                 let build_id = db_build_output.id;
-                let Ok(mut res): Result<BuildOutput, _> = db_build_output.try_into() else {
-                    continue;
-                };
+                let mut res = BuildOutput::from(db_build_output);
 
                 res.products = db
                     .get_build_products_for_build_id(build_id, self.connector.store_dir())
