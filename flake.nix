@@ -214,6 +214,7 @@
           systemTests = hydraJobs.systemTests.${system};
           clippy = packages.${system}.hydra-clippy;
           clippyAll = packages.${system}.hydra-clippy-all;
+          rustTests = packages.${system}.hydra-rust-tests;
           dbix-up-to-date = pkgs.callPackage ./packaging/check-dbix-up-to-date.nix {
             inherit (packages.${system}) hydra;
           };
