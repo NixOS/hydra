@@ -8,3 +8,12 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Group patches only, since Cargo treats a 0.x minor bump as breaking.
+    groups:
+      rust-patch:
+        update-types:
+          - "patch"
