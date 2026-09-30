@@ -44,8 +44,8 @@ pub use crate::multipart::{
     PresignedMultipart, PresignedPart, S3_MAX_PARTS, WriteOutcome, part_size_for_nar,
 };
 pub use crate::narinfo::{
-    NarInfo, clear_sigs_and_sign, format_narinfo_txt, get_ls_path, narinfo_from_path_info,
-    narinfo_simple, parse_hash, parse_nar_hash, parse_narinfo_txt,
+    NarInfo, format_narinfo_txt, get_ls_path, narinfo_from_path_info, narinfo_simple, parse_hash,
+    parse_nar_hash, parse_narinfo_txt, sign_narinfo,
 };
 pub use crate::presigned::{
     PresignedUpload, PresignedUploadClient, PresignedUploadMetrics, PresignedUploadResponse,
@@ -1261,7 +1261,7 @@ impl S3BinaryCacheClient {
         };
         narinfo.info.download_size = Some(file_size);
 
-        let narinfo = clear_sigs_and_sign(narinfo, &self.cfg.store_dir, &self.signing_keys);
+        let narinfo = sign_narinfo(narinfo, &self.cfg.store_dir, &self.signing_keys);
         // TODO: we also need to integrate build trace entries into this!
         let path = narinfo.path.clone();
         let key = self.upload_narinfo(narinfo.clone()).await?;
