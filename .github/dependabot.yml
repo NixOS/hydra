@@ -12,8 +12,13 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # Group patches only, since Cargo treats a 0.x minor bump as breaking.
     groups:
+      # The harmonia crates come from one git repo, so update them in one PR.
+      # Dependabot uses the first group that matches, so this goes before rust-patch.
+      harmonia:
+        patterns:
+          - "harmonia-*"
+      # Group patches only, since Cargo treats a 0.x minor bump as breaking.
       rust-patch:
         update-types:
           - "patch"
