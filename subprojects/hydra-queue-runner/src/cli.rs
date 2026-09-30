@@ -36,7 +36,7 @@ pub struct Cli {
     #[clap(short, long, default_value = "[::1]:8080")]
     pub rest_bind: BindSocket,
 
-    /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-` to use `ListenFD` (systemd socket activation)
+    /// GRPC server bind, either a `SocketAddr`, a Path for a Unix Socket or `-` to use `ListenFD` (systemd socket activation, TCP or Unix)
     #[clap(short, long, default_value = "[::1]:50051")]
     pub grpc_bind: BindSocket,
 
