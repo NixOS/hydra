@@ -34,7 +34,6 @@ cxx-build = "1"
 dashmap = "6.2.0"
 data-encoding = "2"
 derive_more = { version = "2", features = [ "display", "from", "into", "deref", "from_str" ] }
-digest = "0.10.7"
 foldhash = "0.2"
 fs-err = "3.0"
 futures = "0.3"
