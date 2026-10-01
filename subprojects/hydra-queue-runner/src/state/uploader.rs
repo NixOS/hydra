@@ -204,7 +204,10 @@ impl Uploader {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(
+        skip(self, store_paths, build_trace_entry_keys, notify_drv),
+        fields(paths=store_paths.len(), notify_drv=notify_drv.as_ref().map(tracing::field::display))
+    )]
     pub async fn schedule_copy(
         &self,
         store_paths: Vec<StorePath>,
@@ -307,7 +310,10 @@ impl Uploader {
         Ok(Some(narinfo.info.info.references.iter().cloned().collect()))
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(
+        skip(self, store_paths, notify_drv),
+        fields(paths=store_paths.len(), notify_drv=notify_drv.as_ref().map(tracing::field::display))
+    )]
     pub async fn schedule_upload(
         &self,
         store_paths: Vec<StorePath>,
@@ -328,7 +334,10 @@ impl Uploader {
         let _ = self.save_state().await;
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
+    #[tracing::instrument(
+        skip(self, store, local_store, remote_stores, overflow_store, msg),
+        fields(id=%msg.id, paths=msg.store_paths.len(), notify_drv=msg.notify_drv.as_ref().map(tracing::field::display))
+    )]
     async fn upload_msg(
         &self,
         store: daemon_client_utils::DaemonStoreReader,
@@ -347,7 +356,7 @@ impl Uploader {
         }
     }
 
-    #[tracing::instrument(skip(self, store, local_store, remote_stores, overflow_store))]
+    #[tracing::instrument(skip_all)]
     async fn upload_msg_inner(
         &self,
         store: daemon_client_utils::DaemonStoreReader,
@@ -356,8 +365,6 @@ impl Uploader {
         overflow_store: Option<binary_cache::S3BinaryCacheClient>,
         msg: &Message,
     ) {
-        let span = tracing::info_span!("upload_msg", msg = ?msg);
-        let _ = span.enter();
         tracing::info!("Start uploading {} paths", msg.store_paths.len());
 
         // Overflow-only steps upload to the overflow store.

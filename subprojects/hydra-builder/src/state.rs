@@ -267,7 +267,7 @@ impl State {
         })
     }
 
-    #[tracing::instrument(skip(self, m), fields(drv=?m.drv))]
+    #[tracing::instrument(skip(self, m), fields(drv = m.drv.as_ref().map(tracing::field::display), build_id = %m.build_id))]
     pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> eyre::Result<()> {
         if self.halt.load(Ordering::SeqCst) {
             tracing::warn!("State is set to halt, will no longer accept new builds!");
@@ -382,7 +382,7 @@ impl State {
         active.clear();
     }
 
-    #[tracing::instrument(skip(self, connector, basic_drv))]
+    #[tracing::instrument(skip(self, connector, roots, basic_drv, options))]
     async fn request_build(
         &self,
         connector: &daemon_client_utils::DaemonConnector,
@@ -487,7 +487,7 @@ impl State {
         })
     }
 
-    #[tracing::instrument(skip(self, m), fields(drv=?m.drv), err)]
+    #[tracing::instrument(skip(self, m, timings), fields(drv = m.drv.as_ref().map(tracing::field::display)), err)]
     #[allow(clippy::too_many_lines)]
     async fn process_build(
         &self,
@@ -871,7 +871,7 @@ async fn substitute_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, connector, metrics), err)]
+#[tracing::instrument(skip(client, store, connector, metrics, roots), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
@@ -933,7 +933,7 @@ async fn import_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, connector, metrics, requisites), fields(%drv), err)]
+#[tracing::instrument(skip(client, store, connector, metrics, roots, requisites), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
@@ -1069,7 +1069,7 @@ async fn upload_nars_regular(
 /// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory.
 pub const GLOBAL_NAR_UPLOAD_CONCURRENCY: usize = 16;
 
-#[tracing::instrument(skip(client, store, connector, upload_semaphore), err)]
+#[tracing::instrument(skip(client, store, upload_client, connector, upload_semaphore), err)]
 #[allow(clippy::too_many_arguments)]
 async fn upload_nars_presigned(
     client: BuilderClient,
@@ -1298,7 +1298,7 @@ fn presigned_request_from_response(
     Ok((nar_upload.path.clone(), request))
 }
 
-#[tracing::instrument(skip(store, nar_path, presigned_response), err)]
+#[tracing::instrument(skip(store, nar_path, presigned_response, client, upload_client), err)]
 async fn upload_single_nar_presigned(
     store: &DaemonStoreReader,
     nar_path: &StorePath,
@@ -1366,7 +1366,7 @@ async fn upload_single_nar_presigned(
     Ok(())
 }
 
-#[tracing::instrument(skip(store, connector, output_infos), fields(%drv), ret(level = tracing::Level::DEBUG), err)]
+#[tracing::instrument(skip(store, connector, output_infos), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn new_success_build_result_info(
     store: &DaemonStoreReader,

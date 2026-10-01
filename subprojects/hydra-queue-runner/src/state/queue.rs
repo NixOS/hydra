@@ -238,7 +238,7 @@ impl InnerQueues {
         self.inner.clone()
     }
 
-    #[tracing::instrument(skip(self, step, queue))]
+    #[tracing::instrument(skip(self, step, queue, machine), fields(drv=%step.step.get_drv_path(), machine_id=%machine.id))]
     fn add_job_to_scheduled(
         &self,
         step: &Arc<StepInfo>,
@@ -569,7 +569,7 @@ impl Queues {
         self.inner.read().await.clone_inner()
     }
 
-    #[tracing::instrument(skip(self, step, queue))]
+    #[tracing::instrument(skip(self, step, queue, machine), fields(drv=%step.step.get_drv_path(), machine_id=%machine.id))]
     pub async fn add_job_to_scheduled(
         &self,
         step: &Arc<StepInfo>,

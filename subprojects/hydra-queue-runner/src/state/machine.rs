@@ -664,8 +664,8 @@ impl Machine {
     }
 
     #[tracing::instrument(
-        skip(self, job, presigned_url_opts),
-        fields(build_id=job.build_id, step_nr=job.step_nr),
+        skip(self, job, effective_drv, presigned_url_opts, resolved_drv),
+        fields(build_id=job.build_id, step_nr=job.step_nr, drv=%effective_drv),
         err,
     )]
     #[expect(

@@ -58,7 +58,7 @@ impl Connection {
         .await?)
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn get_not_finished_builds(
         &mut self,
         store_dir: &StoreDir,
@@ -163,7 +163,7 @@ impl Connection {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, paths), err)]
+    #[tracing::instrument(skip(self, store_dir, paths), err)]
     pub async fn check_if_paths_failed(
         &mut self,
         store_dir: &StoreDir,
@@ -564,7 +564,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, name, path), err)]
+    #[tracing::instrument(skip(self, store_dir, name, path), err)]
     pub async fn update_build_output(
         &mut self,
         store_dir: &StoreDir,
@@ -590,7 +590,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn get_last_build_step_id(
         &mut self,
         store_dir: &StoreDir,
@@ -603,7 +603,7 @@ impl Transaction<'_> {
             .and_then(|v| v.max))
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn get_last_build_step_id_for_output_path(
         &mut self,
         store_dir: &StoreDir,
@@ -626,7 +626,7 @@ impl Transaction<'_> {
         .and_then(|v| v.max))
     }
 
-    #[tracing::instrument(skip(self, drv_path, name), err)]
+    #[tracing::instrument(skip(self, store_dir, drv_path, name), err)]
     pub async fn get_last_build_step_id_for_output_with_drv(
         &mut self,
         store_dir: &StoreDir,
@@ -652,7 +652,7 @@ impl Transaction<'_> {
         .and_then(|v| v.max))
     }
 
-    #[tracing::instrument(skip(self, step), err)]
+    #[tracing::instrument(skip(self, store_dir, step), err)]
     pub async fn insert_build_step(
         &mut self,
         store_dir: &StoreDir,
@@ -716,7 +716,7 @@ impl Transaction<'_> {
     /// Insert a step row recording that its derivation was resolved to
     /// another derivation. Like [`insert_build_step`](Self::insert_build_step),
     /// returns `None` on a `stepnr` conflict so the caller can retry.
-    #[tracing::instrument(skip(self, step), err)]
+    #[tracing::instrument(skip(self, store_dir, step), err)]
     pub async fn insert_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
@@ -765,7 +765,7 @@ impl Transaction<'_> {
         Ok(success)
     }
 
-    #[tracing::instrument(skip(self, outputs), err)]
+    #[tracing::instrument(skip(self, store_dir, outputs), err)]
     pub async fn insert_build_step_outputs(
         &mut self,
         store_dir: &StoreDir,
@@ -794,7 +794,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, name, path), err)]
+    #[tracing::instrument(skip(self, store_dir, name, path), err)]
     pub async fn update_build_step_output(
         &mut self,
         store_dir: &StoreDir,
@@ -817,7 +817,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn find_build_step_outputs(
         &mut self,
         store_dir: &StoreDir,
@@ -880,7 +880,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, build_id, step_nr), err)]
+    #[tracing::instrument(skip(self, store_dir, build_id, step_nr), err)]
     pub async fn get_drv_path_from_build_step(
         &mut self,
         store_dir: &StoreDir,
@@ -900,7 +900,7 @@ impl Transaction<'_> {
         .map_err(crate::Error::from)
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(skip(self, store_dir), err)]
     pub async fn get_drv_path_from_build(
         &mut self,
         store_dir: &StoreDir,
@@ -1018,7 +1018,7 @@ impl Transaction<'_> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self, path), err)]
+    #[tracing::instrument(skip(self, store_dir, path), err)]
     pub async fn insert_failed_paths(
         &mut self,
         store_dir: &StoreDir,
@@ -1044,6 +1044,7 @@ impl Transaction<'_> {
     #[tracing::instrument(
         skip(
             self,
+            store_dir,
             start_time,
             build_id,
             platform,
@@ -1121,7 +1122,7 @@ impl Transaction<'_> {
     /// [`create_build_step`](Self::create_build_step) for the resolved
     /// (`status = 13`) case.
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip(self, start_time, build_id, platform, machine), err)]
+    #[tracing::instrument(skip(self, store_dir, start_time, build_id, platform, machine), err)]
     pub async fn create_resolved_build_step(
         &mut self,
         store_dir: &StoreDir,
@@ -1170,7 +1171,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(
-        skip(self, start_time, stop_time, build_id, drv_path, outputs,),
+        skip(self, store_dir, start_time, stop_time, build_id, drv_path, outputs,),
         err,
         ret
     )]
@@ -1224,7 +1225,7 @@ impl Transaction<'_> {
     }
 
     #[tracing::instrument(
-        skip(self, start_time, stop_time, build_id, drv_path, output,),
+        skip(self, store_dir, start_time, stop_time, build_id, drv_path, output,),
         err,
         ret
     )]

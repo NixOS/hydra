@@ -412,7 +412,7 @@ impl State {
         })
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(skip_all, err)]
     pub async fn new(mtls: MtlsConfig, config: App) -> Result<Arc<Self>, StateError> {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
