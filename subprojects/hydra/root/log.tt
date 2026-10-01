@@ -159,6 +159,7 @@
       let logsStartAttempt = 0;
       let pingTimer = null;
       let retryTimer = null;
+      const ansi = new ansiUp.AnsiUp();
 
       function showStaticLog(reason) {
         if (fellBack) return;
@@ -329,7 +330,10 @@
               }
               const entry = document.createElement("span");
               entry.appendChild(ts[0]);
-              entry.appendChild(document.createTextNode(data.line.trimEnd() + '\n'));
+              const text = document.createElement("span");
+              // ansi_up HTML-escapes the text, so innerHTML is safe here.
+              text.innerHTML = ansi.ansi_to_html(data.line.trimEnd()) + '\n';
+              entry.appendChild(text);
               appendEntry(entry);
               break;
             }
