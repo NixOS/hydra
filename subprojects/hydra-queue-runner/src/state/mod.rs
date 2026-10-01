@@ -1439,6 +1439,7 @@ impl State {
         let mut new_ids = Vec::<BuildID>::with_capacity(1000);
         let mut new_builds_by_id = HashMap::<BuildID, Arc<Build>>::with_capacity(1000);
         let mut new_builds_by_path = HashMap::<StorePath, HashSet<BuildID>>::with_capacity(1000);
+        let mut known_builds = Vec::new();
 
         {
             let mut conn = self.db.get().await?;
@@ -1446,6 +1447,10 @@ impl State {
                 .get_not_finished_builds(self.connector.store_dir())
                 .await?
             {
+                if let Some(build) = self.builds.get(b.id) {
+                    known_builds.push(build);
+                    continue;
+                }
                 let jobset = self
                     .jobsets
                     .create(&mut conn, b.jobset_id, &b.project, &b.jobset)
@@ -1466,6 +1471,9 @@ impl State {
         let early_exit =
             Box::pin(self.process_new_builds(new_ids, new_builds_by_id, new_builds_by_path))
                 .await?;
+        // Runs after ingestion so new builds don't wait for the recheck's
+        // store lookups.
+        self.recheck_known_builds(known_builds).await;
         Ok(early_exit)
     }
 
@@ -1727,15 +1735,20 @@ impl State {
         if let Some(fod_checker) = &self.fod_checker {
             fod_checker.to_traverse(drv_path);
         }
-        // Builds with this step as toplevel are now cached successes.
+        self.finish_direct_builds(&step).await;
+        self.trigger_dispatch();
+    }
+
+    /// Mark the builds whose toplevel is this finished step as cached
+    /// successes and drop them from memory.
+    async fn finish_direct_builds(&self, step: &Step) {
         for build in step.get_direct_builds() {
             let build_id = build.id;
             if let Err(e) = self.handle_cached_build(build).await {
-                tracing::error!("failed to handle cached build: {e}");
+                tracing::error!("failed to handle cached build {build_id}: {e}");
             }
             self.builds.remove_by_id(build_id);
         }
-        self.trigger_dispatch();
     }
 
     #[tracing::instrument(skip(self))]
@@ -2780,56 +2793,7 @@ impl State {
                 .map(|(step, relation)| (step, relation.clone())),
         );
         if !is_new {
-            // Re-check whether the step's outputs have appeared in the store
-            // since it was first created. This handles the case where outputs
-            // became available between poll cycles (e.g. built by a concurrent
-            // step, substituted, or uploaded externally). Without this check,
-            // builds whose outputs are now cached get stuck in an infinite
-            // re-load loop: the DB says finished=0, the step already exists in
-            // memory, and create_build never reaches handle_cached_build.
-            //
-            // To be clear, builds that go through gRPC do not need this. The
-            // builder will push the info to the queue runner so there is no
-            // polling race condition. It is likely that this case happened
-            // because IFD in the evaluator was causing builds on the host, and
-            // *those* were subject to the race condition --- build-relevant
-            // store objects shouldn't be unexpected appearing in the host store
-            // otherwise.
-            //
-            // TODO once we properly feed IFD builds in to Hydra to be
-            // distributed, remove this hack.
-            if step.get_finished() {
-                return CreateStepResult::None;
-            }
-            if let Some(output_paths) = step.get_output_paths() {
-                // All output paths must be known (Some) and valid in
-                // the store for the step to count as finished.  CA
-                // floating outputs have None paths until built.
-                let all_resolved = output_paths.values().all(Option::is_some);
-                let all_valid = if all_resolved {
-                    let mut conn = ctx.pool.acquire().await.ok();
-                    let mut valid = true;
-                    for path in output_paths.values().flatten() {
-                        let path_valid = match conn.as_mut() {
-                            Some(conn) => conn.is_valid_path(path).await.unwrap_or(false),
-                            None => false,
-                        };
-                        if !path_valid {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    valid
-                } else {
-                    false
-                };
-                if all_valid {
-                    return self
-                        .revalidate_locally_valid_step(step, &drv_path, &ctx.finished_drvs)
-                        .await;
-                }
-            }
-            return CreateStepResult::Valid(step);
+            return self.recheck_existing_step(step, &drv_path, &ctx).await;
         }
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
@@ -2960,6 +2924,80 @@ impl State {
                 CreateStepResult::Valid(step)
             }
         }
+    }
+
+    /// Re-check a step that already exists in the graph. Its outputs may
+    /// have appeared in the store since the step was created, for example
+    /// because a concurrent step built them, a substituter provided them, or
+    /// someone uploaded them. Without this check, a build whose outputs are
+    /// now cached stays queued forever, because the DB says finished=0 and
+    /// nothing dispatches its step.
+    ///
+    /// Builds that go through gRPC do not need this, because the builder
+    /// pushes results to the queue runner and there is no polling race. The
+    /// likely source is IFD in the evaluator, which builds on the host and
+    /// races with the queue runner. Build outputs should not otherwise
+    /// appear in the host store unexpectedly.
+    ///
+    /// TODO: remove this hack once Hydra distributes IFD builds.
+    async fn recheck_existing_step(
+        &self,
+        step: Arc<Step>,
+        drv_path: &StorePath,
+        ctx: &InjectCtx,
+    ) -> CreateStepResult {
+        if step.get_finished() {
+            return CreateStepResult::None;
+        }
+        let Some(output_paths) = step.get_output_paths() else {
+            return CreateStepResult::Valid(step);
+        };
+        // The step counts as finished only if every output path is known and
+        // valid in the store. CA floating outputs have no path until built.
+        if !output_paths.values().all(Option::is_some) {
+            return CreateStepResult::Valid(step);
+        }
+        let Ok(mut conn) = ctx.pool.acquire().await else {
+            return CreateStepResult::Valid(step);
+        };
+        for path in output_paths.values().flatten() {
+            if !conn.is_valid_path(path).await.unwrap_or(false) {
+                return CreateStepResult::Valid(step);
+            }
+        }
+        drop(conn);
+        self.revalidate_locally_valid_step(step, drv_path, &ctx.finished_drvs)
+            .await
+    }
+
+    /// The queue monitor does not re-inject builds already in memory. It
+    /// only re-checks their top-level step for outputs that appeared in the
+    /// store since the last pass (see [`State::recheck_existing_step`]).
+    async fn recheck_known_builds(&self, builds: Vec<Arc<Build>>) {
+        use futures::stream::StreamExt as _;
+
+        // Builds of the same derivation share a toplevel step; check it once.
+        let steps: HashSet<step::ByPtr> = builds
+            .iter()
+            .filter_map(|b| b.toplevel.load_full())
+            .map(step::ByPtr)
+            .collect();
+        let ctx = InjectCtx::oneshot(self.read_pool.clone());
+        let ctx = &*ctx;
+        futures::stream::iter(steps)
+            .for_each_concurrent(
+                MAX_CONCURRENT_BUILD_INJECTION,
+                move |step::ByPtr(step)| async move {
+                    let drv_path = step.get_drv_path().clone();
+                    if let CreateStepResult::None = self
+                        .recheck_existing_step(step.clone(), &drv_path, ctx)
+                        .await
+                    {
+                        self.finish_direct_builds(&step).await;
+                    }
+                },
+            )
+            .await;
     }
 
     /// A pre-existing step whose outputs turned out to be all valid in the
