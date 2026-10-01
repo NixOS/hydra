@@ -8,6 +8,7 @@ use harmonia_store_path::{StoreDir, StorePath};
 
 use super::Step;
 use super::drv::flatten_chain;
+use crate::config::StepSortFn;
 
 /// Resolve an input-addressed derivation output from the `.drv` file on
 /// disk. The build-history lookup in the database can miss outputs that
@@ -198,107 +199,74 @@ impl StepInfo {
         self.cancelled.load(Ordering::SeqCst)
     }
 
-    pub(super) fn legacy_compare(&self, other: &Self) -> std::cmp::Ordering {
-        #[allow(irrefutable_let_patterns)]
-        (if let c1 = self
-            .get_highest_global_priority()
-            .cmp(&other.get_highest_global_priority())
-            && c1 != std::cmp::Ordering::Equal
-        {
-            c1
-        } else if let c2 = other
-            .get_lowest_share_used()
-            .total_cmp(&self.get_lowest_share_used())
-            && c2 != std::cmp::Ordering::Equal
-        {
-            c2
-        } else if let c3 = self
-            .get_highest_local_priority()
-            .cmp(&other.get_highest_local_priority())
-            && c3 != std::cmp::Ordering::Equal
-        {
-            c3
-        } else {
-            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
-        })
-        .reverse()
-    }
-
-    pub(super) fn compare_with_critical_path(&self, other: &Self) -> std::cmp::Ordering {
-        #[allow(irrefutable_let_patterns)]
-        (if let c1 = self
-            .get_highest_global_priority()
-            .cmp(&other.get_highest_global_priority())
-            && c1 != std::cmp::Ordering::Equal
-        {
-            c1
-        } else if let c2 = other
-            .get_lowest_share_used()
-            .total_cmp(&self.get_lowest_share_used())
-            && c2 != std::cmp::Ordering::Equal
-        {
-            c2
-        } else if let c3 = self
-            .step
-            .atomic_state
-            .cp_length
-            .load(Ordering::Relaxed)
-            .cmp(&other.step.atomic_state.cp_length.load(Ordering::Relaxed))
-            && c3 != std::cmp::Ordering::Equal
-        {
-            c3
-        } else if let c4 = self
-            .get_highest_local_priority()
-            .cmp(&other.get_highest_local_priority())
-            && c4 != std::cmp::Ordering::Equal
-        {
-            c4
-        } else {
-            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
-        })
-        .reverse()
-    }
-
-    pub(super) fn compare_with_rdeps(&self, other: &Self) -> std::cmp::Ordering {
-        #[allow(irrefutable_let_patterns)]
-        (if let c1 = self
-            .get_highest_global_priority()
-            .cmp(&other.get_highest_global_priority())
-            && c1 != std::cmp::Ordering::Equal
-        {
-            c1
-        } else if let c2 = other
-            .get_lowest_share_used()
-            .total_cmp(&self.get_lowest_share_used())
-            && c2 != std::cmp::Ordering::Equal
-        {
-            c2
-        } else if let c3 = self
-            .step
-            .atomic_state
-            .rdeps_len
-            .load(Ordering::Relaxed)
-            .cmp(&other.step.atomic_state.rdeps_len.load(Ordering::Relaxed))
-            && c3 != std::cmp::Ordering::Equal
-        {
-            c3
-        } else if let c4 = self
-            .get_highest_local_priority()
-            .cmp(&other.get_highest_local_priority())
-            && c4 != std::cmp::Ordering::Equal
-        {
-            c4
-        } else {
-            other.get_lowest_build_id().cmp(&self.get_lowest_build_id())
-        })
-        .reverse()
+    /// Snapshot the fields that `sort_fn` orders the queue by.
+    pub(super) fn sort_key(&self, sort_fn: StepSortFn) -> SortKey {
+        SortKey {
+            global_priority: self.get_highest_global_priority(),
+            share_used: self.get_lowest_share_used(),
+            sort_fn_weight: match sort_fn {
+                StepSortFn::Legacy => 0,
+                StepSortFn::WithRdeps => self.step.get_rdeps_size(),
+                StepSortFn::WithCriticalPath => self.step.get_cp_length(),
+            },
+            local_priority: self.get_highest_local_priority(),
+            build_id: self.get_lowest_build_id(),
+        }
     }
 }
+
+/// A step's position in the queue, read once per sort. The fields come from
+/// live atomics. If the sort compared the atomics directly, they could change
+/// mid-sort and break the total order that `sort_by` requires.
+#[derive(Debug)]
+pub(super) struct SortKey {
+    global_priority: i32,
+    share_used: f64,
+    /// rdeps count or critical path length, depending on the sort function.
+    /// Always 0 for Legacy.
+    sort_fn_weight: u64,
+    local_priority: i32,
+    build_id: BuildID,
+}
+
+impl Ord for SortKey {
+    /// Smaller keys sort first. Fields in order of precedence: higher global
+    /// priority, lower share used, bigger `sort_fn_weight`, higher local priority,
+    /// older build.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other
+            .global_priority
+            .cmp(&self.global_priority)
+            .then(self.share_used.total_cmp(&other.share_used))
+            .then(other.sort_fn_weight.cmp(&self.sort_fn_weight))
+            .then(other.local_priority.cmp(&self.local_priority))
+            .then(self.build_id.cmp(&other.build_id))
+    }
+}
+
+impl PartialOrd for SortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SortKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl Eq for SortKey {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use db::models::BuildID;
+    use std::cmp::Ordering::{Equal, Greater, Less};
+
+    fn cmp(a: &StepInfo, b: &StepInfo, sort_fn: StepSortFn) -> std::cmp::Ordering {
+        a.sort_key(sort_fn).cmp(&b.sort_key(sort_fn))
+    }
 
     fn create_test_step(
         highest_global_priority: i32,
@@ -335,130 +303,112 @@ mod tests {
     }
 
     #[test]
-    fn test_legacy_compare_global_priority() {
+    fn test_legacy_sort_key_global_priority() {
         let step1 = create_test_step(10, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Less);
-        assert_eq!(step2.legacy_compare(&step1), std::cmp::Ordering::Greater);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::Legacy), Greater);
     }
 
     #[test]
-    fn test_legacy_compare_share_used() {
+    fn test_legacy_sort_key_share_used() {
         let step1 = create_test_step(5, 1, 1, 0.5, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Less);
-        assert_eq!(step2.legacy_compare(&step1), std::cmp::Ordering::Greater);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::Legacy), Greater);
     }
 
     #[test]
-    fn test_legacy_compare_local_priority() {
+    fn test_legacy_sort_key_local_priority() {
         let step1 = create_test_step(5, 10, 1, 1.0, 0);
         let step2 = create_test_step(5, 5, 2, 1.0, 0);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Less);
-        assert_eq!(step2.legacy_compare(&step1), std::cmp::Ordering::Greater);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::Legacy), Greater);
     }
 
     #[test]
-    fn test_legacy_compare_build_id() {
+    fn test_legacy_sort_key_build_id() {
         let step1 = create_test_step(5, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Less);
-        assert_eq!(step2.legacy_compare(&step1), std::cmp::Ordering::Greater);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::Legacy), Greater);
     }
 
     #[test]
-    fn test_legacy_compare_equal() {
+    fn test_legacy_sort_key_equal() {
         let step1 = create_test_step(5, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 1, 1.0, 0);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Equal);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Equal);
     }
 
     #[test]
-    fn test_compare_with_rdeps_global_priority() {
+    fn test_rdeps_sort_key_global_priority() {
         let step1 = create_test_step(10, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 
     #[test]
-    fn test_compare_with_rdeps_share_used() {
+    fn test_rdeps_sort_key_share_used() {
         let step1 = create_test_step(5, 1, 1, 0.5, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 
     #[test]
-    fn test_compare_with_rdeps_rdeps_len() {
+    fn test_rdeps_sort_key_rdeps_size() {
         let step1 = create_test_step(5, 1, 1, 1.0, 10);
         let step2 = create_test_step(5, 1, 2, 1.0, 5);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 
     #[test]
-    fn test_compare_with_rdeps_local_priority() {
+    fn test_rdeps_sort_key_local_priority() {
         let step1 = create_test_step(5, 10, 1, 1.0, 0);
         let step2 = create_test_step(5, 5, 2, 1.0, 0);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 
     #[test]
-    fn test_compare_with_rdeps_build_id() {
+    fn test_rdeps_sort_key_build_id() {
         let step1 = create_test_step(5, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 2, 1.0, 0);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 
     #[test]
-    fn test_compare_with_rdeps_equal() {
+    fn test_rdeps_sort_key_equal() {
         let step1 = create_test_step(5, 1, 1, 1.0, 0);
         let step2 = create_test_step(5, 1, 1, 1.0, 0);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Equal);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Equal);
     }
 
     #[test]
-    fn test_difference_between_compare_functions() {
+    fn test_sort_fn_weight_only_for_rdeps() {
         // Same global priority, share used, local priority, and build ID
-        // But different rdeps_len - this should affect compare_with_rdeps but not legacy_compare
+        // but a different rdeps_len. WithRdeps should order them, Legacy should not.
         let step1 = create_test_step(5, 1, 1, 1.0, 10);
         let step2 = create_test_step(5, 1, 1, 1.0, 5);
 
-        assert_eq!(step1.legacy_compare(&step2), std::cmp::Ordering::Equal);
+        assert_eq!(cmp(&step1, &step2, StepSortFn::Legacy), Equal);
 
-        assert_eq!(step1.compare_with_rdeps(&step2), std::cmp::Ordering::Less);
-        assert_eq!(
-            step2.compare_with_rdeps(&step1),
-            std::cmp::Ordering::Greater
-        );
+        assert_eq!(cmp(&step1, &step2, StepSortFn::WithRdeps), Less);
+        assert_eq!(cmp(&step2, &step1, StepSortFn::WithRdeps), Greater);
     }
 }

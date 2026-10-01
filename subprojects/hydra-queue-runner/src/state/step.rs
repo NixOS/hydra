@@ -398,6 +398,14 @@ impl Step {
         self.atomic_state.deps_len.load(Ordering::Relaxed)
     }
 
+    pub fn get_rdeps_size(&self) -> u64 {
+        self.atomic_state.rdeps_len.load(Ordering::Relaxed)
+    }
+
+    pub fn get_cp_length(&self) -> u64 {
+        self.atomic_state.cp_length.load(Ordering::Relaxed)
+    }
+
     pub fn make_rdeps_runnable(&self) {
         if !self.get_finished() {
             return;
@@ -926,7 +934,7 @@ mod tests {
         assert!(!is_new);
 
         steps.compute_critical_paths();
-        let cp = |s: &Arc<Step>| s.atomic_state.cp_length.load(Ordering::Relaxed);
+        let cp = |s: &Arc<Step>| s.get_cp_length();
         assert_eq!(cp(&a), 3); // a -> b -> c
         assert_eq!(cp(&b), 2);
         assert_eq!(cp(&c), 1);
