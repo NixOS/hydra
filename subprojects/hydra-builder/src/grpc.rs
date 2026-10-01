@@ -289,7 +289,7 @@ pub async fn init_client(cli: &crate::config::Cli) -> Result<BuilderClient, Buil
     ))
 }
 
-#[tracing::instrument(skip(state), err)]
+#[tracing::instrument(skip(state, request), err)]
 async fn handle_request(
     state: Arc<crate::state::State>,
     request: runner_request::Message,

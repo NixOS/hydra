@@ -451,7 +451,11 @@ impl RunnerService for Server {
         Ok(tonic::Response::new(hydra_proto::Empty {}))
     }
 
-    #[tracing::instrument(skip(self), err)]
+    #[tracing::instrument(
+        skip(self, req),
+        fields(build_id=req.get_ref().build_id, machine_id=req.get_ref().machine_id),
+        err
+    )]
     async fn build_step_update(
         &self,
         req: tonic::Request<StepUpdate>,

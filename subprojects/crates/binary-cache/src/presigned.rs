@@ -156,7 +156,7 @@ impl PresignedUploadClient {
         Ok((narinfo, completion, nar_already_present))
     }
 
-    #[tracing::instrument(skip(self, store_dir, store_path, more_parts), err)]
+    #[tracing::instrument(skip(self, store_dir, store_path, upload, more_parts), fields(path=%upload.path), err)]
     async fn upload_nar(
         &self,
         store_dir: &harmonia_store_path::StoreDir,
@@ -328,7 +328,7 @@ impl PresignedUploadClient {
             })
     }
 
-    #[tracing::instrument(skip(self, store_dir), err)]
+    #[tracing::instrument(skip(self, store_dir, upload), fields(path=%upload.path), err)]
     async fn upload_ls(
         &self,
         store_dir: &harmonia_store_path::StoreDir,
@@ -361,7 +361,7 @@ impl PresignedUploadClient {
         Ok(res)
     }
 
-    #[tracing::instrument(skip(self, content), err)]
+    #[tracing::instrument(skip(self, content, upload), fields(path=%upload.path), err)]
     async fn upload_json(
         &self,
         content: String,
@@ -392,7 +392,7 @@ impl PresignedUploadClient {
     /// `If-None-Match: *` so a content-addressed object is written at most once;
     /// a 412 is reported back as `already_present` instead of an error so the
     /// caller can avoid describing bytes a different upload already stored.
-    #[tracing::instrument(skip(self, start, reader), err)]
+    #[tracing::instrument(skip(self, upload, start, reader), fields(path=%upload.path), err)]
     async fn upload_any(
         &self,
         upload: &PresignedUpload,
