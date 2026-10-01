@@ -273,6 +273,19 @@ struct MachinesInner {
     by_system: HashMap<System, Vec<Arc<Machine>>>,
 }
 
+/// Returns the machine with the lowest `current_jobs / max_jobs`, so steps
+/// spread across machines. `min_by` returns the first of equal elements.
+/// `by_system` is sorted by score, so ties go to the higher scored machine.
+fn least_loaded<'a>(machines: impl Iterator<Item = &'a Arc<Machine>>) -> Option<Arc<Machine>> {
+    machines
+        .min_by(|a, b| {
+            let a_load = a.stats.get_current_jobs() * u64::from(b.max_jobs);
+            let b_load = b.stats.get_current_jobs() * u64::from(a.max_jobs);
+            a_load.cmp(&b_load)
+        })
+        .cloned()
+}
+
 impl MachinesInner {
     fn sort(&mut self, sort_fn: MachineSortFn) {
         for machines in self.by_system.values_mut() {
@@ -418,32 +431,21 @@ impl Machines {
         free_fn: Option<MachineFreeFn>,
     ) -> Option<Arc<Machine>> {
         // dup of machines.support_step
+        let suitable = |m: &&Arc<Machine>| {
+            free_fn.is_none_or(|free_fn| m.has_capacity(free_fn))
+                && m.mandatory_features
+                    .iter()
+                    .all(|s| required_features.contains(s))
+                && m.supports_all_features(required_features)
+        };
         let inner = self.inner.read();
         if system == "builtin" {
-            inner
-                .by_uuid
-                .values()
-                .find(|m| {
-                    free_fn.is_none_or(|free_fn| m.has_capacity(free_fn))
-                        && m.mandatory_features
-                            .iter()
-                            .all(|s| required_features.contains(s))
-                        && m.supports_all_features(required_features)
-                })
-                .cloned()
+            least_loaded(inner.by_uuid.values().filter(suitable))
         } else {
-            inner.by_system.get(system).and_then(|machines| {
-                machines
-                    .iter()
-                    .find(|m| {
-                        free_fn.is_none_or(|free_fn| m.has_capacity(free_fn))
-                            && m.mandatory_features
-                                .iter()
-                                .all(|s| required_features.contains(s))
-                            && m.supports_all_features(required_features)
-                    })
-                    .cloned()
-            })
+            inner
+                .by_system
+                .get(system)
+                .and_then(|machines| least_loaded(machines.iter().filter(suitable)))
         }
     }
 
@@ -872,5 +874,67 @@ impl Machine {
         }
 
         job
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn machine(hostname: &str, max_jobs: u32, current_jobs: u64) -> Arc<Machine> {
+        let (tx, _rx) = mpsc::channel(1);
+        let stats = Stats::new();
+        stats.store_current_jobs(current_jobs);
+        Arc::new(Machine {
+            id: uuid::Uuid::new_v4(),
+            systems: SmallVec::new(),
+            hostname: hostname.to_owned(),
+            cpu_count: 1,
+            bogomips: 1.0,
+            speed_factor: 1.0,
+            max_jobs,
+            build_dir_avail_threshold: 0.0,
+            store_avail_threshold: 0.0,
+            load1_threshold: 0.0,
+            cpu_psi_threshold: 0.0,
+            mem_psi_threshold: 0.0,
+            io_psi_threshold: None,
+            total_mem: 0,
+            supported_features: SmallVec::new(),
+            mandatory_features: SmallVec::new(),
+            cgroups: false,
+            substituters: SmallVec::new(),
+            use_substitutes: false,
+            nix_version: String::new(),
+            joined_at: jiff::Timestamp::now(),
+            msg_queue: tx,
+            stats: Arc::new(stats),
+            jobs: Arc::new(parking_lot::RwLock::new(Vec::new())),
+        })
+    }
+
+    fn pick(machines: &[Arc<Machine>]) -> String {
+        least_loaded(machines.iter())
+            .map(|m| m.hostname.clone())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn test_least_loaded_prefers_idle_machine() {
+        let machines = [machine("busy", 8, 6), machine("idle", 8, 0)];
+        assert_eq!(pick(&machines), "idle");
+    }
+
+    #[test]
+    fn test_least_loaded_relative_to_max_jobs() {
+        // small runs 2 of 4 jobs (50%), big runs 3 of 8 (37.5%)
+        let machines = [machine("small", 4, 2), machine("big", 8, 3)];
+        assert_eq!(pick(&machines), "big");
+    }
+
+    #[test]
+    fn test_least_loaded_tie_keeps_score_order() {
+        let machines = [machine("first", 8, 1), machine("second", 8, 1)];
+        assert_eq!(pick(&machines), "first");
     }
 }
