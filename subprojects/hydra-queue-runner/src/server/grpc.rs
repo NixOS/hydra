@@ -572,9 +572,12 @@ impl RunnerService for Server {
         req: tonic::Request<ProtoStorePath>,
     ) -> BuilderResult<hydra_proto::HasPathResponse> {
         let path = req.into_inner().0;
-        let state = self.state.clone();
-        let has_path: bool = state
-            .store
+        let has_path: bool = self
+            .state
+            .read_pool
+            .acquire()
+            .await
+            .map_err(|e| tonic::Status::internal(format!("daemon connect failed: {e}")))?
             .is_valid_path(&path)
             .await
             .map_err(|e| tonic::Status::internal(format!("is_valid_path failed: {e}")))?;
