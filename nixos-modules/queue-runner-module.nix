@@ -214,6 +214,18 @@ in
               type = lib.types.port;
               default = 50051;
             };
+
+            unixSocket = lib.mkOption {
+              description = ''
+                Listen on this Unix socket instead of `address`/`port`, e.g. behind a
+                reverse proxy. Set `SocketUser`, `SocketGroup` and `SocketMode` in
+                `systemd.sockets.hydra-queue-runner-dev-grpc.socketConfig` to control its
+                ownership and mode.
+              '';
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              example = "/run/hydra-queue-runner-grpc.sock";
+            };
           };
         };
       };
@@ -425,7 +437,7 @@ in
       description = "Hydra Queue Runner gRPC socket";
       wantedBy = [ "sockets.target" ];
       socketConfig = {
-        ListenStream = "${cfg.grpc.address}:${toString cfg.grpc.port}";
+        ListenStream = lib.defaultTo "${cfg.grpc.address}:${toString cfg.grpc.port}" cfg.grpc.unixSocket;
         FileDescriptorName = "grpc";
         Service = "hydra-queue-runner-dev.service";
       };

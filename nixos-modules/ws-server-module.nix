@@ -61,6 +61,18 @@ in
               type = lib.types.port;
               default = 9283;
             };
+
+            unixSocket = lib.mkOption {
+              description = ''
+                Listen on this Unix socket instead of `address`/`port`, e.g. behind a
+                reverse proxy. Set `SocketUser`, `SocketGroup` and `SocketMode` in
+                `systemd.sockets.hydra-ws-dev.socketConfig` to control its ownership and
+                mode.
+              '';
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              example = "/run/hydra-ws.sock";
+            };
           };
         };
       };
@@ -149,7 +161,7 @@ in
       description = "Hydra WebSocket socket";
       wantedBy = [ "sockets.target" ];
       socketConfig = {
-        ListenStream = "${cfg.bind.address}:${toString cfg.bind.port}";
+        ListenStream = lib.defaultTo "${cfg.bind.address}:${toString cfg.bind.port}" cfg.bind.unixSocket;
         FileDescriptorName = "ws";
         Service = "hydra-ws-dev.service";
       };

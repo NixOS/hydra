@@ -61,11 +61,17 @@ impl BindSocket {
 
                 let idx = fd_names.iter().position(|n| n == "ws").unwrap_or(0);
                 let mut listenfd = ListenFd::from_env();
-                let std_listener = listenfd.take_tcp_listener(idx)?.ok_or_else(|| {
-                    eyre::eyre!("No listenfd TCP listener at index {idx} for REST")
+                // The socket unit may pass a TCP or a Unix socket. On a type
+                // mismatch `take_*` leaves the fd in place, so we can try both.
+                if let Ok(Some(std_listener)) = listenfd.take_tcp_listener(idx) {
+                    std_listener.set_nonblocking(true)?;
+                    return Ok(Listener::Tcp(TcpListener::from_std(std_listener)?));
+                }
+                let std_listener = listenfd.take_unix_listener(idx)?.ok_or_else(|| {
+                    eyre::eyre!("No listenfd TCP or Unix listener at index {idx} for WS")
                 })?;
                 std_listener.set_nonblocking(true)?;
-                Ok(Listener::Tcp(TcpListener::from_std(std_listener)?))
+                Ok(Listener::Unix(UnixListener::from_std(std_listener)?))
             }
         }
     }

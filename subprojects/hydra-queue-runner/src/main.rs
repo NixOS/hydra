@@ -32,6 +32,11 @@ use state::State;
 type GrpcServer =
     std::pin::Pin<Box<dyn Future<Output = Result<(), server::grpc::ServerError>> + Send>>;
 
+enum GrpcListener {
+    Tcp(tokio::net::TcpListener),
+    Unix(tokio::net::UnixListener),
+}
+
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -141,33 +146,39 @@ async fn main() -> color_eyre::Result<()> {
     };
     let http_addr = http_listener.local_addr()?;
 
-    let (srv1, grpc_info): (GrpcServer, String) = match &cli.grpc_bind {
-        BindSocket::Tcp(s) => {
-            let listener = tokio::net::TcpListener::bind(s).await?;
-            let addr = listener.local_addr()?;
-            let info = addr.to_string();
-            (
-                Box::pin(server::grpc::Server::run(listener, state.clone())),
-                info,
-            )
-        }
+    let grpc_listener = match &cli.grpc_bind {
+        BindSocket::Tcp(s) => GrpcListener::Tcp(tokio::net::TcpListener::bind(s).await?),
+        BindSocket::Unix(p) => GrpcListener::Unix(tokio::net::UnixListener::bind(p)?),
         BindSocket::ListenFd => {
             let idx = fd_names.iter().position(|n| n == "grpc").unwrap_or(1);
-            let std_listener = listenfd
-                .take_tcp_listener(idx)?
-                .ok_or_else(|| eyre::eyre!("No listenfd TCP listener at index {idx} for gRPC"))?;
-            let addr = std_listener.local_addr()?;
-            let info = addr.to_string();
-            std_listener.set_nonblocking(true)?;
-            let listener = tokio::net::TcpListener::from_std(std_listener)?;
+            // The socket unit may pass a TCP or a Unix socket. On a type
+            // mismatch `take_*` leaves the fd in place, so we can try both.
+            if let Ok(Some(std_listener)) = listenfd.take_tcp_listener(idx) {
+                std_listener.set_nonblocking(true)?;
+                GrpcListener::Tcp(tokio::net::TcpListener::from_std(std_listener)?)
+            } else {
+                let std_listener = listenfd.take_unix_listener(idx)?.ok_or_else(|| {
+                    eyre::eyre!("No listenfd TCP or Unix listener at index {idx} for gRPC")
+                })?;
+                std_listener.set_nonblocking(true)?;
+                GrpcListener::Unix(tokio::net::UnixListener::from_std(std_listener)?)
+            }
+        }
+    };
+
+    let (srv1, grpc_info): (GrpcServer, String) = match grpc_listener {
+        GrpcListener::Tcp(listener) => {
+            let info = listener.local_addr()?.to_string();
             (
                 Box::pin(server::grpc::Server::run(listener, state.clone())),
                 info,
             )
         }
-        BindSocket::Unix(p) => {
-            let listener = tokio::net::UnixListener::bind(p)?;
-            let info = format!("unix:{}", p.display());
+        GrpcListener::Unix(listener) => {
+            let info = listener.local_addr()?.as_pathname().map_or_else(
+                || "unix:<unnamed>".to_owned(),
+                |p| format!("unix:{}", p.display()),
+            );
             (
                 Box::pin(server::grpc::Server::run_unix(listener, state.clone())),
                 info,
