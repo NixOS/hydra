@@ -15,8 +15,8 @@ pub struct QueueRunnerStats {
 
     build_count: usize,
     jobset_count: usize,
-    step_count: usize,
-    runnable_count: usize,
+    step_count: i64,
+    runnable_count: i64,
     queue_stats: HashMap<crate::state::System, BuildQueueStats>,
 
     queue_checks_started: u64,
@@ -70,8 +70,6 @@ impl QueueRunnerStats {
     pub async fn new(state: Arc<crate::state::State>) -> Self {
         let build_count = state.builds.len();
         let jobset_count = state.jobsets.len();
-        let step_count = state.steps.len();
-        let runnable_count = state.steps.len_runnable();
         let queue_stats = {
             state
                 .queues
@@ -95,8 +93,8 @@ impl QueueRunnerStats {
             supported_features: state.machines.get_supported_features(),
             build_count,
             jobset_count,
-            step_count,
-            runnable_count,
+            step_count: state.metrics.nr_steps_unfinished.get(),
+            runnable_count: state.metrics.nr_steps_runnable.get(),
             queue_stats,
             queue_checks_started: state.metrics.queue_checks_started.get(),
             queue_build_loads: state.metrics.queue_build_loads.get(),

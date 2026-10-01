@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use hashbrown::HashMap;
 use prometheus::Encoder as _;
 
 #[derive(Debug)]
@@ -926,10 +927,11 @@ impl PromMetrics {
         if let Ok(v) = i64::try_from(state.builds.len()) {
             self.nr_builds_unfinished.set(v);
         }
-        if let Ok(v) = i64::try_from(state.steps.len()) {
+        let step_counts = state.steps.counts();
+        if let Ok(v) = i64::try_from(step_counts.unfinished) {
             self.nr_steps_unfinished.set(v);
         }
-        if let Ok(v) = i64::try_from(state.steps.len_runnable()) {
+        if let Ok(v) = i64::try_from(step_counts.runnable) {
             self.nr_steps_runnable.set(v);
         }
         if let Ok(v) = i64::try_from(state.machines.get_machine_count()) {
@@ -939,7 +941,8 @@ impl PromMetrics {
             self.machines_in_use.set(v);
         }
 
-        self.refresh_per_machine_type_metrics(state).await;
+        self.refresh_per_machine_type_metrics(state, step_counts.per_system)
+            .await;
         self.refresh_per_machine_metrics(state);
         self.refresh_s3_metrics(state);
         self.refresh_transfer_metrics(state);
@@ -947,7 +950,11 @@ impl PromMetrics {
         self.refresh_time_metrics(state);
     }
 
-    async fn refresh_per_machine_type_metrics(&self, state: &Arc<super::State>) {
+    async fn refresh_per_machine_type_metrics(
+        &self,
+        state: &Arc<super::State>,
+        unfinished_per_system: HashMap<super::System, usize>,
+    ) {
         self.runnable_per_machine_type.reset();
         self.running_per_machine_type.reset();
         self.waiting_per_machine_type.reset();
@@ -988,7 +995,7 @@ impl PromMetrics {
             }
         }
 
-        for (t, count) in state.steps.get_unfinished_per_system() {
+        for (t, count) in unfinished_per_system {
             if let Ok(v) = i64::try_from(count) {
                 self.unfinished_per_machine_type
                     .with_label_values(&[&t])

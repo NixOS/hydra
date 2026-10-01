@@ -630,6 +630,13 @@ impl Default for Steps {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct StepCounts {
+    pub unfinished: usize,
+    pub runnable: usize,
+    pub per_system: HashMap<System, usize>,
+}
+
 impl Steps {
     #[must_use]
     pub fn new() -> Self {
@@ -641,42 +648,21 @@ impl Steps {
         }
     }
 
+    /// Counts live steps, runnable steps and live steps per system while holding
+    /// the read lock once. Dead entries stay in the map until
+    /// [`Steps::clone_runnable`] removes them.
     #[must_use]
-    pub fn len(&self) -> usize {
-        let mut steps = self.inner.write();
-        steps.retain(|_, s| s.upgrade().is_some());
-        steps.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        let mut steps = self.inner.write();
-        steps.retain(|_, s| s.upgrade().is_some());
-        steps.is_empty()
-    }
-
-    #[must_use]
-    pub fn len_runnable(&self) -> usize {
-        let mut steps = self.inner.write();
-        steps.retain(|_, s| s.upgrade().is_some());
-        steps
-            .iter()
-            .filter_map(|(_, s)| s.upgrade().map(|v| v.get_runnable()))
-            .filter(|v| *v)
-            .count()
-    }
-
-    #[must_use]
-    pub fn get_unfinished_per_system(&self) -> HashMap<System, u64> {
-        let mut steps = self.inner.write();
-        steps.retain(|_, s| s.upgrade().is_some());
-        let mut counts: HashMap<System, u64> = HashMap::new();
-        for system in steps
-            .values()
-            .filter_map(Weak::upgrade)
-            .filter_map(|s| s.get_system())
-        {
-            *counts.entry(system).or_default() += 1;
+    pub fn counts(&self) -> StepCounts {
+        let steps = self.inner.read();
+        let mut counts = StepCounts::default();
+        for step in steps.values().filter_map(Weak::upgrade) {
+            counts.unfinished += 1;
+            if step.get_runnable() {
+                counts.runnable += 1;
+            }
+            if let Some(system) = step.get_system() {
+                *counts.per_system.entry(system).or_default() += 1;
+            }
         }
         counts
     }
@@ -923,10 +909,10 @@ mod tests {
         let steps = Steps::new();
         let (step, is_new) = steps.create(&drv("test"), None, None);
         assert!(is_new);
-        assert_eq!(steps.len(), 1);
+        assert_eq!(steps.counts().unfinished, 1);
 
         steps.remove(step.get_drv_path());
-        assert_eq!(steps.len(), 0);
+        assert_eq!(steps.counts().unfinished, 0);
     }
 
     #[test]
@@ -958,10 +944,10 @@ mod tests {
     fn steps_weak_ref_dies_without_strong_ref() {
         let steps = Steps::new();
         let (step, _) = steps.create(&drv("ephemeral"), None, None);
-        assert_eq!(steps.len(), 1);
+        assert_eq!(steps.counts().unfinished, 1);
 
         drop(step);
-        assert_eq!(steps.len(), 0);
+        assert_eq!(steps.counts().unfinished, 0);
     }
 
     #[test]
