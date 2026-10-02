@@ -1,11 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::all,
-    future_incompatible,
-    nonstandard_style,
-    unused_qualifications
-)]
-
 //! Following Hydra build-step logs as the queue runner writes them:
 //! where a step's log file is, how to tail it, and how to read the
 //! notifications that announce steps. Shared by `hydra-ws` and
@@ -20,6 +12,7 @@ pub mod tailer;
 
 /// The log file the queue runner writes for `drv`, under `log_prefix`
 /// (normally `<hydraDataDir>/build-logs`).
+#[must_use]
 pub fn log_path(log_prefix: &Path, drv: &StorePath) -> PathBuf {
     let base = drv.to_string();
     let (dir, file) = base.split_at(2);

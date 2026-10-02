@@ -24,9 +24,8 @@ pub async fn import(
         .ok_or(ProtocolError::EmptyStream)?
         .map_err(Error::Grpc)?;
 
-    let header = match first.content {
-        Some(hydra_proto::add_to_store_request::Content::Header(h)) => h,
-        _ => return Err(ProtocolError::MissingHeader.into()),
+    let Some(hydra_proto::add_to_store_request::Content::Header(header)) = first.content else {
+        return Err(ProtocolError::MissingHeader.into());
     };
 
     let path_infos: Vec<harmonia_store_path_info::ValidPathInfo> = header
@@ -82,7 +81,7 @@ pub async fn import(
             let mut remaining = vpi.info.nar_size;
             let mut buf = vec![0u8; crate::COPY_BUFFER_SIZE];
             while remaining > 0 {
-                let to_read = buf.len().min(remaining as usize);
+                let to_read = usize::try_from(remaining).map_or(buf.len(), |r| buf.len().min(r));
                 let n = decoder.read(&mut buf[..to_read]).await?;
                 if n == 0 {
                     return Err(ProtocolError::TruncatedNar {

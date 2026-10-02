@@ -14,6 +14,25 @@ resolver = "2"
 rust-version = "1.91.0"
 version      = "0.1.0"
 
+[workspace.lints.rust]
+future-incompatible           = { level = "deny", priority = -1 }
+missing_copy_implementations  = "deny"
+missing_debug_implementations = "deny"
+nonstandard-style             = { level = "deny", priority = -1 }
+rust-2018-idioms              = { level = "deny", priority = -1 }
+unreachable_pub               = "deny"
+unsafe_code                   = "forbid"
+unused_qualifications         = "deny"
+
+[workspace.lints.clippy]
+all                = { level = "deny", priority = -1 }
+expect_used        = "deny"
+missing_errors_doc = "allow"
+needless_collect   = "deny"
+panic              = "deny"
+pedantic           = { level = "deny", priority = -1 }
+unwrap_used        = "deny"
+
 [workspace.dependencies]
 arc-swap = "1.7"
 async-compression = { version = "0.4", default-features = false }

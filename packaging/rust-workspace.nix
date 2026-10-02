@@ -21,6 +21,7 @@ let
     fileset = lib.fileset.unions [
       ../Cargo.toml
       ../Cargo.lock
+      ../clippy.toml
       ../.cargo
       ../.sqlx
       ../subprojects/hydra-queue-runner/Cargo.toml

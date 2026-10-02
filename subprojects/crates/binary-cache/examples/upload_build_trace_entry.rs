@@ -13,10 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("{:#?}", client.cfg);
 
     let id = harmonia_store_derivation::realisation::DrvOutput {
-        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv"
-            .parse()
-            .unwrap(),
-        output_name: "debug".parse().unwrap(),
+        drv_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37.drv".parse()?,
+        output_name: "debug".parse()?,
     };
     tracing::info!(
         "has build trace before: {}",
@@ -30,10 +28,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .write_build_trace_entry(harmonia_store_derivation::realisation::Realisation {
             key: id.clone(),
             value: harmonia_store_derivation::realisation::UnkeyedRealisation {
-                out_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37"
-                    .parse()
-                    .unwrap(),
-                signatures: Default::default(),
+                out_path: "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bash-5.2p37".parse()?,
+                signatures: std::collections::BTreeSet::default(),
             },
         })
         .await?;

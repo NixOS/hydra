@@ -230,7 +230,6 @@ pub struct MarkBuildSuccessData<'a> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

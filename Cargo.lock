@@ -1003,6 +1003,7 @@ dependencies = [
  "harmonia-store-path",
  "harmonia-store-path-info",
  "harmonia-store-remote",
+ "parking_lot",
  "tokio",
  "url",
 ]

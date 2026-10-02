@@ -1,14 +1,17 @@
 //! Reusable test infrastructure for hydra Rust crates.
 //!
-//! Spins up an ephemeral PostgreSQL instance per test (like Perl's
+//! Spins up an ephemeral `PostgreSQL` instance per test (like Perl's
 //! `Test::PostgreSQL`), loads the hydra schema, and hands back a
 //! [`sqlx::PgPool`]. Cleaned up automatically on drop.
+
+// Test infrastructure, so a failed setup step panics instead of returning an error.
+#![allow(clippy::unwrap_used, clippy::missing_panics_doc)]
 
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-/// An Ephemeral PostgreSQL instance.
+/// An Ephemeral `PostgreSQL` instance.
 ///
 /// Each instance gets its own data directory and TCP port so tests can
 /// run in parallel without interference.
@@ -91,6 +94,7 @@ impl TestPg {
     }
 
     /// Connection URL for this instance.
+    #[must_use]
     pub fn url(&self) -> String {
         format!(
             "postgresql://{}@localhost:{}/test?host={}",

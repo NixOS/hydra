@@ -195,8 +195,6 @@ impl FodChecker {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use crate::state::fod_checker::FodChecker;
     use harmonia_store_path::StorePath;
 

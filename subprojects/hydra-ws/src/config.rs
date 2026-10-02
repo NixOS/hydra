@@ -10,7 +10,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
 
 #[derive(Debug, Clone)]
-pub enum BindSocket {
+pub(crate) enum BindSocket {
     Tcp(SocketAddr),
     Unix(PathBuf),
     ListenFd,
@@ -41,7 +41,7 @@ impl std::str::FromStr for BindSocket {
 }
 
 impl BindSocket {
-    pub async fn bind(&self) -> color_eyre::Result<Listener> {
+    pub(crate) async fn bind(&self) -> color_eyre::Result<Listener> {
         match self {
             Self::Tcp(addr) => {
                 let listener = TcpListener::bind(addr).await?;
@@ -78,7 +78,7 @@ impl BindSocket {
 }
 
 #[derive(Debug)]
-pub enum Listener {
+pub(crate) enum Listener {
     Tcp(TcpListener),
     Unix(UnixListener),
 }
@@ -102,7 +102,7 @@ impl std::fmt::Display for Listener {
 }
 
 impl Listener {
-    pub async fn accept(&self) -> std::io::Result<(Stream, SocketAddr)> {
+    pub(crate) async fn accept(&self) -> std::io::Result<(Stream, SocketAddr)> {
         match self {
             Self::Tcp(l) => {
                 let (stream, addr) = l.accept().await?;
@@ -118,7 +118,7 @@ impl Listener {
 }
 
 #[derive(Debug)]
-pub enum Stream {
+pub(crate) enum Stream {
     Tcp(TcpStream),
     Unix(UnixStream),
 }
@@ -170,7 +170,7 @@ impl AsyncWrite for Stream {
     about,
     long_about = None,
 )]
-pub struct Cli {
+pub(crate) struct Cli {
     /// Address to bind the WebSocket server
     #[arg(short, long, default_value = "[::1]:9283")]
     pub bind: BindSocket,
@@ -188,7 +188,7 @@ impl Default for Cli {
 
 impl Cli {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::parse()
     }
 }
@@ -213,7 +213,7 @@ fn default_data_dir() -> PathBuf {
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
-pub struct AppConfig {
+pub(crate) struct AppConfig {
     #[serde(default = "default_pg_socket_url")]
     db_url: secrecy::SecretString,
 
@@ -242,7 +242,7 @@ impl From<AppConfig> for App {
 }
 
 #[derive(Debug)]
-pub struct App {
+pub(crate) struct App {
     pub db_url: secrecy::SecretString,
     pub max_db_connections: u32,
     pub idle_grace: u64,
@@ -250,7 +250,7 @@ pub struct App {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ConfigError {
+pub(crate) enum ConfigError {
     #[error("Failed to parse TOML from '{path}': {source}")]
     ParseToml {
         path: String,
@@ -269,7 +269,7 @@ pub enum ConfigError {
 
 impl App {
     #[tracing::instrument(err)]
-    pub fn init(filepath: &str) -> Result<Self, ConfigError> {
+    pub(crate) fn init(filepath: &str) -> Result<Self, ConfigError> {
         tracing::info!("Trying to load file: {filepath}");
         let toml: AppConfig = match fs_err::read_to_string(filepath) {
             Ok(content) => toml::from_str(&content).map_err(|e| ConfigError::ParseToml {

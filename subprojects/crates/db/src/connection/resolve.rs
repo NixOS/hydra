@@ -134,8 +134,6 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use crate::connection::test_helpers::{
         insert_output, insert_step, insert_step_with_status, on, setup, sp, test_store_dir,
     };

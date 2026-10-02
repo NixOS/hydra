@@ -487,8 +487,6 @@ impl Transaction<'_> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use super::*;
     use crate::Connection;
     use crate::connection::test_helpers::{replica_conn, setup, sp, test_store_dir};
