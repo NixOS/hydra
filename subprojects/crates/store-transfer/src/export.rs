@@ -1,7 +1,9 @@
 //! Shared logic for exporting store paths as an `AddToStoreRequest` stream.
 
+use harmonia_protocol::types::DaemonStore as _;
 use harmonia_store_path::StorePath;
 use harmonia_store_path_info::UnkeyedValidPathInfo;
+use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _};
 
 /// Export store paths as `AddToStoreRequest` messages over a gRPC channel.
 ///
@@ -17,8 +19,6 @@ pub async fn export(
     infos: &hashbrown::HashMap<StorePath, UnkeyedValidPathInfo>,
     tx: &tokio::sync::mpsc::UnboundedSender<Result<hydra_proto::AddToStoreRequest, tonic::Status>>,
 ) -> Result<(), crate::Error> {
-    use tokio::io::AsyncBufReadExt as _;
-
     // Send header with all path infos (uncompressed).
     let proto_infos: Vec<hydra_proto::ValidPathInfo> = paths
         .iter()
@@ -81,14 +81,12 @@ pub async fn export(
         };
 
         let mut bytes_written: u64 = 0;
-        use harmonia_protocol::types::DaemonStore;
         let mut nar_reader = client.nar_from_path(path).await?;
         loop {
             let buf = nar_reader.fill_buf().await?;
             if buf.is_empty() {
                 break;
             }
-            use tokio::io::AsyncWriteExt as _;
             bytes_written += buf.len() as u64;
             encoder.write_all(buf).await?;
             let len = buf.len();
@@ -107,7 +105,6 @@ pub async fn export(
         }
     }
 
-    use tokio::io::AsyncWriteExt as _;
     encoder.shutdown().await?;
     drop(encoder);
 

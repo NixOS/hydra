@@ -11,13 +11,13 @@ const CHANNEL_STEP_FINISHED: &str = "step_finished";
 const CHANNEL_BUILD_FINISHED: &str = "build_finished";
 
 #[derive(Debug, thiserror::Error)]
-pub enum ListenerError {
+pub(crate) enum ListenerError {
     #[error("Failed to create PG listener: {0}")]
     PgListener(#[from] db::Error),
 }
 
 #[tracing::instrument(skip(state))]
-pub async fn run_event_listener(state: Arc<State>) -> Result<(), ListenerError> {
+pub(crate) async fn run_event_listener(state: Arc<State>) -> Result<(), ListenerError> {
     let channels = vec![CHANNEL_STEP_FINISHED, CHANNEL_BUILD_FINISHED];
     tracing::info!(?channels, "starting PG event listener");
     let mut stream = state.db.listener(channels).await?;

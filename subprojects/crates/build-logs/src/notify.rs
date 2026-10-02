@@ -3,6 +3,7 @@
 //! `notify_step_finished` and `notify_build_finished` in the `db` crate.
 
 /// `step_started`: `"<build_id>\t<step_nr>"`.
+#[must_use]
 pub fn parse_step_started_payload(payload: &str) -> Option<(u64, u64)> {
     let parts: Vec<&str> = payload.split('\t').collect();
     if parts.len() < 2 {
@@ -11,6 +12,7 @@ pub fn parse_step_started_payload(payload: &str) -> Option<(u64, u64)> {
     Some((parts[0].parse().ok()?, parts[1].parse().ok()?))
 }
 
+#[must_use]
 pub fn parse_step_finished_payload(payload: &str) -> Option<(u64, u64)> {
     let parts: Vec<&str> = payload.split('\t').collect();
     if parts.len() < 3 {
@@ -19,14 +21,13 @@ pub fn parse_step_finished_payload(payload: &str) -> Option<(u64, u64)> {
     Some((parts[0].parse().ok()?, parts[1].parse().ok()?))
 }
 
+#[must_use]
 pub fn parse_build_finished_payload(payload: &str) -> Vec<u64> {
     payload.split('\t').filter_map(|s| s.parse().ok()).collect()
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
-
     use super::*;
 
     #[test]

@@ -1,6 +1,6 @@
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
-pub enum HydraWsResponse {
+pub(crate) enum HydraWsResponse {
     #[serde(rename = "invalidRequest")]
     InvalidRequest { details: String },
 
@@ -55,7 +55,7 @@ pub enum HydraWsResponse {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
-pub enum HydraWsRequest {
+pub(crate) enum HydraWsRequest {
     #[serde(rename = "ping")]
     Ping {},
 

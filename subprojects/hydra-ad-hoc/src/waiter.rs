@@ -14,7 +14,7 @@
 //!   immediate-error loop still trips the exit threshold.
 //!
 //! * After reconnect, finished registered builds are swept from the DB
-//!   before new registrations are allowed; PostgreSQL does not replay
+//!   before new registrations are allowed; `PostgreSQL` does not replay
 //!   missed notifications.
 //!
 //! * While the listener is unhealthy, `register` returns
@@ -281,24 +281,23 @@ async fn dispatch(
         _ => None,
     };
     if notif.channel() != CHANNEL_BUILD_FINISHED {
-        match step {
-            Some((build_id, step_nr, kind)) => {
-                if let (Ok(build_id), Ok(step_nr)) =
-                    (BuildID::try_from(build_id), i32::try_from(step_nr))
-                {
-                    // No receivers is the normal case; nothing to do.
-                    let _ = steps.send(StepEvent {
-                        build_id,
-                        step_nr,
-                        kind,
-                    });
-                }
+        if let Some((build_id, step_nr, kind)) = step {
+            if let (Ok(build_id), Ok(step_nr)) =
+                (BuildID::try_from(build_id), i32::try_from(step_nr))
+            {
+                // No receivers is the normal case; nothing to do.
+                let _ = steps.send(StepEvent {
+                    build_id,
+                    step_nr,
+                    kind,
+                });
             }
-            None => tracing::warn!(
+        } else {
+            tracing::warn!(
                 channel = notif.channel(),
                 payload,
                 "unparseable step notification"
-            ),
+            );
         }
         return;
     }

@@ -11,7 +11,7 @@ use crate::subscriptions::Subscriptions;
 use build_logs::tailer::{TailManager, TailSubscription};
 
 #[derive(Debug, thiserror::Error)]
-pub enum StateError {
+pub(crate) enum StateError {
     #[error(transparent)]
     Config(#[from] crate::config::ConfigError),
 
@@ -19,7 +19,7 @@ pub enum StateError {
     Database(#[from] db::Error),
 }
 
-pub struct State {
+pub(crate) struct State {
     cli: Cli,
     manager: TailManager,
     pub db: db::Database,
@@ -29,7 +29,7 @@ pub struct State {
 }
 
 impl State {
-    pub async fn new(cli: Cli) -> Result<Self, StateError> {
+    pub(crate) async fn new(cli: Cli) -> Result<Self, StateError> {
         let config = App::init(&cli.config_path)?;
         let db =
             db::Database::new(config.db_url.expose_secret(), config.max_db_connections).await?;
@@ -47,19 +47,19 @@ impl State {
         })
     }
 
-    pub fn get_log_prefix(&self) -> PathBuf {
+    pub(crate) fn get_log_prefix(&self) -> PathBuf {
         self.config.log_prefix.clone()
     }
 
-    pub async fn bind(&self) -> color_eyre::Result<Listener> {
+    pub(crate) async fn bind(&self) -> color_eyre::Result<Listener> {
         self.cli.bind.bind().await
     }
 
-    pub async fn subscribe<P: AsRef<Path>>(&self, path: P) -> TailSubscription {
+    pub(crate) async fn subscribe<P: AsRef<Path>>(&self, path: P) -> TailSubscription {
         self.manager.subscribe(path).await
     }
 
-    pub fn has_subscription(
+    pub(crate) fn has_subscription(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -68,7 +68,7 @@ impl State {
         self.subscriptions.has(build_id, step_id, tx)
     }
 
-    pub fn register_subscription(
+    pub(crate) fn register_subscription(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -80,7 +80,7 @@ impl State {
             .register(build_id, step_id, handle, tx, path);
     }
 
-    pub fn cleanup_subscription(
+    pub(crate) fn cleanup_subscription(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -89,25 +89,25 @@ impl State {
         self.subscriptions.cleanup(build_id, step_id, tx);
     }
 
-    pub fn cleanup_connection(&self, tx: &mpsc::Sender<HydraWsResponse>) {
+    pub(crate) fn cleanup_connection(&self, tx: &mpsc::Sender<HydraWsResponse>) {
         self.subscriptions.cleanup_connection(tx);
     }
 
-    pub fn notify_step_finished(&self, build_id: u64, step_id: u64) {
+    pub(crate) fn notify_step_finished(&self, build_id: u64, step_id: u64) {
         let paths = self.subscriptions.notify_step_finished(build_id, step_id);
         for p in paths {
             self.manager.finish_tail(&p);
         }
     }
 
-    pub fn notify_build_finished(&self, build_id: u64) {
+    pub(crate) fn notify_build_finished(&self, build_id: u64) {
         let paths = self.subscriptions.notify_build_finished(build_id);
         for p in paths {
             self.manager.finish_tail(&p);
         }
     }
 
-    pub fn get_subscriptions(&self) -> &Subscriptions {
+    pub(crate) fn get_subscriptions(&self) -> &Subscriptions {
         &self.subscriptions
     }
 }

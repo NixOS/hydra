@@ -79,8 +79,6 @@ impl Transaction<'_> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use crate::Connection;
     use crate::models::BuildID;
 

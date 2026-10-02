@@ -25,6 +25,7 @@ use harmonia_store_path::StorePath;
 pub struct ProtoStorePath(pub StorePath);
 
 impl Default for ProtoStorePath {
+    #[expect(clippy::expect_used, reason = "hard-coded valid store path")]
     fn default() -> Self {
         Self(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-x"

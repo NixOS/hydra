@@ -3,12 +3,13 @@
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use harmonia_protocol::types::{DaemonError, DaemonStore};
 use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_store_path_info::ValidPathInfo;
 use harmonia_store_remote::{DaemonClient, DaemonClientBuilder};
+use parking_lot::Mutex;
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 
 /// A live, handshaked connection to the Nix daemon over a unix socket.
@@ -21,7 +22,7 @@ pub type DaemonConn = DaemonClient<OwnedReadHalf, OwnedWriteHalf>;
 /// connection abandoned mid-stream (e.g. a cancelled gRPC transfer) stays
 /// desynced and corrupts whoever gets it next; a fresh connection just closes
 /// its socket on drop and cannot poison anything.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DaemonConnector {
     socket: PathBuf,
     store_dir: StoreDir,
@@ -35,6 +36,7 @@ impl DaemonConnector {
         }
     }
 
+    #[must_use]
     pub fn store_dir(&self) -> &StoreDir {
         &self.store_dir
     }
@@ -58,6 +60,7 @@ impl DaemonConnector {
 ///
 /// Use [`to_uri`](Self::to_uri) to reconstruct a `unix://` URI
 /// suitable for `nix copy --from` etc.
+#[derive(Debug)]
 pub struct NixDaemonStoreConfig {
     /// Path to the daemon socket.
     pub socket: String,
@@ -79,6 +82,7 @@ impl NixDaemonStoreConfig {
     /// - `?real=` if explicitly set
     /// - `root / "nix/store"` if `?root=` is set (hardcoded, not derived from `store`)
     /// - `None` otherwise (callers should use `store_dir`)
+    #[must_use]
     pub fn real_store_dir(&self) -> Option<PathBuf> {
         if let Some(ref real) = self.real {
             Some(real.clone())
@@ -88,6 +92,7 @@ impl NixDaemonStoreConfig {
     }
 
     /// Reconstruct a `unix://` URI suitable for `nix copy --from` etc.
+    #[must_use]
     pub fn to_uri(&self) -> String {
         let mut uri = format!("unix://{}", self.socket);
         let mut params = Vec::new();
@@ -133,9 +138,7 @@ fn parse_nix_remote_from(
     let explicit_socket = nix_daemon_socket_path.map(String::from);
     let mut socket_from_uri = None;
     let mut state_from_uri = None;
-    let mut store = nix_store_dir
-        .map(String::from)
-        .unwrap_or_else(|| "/nix/store".to_owned());
+    let mut store = nix_store_dir.map_or_else(|| "/nix/store".to_owned(), String::from);
     let mut root = None;
     let mut real = None;
 
@@ -181,7 +184,7 @@ fn parse_nix_remote_from(
             .join("daemon-socket/socket")
             .into_os_string()
             .into_string()
-            .map_err(|p| format!("derived socket path is not valid UTF-8: {p:?}"))?,
+            .map_err(|p| format!("derived socket path is not valid UTF-8: {}", p.display()))?,
     };
 
     Ok(NixDaemonStoreConfig {
@@ -200,16 +203,18 @@ pub async fn ensure_path(conn: &mut DaemonConn, path: &StorePath) -> Result<(), 
 
 /// Reads store metadata through the nix-daemon. Needs no access to the store
 /// database files and reflects registrations still in its uncheckpointed WAL.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct DaemonStoreReader {
     connector: DaemonConnector,
 }
 
 impl DaemonStoreReader {
+    #[must_use]
     pub fn new(connector: DaemonConnector) -> Self {
         Self { connector }
     }
 
+    #[must_use]
     pub fn store_dir(&self) -> &StoreDir {
         self.connector.store_dir()
     }
@@ -249,6 +254,7 @@ impl DaemonStoreReader {
 /// A bounded, reusable set of daemon connections for read-only queries, so
 /// a fan-out of validity checks costs at most `max` handshakes rather than
 /// one per query. The pool discards a connection that fails a query.
+#[derive(Debug)]
 pub struct DaemonConnPool {
     reader: DaemonStoreReader,
     idle: Mutex<Vec<DaemonConn>>,
@@ -256,6 +262,7 @@ pub struct DaemonConnPool {
 }
 
 impl DaemonConnPool {
+    #[must_use]
     pub fn new(reader: DaemonStoreReader, max: usize) -> Arc<Self> {
         Arc::new(Self {
             reader,
@@ -266,6 +273,11 @@ impl DaemonConnPool {
 
     /// Lease a connection, reusing an idle one or opening a new one up to the
     /// pool's cap. Blocks once `max` connections are in use.
+    #[expect(
+        clippy::expect_used,
+        clippy::missing_panics_doc,
+        reason = "the pool never closes its semaphore"
+    )]
     pub async fn acquire(self: &Arc<Self>) -> Result<PooledConn, DaemonError> {
         let permit = self
             .sem
@@ -273,7 +285,7 @@ impl DaemonConnPool {
             .acquire_owned()
             .await
             .expect("daemon pool semaphore is never closed");
-        let reused = self.idle.lock().unwrap().pop();
+        let reused = self.idle.lock().pop();
         let conn = match reused {
             Some(conn) => conn,
             None => self.reader.connect().await?,
@@ -289,6 +301,7 @@ impl DaemonConnPool {
 
 /// A connection leased from a [`DaemonConnPool`], returned to the pool on drop
 /// unless it was marked broken by a failed query.
+#[derive(Debug)]
 pub struct PooledConn {
     conn: Option<DaemonConn>,
     broken: bool,
@@ -299,6 +312,11 @@ pub struct PooledConn {
 impl PooledConn {
     /// Check path validity. A daemon error can leave the connection desynced,
     /// so on error it is dropped instead of returned to the pool.
+    #[expect(
+        clippy::expect_used,
+        clippy::missing_panics_doc,
+        reason = "`conn` is only taken in `drop`"
+    )]
     pub async fn is_valid_path(&mut self, path: &StorePath) -> Result<bool, DaemonError> {
         let conn = self.conn.as_mut().expect("leased connection already taken");
         match conn.is_valid_path(path).await {
@@ -316,7 +334,7 @@ impl Drop for PooledConn {
         if let Some(conn) = self.conn.take()
             && !self.broken
         {
-            self.pool.idle.lock().unwrap().push(conn);
+            self.pool.idle.lock().push(conn);
         }
     }
 }
@@ -386,8 +404,7 @@ pub async fn query_closure_infos_pruned<Fut: Future<Output = bool>>(
 pub async fn compute_closure_size(conn: &mut DaemonConn, path: &StorePath) -> u64 {
     query_closure_infos(conn, vec![path.clone()])
         .await
-        .map(|infos| infos.iter().map(|i| i.info.nar_size).sum())
-        .unwrap_or(0)
+        .map_or(0, |infos| infos.iter().map(|i| i.info.nar_size).sum())
 }
 
 #[cfg(test)]

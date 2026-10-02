@@ -1,3 +1,6 @@
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-unwrap-in-tests = true
 disallowed-methods = [
     { path = "std::fs::canonicalize", replacement = "fs_err::canonicalize" },
     { path = "std::fs::copy", replacement = "fs_err::copy" },

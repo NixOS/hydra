@@ -54,7 +54,7 @@ impl TryFrom<RelativeStorePath> for store_path_utils::RelativeStorePath {
 // -- Conversions between proto types and harmonia types --
 
 /// Error type for converting proto types to harmonia types.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct NarInfoConvertError(pub &'static str);
 
 impl std::fmt::Display for NarInfoConvertError {

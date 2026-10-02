@@ -89,10 +89,6 @@ fn default_upstream_socket() -> PathBuf {
     "/nix/var/nix/daemon-socket/socket".into()
 }
 
-fn default_store_dir() -> StoreDir {
-    StoreDir::new("/nix/store").expect("literal store dir is valid")
-}
-
 fn default_data_dir() -> PathBuf {
     "/var/lib/hydra".into()
 }
@@ -113,7 +109,7 @@ pub(crate) struct AppConfig {
     upstream_socket: PathBuf,
 
     /// Nix store directory.
-    #[serde(default = "default_store_dir")]
+    #[serde(default)]
     store_dir: StoreDir,
 
     /// Hydra data directory; step logs are read from its `build-logs`.

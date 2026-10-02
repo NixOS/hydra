@@ -593,7 +593,7 @@ pub struct Machine {
 }
 
 impl std::fmt::Display for Machine {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "Machine: [systems={:?} hostname={} cpu_count={} bogomips={:.2} speed_factor={:.2} max_jobs={} total_mem={:.2} supported_features={:?} cgroups={} joined_at={}]",

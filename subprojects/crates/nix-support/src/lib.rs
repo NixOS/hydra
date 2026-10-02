@@ -9,21 +9,6 @@
 //! than raw strings, so callers resolve to the real filesystem only at
 //! the IO boundary.
 
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::all,
-    clippy::pedantic,
-    clippy::expect_used,
-    clippy::unwrap_used,
-    future_incompatible,
-    missing_debug_implementations,
-    nonstandard_style,
-    unreachable_pub,
-    missing_copy_implementations,
-    unused_qualifications
-)]
-#![allow(clippy::missing_errors_doc)]
-
 use std::{collections::BTreeMap, os::unix::fs::MetadataExt as _, sync::LazyLock};
 
 use sha2::{Digest as _, Sha256};

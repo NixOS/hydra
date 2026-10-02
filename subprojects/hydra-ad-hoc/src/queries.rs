@@ -69,7 +69,7 @@ pub(crate) async fn get_finished_build(
 }
 
 /// Which of `ids` are finished. For the waiter's sweep after a lost
-/// notification listener: PostgreSQL does not replay missed
+/// notification listener: `PostgreSQL` does not replay missed
 /// notifications, so registered builds are re-checked directly.
 pub(crate) async fn finished_build_ids(
     conn: &mut sqlx::PgConnection,

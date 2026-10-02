@@ -67,6 +67,7 @@ impl LineMsg {
     }
 }
 
+#[derive(Debug)]
 pub struct TailSubscription {
     pub rx: broadcast::Receiver<LineMsg>,
     pub backlog: Vec<LineMsg>,
@@ -79,6 +80,7 @@ impl Drop for TailSubscription {
     }
 }
 
+#[derive(Debug)]
 struct FileTail {
     path: PathBuf,
     tx: broadcast::Sender<LineMsg>,
@@ -130,6 +132,7 @@ impl FileTail {
     }
 }
 
+#[derive(Debug)]
 pub struct TailManager {
     tails: Arc<TailMap>,
     // How long to wait after last subscriber before actually closing
@@ -138,6 +141,7 @@ pub struct TailManager {
 }
 
 impl TailManager {
+    #[must_use]
     pub fn new(idle_grace: Duration) -> Self {
         Self {
             tails: Arc::new(DashMap::new()),
@@ -366,7 +370,7 @@ async fn read_last_lines(path: &Path, n: usize) -> Result<(Vec<String>, u64), Ta
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::pedantic)]
+    #![allow(clippy::pedantic)]
 
     use super::*;
     use tokio::io::AsyncWriteExt as _;

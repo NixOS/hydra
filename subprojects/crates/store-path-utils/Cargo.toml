@@ -5,5 +5,8 @@ edition                = "2024"
 license                = "GPL-3.0"
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 harmonia-store-path.workspace = true
