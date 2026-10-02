@@ -722,8 +722,11 @@ sub applyDrvPathRepoints {
         eval {
             $db->txn_do(sub {
                 for my $id (@ids) {
+                    # `update` on a resultset does not deflate, so print the
+                    # full store path ourselves.
                     $builds->search({ id => $id })->update(
-                        { drvpath => $buildMap->{$id}->{drvPath}, finished => 0, buildstatus => undef });
+                        { drvpath => printStorePath($db->schema->storeDir, $buildMap->{$id}->{drvPath})
+                        , finished => 0, buildstatus => undef });
                 }
             });
         };
