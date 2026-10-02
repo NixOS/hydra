@@ -1,0 +1,106 @@
+#! /usr/bin/env perl
+
+# Prepare a declarative project's `.jobsets` jobset for evaluation, on behalf
+# of `hydra-evaluator`.
+#
+# A declarative project keeps its jobsets in a specification file inside one
+# of its inputs. This fetches that input, reads the file, and does one of two
+# things with it:
+#
+#  * If every value in it is itself a dictionary, the file names the jobsets
+#    outright. They are created from it, and the reply says so:
+#
+#        { "declared" : true }
+#
+#  * Otherwise the file describes how to *generate* the jobsets: it is the
+#    configuration of `.jobsets` itself, whose evaluation produces them. The
+#    jobset is reconfigured from it, and the reply carries the inputs its
+#    expression is evaluated with in addition to its own:
+#
+#        { "inputs" : { "declInput" : [ ... ], "projectName" : [ ... ] } }
+#
+# This is Perl because the specification is fetched through the input
+# plugins, and applied by the helpers in `Hydra::Helper::AddBuilds` that
+# `hydra-notify`'s `DeclarativeJobsets` plugin also uses.
+
+use strict;
+use warnings;
+
+use Hydra::Config;
+use Hydra::Helper::AddBuilds;
+use Hydra::Helper::Exec;
+use Hydra::Helper::Nix;
+use Hydra::Model::DB;
+use Hydra::Plugin;
+use Hydra::StorePath;
+use JSON::MaybeXS;
+
+# As in `hydra-fetch-input`: a plugin that prints must not corrupt the reply.
+open(my $proto, ">&", \*STDOUT) or die "$0: cannot duplicate stdout: $!\n";
+open(STDOUT, ">&", \*STDERR) or die "$0: cannot redirect stdout: $!\n";
+$proto->autoflush(1);
+
+my ($projectName) = @ARGV;
+die "Syntax: hydra-prepare-declarative-jobset <project>\n" unless defined $projectName;
+
+my $config = getHydraConfig();
+my $db = Hydra::Model::DB->new();
+my $plugins = [Hydra::Plugin->instantiate(db => $db, config => $config)];
+my $json = JSON::MaybeXS->new(utf8 => 1, canonical => 1);
+
+my $project = $db->resultset('Projects')->find({ name => $projectName })
+    or die "project `$projectName' does not exist\n";
+my $jobset = $project->jobsets->find({ name => ".jobsets" })
+    or die "project `$projectName' has no `.jobsets' jobset\n";
+die "project `$projectName' is not declarative\n" unless length($project->declfile);
+
+# Store paths are objects here, and JSON will not encode them; they all know
+# how to print themselves.
+sub plain {
+    my ($value) = @_;
+    return undef unless defined $value;
+    my $ref = ref $value;
+    return [ map { plain($_) } @$value ] if $ref eq 'ARRAY';
+    return { map { $_ => plain($value->{$_}) } keys %$value } if $ref eq 'HASH';
+    return $value if $ref eq '';
+    return "$value";
+}
+
+my @declInputs;
+for my $plugin (@$plugins) {
+    @declInputs = $plugin->fetchInput($project->decltype, "decl", $project->declvalue, $project, $jobset);
+    last if defined $declInputs[0];
+}
+my $declInput = $declInputs[0]
+    or die "cannot find the input containing the declarative project specification\n";
+die "multiple alternatives for the input containing the declarative project specification are not supported\n"
+    if @declInputs != 1;
+
+# `nix store cat`, so the store resolves the physical location itself.
+my $declFile = printStorePath(machineLocalStore()->storeDir, $declInput->{storePath})
+    . "/" . $project->declfile;
+my ($res, $declText, $catErr) = captureStdoutStderr(60,
+    "nix", "--extra-experimental-features", "nix-command", "store", "cat", $declFile);
+die "Couldn't read declarative specification file $declFile: $catErr\n" if $res != 0;
+
+my $declSpec = eval { decode_json($declText) };
+die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
+die "Declarative specification file $declFile is not a dictionary\n" unless ref $declSpec eq "HASH";
+
+my $isStatic = !grep { ref $_ ne "HASH" } values %$declSpec;
+if ($isStatic) {
+    handleDeclarativeJobsetJson($db, $project, $declSpec);
+    print $proto $json->encode({ declared => JSON::MaybeXS::true }), "\n";
+    exit 0;
+}
+
+updateDeclarativeJobset($config, $db, $project, ".jobsets", $declSpec);
+
+my $decl = plain($declInput);
+$decl->{type} = $project->decltype;
+print $proto $json->encode({
+    inputs => {
+        declInput => [ $decl ],
+        projectName => [ { type => "string", value => $project->name } ],
+    },
+}), "\n";
