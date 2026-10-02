@@ -17,7 +17,7 @@ use crate::types::BuildTimings;
 use binary_cache::{
     CacheError, Compression, MorePartsSource, PresignedPart, PresignedUpload, PresignedUploadClient,
 };
-use daemon_client_utils::DaemonStoreReader;
+use daemon_client_utils::{DaemonConnPool, DaemonStoreReader};
 use harmonia_protocol::daemon_wire::types2::{BuildResultInner, FailureStatus};
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::StorePath;
@@ -117,6 +117,8 @@ pub struct State {
     /// Reads store validity and path info through the nix-daemon, which sees
     /// paths a build just registered.
     pub store: DaemonStoreReader,
+    /// Daemon connections for validity checks, shared by all builds.
+    read_pool: Arc<DaemonConnPool>,
 
     active_builds: parking_lot::RwLock<HashMap<uuid::Uuid, Arc<BuildInfo>>>,
     pub client: BuilderClient,
@@ -150,6 +152,7 @@ impl State {
         );
 
         let store = DaemonStoreReader::new(connector.clone());
+        let read_pool = DaemonConnPool::new(store.clone(), MAX_DAEMON_READ_CONNS);
 
         let state = Arc::new(Self {
             id: uuid::Uuid::new_v4(),
@@ -189,6 +192,7 @@ impl State {
             },
             connector,
             store,
+            read_pool,
             max_concurrent_downloads: 5.into(),
             client: crate::grpc::init_client(cli).await?,
             halt: false.into(),
@@ -544,7 +548,7 @@ impl State {
 
         import_requisites(
             &mut client,
-            &self.store,
+            &self.read_pool,
             self.connector.clone(),
             self.metrics.clone(),
             &roots,
@@ -731,15 +735,15 @@ async fn pin_path(roots: &TempRoots, path: &StorePath) -> bool {
     roots.lock().await.add_temp_root(path).await.is_ok()
 }
 
-#[tracing::instrument(skip(store, roots), fields(%path))]
+#[tracing::instrument(skip(pool, roots), fields(%path))]
 async fn is_path_missing(
-    store: &DaemonStoreReader,
+    pool: &Arc<DaemonConnPool>,
     roots: &TempRoots,
     path: StorePath,
 ) -> eyre::Result<Option<StorePath>> {
     // Take the temp root *before* checking validity.
     // `add_temp_root` succeeds even for an invalid (already-collected) path
-    if pin_path(roots, &path).await && store.is_valid_path(&path).await? {
+    if pin_path(roots, &path).await && pool.acquire().await?.is_valid_path(&path).await? {
         Ok(None)
     } else {
         Ok(Some(path))
@@ -748,14 +752,14 @@ async fn is_path_missing(
 
 /// Keep only paths not present locally (or that could not be pinned).
 async fn filter_missing(
-    store: &DaemonStoreReader,
+    pool: &Arc<DaemonConnPool>,
     roots: &TempRoots,
     paths: Vec<StorePath>,
     concurrency: usize,
 ) -> eyre::Result<Vec<StorePath>> {
     use futures::StreamExt as _;
     futures::StreamExt::map(tokio_stream::iter(paths), |p| {
-        is_path_missing(store, roots, p)
+        is_path_missing(pool, roots, p)
     })
     .buffered(concurrency)
     .collect::<Vec<_>>()
@@ -871,11 +875,11 @@ async fn substitute_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, connector, metrics, roots), err)]
+#[tracing::instrument(skip(client, pool, connector, metrics, roots), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_paths(
     mut client: BuilderClient,
-    store: &DaemonStoreReader,
+    pool: &Arc<DaemonConnPool>,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     roots: &TempRoots,
@@ -884,7 +888,7 @@ async fn import_paths(
     use_substitutes: bool,
 ) -> eyre::Result<()> {
     let paths = if filter {
-        filter_missing(store, roots, paths, 10).await?
+        filter_missing(pool, roots, paths, 10).await?
     } else {
         paths
     };
@@ -892,7 +896,7 @@ async fn import_paths(
         metrics.add_substituting_path(paths.len() as u64);
         let _ = substitute_paths(&connector, &paths).await;
         metrics.sub_substituting_path(paths.len() as u64);
-        let paths = filter_missing(store, roots, paths, 10).await?;
+        let paths = filter_missing(pool, roots, paths, 10).await?;
         if paths.is_empty() {
             return Ok(());
         }
@@ -933,11 +937,11 @@ async fn import_paths(
     Ok(())
 }
 
-#[tracing::instrument(skip(client, store, connector, metrics, roots, requisites), fields(%drv), err)]
+#[tracing::instrument(skip(client, pool, connector, metrics, roots, requisites), fields(%drv), err)]
 #[allow(clippy::too_many_arguments)]
 async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     client: &mut BuilderClient,
-    store: &DaemonStoreReader,
+    pool: &Arc<DaemonConnPool>,
     connector: daemon_client_utils::DaemonConnector,
     metrics: Arc<crate::metrics::Metrics>,
     roots: &TempRoots,
@@ -946,7 +950,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     max_concurrent_downloads: usize,
     use_substitutes: bool,
 ) -> eyre::Result<()> {
-    let requisites = filter_missing(store, roots, requisites.into_iter().collect(), 50).await?;
+    let requisites = filter_missing(pool, roots, requisites.into_iter().collect(), 50).await?;
 
     let (input_drvs, input_srcs): (Vec<_>, Vec<_>) =
         requisites.into_iter().partition(StorePath::is_derivation);
@@ -954,7 +958,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for srcs in input_srcs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            store,
+            pool,
             connector.clone(),
             metrics.clone(),
             roots,
@@ -968,7 +972,7 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
     for drvs in input_drvs.chunks(max_concurrent_downloads) {
         import_paths(
             client.clone(),
-            store,
+            pool,
             connector.clone(),
             metrics.clone(),
             roots,
@@ -990,36 +994,23 @@ async fn upload_nars_regular(
     metrics: Arc<crate::metrics::Metrics>,
     nars: Vec<StorePath>,
 ) -> eyre::Result<()> {
-    // query_closure_infos returns ValidPathInfos in dependency order with
-    // path infos already populated, so we don't need to re-query.
-    let closure = store
-        .query_closure_infos(nars)
-        .await
-        .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
-
-    // Filter out paths the queue-runner already has.
-    let closure = {
-        use futures::stream::StreamExt as _;
-
-        futures::StreamExt::map(tokio_stream::iter(closure), |vpi| {
+    // A valid path implies a valid closure, so stop at paths the queue
+    // runner already has.
+    let closure = daemon_client_utils::query_closure_infos_pruned(
+        &mut store.connect().await?,
+        nars,
+        |path| {
             let mut client = client.clone();
             async move {
-                if client
-                    .has_path(ProtoStorePath::from(vpi.path.clone()))
+                client
+                    .has_path(ProtoStorePath::from(path))
                     .await
                     .is_ok_and(|r| r.into_inner().has_path)
-                {
-                    None
-                } else {
-                    Some(vpi)
-                }
             }
-        })
-        .buffered(10)
-        .filter_map(|o| async { o })
-        .collect::<Vec<harmonia_store_path_info::ValidPathInfo>>()
-        .await
-    };
+        },
+    )
+    .await
+    .map_err(|e| eyre::eyre!("failed to compute closure: {e}"))?;
     if closure.is_empty() {
         return Ok(());
     }
@@ -1064,6 +1055,9 @@ async fn upload_nars_regular(
     metrics.sub_uploading_path(nars_len);
     Ok(())
 }
+
+/// Cap on pooled daemon connections. Each connection forks a daemon worker.
+const MAX_DAEMON_READ_CONNS: usize = 16;
 
 /// NARs uploaded concurrently across all builds. Enough to hide ~200 ms S3
 /// round-trips on a 1 Gb/s link with small NARs; bounded to cap buffer memory.

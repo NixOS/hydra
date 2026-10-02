@@ -246,11 +246,9 @@ impl DaemonStoreReader {
     }
 }
 
-/// A bounded, reusable set of daemon connections for a burst of read-only
-/// queries. It caps live connections at `max` and hands them back for reuse,
-/// so a fan-out of validity checks costs at most `max` handshakes rather than
-/// one per query. Drop the pool when the burst ends to close the connections;
-/// nothing stays open between bursts.
+/// A bounded, reusable set of daemon connections for read-only queries, so
+/// a fan-out of validity checks costs at most `max` handshakes rather than
+/// one per query. The pool discards a connection that fails a query.
 pub struct DaemonConnPool {
     reader: DaemonStoreReader,
     idle: Mutex<Vec<DaemonConn>>,
@@ -339,6 +337,16 @@ pub async fn query_closure_infos(
     conn: &mut DaemonConn,
     roots: Vec<StorePath>,
 ) -> Result<Vec<ValidPathInfo>, DaemonError> {
+    query_closure_infos_pruned(conn, roots, |_| std::future::ready(false)).await
+}
+
+/// Like [`query_closure_infos`], but leaves out paths for which `skip`
+/// returns true and does not descend into them.
+pub async fn query_closure_infos_pruned<Fut: Future<Output = bool>>(
+    conn: &mut DaemonConn,
+    roots: Vec<StorePath>,
+    mut skip: impl FnMut(StorePath) -> Fut,
+) -> Result<Vec<ValidPathInfo>, DaemonError> {
     enum Frame {
         Enter(StorePath),
         Exit(StorePath),
@@ -351,7 +359,7 @@ pub async fn query_closure_infos(
     while let Some(frame) = stack.pop() {
         match frame {
             Frame::Enter(p) => {
-                if !seen.insert(p.clone()) {
+                if !seen.insert(p.clone()) || skip(p.clone()).await {
                     continue;
                 }
                 let Some(info) = conn.query_path_info(&p).await? else {

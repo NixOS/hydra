@@ -147,8 +147,7 @@ use crate::utils::finish_build_step;
 
 pub type System = String;
 const MAX_CONCURRENT_BUILD_INJECTION: usize = 50;
-/// Cap on daemon connections held for store-validity reads during one
-/// ingestion pass. Bounds the connect/fork load the pass puts on the daemon.
+/// Cap on pooled daemon connections. Each connection forks a daemon worker.
 const MAX_DAEMON_READ_CONNS: usize = 16;
 const BUILD_STEP_LOCK_SHARDS: usize = 1024;
 
@@ -167,7 +166,7 @@ struct InjectCtx {
     new_builds_by_id: parking_lot::RwLock<HashMap<BuildID, Arc<Build>>>,
     /// Builds indexed by the derivation they build
     new_builds_by_path: HashMap<StorePath, HashSet<BuildID>>,
-    /// Bounded daemon connections shared by this pass's store-validity reads.
+    /// Shared daemon connections for validity checks.
     pool: Arc<daemon_client_utils::DaemonConnPool>,
 }
 
@@ -328,6 +327,8 @@ pub struct State {
     pub connector: daemon_client_utils::DaemonConnector,
     /// Reads store validity and path info through the nix-daemon.
     pub store: daemon_client_utils::DaemonStoreReader,
+    /// Daemon connections shared by ingestion and `has_path`.
+    pub read_pool: Arc<daemon_client_utils::DaemonConnPool>,
     pub remote_stores: parking_lot::RwLock<Vec<RemoteStoreBackend>>,
     /// Overflow S3 store for steps only referenced by the configured jobsets.
     pub overflow_store: parking_lot::RwLock<Option<Arc<binary_cache::S3BinaryCacheClient>>>,
@@ -462,10 +463,13 @@ impl State {
         let (upload_completion_tx, upload_completion_rx) = tokio::sync::mpsc::unbounded_channel();
 
         let store = daemon_client_utils::DaemonStoreReader::new(connector.clone());
+        let read_pool =
+            daemon_client_utils::DaemonConnPool::new(store.clone(), MAX_DAEMON_READ_CONNS);
 
         Ok(Arc::new(Self {
             connector,
             store,
+            read_pool,
             remote_stores: parking_lot::RwLock::new(remote_stores),
             overflow_store: parking_lot::RwLock::new(overflow_store),
             mtls,
@@ -1025,7 +1029,7 @@ impl State {
                         None,
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
                         Arc::new(parking_lot::RwLock::new(HashSet::new())),
-                        InjectCtx::oneshot(self.read_pool()),
+                        InjectCtx::oneshot(self.read_pool.clone()),
                     )
                     .await
                 {
@@ -1258,7 +1262,7 @@ impl State {
             finished_drvs: parking_lot::RwLock::new(HashSet::new()),
             new_builds_by_id: parking_lot::RwLock::new(new_builds_by_id),
             new_builds_by_path,
-            pool: self.read_pool(),
+            pool: self.read_pool.clone(),
         });
 
         let mut futures = futures::stream::FuturesUnordered::new();
@@ -2166,7 +2170,7 @@ impl State {
                         Some((dependent_step.clone(), relation)),
                         Arc::default(),
                         new_runnable.clone(),
-                        InjectCtx::oneshot(self.read_pool()),
+                        InjectCtx::oneshot(self.read_pool.clone()),
                     )
                     .await
                 {
@@ -3293,12 +3297,6 @@ impl State {
             }
         }
         substituted == missing_outputs_len
-    }
-
-    /// A daemon connection pool scoped to one ingestion pass, bounding the
-    /// connect load that pass's store-validity reads put on the daemon.
-    fn read_pool(&self) -> Arc<daemon_client_utils::DaemonConnPool> {
-        daemon_client_utils::DaemonConnPool::new(self.store.clone(), MAX_DAEMON_READ_CONNS)
     }
 
     /// Lock guarding build step inserts for a build, sharded by build id.
