@@ -594,6 +594,11 @@ impl Builds {
         }
     }
 
+    #[must_use]
+    pub fn get(&self, id: BuildID) -> Option<Arc<Build>> {
+        self.inner.read().get(&id).cloned()
+    }
+
     pub fn insert_new_build(&self, build: Arc<Build>) {
         let mut builds = self.inner.write();
         builds.insert(build.id, build);
