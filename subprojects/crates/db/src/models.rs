@@ -2,12 +2,12 @@ use std::collections::BTreeMap;
 
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
-use hashbrown::HashMap;
+use harmonia_utils_hash::fmt::{Bare, Base16};
 
 pub type BuildID = i32;
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
 pub enum BuildStatus {
     Success = 0,
     Failed = 1,
@@ -28,29 +28,6 @@ pub enum BuildStatus {
     Resolved = 13,
     /// not stored
     Busy = 100,
-}
-
-impl BuildStatus {
-    #[must_use]
-    pub const fn from_i32(v: i32) -> Option<Self> {
-        match v {
-            0 => Some(Self::Success),
-            1 => Some(Self::Failed),
-            2 => Some(Self::DepFailed),
-            3 => Some(Self::Aborted),
-            4 => Some(Self::Cancelled),
-            6 => Some(Self::FailedWithOutput),
-            7 => Some(Self::TimedOut),
-            8 => Some(Self::CachedFailure),
-            9 => Some(Self::Unsupported),
-            10 => Some(Self::LogLimitExceeded),
-            11 => Some(Self::NarSizeLimitExceeded),
-            12 => Some(Self::NotDeterministic),
-            13 => Some(Self::Resolved),
-            100 => Some(Self::Busy),
-            _ => None,
-        }
-    }
 }
 
 #[repr(i32)]
@@ -121,13 +98,13 @@ pub struct BuildSteps {
 
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildType {
+pub(crate) enum BuildType {
     Build = 0,
     Substitution = 1,
 }
 
 #[derive(Debug)]
-pub struct UpdateBuild<'a> {
+pub(crate) struct UpdateBuild<'a> {
     pub status: BuildStatus,
     pub start_time: crate::Timestamp,
     pub stop_time: crate::Timestamp,
@@ -137,57 +114,22 @@ pub struct UpdateBuild<'a> {
     pub is_cached_build: bool,
 }
 
-#[derive(Debug)]
-pub struct InsertBuildStep<'a> {
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct InsertBuildStep<'a> {
     pub build_id: BuildID,
     pub r#type: BuildType,
     pub drv_path: &'a StorePath,
+    /// [`Busy`](BuildStatus::Busy) marks the step busy and leaves its status unset.
     pub status: BuildStatus,
-    pub busy: bool,
     pub start_time: Option<crate::Timestamp>,
     pub stop_time: Option<crate::Timestamp>,
     pub platform: Option<&'a str>,
-    pub propagated_from: Option<i32>,
+    pub propagated_from: Option<BuildID>,
     pub error_msg: Option<&'a str>,
     pub machine: &'a str,
-}
-
-/// A build step recording that its derivation was resolved to
-/// `resolved_drv_path`, i.e. `status` is
-/// [`Resolved`](BuildStatus::Resolved). Kept separate from
-/// [`InsertBuildStep`] because the two cases are semantically disjoint:
-/// a check constraint requires `resolvedDrvPath` to be set exactly for
-/// resolved steps.
-#[derive(Debug)]
-pub struct InsertResolvedBuildStep<'a> {
-    pub build_id: BuildID,
-    pub drv_path: &'a StorePath,
-    pub start_time: crate::Timestamp,
-    pub platform: Option<&'a str>,
-    pub machine: &'a str,
-    pub resolved_drv_path: &'a StorePath,
-}
-
-#[derive(Debug)]
-pub struct InsertBuildStepOutput<StorePath = harmonia_store_path::StorePath> {
-    pub build_id: BuildID,
-    pub step_nr: i32,
-    pub name: OutputName,
-    pub path: Option<StorePath>,
-}
-
-impl InsertBuildStepOutput<String> {
-    pub fn parse_paths(
-        self,
-        store_dir: &StoreDir,
-    ) -> Result<InsertBuildStepOutput, ParseStorePathError> {
-        Ok(InsertBuildStepOutput {
-            build_id: self.build_id,
-            step_nr: self.step_nr,
-            name: self.name,
-            path: self.path.map(|p| store_dir.parse(&p)).transpose()?,
-        })
-    }
+    /// Set if and only if `status` is [`Resolved`](BuildStatus::Resolved).
+    /// A check constraint on `buildsteps` enforces this.
+    pub resolved_drv_path: Option<&'a StorePath>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -212,51 +154,24 @@ pub struct UpdateBuildStepInFinish<'a> {
 }
 
 #[derive(Debug)]
-pub(crate) struct InsertBuildProduct<'a> {
-    pub build_id: BuildID,
-    pub product_nr: i32,
-    pub r#type: &'a str,
-    pub subtype: &'a str,
-    pub file_size: Option<i64>,
-    pub sha256hash: Option<&'a harmonia_utils_hash::Sha256>,
-    pub path: &'a str,
-    pub name: &'a str,
-    pub default_path: &'a str,
-}
-
-#[derive(Debug)]
-pub(crate) struct InsertBuildMetric<'a> {
-    pub build_id: BuildID,
-    pub name: &'a str,
-    pub unit: Option<&'a str>,
-    pub value: f64,
-    pub project: &'a str,
-    pub jobset: &'a str,
-    pub job: &'a str,
-    pub timestamp: crate::Timestamp,
-}
-
-#[derive(Debug)]
 pub struct BuildOutput {
-    pub id: i32,
-    pub buildstatus: Option<i32>,
+    pub id: BuildID,
+    pub buildstatus: BuildStatus,
     pub releasename: Option<String>,
     pub closuresize: Option<i64>,
     pub size: Option<i64>,
 }
 
-/// A build product row from the `buildproducts` table.
+/// A raw row from the `buildproducts` table; column names match the schema.
 ///
-/// `buildproducts.path` is a filesystem path that may include a sub-path below
-/// a store output (e.g. `doc manual $doc/share/doc/nix/manual index.html`).
-/// The type parameter `Path` controls how that column is represented:
-///
-/// Raw DB row for build products. Column names match the SQL schema.
-/// Use [`BuildProductRow::into_build_product`] to convert to the typed
+/// `path` is a filesystem path that may include a sub-path below a store
+/// output, as in the product line
+/// `doc manual $doc/share/doc/nix/manual index.html`. Use
+/// [`BuildProductRow::into_build_product`] to convert it to the typed
 /// [`nix_support::BuildProduct`].
 #[derive(Debug)]
 pub(crate) struct BuildProductRow {
-    pub build: i32,
+    pub build: BuildID,
     pub productnr: i32,
     pub r#type: String,
     pub subtype: String,
@@ -278,14 +193,9 @@ impl BuildProductRow {
         })?;
         let path = store_path_utils::RelativeStorePath::from_path(store_dir, &path_str)?;
         let sha256hash = self.sha256hash.and_then(|s| {
-            let mut bytes = [0u8; 32];
-            if s.len() != 64 {
-                return None;
-            }
-            for (i, chunk) in s.as_bytes().chunks(2).enumerate() {
-                bytes[i] = u8::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?;
-            }
-            harmonia_utils_hash::Sha256::from_slice(&bytes).ok()
+            s.parse::<Bare<Base16<harmonia_utils_hash::Sha256>>>()
+                .ok()
+                .map(Into::into)
         });
         Ok(nix_support::BuildProduct {
             path,
@@ -302,26 +212,7 @@ impl BuildProductRow {
 }
 
 #[derive(Debug)]
-pub(crate) struct OwnedBuildMetric {
-    pub name: String,
-    pub unit: Option<String>,
-    pub value: f64,
-}
-
-impl From<OwnedBuildMetric> for (nix_support::BuildMetricName, nix_support::BuildMetric) {
-    fn from(m: OwnedBuildMetric) -> Self {
-        (
-            m.name,
-            nix_support::BuildMetric {
-                unit: m.unit,
-                value: m.value,
-            },
-        )
-    }
-}
-
-#[derive(Debug)]
-pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_path::StorePath> {
+pub struct MarkBuildSuccessData<'a> {
     pub id: BuildID,
     pub name: &'a str,
     pub project_name: &'a str,
@@ -333,9 +224,9 @@ pub struct MarkBuildSuccessData<'a, StorePath = harmonia_store_path::StorePath> 
     pub closure_size: u64,
     pub size: u64,
     pub release_name: Option<&'a str>,
-    pub outputs: HashMap<OutputName, StorePath>,
-    pub products: Vec<nix_support::BuildProduct>,
-    pub metrics: BTreeMap<nix_support::BuildMetricName, nix_support::BuildMetric>,
+    pub outputs: &'a BTreeMap<OutputName, StorePath>,
+    pub products: &'a [nix_support::BuildProduct],
+    pub metrics: &'a BTreeMap<nix_support::BuildMetricName, nix_support::BuildMetric>,
 }
 
 #[cfg(test)]
@@ -414,18 +305,5 @@ mod tests {
         assert!(bp.sha256hash.is_some());
         assert_eq!(bp.file_size, Some(12345));
         assert!(bp.is_regular);
-    }
-
-    #[test]
-    fn build_metric_from_db() {
-        let owned = OwnedBuildMetric {
-            name: "closureSize".into(),
-            unit: Some("bytes".into()),
-            value: 145_623_040.0,
-        };
-        let (name, metric): (nix_support::BuildMetricName, nix_support::BuildMetric) = owned.into();
-        assert_eq!(name, "closureSize");
-        assert_eq!(metric.unit, Some("bytes".into()));
-        assert!((metric.value - 145_623_040.0).abs() < f64::EPSILON);
     }
 }

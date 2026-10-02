@@ -16,11 +16,13 @@
 mod connection;
 mod error;
 pub mod models;
+mod retry;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Transaction};
+pub use connection::{Connection, Handle, Transaction};
 pub use error::{DataError, Error, Result};
+pub use retry::{RetryableError, retry_serialization_failures};
 
 /// Seconds since the Unix epoch, at the width Hydra's schema stores them.
 ///
@@ -29,55 +31,6 @@ pub use error::{DataError, Error, Result};
 pub type Timestamp = i64;
 pub use harmonia_store_path::StoreDir;
 pub use sqlx::postgres::PgNotification as Notification;
-
-/// Error that a serialization-failure retry can recognise.
-pub trait RetryableError {
-    /// True if this error was a rolled-back Postgres serialization failure or
-    /// deadlock that is safe to retry from the top.
-    fn is_retryable_serialization_failure(&self) -> bool;
-}
-
-impl RetryableError for Error {
-    fn is_retryable_serialization_failure(&self) -> bool {
-        // 40001 = serialization_failure, 40P01 = deadlock_detected. The server
-        // rolled the transaction back, so retrying from the top is safe.
-        matches!(self, Self::Sql(sqlx::Error::Database(db))
-            if matches!(db.code().as_deref(), Some("40001" | "40P01")))
-    }
-}
-
-const SERIALIZATION_RETRY_ATTEMPTS: u32 = 10;
-
-/// Retry `f` when it fails with a Postgres serialization failure or deadlock.
-///
-/// `f` must acquire its own connection and open its own transaction so that a
-/// retry starts from a clean state.
-pub async fn retry_serialization_failures<F, Fut, T, E>(
-    what: &str,
-    mut f: F,
-) -> std::result::Result<T, E>
-where
-    F: FnMut() -> Fut,
-    Fut: Future<Output = std::result::Result<T, E>>,
-    E: RetryableError + std::fmt::Display,
-{
-    let mut attempt = 1;
-    loop {
-        match f().await {
-            Err(e)
-                if e.is_retryable_serialization_failure()
-                    && attempt < SERIALIZATION_RETRY_ATTEMPTS =>
-            {
-                tracing::warn!(
-                    "{what}: serialization failure, retrying ({attempt}/{SERIALIZATION_RETRY_ATTEMPTS}): {e}"
-                );
-                tokio::time::sleep(std::time::Duration::from_millis(u64::from(attempt) * 50)).await;
-                attempt += 1;
-            }
-            other => return other,
-        }
-    }
-}
 
 /// Environment variable holding the `PostgreSQL` connection URL for Hydra
 /// services.
@@ -112,21 +65,26 @@ const ACQUIRE_ATTEMPTS: u32 = 6;
 impl Database {
     /// Connect using [`URL_ENV_VAR`] (or the local-socket default).
     pub async fn from_env(max_connections: u32) -> Result<Self> {
-        Ok(Self {
-            pool: sqlx::postgres::PgPoolOptions::new()
-                .max_connections(max_connections)
-                .acquire_timeout(ACQUIRE_TIMEOUT)
-                .connect_with(options_from_env()?)
-                .await?,
-        })
+        Self::connect_with(options_from_env()?, max_connections).await
     }
 
     pub async fn new(url: &str, max_connections: u32) -> Result<Self> {
+        Self::connect_with(
+            sqlx::postgres::PgConnectOptions::from_str(url)?,
+            max_connections,
+        )
+        .await
+    }
+
+    async fn connect_with(
+        options: sqlx::postgres::PgConnectOptions,
+        max_connections: u32,
+    ) -> Result<Self> {
         Ok(Self {
             pool: sqlx::postgres::PgPoolOptions::new()
                 .max_connections(max_connections)
                 .acquire_timeout(ACQUIRE_TIMEOUT)
-                .connect(url)
+                .connect_with(options)
                 .await?,
         })
     }

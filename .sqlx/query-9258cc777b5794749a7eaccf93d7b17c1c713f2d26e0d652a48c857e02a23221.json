@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO buildproducts\n              (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath)\n            SELECT $1, nr::int, type, subtype, fileSize, sha256hash, path, name, defaultPath\n            FROM UNNEST($2::text[], $3::text[], $4::int8[], $5::text[], $6::text[], $7::text[], $8::text[])\n              WITH ORDINALITY AS p(type, subtype, fileSize, sha256hash, path, name, defaultPath, nr)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "TextArray",
+        "TextArray",
+        "Int8Array",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9258cc777b5794749a7eaccf93d7b17c1c713f2d26e0d652a48c857e02a23221"
+}

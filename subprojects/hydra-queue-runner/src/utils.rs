@@ -68,10 +68,8 @@ pub async fn finish_build_step(
         if res.step_status == db::models::BuildStatus::Success
             && let Some(output_paths) = output_paths
         {
-            for (name, path) in output_paths {
-                tx.update_build_step_output(store_dir, build_id, step_nr, name.as_ref(), path)
-                    .await?;
-            }
+            tx.update_build_step_outputs(store_dir, build_id, step_nr, output_paths)
+                .await?;
         }
 
         tx.commit().await?;
@@ -138,7 +136,7 @@ pub async fn substitute_output(
         stoptime,
         build_id,
         drv_path,
-        (name.clone(), Some(path.clone())),
+        BTreeMap::from([(name.clone(), path.clone())]),
     )
     .await?;
     tx.commit().await?;
@@ -158,7 +156,7 @@ pub async fn make_local_step(
 
     let mut db = db.get().await?;
     let mut tx = db.begin_transaction().await?;
-    tx.create_local_step(
+    tx.create_substitution_step(
         store_dir,
         time,
         time,

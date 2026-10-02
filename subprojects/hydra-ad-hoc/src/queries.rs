@@ -31,9 +31,9 @@ pub(crate) async fn get_finished_build(
     build_id: BuildID,
 ) -> Result<Option<FinishedBuild>, db::Error> {
     let Some(row) = sqlx::query!(
-        "SELECT buildStatus, startTime, stopTime
+        r#"SELECT buildStatus AS "buildstatus: BuildStatus", startTime, stopTime
          FROM builds
-         WHERE id = $1 AND finished = 1",
+         WHERE id = $1 AND finished = 1"#,
         build_id,
     )
     .fetch_optional(&mut *conn)
@@ -41,7 +41,7 @@ pub(crate) async fn get_finished_build(
     else {
         return Ok(None);
     };
-    let Some(status) = row.buildstatus.and_then(BuildStatus::from_i32) else {
+    let Some(status) = row.buildstatus else {
         return Ok(None);
     };
 

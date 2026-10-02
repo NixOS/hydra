@@ -11,7 +11,10 @@ pub enum DataError {
     IntConversion(#[from] std::num::TryFromIntError),
 
     #[error("build product #{productnr} for build {build_id} has no path")]
-    BuildProductMissingPath { build_id: i32, productnr: i32 },
+    BuildProductMissingPath {
+        build_id: crate::models::BuildID,
+        productnr: i32,
+    },
 }
 
 /// Errors from the db crate.

@@ -986,14 +986,9 @@ impl State {
                         build_id,
                         step_info.step.get_drv_path(),
                         step_info.step.get_system().as_deref(),
-                        machine.hostname.clone(),
+                        &machine.hostname,
                         &resolved_path,
-                        step_info
-                            .step
-                            .get_output_paths()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
+                        step_info.step.get_output_paths().unwrap_or_default(),
                     )
                     .await?;
                     tx.commit().await?;
@@ -1107,19 +1102,13 @@ impl State {
                     build_id,
                     step_info.step.get_drv_path(),
                     step_info.step.get_system().as_deref(),
-                    machine.hostname.clone(),
+                    &machine.hostname,
                     BuildStatus::Busy,
                     None,
                     None,
-                    step_info
-                        .step
-                        .get_output_paths()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .collect(),
+                    step_info.step.get_output_paths().unwrap_or_default(),
                 )
                 .await?;
-            tx.notify_step_started(build_id, step_nr).await?;
             tx.commit().await?;
             step_nr
         };
@@ -1128,11 +1117,7 @@ impl State {
         // Finalize the Busy row if dispatch fails below; otherwise it lingers
         // busy until restart while the step is re-dispatched under a new stepnr.
         let dispatch_result: Result<(), StateError> = async {
-        {
-            let mut tx = db.begin_transaction().await?;
-            tx.notify_build_started(build_id).await?;
-            tx.commit().await?;
-        }
+        db.notify_build_started(build_id).await?;
         tracing::info!(
             "Submitting build drv={drv} on machine={} hostname={} build_id={build_id} step_nr={}",
             machine.id,
@@ -1390,15 +1375,14 @@ impl State {
     ) -> Result<(), StateError> {
         let mut db = self.db.get().await?;
         let drv = self.read_derivation(drv_path).await?;
-        db.insert_debug_build(
+        let mut tx = db.begin_transaction().await?;
+        tx.insert_debug_build(
             self.connector.store_dir(),
             jobset_id,
             drv_path,
             std::str::from_utf8(&drv.platform).map_err(StateError::InvalidPlatformUtf8)?,
         )
         .await?;
-
-        let mut tx = db.begin_transaction().await?;
         tx.notify_builds_added().await?;
         tx.commit().await?;
         Ok(())
@@ -2407,21 +2391,15 @@ impl State {
                         b.id,
                         step.get_drv_path(),
                         step.get_system().as_deref(),
-                        machine
-                            .as_deref()
-                            .map(|m| m.hostname.clone())
-                            .unwrap_or_default(),
+                        machine.as_deref().map_or("", |m| &m.hostname),
                         job.result.step_status,
-                        job.result.error_msg.clone(),
+                        job.result.error_msg.as_deref(),
                         if job.build_id == b.id {
                             None
                         } else {
                             Some(job.build_id)
                         },
-                        step.get_output_paths()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
+                        step.get_output_paths().unwrap_or_default(),
                     )
                     .await?;
                 }
@@ -2572,14 +2550,11 @@ impl State {
                 build.id,
                 step.get_drv_path(),
                 step.get_system().as_deref(),
-                String::new(),
+                "",
                 BuildStatus::CachedFailure,
                 None,
                 Some(propagated_from),
-                step.get_output_paths()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect(),
+                step.get_output_paths().unwrap_or_default(),
             )
             .await?;
             tx.update_build_after_previous_failure(
@@ -3143,7 +3118,7 @@ impl State {
             Ok(mut conn) => conn
                 .check_if_paths_failed(
                     self.connector.store_dir(),
-                    &output_paths.values().flatten().cloned().collect::<Vec<_>>(),
+                    &output_paths.values().flatten().collect::<Vec<_>>(),
                 )
                 .await
                 .unwrap_or_default(),
@@ -3394,8 +3369,7 @@ impl State {
         drv_path: &StorePath,
     ) -> Result<BTreeMap<OutputName, StorePath>, db::Error> {
         let mut db = self.db.get().await?;
-        let mut tx = db.begin_transaction().await?;
-        tx.find_build_step_outputs(self.connector.store_dir(), drv_path)
+        db.find_build_step_outputs(self.connector.store_dir(), drv_path)
             .await
     }
 
@@ -3411,7 +3385,7 @@ impl State {
 
         conn.check_if_paths_failed(
             self.connector.store_dir(),
-            &drv_outputs.values().flatten().cloned().collect::<Vec<_>>(),
+            &drv_outputs.values().flatten().collect::<Vec<_>>(),
         )
         .await
         .unwrap_or_default()
@@ -3481,9 +3455,7 @@ impl State {
                     continue;
                 };
                 let build_id = db_build_output.id;
-                let Ok(mut res): Result<BuildOutput, _> = db_build_output.try_into() else {
-                    continue;
-                };
+                let mut res = BuildOutput::from(db_build_output);
 
                 res.products = db
                     .get_build_products_for_build_id(build_id, self.connector.store_dir())
