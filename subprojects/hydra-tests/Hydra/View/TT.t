@@ -68,4 +68,24 @@ is(
     "makeNameTextForJob"
 );
 
+subtest "safeExternalURL" => sub {
+    my %expected = (
+        "https://example.com/" => "https://example.com/",
+        "http://example.com/" => "http://example.com/",
+        "example.com/foo" => "https://example.com/foo",
+        "//example.com/foo" => "https://example.com/foo",
+        "example.com:8080/foo" => "https://example.com:8080/foo",
+        " example.com " => "https://example.com",
+        "javascript:alert(1)" => "",
+        "JavaScript:alert(1)" => "",
+        " javascript:alert(1)" => "",
+        "data:text/html,<script>alert(1)</script>" => "",
+        "" => "",
+    );
+    for my $url (sort keys %expected) {
+        is(Hydra::View::TT::safeExternalURL(undef, $c, $url), $expected{$url}, "'$url'");
+    }
+    is(Hydra::View::TT::safeExternalURL(undef, $c, undef), "", "undef");
+};
+
 done_testing;

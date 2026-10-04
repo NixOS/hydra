@@ -7,6 +7,7 @@ use Template::Plugin::HTML;
 # Not imported: the exposed methods below deliberately share these names.
 require Hydra::StorePath;
 use Hydra::Helper::Nix;
+require Hydra::Helper::CatalystUtils;
 use Time::Seconds;
 use Digest::SHA qw(sha1_hex);
 
@@ -27,6 +28,7 @@ __PACKAGE__->config(
     makeNameTextForJob
     makeNameTextForJobset
     relativeDuration
+    safeExternalURL
     stripSSHUser
     metricDivId
     printStorePath
@@ -87,6 +89,11 @@ An integer number of seconds
 sub relativeDuration {
     my ($self, $c, $seconds) = @_;
     return Time::Seconds->new($seconds)->pretty();
+}
+
+sub safeExternalURL {
+    my ($self, $c, $url) = @_;
+    return Hydra::Helper::CatalystUtils::normalizeExternalLink($url) // "";
 }
 
 sub stripSSHUser {
