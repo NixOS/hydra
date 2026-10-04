@@ -5,6 +5,9 @@ edition                = "2024"
 license                = "LGPL-2.1-only"
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 bytes.workspace     = true
 thiserror.workspace = true

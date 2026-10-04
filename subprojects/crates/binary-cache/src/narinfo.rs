@@ -99,8 +99,6 @@ pub fn get_ls_path(narinfo: &NarInfo) -> String {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use std::collections::BTreeSet;
 
     use harmonia_utils_signature::Signature;

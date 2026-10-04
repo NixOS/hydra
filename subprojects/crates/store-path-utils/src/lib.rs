@@ -31,6 +31,7 @@ impl RelativeStorePath {
     }
 
     /// Render back into a full filesystem path.
+    #[must_use]
     pub fn print(&self, store_dir: &StoreDir) -> String {
         if self.relative_path.is_empty() {
             store_dir.display(&self.base_path).to_string()

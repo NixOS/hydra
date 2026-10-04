@@ -6,7 +6,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let now = std::time::Instant::now();
 
     let _tracing_guard = hydra_tracing::init()?;
-    let nix_config = daemon_client_utils::parse_nix_remote().unwrap();
+    let nix_config = daemon_client_utils::parse_nix_remote()?;
     let connector = daemon_client_utils::DaemonConnector::new(
         nix_config.socket.clone(),
         nix_config.store_dir.clone(),

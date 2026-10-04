@@ -39,7 +39,7 @@ use crate::waiter::{StepEvent, StepEventKind};
 /// first log chunk arrives, which is normally well under a second
 /// after dispatch; a step that produces no output at all never
 /// creates one.
-const LOG_FILE_WAIT: Duration = Duration::from_secs(60);
+const LOG_FILE_WAIT: Duration = Duration::from_mins(1);
 const LOG_FILE_POLL: Duration = Duration::from_millis(200);
 
 /// After the build is finished, how long to keep draining log tails

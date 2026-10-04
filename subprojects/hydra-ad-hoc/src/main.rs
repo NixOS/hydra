@@ -1,13 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::all,
-    future_incompatible,
-    missing_debug_implementations,
-    nonstandard_style,
-    unreachable_pub,
-    unused_qualifications
-)]
-
 //! Hydra as one giant nix daemon: a nix-daemon protocol endpoint for
 //! ad hoc jobs and ad hoc store usage. This is a new, optional and
 //! still experimental component; nothing else in Hydra depends on it.
@@ -73,7 +63,7 @@ async fn main() -> eyre::Result<()> {
     );
 
     let server = match &cli.socket {
-        BindSocket::Path(path) => DaemonServer::bind(handler, path.clone(), store_dir)?,
+        BindSocket::Path(path) => DaemonServer::bind(handler, path, store_dir)?,
         BindSocket::ListenFd => {
             DaemonServer::from_listener(handler, BindSocket::inherited()?, store_dir)
         }

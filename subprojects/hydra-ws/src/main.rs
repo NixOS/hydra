@@ -1,17 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::all,
-    clippy::pedantic,
-    clippy::expect_used,
-    clippy::unwrap_used,
-    future_incompatible,
-    missing_debug_implementations,
-    nonstandard_style,
-    missing_copy_implementations,
-    unused_qualifications
-)]
-#![allow(clippy::missing_errors_doc)]
-
 use crate::handler::handle_connection;
 use crate::pg_listener::run_event_listener;
 use crate::state::State;

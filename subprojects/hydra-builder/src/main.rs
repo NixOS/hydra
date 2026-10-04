@@ -1,28 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(
-    clippy::all,
-    clippy::pedantic,
-    clippy::expect_used,
-    clippy::unwrap_used,
-    future_incompatible,
-    missing_debug_implementations,
-    nonstandard_style,
-    missing_copy_implementations,
-    unused_qualifications
-)]
-#![allow(clippy::missing_errors_doc)]
-
-use crate::error::BuilderError;
-
-mod config;
-mod error;
-mod grpc;
-mod metrics;
-mod nix_config;
-mod state;
-mod system;
-mod types;
-mod utils;
+use hydra_builder::{config, error::BuilderError, grpc, state};
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]

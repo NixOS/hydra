@@ -35,19 +35,19 @@ fn finish_subscribers(subs: Vec<Subscriber>, msg: &HydraWsResponse) {
 
 type SubMap = DashMap<(u64, Option<u64>), Vec<Subscriber>>;
 
-pub struct Subscriptions {
+pub(crate) struct Subscriptions {
     inner: SubMap,
 }
 
 impl Subscriptions {
     #[must_use]
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             inner: DashMap::new(),
         }
     }
 
-    pub fn register(
+    pub(crate) fn register(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -62,7 +62,7 @@ impl Subscriptions {
     }
 
     #[must_use]
-    pub fn has(
+    pub(crate) fn has(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -73,7 +73,7 @@ impl Subscriptions {
             .is_some_and(|entry| entry.iter().any(|s| s.tx.same_channel(tx)))
     }
 
-    pub fn abort(
+    pub(crate) fn abort(
         &self,
         build_id: u64,
         step_id: Option<u64>,
@@ -90,13 +90,18 @@ impl Subscriptions {
         false
     }
 
-    pub fn cleanup(&self, build_id: u64, step_id: Option<u64>, tx: &mpsc::Sender<HydraWsResponse>) {
+    pub(crate) fn cleanup(
+        &self,
+        build_id: u64,
+        step_id: Option<u64>,
+        tx: &mpsc::Sender<HydraWsResponse>,
+    ) {
         if let Some(mut entry) = self.inner.get_mut(&(build_id, step_id)) {
             entry.retain(|s| !s.tx.same_channel(tx));
         }
     }
 
-    pub fn cleanup_connection(&self, tx: &mpsc::Sender<HydraWsResponse>) {
+    pub(crate) fn cleanup_connection(&self, tx: &mpsc::Sender<HydraWsResponse>) {
         let keys: Vec<(u64, Option<u64>)> = self.inner.iter().map(|e| *e.key()).collect();
 
         for key in keys {
@@ -113,14 +118,14 @@ impl Subscriptions {
         }
     }
 
-    pub fn notify_step_finished(&self, build_id: u64, step_id: u64) -> Vec<PathBuf> {
+    pub(crate) fn notify_step_finished(&self, build_id: u64, step_id: u64) -> Vec<PathBuf> {
         let msg = HydraWsResponse::StepFinished { build_id, step_id };
         self.finish_matching(&msg, |&(bid, sid)| {
             bid == build_id && sid.is_some_and(|sid| sid == step_id)
         })
     }
 
-    pub fn notify_build_finished(&self, build_id: u64) -> Vec<PathBuf> {
+    pub(crate) fn notify_build_finished(&self, build_id: u64) -> Vec<PathBuf> {
         let msg = HydraWsResponse::BuildFinished { build_id };
         self.finish_matching(&msg, |&(bid, _)| bid == build_id)
     }
@@ -152,8 +157,6 @@ impl Subscriptions {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
-
     use std::path::PathBuf;
     use tokio::sync::mpsc;
 

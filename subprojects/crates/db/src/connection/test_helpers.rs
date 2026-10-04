@@ -1,5 +1,3 @@
-#![allow(clippy::unwrap_used)]
-
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 

@@ -20,13 +20,13 @@ const OUT_CHANNEL_CAPACITY: usize = 4096;
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 
 #[derive(Debug, thiserror::Error)]
-pub enum ConnectionError {
+pub(crate) enum ConnectionError {
     #[error("WebSocket error: {0}")]
     WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
 }
 
 #[tracing::instrument(skip(ws_write, out_rx))]
-pub fn spawn_writer(
+pub(crate) fn spawn_writer(
     mut ws_write: SplitSink<WebSocketStream<Stream>, Message>,
     mut out_rx: mpsc::Receiver<HydraWsResponse>,
 ) {
@@ -57,13 +57,13 @@ pub fn spawn_writer(
 }
 
 #[tracing::instrument(skip(out_tx))]
-pub async fn handle_ping(out_tx: &mpsc::Sender<HydraWsResponse>) {
+pub(crate) async fn handle_ping(out_tx: &mpsc::Sender<HydraWsResponse>) {
     tracing::debug!("responding to pong");
     let _ = out_tx.send(HydraWsResponse::Pong {}).await;
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum LogsStartError {
+pub(crate) enum LogsStartError {
     #[error("build_id out of range")]
     BuildIdOutOfRange,
 
@@ -90,7 +90,7 @@ pub enum LogsStartError {
 }
 
 impl LogsStartError {
-    pub fn into_response(self, build_id: u64, step_id: Option<u64>) -> HydraWsResponse {
+    pub(crate) fn into_response(self, build_id: u64, step_id: Option<u64>) -> HydraWsResponse {
         HydraWsResponse::LogsStart {
             build_id,
             step_id,
@@ -101,7 +101,7 @@ impl LogsStartError {
 }
 
 #[tracing::instrument(skip(out_tx, state), fields(%build_id, ?step_id))]
-pub async fn handle_logs_start(
+pub(crate) async fn handle_logs_start(
     build_id: u64,
     step_id: Option<u64>,
     out_tx: &mpsc::Sender<HydraWsResponse>,
@@ -183,7 +183,7 @@ pub async fn handle_logs_start(
 }
 
 #[tracing::instrument(skip(out_tx, subscriptions), fields(%build_id, ?step_id))]
-pub async fn handle_logs_end(
+pub(crate) async fn handle_logs_end(
     build_id: u64,
     step_id: Option<u64>,
     out_tx: &mpsc::Sender<HydraWsResponse>,
@@ -409,8 +409,6 @@ pub(crate) async fn handle_connection(
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
-
     use std::path::PathBuf;
     use tokio::sync::mpsc;
 

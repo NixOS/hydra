@@ -2,7 +2,7 @@
 // Derived from harmonia-daemon::server (EUPL-1.2 OR MIT).
 
 use std::fmt::Debug;
-use std::path::PathBuf;
+use std::path::Path;
 use std::pin::pin;
 
 use futures::{FutureExt, StreamExt as _};
@@ -183,6 +183,9 @@ where
         store.shutdown().await
     }
 
+    // One arm per daemon operation. This uses `allow` rather than `expect`
+    // because clippy does not report `enum_glob_use` in test builds.
+    #[allow(clippy::too_many_lines, clippy::enum_glob_use)]
     async fn process_request<'s, S>(
         &'s mut self,
         store: &mut S,
@@ -431,24 +434,24 @@ where
     /// Create the socket at `socket_path`, replacing any stale one.
     pub(crate) fn bind(
         handler: H,
-        socket_path: PathBuf,
+        socket_path: &Path,
         store_dir: StoreDir,
     ) -> std::io::Result<Self> {
         if socket_path.exists() {
-            fs_err::remove_file(&socket_path)?;
+            fs_err::remove_file(socket_path)?;
         }
         if let Some(parent) = socket_path.parent() {
             fs_err::create_dir_all(parent)?;
         }
 
-        let listener = UnixListener::bind(&socket_path)?;
+        let listener = UnixListener::bind(socket_path)?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             // 0660: clients in the socket's group may submit builds; other local users may not.
             let perms = std::fs::Permissions::from_mode(0o660);
-            fs_err::set_permissions(&socket_path, perms)?;
+            fs_err::set_permissions(socket_path, perms)?;
         }
 
         info!("nix daemon listening on {:?}", socket_path);

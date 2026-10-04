@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .await?;
     tracing::info!("{:#?}", client.cfg);
 
-    let file = fs_err::tokio::File::open("/tmp/asdf").await.unwrap();
+    let file = fs_err::tokio::File::open("/tmp/asdf").await?;
     let reader = Box::new(tokio::io::BufReader::new(file));
     client
         .upsert_file_stream("log/test2.drv", reader, "text/plain; charset=utf-8")

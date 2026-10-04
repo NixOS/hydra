@@ -448,8 +448,6 @@ impl Transaction<'_> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::unwrap_used)]
-
     use super::*;
     use crate::connection::test_helpers::{on, setup, sp, test_store_dir};
     use crate::models::MarkBuildSuccessData;
