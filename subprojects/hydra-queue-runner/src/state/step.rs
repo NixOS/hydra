@@ -580,7 +580,17 @@ impl Step {
 
         let mut state = self.state.write();
         if let Some(referring_build) = referring_build {
-            state.builds.push(Arc::downgrade(referring_build));
+            // A manual re-queue replaces the build's Arc and leaves a dead
+            // Weak here. Drop dead entries and skip duplicates so the list
+            // does not grow without bound.
+            state.builds.retain(|b| b.strong_count() > 0);
+            if !state
+                .builds
+                .iter()
+                .any(|b| std::ptr::eq(b.as_ptr(), Arc::as_ptr(referring_build)))
+            {
+                state.builds.push(Arc::downgrade(referring_build));
+            }
         }
         if let Some((referring_step, relation)) = referring_step {
             state.rdeps.push(ReverseDep {
@@ -894,6 +904,24 @@ mod tests {
             attrs: attrs.as_object().unwrap().clone(),
         });
         assert_eq!(required_features(&drv), vec!["big-parallel"]);
+    }
+
+    #[test]
+    fn add_referring_data_dedupes_builds() {
+        use crate::state::build::Build;
+
+        let steps = Steps::new();
+        let (step, _) = steps.create(&drv("a"), None, None);
+        let build = Build::new_debug(&drv("a"));
+        step.add_referring_data(Some(&build), None);
+        step.add_referring_data(Some(&build), None);
+        assert_eq!(step.state.read().builds.len(), 1);
+
+        // The next add must prune the dead Weak a replaced build leaves.
+        drop(build);
+        let other = Build::new_debug(&drv("a"));
+        step.add_referring_data(Some(&other), None);
+        assert_eq!(step.state.read().builds.len(), 1);
     }
 
     #[test]
