@@ -104,6 +104,16 @@
     return `${h}:${mi}:${s}`;
   }
 
+  // ansi_up splits SGR parameters only on ';'. systemd and other tools write
+  // 256-color and truecolor codes with ':' sub-parameters, e.g. ESC[38:5:185m,
+  // and ansi_up prints those codes as text. This rewrites the colons to
+  // semicolons. In `38:2::r:g:b` the empty field is the color-space id, so we
+  // drop it. See ECMA-48 sections 5.4.2 and 8.3.117, and ITU-T T.416 13.1.8.
+  function normalizeSgr(s) {
+    return s.replace(/\x1b\[([\d;:]*)m/g, (_, p) =>
+      "\x1b[" + p.replace(/([34]8):2::/g, "$1:2:").replace(/:/g, ";") + "m");
+  }
+
   function plainLoadFileContent() {
     requestPlainFile({
       url: "[% HTML.escape(log_uri) %]",
@@ -117,7 +127,7 @@
         log_data = log_data.split("\n").slice(-[% HTML.escape(tail) %]).join("\n");
         [% END %]
 
-        $("#contents").html(new ansiUp.AnsiUp().ansi_to_html(log_data));
+        $("#contents").html(new ansiUp.AnsiUp().ansi_to_html(normalizeSgr(log_data)));
       },
       error: function () {
         bootbox.alert("The log file is not available.");
@@ -332,7 +342,7 @@
               entry.appendChild(ts[0]);
               const text = document.createElement("span");
               // ansi_up HTML-escapes the text, so innerHTML is safe here.
-              text.innerHTML = ansi.ansi_to_html(data.line.trimEnd()) + '\n';
+              text.innerHTML = ansi.ansi_to_html(normalizeSgr(data.line.trimEnd())) + '\n';
               entry.appendChild(text);
               appendEntry(entry);
               break;
