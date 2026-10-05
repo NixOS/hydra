@@ -14,7 +14,6 @@ pub struct BuildQueue {
     jobs: parking_lot::RwLock<Vec<Weak<StepInfo>>>,
 
     active_runnable: AtomicU64,
-    total_runnable: AtomicU64,
     nr_runnable_waiting: AtomicU64,
     nr_runnable_disabled: AtomicU64,
     avg_runnable_time: AtomicU64,
@@ -36,7 +35,6 @@ impl BuildQueue {
         Self {
             jobs: parking_lot::RwLock::new(Vec::new()),
             active_runnable: 0.into(),
-            total_runnable: 0.into(),
             nr_runnable_waiting: 0.into(),
             nr_runnable_disabled: 0.into(),
             avg_runnable_time: 0.into(),
@@ -82,48 +80,37 @@ impl BuildQueue {
         }
         self.wait_time_ms.fetch_add(wait_time_ms, Ordering::Relaxed);
 
-        // only keep valid pointers
         drop(current_jobs);
-        self.scrube_jobs();
         self.sort_jobs(sort_fn)
     }
 
     #[tracing::instrument(skip(self))]
     pub fn sort_jobs(&self, sort_fn: StepSortFn) -> u64 {
         let start_time = std::time::Instant::now();
-        let cmp_fn = match sort_fn {
-            StepSortFn::Legacy => StepInfo::legacy_compare,
-            StepSortFn::WithRdeps => StepInfo::compare_with_rdeps,
-            StepSortFn::WithCriticalPath => StepInfo::compare_with_critical_path,
-        };
+        // Build the keys under an upgradable read lock. The dispatcher's
+        // clone_inner can still read, but the lock blocks writers, so the vec
+        // can't change before we replace it below. Dead entries get no key,
+        // so the sorted vec drops them.
+        let jobs = self.jobs.upgradable_read();
+        let mut keyed: Vec<_> = jobs
+            .iter()
+            .filter_map(|job| {
+                let step = job.upgrade()?;
+                step.update_internal_stats();
+                Some((step.sort_key(sort_fn), job.clone()))
+            })
+            .collect();
+        keyed.sort_by(|(a, _), (b, _)| a.cmp(b));
 
-        {
-            let mut current_jobs = self.jobs.write();
-            for job in current_jobs.iter_mut() {
-                let Some(job) = job.upgrade() else { continue };
-                job.update_internal_stats();
-            }
-
-            current_jobs.sort_by(|a, b| {
-                let a = a.upgrade();
-                let b = b.upgrade();
-                match (a, b) {
-                    (Some(a), Some(b)) => cmp_fn(a.as_ref(), b.as_ref()),
-                    (Some(_), None) => std::cmp::Ordering::Greater,
-                    (None, Some(_)) => std::cmp::Ordering::Less,
-                    (None, None) => std::cmp::Ordering::Equal,
-                }
-            });
-        }
+        let mut jobs = parking_lot::RwLockUpgradableReadGuard::upgrade(jobs);
+        *jobs = keyed.into_iter().map(|(_, job)| job).collect();
+        drop(jobs);
         u64::try_from(start_time.elapsed().as_millis()).unwrap_or_default()
     }
 
     #[tracing::instrument(skip(self))]
-    pub fn scrube_jobs(&self) {
-        let mut current_jobs = self.jobs.write();
-        current_jobs.retain(|v| v.upgrade().is_some());
-        self.total_runnable
-            .store(current_jobs.len() as u64, Ordering::Relaxed);
+    pub fn scrub_jobs(&self) {
+        self.jobs.write().retain(|v| v.strong_count() > 0);
     }
 
     pub fn clone_inner(&self) -> Vec<Weak<StepInfo>> {
@@ -133,7 +120,8 @@ impl BuildQueue {
     pub fn get_stats(&self) -> BuildQueueStats {
         BuildQueueStats {
             active_runnable: self.active_runnable.load(Ordering::Relaxed),
-            total_runnable: self.total_runnable.load(Ordering::Relaxed),
+            // Counts dead entries until the next per-tick scrub drops them.
+            total_runnable: self.jobs.read().len() as u64,
             nr_runnable_waiting: self.nr_runnable_waiting.load(Ordering::Relaxed),
             nr_runnable_disabled: self.nr_runnable_disabled.load(Ordering::Relaxed),
             avg_runnable_time: self.avg_runnable_time.load(Ordering::Relaxed),
@@ -230,7 +218,7 @@ impl InnerQueues {
     #[tracing::instrument(skip(self))]
     fn remove_all_weak_pointer(&self) {
         for queue in self.inner.values() {
-            queue.scrube_jobs();
+            queue.scrub_jobs();
         }
     }
 
@@ -273,8 +261,8 @@ impl InnerQueues {
         }
     }
 
-    #[tracing::instrument(skip(self, stepinfo, queue))]
-    fn remove_job(&mut self, stepinfo: &Arc<StepInfo>, queue: &Arc<BuildQueue>) {
+    #[tracing::instrument(skip(self, stepinfo))]
+    fn remove_job(&mut self, stepinfo: &Arc<StepInfo>) {
         if self.jobs.remove(stepinfo.step.get_drv_path()).is_none() {
             tracing::error!(
                 "Failed to remove stepinfo drv={} from jobs!",
@@ -282,8 +270,8 @@ impl InnerQueues {
             );
         }
         stepinfo.step.clear_queued();
-        // active should be removed
-        queue.scrube_jobs();
+        // The queue's Weak entry dies with the stepinfo. The next
+        // remove_all_weak_pointer or sort_jobs drops it.
     }
 
     #[tracing::instrument(skip(self))]
@@ -538,7 +526,7 @@ impl Queues {
                         // to 0 as it has no dependents.
                         // If its a cached failure we need to also remove it from jobs, we
                         // already wrote cached failure into the db, at this point in time
-                        self.remove_job(&job, &queue).await;
+                        self.remove_job(&job).await;
 
                         metrics.queue_aborted_jobs_total.inc();
                     }
@@ -597,10 +585,10 @@ impl Queues {
         wq.remove_job_by_path(drv);
     }
 
-    #[tracing::instrument(skip(self, stepinfo, queue))]
-    pub async fn remove_job(&self, stepinfo: &Arc<StepInfo>, queue: &Arc<BuildQueue>) {
+    #[tracing::instrument(skip(self, stepinfo))]
+    pub async fn remove_job(&self, stepinfo: &Arc<StepInfo>) {
         let mut wq = self.inner.write().await;
-        wq.remove_job(stepinfo, queue);
+        wq.remove_job(stepinfo);
     }
 
     #[tracing::instrument(skip(self))]

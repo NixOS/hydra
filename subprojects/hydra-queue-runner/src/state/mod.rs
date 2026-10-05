@@ -540,7 +540,7 @@ impl State {
             self.machines.sort(new_config.machine_sort_fn);
         }
         if curr_step_sort_fn != new_config.step_sort_fn {
-            self.queues.sort_queues(curr_step_sort_fn).await;
+            self.queues.sort_queues(new_config.step_sort_fn).await;
         }
         if curr_remote_stores != new_config.remote_store_addr {
             *self.remote_stores.write() = new_remote_stores;
@@ -1935,9 +1935,7 @@ impl State {
         // so the dispatch loop will not re-pick it.
         item.machine.remove_job(drv_path);
         self.queues.remove_job_from_scheduled(drv_path).await;
-        self.queues
-            .remove_job(&item.step_info, &item.build_queue)
-            .await;
+        self.queues.remove_job(&item.step_info).await;
         guard.disarm();
 
         // Without presigned uploads, builders import outputs from the queue
@@ -2266,9 +2264,7 @@ impl State {
         item.step_info.step.set_finished(false);
         item.machine.remove_job(drv_path);
         self.queues.remove_job_from_scheduled(drv_path).await;
-        self.queues
-            .remove_job(&item.step_info, &item.build_queue)
-            .await;
+        self.queues.remove_job(&item.step_info).await;
 
         let step = item.step_info.step.clone();
         self.schedule_step_upload(&job, &step, Vec::new()).await;
