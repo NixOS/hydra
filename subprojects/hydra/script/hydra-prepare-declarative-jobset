@@ -1,0 +1,60 @@
+#! /usr/bin/env perl
+
+# Apply a declarative project's specification, on behalf of
+# `hydra-eval-jobset`, which has fetched the input containing it.
+#
+#     hydra-prepare-declarative-jobset <project> <specification file>
+#
+# The file does one of two things:
+#
+#  * If every value in it is itself a dictionary, it names the jobsets
+#    outright. They are created from it, and the reply says so:
+#
+#        { "declared" : true }
+#
+#  * Otherwise it describes how to *generate* the jobsets: it is the
+#    configuration of `.jobsets` itself, whose evaluation produces them. The
+#    jobset is reconfigured from it, and the reply says that instead:
+#
+#        { "declared" : false }
+#
+# This is Perl because applying a specification is what the helpers in
+# `Hydra::Helper::AddBuilds` do, and `hydra-notify`'s `DeclarativeJobsets`
+# plugin uses them too.
+
+use strict;
+use warnings;
+
+use Hydra::Config;
+use Hydra::Helper::AddBuilds;
+use Hydra::Helper::Exec;
+use Hydra::Model::DB;
+use JSON::MaybeXS;
+
+my ($projectName, $declFile) = @ARGV;
+die "Syntax: hydra-prepare-declarative-jobset <project> <specification file>\n"
+    unless defined $declFile;
+
+my $config = getHydraConfig();
+my $db = Hydra::Model::DB->new();
+
+my $project = $db->resultset('Projects')->find({ name => $projectName })
+    or die "project `$projectName' does not exist\n";
+
+# `nix store cat`, so the store resolves the physical location itself.
+my ($res, $declText, $catErr) = captureStdoutStderr(60,
+    "nix", "--extra-experimental-features", "nix-command", "store", "cat", $declFile);
+die "Couldn't read declarative specification file $declFile: $catErr\n" if $res != 0;
+
+my $declSpec = eval { decode_json($declText) };
+die "Declarative specification file $declFile not valid JSON: $@\n" if $@;
+die "Declarative specification file $declFile is not a dictionary\n" unless ref $declSpec eq "HASH";
+
+my $isStatic = !grep { ref $_ ne "HASH" } values %$declSpec;
+if ($isStatic) {
+    handleDeclarativeJobsetJson($db, $project, $declSpec);
+} else {
+    updateDeclarativeJobset($config, $db, $project, ".jobsets", $declSpec);
+}
+
+print encode_json({ declared => $isStatic ? JSON::MaybeXS::true : JSON::MaybeXS::false }), "\n";
