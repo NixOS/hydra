@@ -1,0 +1,214 @@
+#! /usr/bin/env perl
+
+# Convert store-path columns from full paths to basenames, filling in the
+# accompanying storeDir column, in small committed batches.
+#
+# Schema version 89 only adds the storeDir columns; this script does the
+# actual conversion. It is deliberately not part of the migration: on a
+# large deployment the conversion rewrites hundreds of millions of rows,
+# and doing that in the migration's single transaction would mean many
+# hours of work that is thrown away entirely if anything goes wrong.
+# Here each batch commits on its own, so an interrupted run resumes where
+# it stopped -- just start it again.
+#
+# It is safe to run while Hydra is up. A row is converted iff its
+# storeDir is set, Hydra reads both formats, and it only ever writes the
+# new one, so a partly-converted table is consistent at every point. The
+# exception is content-addressed derivation resolution, which assumes the
+# converted format and may fail to find rows that are still pending; CA
+# builds are expected to be degraded until this finishes.
+#
+# When no rows remain, apply schema version 90, which makes storeDir
+# mandatory and adds the constraints relating each row's store dir to its
+# parent's.
+
+use strict;
+use warnings;
+use utf8;
+use Hydra::Model::DB;
+
+STDOUT->autoflush();
+STDERR->autoflush(1);
+binmode STDERR, ":encoding(utf8)";
+
+my $db = Hydra::Model::DB->new();
+my $dbh = $db->storage->dbh;
+my $vacuum = $dbh->prepare("VACUUM;");
+
+my $dryRun = defined $ENV{'HYDRA_DRY_RUN'};
+
+my $batchSize = $ENV{'HYDRA_BATCH_SIZE'} // 10000;
+my $iterationsPerVacuum = 500;
+
+# Pause between batches, to leave the database some headroom for serving
+# Hydra while this runs. Set to 0 to go as fast as possible.
+my $throttle = $ENV{'HYDRA_BATCH_DELAY'} // 0;
+
+# Splitting a full path into (storeDir, basename). Exact for plain store
+# paths; see the note on build products below for why they differ.
+#
+# A value with no slash to split on gets this deployment's store dir
+# instead. The one such value that occurs is the empty string, which
+# `JobsetEvalInputs.path` holds for inputs that have no store path; Hydra
+# writes those with the store dir filled in, so this gives old rows the
+# same shape. Without a fallback they would keep a null storeDir, never
+# count as converted, and block schema version 90.
+my $fallbackDir = $dbh->quote($db->schema->storeDir);
+my $splitDir  = "coalesce(substring(%s from '^(.*)/[^/]*\$'), $fallbackDir)";
+my $splitBase = "substring(%s from '[^/]*\$')";
+
+# Tables whose rows are counted in the millions are walked by their
+# leading (numeric) key column, so each batch resumes from a high-water
+# mark rather than rescanning the rows already converted. Without that
+# the run would be quadratic: there is no index on `storeDir IS NULL`,
+# and adding one would itself cost a full index build.
+my @bigTables = (
+    { table => "Builds",           cursor => "id",    path => "drvPath" },
+    { table => "BuildSteps",       cursor => "build", path => "drvPath" },
+    { table => "BuildOutputs",     cursor => "build", path => "path" },
+    { table => "BuildStepOutputs", cursor => "build", path => "path" },
+    { table => "BuildInputs",      cursor => "id",    path => "path" },
+    { table => "JobsetEvalInputs", cursor => "eval",  path => "path" },
+    { table => "BuildProducts",    cursor => "build", path => "path", product => 1 },
+);
+
+# Small tables: batch by ctid, which needs no key and no cursor. The
+# repeated scan from the start of the table that this implies is fine at
+# their size.
+my @smallTables = (
+    { table => "FailedPaths",            path => "path" },
+    { table => "CachedPathInputs",       path => "storePath" },
+    { table => "CachedSubversionInputs", path => "storePath" },
+    { table => "CachedBazaarInputs",     path => "storePath" },
+    { table => "CachedGitInputs",        path => "storePath" },
+    { table => "CachedDarcsInputs",      path => "storePath" },
+    { table => "CachedHgInputs",         path => "storePath" },
+    { table => "CachedCVSInputs",        path => "storePath" },
+);
+
+# The SET clause. Build products are the one column that can carry a
+# sub-path *inside* the store path (e.g. .../<hash>-foo/share/doc/nix),
+# so a plain dirname/basename split would put most of the path in the
+# store dir. They split three ways instead, into the store dir, the
+# store-path basename, and the sub-path below it, so that `path` ends up
+# holding a store path like every other column does.
+#
+# The store path is the first component that parses as a store-path
+# basename; a non-greedy match makes the first such component win. A row
+# naming the store path itself has no sub-path and gets the empty string,
+# which is what distinguishes it from a row that has not been converted
+# (null). Rows that match nothing at all -- malformed historic data --
+# fall back to the plain split, leaving the sub-path empty.
+sub setClause {
+    my ($col, $isProduct) = @_;
+    return sprintf("storeDir = $splitDir, $col = $splitBase", $col, $col)
+        unless $isProduct;
+    my $re = '^(.*?)/([0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/]*)(?:/(.*))?$';
+    return "storeDir = coalesce((regexp_match($col, '$re'))[1], "
+         . sprintf($splitDir, $col) . "), "
+         . "subPath = coalesce((regexp_match($col, '$re'))[3], ''), "
+         . "$col = coalesce((regexp_match($col, '$re'))[2], "
+         . sprintf($splitBase, $col) . ")";
+}
+
+# The rows still to convert. A row whose path is null has nothing to
+# convert: a null path with a null storeDir is already the final form,
+# and what schema version 90 requires. Selecting it anyway would leave it
+# unchanged after every batch, which in the big tables means the cursor
+# never moves past it and the run never ends.
+sub pending {
+    my ($col) = @_;
+    return "storeDir IS NULL AND $col IS NOT NULL";
+}
+
+sub backfillBigTable {
+    my ($spec) = @_;
+    my ($table, $cursor, $col) = @$spec{qw(table cursor path)};
+    my $set = setClause($col, $spec->{product});
+    my $pending = pending($col);
+
+    my $lowestSth = $dbh->prepare(
+        "SELECT $cursor FROM $table WHERE $pending ORDER BY $cursor LIMIT 1");
+    $lowestSth->execute();
+    my ($mark) = $lowestSth->fetchrow_array;
+    unless (defined $mark) {
+        print STDERR "$table: nothing to do\n";
+        return;
+    }
+
+    my $totalSth = $dbh->prepare("SELECT COUNT(*) FROM $table WHERE $pending");
+    $totalSth->execute();
+    my ($togo) = $totalSth->fetchrow_array;
+    print STDERR "$table: $togo rows to convert, starting at $cursor $mark\n";
+
+    # `>= mark` rather than `> mark`: a batch bounded by a non-unique
+    # cursor can stop part-way through one value's rows, so the next
+    # batch has to look at that value again.
+    my $update = $dbh->prepare(<<QUERY);
+WITH progress AS (
+  UPDATE $table SET $set
+  WHERE $cursor IN (
+    SELECT DISTINCT t.$cursor FROM $table t
+    WHERE t.storeDir IS NULL AND t.$col IS NOT NULL AND t.$cursor >= ?
+    ORDER BY t.$cursor
+    LIMIT ?
+  ) AND $pending
+  RETURNING $cursor
+)
+SELECT count(*), max($cursor) FROM progress;
+QUERY
+
+    my $iteration = 0;
+    while (1) {
+        $iteration++;
+        if ($dryRun) {
+            print STDERR "$table: dry run, stopping after reporting the work\n";
+            return;
+        }
+        $update->execute($mark, $batchSize);
+        my ($affected, $highest) = $update->fetchrow_array;
+        last if !$affected;
+        $togo -= $affected;
+        $mark = $highest if defined $highest;
+        print STDERR "$table: (batch #$iteration, ~$togo remaining) converted $affected rows, at $cursor $mark\n";
+
+        if ($iteration % $iterationsPerVacuum == 0) {
+            print STDERR "$table: (batch #$iteration) vacuuming...\n";
+            $vacuum->execute();
+        }
+        sleep $throttle if $throttle;
+    }
+    print STDERR "$table: done\n";
+}
+
+sub backfillSmallTable {
+    my ($spec) = @_;
+    my ($table, $col) = @$spec{qw(table path)};
+    my $set = setClause($col, $spec->{product});
+    my $pending = pending($col);
+
+    my $update = $dbh->prepare(<<QUERY);
+UPDATE $table SET $set
+WHERE ctid IN (SELECT ctid FROM $table WHERE $pending LIMIT ?)
+QUERY
+
+    my $iteration = 0;
+    while (1) {
+        $iteration++;
+        if ($dryRun) {
+            print STDERR "$table: dry run, skipping\n";
+            return;
+        }
+        my $affected = $update->execute($batchSize);
+        last if !$affected || $affected eq "0E0";
+        print STDERR "$table: (batch #$iteration) converted $affected rows\n";
+        sleep $throttle if $throttle;
+    }
+    print STDERR "$table: done\n";
+}
+
+backfillBigTable($_) foreach @bigTables;
+backfillSmallTable($_) foreach @smallTables;
+
+print STDERR "\nAll tables converted. Apply schema version 90 to make storeDir\n";
+print STDERR "mandatory and add the store-dir constraints.\n";

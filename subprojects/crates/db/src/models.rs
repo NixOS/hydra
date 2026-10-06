@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use harmonia_store_derivation::derived_path::OutputName;
-use harmonia_store_path::{ParseStorePathError, StoreDir, StorePath};
+use harmonia_store_path::{StoreDir, StorePath};
 use harmonia_utils_hash::fmt::{Bare, Base16};
 
 pub type BuildID = i32;
@@ -56,7 +56,7 @@ pub struct BuildSmall {
 }
 
 #[derive(Debug)]
-pub struct Build<StorePath = harmonia_store_path::StorePath> {
+pub struct Build {
     pub id: BuildID,
     pub jobset_id: i32,
     pub project: String,
@@ -70,24 +70,6 @@ pub struct Build<StorePath = harmonia_store_path::StorePath> {
     pub timestamp: crate::Timestamp,
     pub globalpriority: i32,
     pub priority: i32,
-}
-
-impl Build<String> {
-    pub fn parse_paths(self, store_dir: &StoreDir) -> Result<Build, ParseStorePathError> {
-        Ok(Build {
-            id: self.id,
-            jobset_id: self.jobset_id,
-            project: self.project,
-            jobset: self.jobset,
-            job: self.job,
-            drvpath: store_dir.parse(&self.drvpath)?,
-            maxsilent: self.maxsilent,
-            timeout: self.timeout,
-            timestamp: self.timestamp,
-            globalpriority: self.globalpriority,
-            priority: self.priority,
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -162,12 +144,13 @@ pub struct BuildOutput {
     pub size: Option<i64>,
 }
 
-/// A raw row from the `buildproducts` table; column names match the schema.
+/// Raw DB row for build products. Column names match the SQL schema.
 ///
-/// `path` is a filesystem path that may include a sub-path below a store
-/// output, as in the product line
-/// `doc manual $doc/share/doc/nix/manual index.html`. Use
-/// [`BuildProductRow::into_build_product`] to convert it to the typed
+/// A build product can name something *inside* a store output (e.g. `doc
+/// manual $doc/share/doc/nix/manual index.html`), so unlike other store-path
+/// columns it takes two: `path` for the store path and `subpath` for the rest.
+///
+/// Use [`BuildProductRow::into_build_product`] to convert to the typed
 /// [`nix_support::BuildProduct`].
 #[derive(Debug)]
 pub(crate) struct BuildProductRow {
@@ -178,6 +161,8 @@ pub(crate) struct BuildProductRow {
     pub filesize: Option<i64>,
     pub sha256hash: Option<String>,
     pub path: Option<String>,
+    pub subpath: Option<String>,
+    pub storedir: Option<String>,
     pub name: String,
     pub defaultpath: Option<String>,
 }
@@ -191,7 +176,15 @@ impl BuildProductRow {
             build_id: self.build,
             productnr: self.productnr,
         })?;
-        let path = store_path_utils::RelativeStorePath::from_path(store_dir, &path_str)?;
+        // A row that `hydra-backfill-store-dirs` has not converted yet still
+        // holds both halves run together in `path`, with a null `subpath`.
+        let path = match self.subpath {
+            Some(sub_path) => store_path_utils::RelativeStorePath {
+                base_path: StorePath::from_base_path(&path_str)?,
+                relative_path: sub_path.into(),
+            },
+            None => store_path_utils::RelativeStorePath::from_path(store_dir, &path_str)?,
+        };
         let sha256hash = self.sha256hash.and_then(|s| {
             s.parse::<Bare<Base16<harmonia_utils_hash::Sha256>>>()
                 .ok()
@@ -233,6 +226,16 @@ pub struct MarkBuildSuccessData<'a> {
 mod tests {
     use super::*;
 
+    /// A converted row: the store path in `path`, the rest in `subpath`.
+    fn make_row_with_sub_path(path: Option<&str>, sub_path: &str) -> BuildProductRow {
+        BuildProductRow {
+            subpath: path.map(|_| sub_path.into()),
+            ..make_row(path)
+        }
+    }
+
+    /// A row `hydra-backfill-store-dirs` has not reached: both halves run
+    /// together in `path`, and no `subpath` or `storeDir`.
     fn make_row(path: Option<&str>) -> BuildProductRow {
         BuildProductRow {
             build: 1,
@@ -242,6 +245,8 @@ mod tests {
             filesize: None,
             sha256hash: None,
             path: path.map(Into::into),
+            subpath: None,
+            storedir: None,
             name: "test-product".into(),
             defaultpath: Some("index.html".into()),
         }
@@ -249,11 +254,11 @@ mod tests {
 
     #[test]
     fn into_build_product_subpath() {
-        let store_dir = StoreDir::default();
-        let bp = make_row(Some(
-            "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
-        ))
-        .into_build_product(&store_dir)
+        let bp = make_row_with_sub_path(
+            Some("bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"),
+            "share/doc/nix/manual",
+        )
+        .into_build_product(&StoreDir::default())
         .unwrap();
 
         assert_eq!(
@@ -265,12 +270,9 @@ mod tests {
 
     #[test]
     fn into_build_product_bare_store_path() {
-        let store_dir = StoreDir::default();
-        let bp = make_row(Some(
-            "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
-        ))
-        .into_build_product(&store_dir)
-        .unwrap();
+        let bp = make_row_with_sub_path(Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"), "")
+            .into_build_product(&StoreDir::default())
+            .unwrap();
 
         assert_eq!(
             bp.path.base_path.to_string(),
@@ -279,26 +281,38 @@ mod tests {
         assert!(bp.path.relative_path.is_empty());
     }
 
+    /// An unconverted row still has to read back the same way.
+    #[test]
+    fn into_build_product_unconverted() {
+        let bp = make_row(Some(
+            "/nix/store/bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4/share/doc/nix/manual",
+        ))
+        .into_build_product(&StoreDir::default())
+        .unwrap();
+
+        assert_eq!(
+            bp.path.base_path.to_string(),
+            "bwqqp42xqn37z31dapi7jrhy8iwc2zsx-nix-manual-2.31.4"
+        );
+        assert_eq!(&*bp.path.relative_path, "share/doc/nix/manual");
+    }
+
     #[test]
     fn into_build_product_no_path_errors() {
-        let store_dir = StoreDir::default();
-        let result = make_row(None).into_build_product(&store_dir);
+        let result = make_row(None).into_build_product(&StoreDir::default());
         assert!(result.is_err());
     }
 
     #[test]
     fn into_build_product_sha256_roundtrip() {
-        let store_dir = StoreDir::default();
         let bp = BuildProductRow {
             sha256hash: Some(
                 "4306152c73d2a7a01dbac16ba48f45fa4ae5b746a1d282638524ae2ae93af210".into(),
             ),
             filesize: Some(12345),
-            ..make_row(Some(
-                "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0",
-            ))
+            ..make_row_with_sub_path(Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-example-1.0"), "")
         }
-        .into_build_product(&store_dir)
+        .into_build_product(&StoreDir::default())
         .unwrap();
 
         assert!(bp.sha256hash.is_some());

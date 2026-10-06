@@ -78,6 +78,11 @@ __PACKAGE__->table("builds");
   data_type: 'text'
   is_nullable: 0
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 system
 
   data_type: 'text'
@@ -204,6 +209,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "drvpath",
   { data_type => "text", is_nullable => 0 },
+  "storedir",
+  { data_type => "text", is_nullable => 1 },
   "system",
   { data_type => "text", is_nullable => 0 },
   "license",
@@ -497,8 +504,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:zdVjPMNm2VbjX5ZLTd5FLg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 13:14:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SidONUOOeWTNiBbEd9WQ7A
 
 __PACKAGE__->has_many(
   "dependents",
@@ -587,7 +594,12 @@ sub as_json {
     priority => $self->get_column('priority'),
     buildstatus => $self->get_column('buildstatus'),
     releasename => $self->get_column('releasename'),
-    drvpath => $self->get_column('drvpath'),
+    # Not always loaded: the build-list routes select `@buildListColumns`,
+    # which leaves `drvpath` out, and this has always served null in that case
+    # rather than failing.
+    drvpath => defined $self->drvpath
+        ? Hydra::StorePath::printStorePath($self->result_source->schema->storeDir, $self->drvpath)
+        : undef,
     jobsetevals => [ map { $_->id } $self->jobsetevals ],
     buildoutputs => { map { $_->name  => $_ } $self->buildoutputs },
     buildproducts => { map { $_->productnr => $_ } $self->buildproducts },
@@ -606,3 +618,4 @@ __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/drvpath/);
 
 1;
+

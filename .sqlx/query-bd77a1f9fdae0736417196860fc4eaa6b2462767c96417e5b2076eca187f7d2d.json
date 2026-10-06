@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO BuildStepOutputs (build, stepnr, name, path) VALUES ($1, $2, $3, $4)",
+  "query": "INSERT INTO BuildStepOutputs (build, stepnr, name, path, storeDir) VALUES ($1, $2, $3, $4, $5)",
   "describe": {
     "columns": [],
     "parameters": {
@@ -8,10 +8,11 @@
         "Int4",
         "Int4",
         "Text",
+        "Text",
         "Text"
       ]
     },
     "nullable": []
   },
-  "hash": "b54d8de8b93e66769f44965a8d94685640d4fca008d3de70524f10a87a38c7a1"
+  "hash": "bd77a1f9fdae0736417196860fc4eaa6b2462767c96417e5b2076eca187f7d2d"
 }

@@ -3492,7 +3492,7 @@ impl State {
                 let mut res = BuildOutput::from(db_build_output);
 
                 res.products = db
-                    .get_build_products_for_build_id(build_id, self.connector.store_dir())
+                    .get_build_products_for_build_id(self.connector.store_dir(), build_id)
                     .await?;
                 res.metrics = db
                     .get_build_metrics_for_build_id(build_id)

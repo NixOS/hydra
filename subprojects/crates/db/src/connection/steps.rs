@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use super::{Handle, Transaction, names_and_paths};
+use super::{Handle, Transaction, names_and_paths, parse_row_path, path_forms};
 use crate::models::{
     BuildID, BuildStatus, BuildType, InsertBuildStep, UpdateBuildStep, UpdateBuildStepInFinish,
 };
@@ -17,7 +17,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     ) -> crate::Result<bool> {
         let paths: Vec<String> = paths
             .iter()
-            .map(|p| store_dir.display(*p).to_string())
+            .flat_map(|p| path_forms(store_dir, p))
             .collect();
         if paths.is_empty() {
             return Ok(false);
@@ -84,8 +84,8 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         path: &StorePath,
     ) -> crate::Result<Option<BuildID>> {
-        let path = store_dir.display(path).to_string();
-        Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = $1 and startTime != 0 and stopTime != 0 and status = 1", path.as_str())
+        let paths = path_forms(store_dir, path);
+        Ok(sqlx::query!("SELECT MAX(build) FROM buildsteps WHERE drvPath = ANY($1) and startTime != 0 and stopTime != 0 and status = 1", &paths)
             .fetch_optional(&mut *self.conn)
             .await?
             .and_then(|v| v.max))
@@ -97,7 +97,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         path: &StorePath,
     ) -> crate::Result<Option<BuildID>> {
-        let path = store_dir.display(path).to_string();
+        let paths = path_forms(store_dir, path);
         Ok(sqlx::query!(
             r#"
                   SELECT MAX(s.build) FROM buildsteps s
@@ -105,9 +105,9 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
                   WHERE startTime != 0
                     AND stopTime != 0
                     AND status = 1
-                    AND path = $1
+                    AND path = ANY($1)
                 "#,
-            path.as_str(),
+            &paths,
         )
         .fetch_optional(&mut *self.conn)
         .await?
@@ -121,7 +121,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         drv_path: &StorePath,
         name: &str,
     ) -> crate::Result<Option<BuildID>> {
-        let drv_path = store_dir.display(drv_path).to_string();
+        let drv_paths = path_forms(store_dir, drv_path);
         Ok(sqlx::query!(
             r#"
                   SELECT MAX(s.build) FROM buildsteps s
@@ -129,10 +129,10 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
                   WHERE startTime != 0
                     AND stopTime != 0
                     AND status = 1
-                    AND drvPath = $1
+                    AND drvPath = ANY($1)
                     AND name = $2
                 "#,
-            drv_path,
+            &drv_paths,
             name,
         )
         .fetch_optional(&mut *self.conn)
@@ -148,15 +148,16 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         step_nr: i32,
         outputs: &BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<()> {
-        let (names, paths) = names_and_paths(store_dir, outputs);
+        let (names, paths) = names_and_paths(outputs);
         sqlx::query!(
-            "UPDATE buildstepoutputs o SET path = v.path
+            "UPDATE buildstepoutputs o SET path = v.path, storeDir = $5
              FROM UNNEST($3::text[], $4::text[]) AS v(name, path)
              WHERE o.build = $1 AND o.stepnr = $2 AND o.name = v.name",
             build_id,
             step_nr,
             &names,
             &paths,
+            store_dir.to_str(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -169,14 +170,14 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         drv_path: &StorePath,
     ) -> crate::Result<BTreeMap<OutputName, StorePath>> {
-        let drv_path = store_dir.display(drv_path).to_string();
+        let drv_paths = path_forms(store_dir, drv_path);
         let items = sqlx::query!(
-            r#"SELECT DISTINCT ON (o.name) o.name, o.path AS "path!"
+            r#"SELECT DISTINCT ON (o.name) o.name, o.path AS "path!", o.storeDir
               FROM buildstepoutputs o
               JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr
-              WHERE s.drvpath = $1 AND o.path IS NOT NULL
+              WHERE s.drvpath = ANY($1) AND o.path IS NOT NULL
               ORDER BY o.name, s.build DESC, s.stepnr DESC"#,
-            drv_path,
+            &drv_paths,
         )
         .fetch_all(&mut *self.conn)
         .await?;
@@ -185,7 +186,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
             .into_iter()
             .map(|row| -> crate::Result<_> {
                 let name: OutputName = row.name.parse()?;
-                let path: StorePath = store_dir.parse(&row.path)?;
+                let path = parse_row_path(store_dir, &row.path, row.storedir.as_deref())?;
                 Ok((name, path))
             })
             .collect()
@@ -234,15 +235,15 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         build_id: BuildID,
         step_nr: i32,
     ) -> crate::Result<Option<StorePath>> {
-        Ok(sqlx::query!(
-            "SELECT drvPath FROM BuildSteps WHERE build = $1 AND stepnr = $2",
+        sqlx::query!(
+            "SELECT drvPath, storeDir FROM BuildSteps WHERE build = $1 AND stepnr = $2",
             build_id,
             step_nr
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .map(|v| store_dir.parse(&v.drvpath))
-        .transpose()?)
+        .map(|v| parse_row_path(store_dir, &v.drvpath, v.storedir.as_deref()))
+        .transpose()
     }
 
     #[tracing::instrument(skip(self, store_dir, path), err)]
@@ -251,16 +252,18 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         path: &StorePath,
     ) -> crate::Result<()> {
-        let path = store_dir.display(path).to_string();
+        let path = path.to_string();
         sqlx::query!(
             r#"
               INSERT INTO failedpaths (
-                path
+                path,
+                storedir
               ) VALUES (
-                $1
+                $1, $2
               )
             "#,
             path.as_str(),
+            store_dir.to_str(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -279,7 +282,7 @@ impl Transaction<'_> {
         // build pick the same number and all but one return None and retry.
         // The queue runner serializes the hot dispatch path with an
         // in-process per-build lock, so this only happens on rare paths.
-        let drv_path = store_dir.display(step.drv_path).to_string();
+        let drv_path = step.drv_path.to_string();
         let success = sqlx::query!(
             r#"
               WITH max AS (SELECT MAX(stepnr) AS val FROM buildsteps WHERE build = $1),
@@ -294,6 +297,7 @@ impl Transaction<'_> {
                 stepnr,
                 type,
                 drvPath,
+                storeDir,
                 busy,
                 startTime,
                 stopTime,
@@ -304,7 +308,7 @@ impl Transaction<'_> {
                 machine,
                 resolvedDrvPath
               ) VALUES (
-                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+                $1, (SELECT val FROM new_stepnr), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
               )
               ON CONFLICT DO NOTHING
               RETURNING stepnr
@@ -312,6 +316,7 @@ impl Transaction<'_> {
             step.build_id,
             step.r#type as i32,
             drv_path.as_str(),
+            store_dir.to_str(),
             i32::from(step.status == BuildStatus::Busy),
             step.start_time,
             step.stop_time,
@@ -345,14 +350,17 @@ impl Transaction<'_> {
             return Ok(());
         }
 
-        let mut query_builder =
-            sqlx::QueryBuilder::new("INSERT INTO buildstepoutputs (build, stepnr, name, path) ");
+        let mut query_builder = sqlx::QueryBuilder::new(
+            "INSERT INTO buildstepoutputs (build, stepnr, name, path, storedir) ",
+        );
 
         query_builder.push_values(outputs, |mut b, (name, path)| {
             b.push_bind(build_id)
                 .push_bind(step_nr)
                 .push_bind(name.to_string())
-                .push_bind(path.map(|p| store_dir.display(&p).to_string()));
+                .push_bind(path.as_ref().map(ToString::to_string))
+                // The check constraint requires storeDir set iff path is.
+                .push_bind(path.as_ref().map(|_| store_dir.to_str()));
         });
         let query = query_builder.build();
         query.execute(&mut *self.conn).await?;
@@ -494,11 +502,13 @@ mod tests {
     #[tokio::test]
     async fn clear_busy_step_finalizes_only_the_named_step() {
         async fn insert_busy(conn: &mut Connection, build: BuildID, stepnr: i32, drv: &StorePath) {
+            let sd = test_store_dir();
             sqlx::query!(
-                "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status) VALUES ($1, $2, 0, 1, $3, NULL)",
+                "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, storeDir, status) VALUES ($1, $2, 0, 1, $3, $4, NULL)",
                 build,
                 stepnr,
-                test_store_dir().display(drv).to_string(),
+                drv.to_string(),
+                sd.to_str(),
             )
                 .execute(&mut *conn.conn)
                 .await

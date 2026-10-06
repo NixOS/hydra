@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use super::{Connection, Handle, Transaction, names_and_paths};
+use super::{
+    Connection, Handle, Transaction, check_store_dir, names_and_paths, parse_row_path, path_forms,
+};
 use crate::models::{Build, BuildID, BuildSmall, BuildStatus, UpdateBuild};
 
 impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
@@ -27,8 +29,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         &mut self,
         store_dir: &StoreDir,
     ) -> crate::Result<Vec<Build>> {
-        let rows = sqlx::query_as!(
-            Build::<String>,
+        let rows = sqlx::query!(
             r#"
             SELECT
               builds.id,
@@ -37,6 +38,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
               jobsets.name as jobset,
               job,
               drvPath,
+              storeDir,
               maxsilent,
               timeout,
               timestamp,
@@ -49,7 +51,21 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         .fetch_all(&mut *self.conn)
         .await?;
         rows.into_iter()
-            .map(|r| Ok(r.parse_paths(store_dir)?))
+            .map(|r| {
+                Ok(Build {
+                    id: r.id,
+                    jobset_id: r.jobset_id,
+                    project: r.project,
+                    jobset: r.jobset,
+                    job: r.job,
+                    drvpath: parse_row_path(store_dir, &r.drvpath, r.storedir.as_deref())?,
+                    maxsilent: r.maxsilent,
+                    timeout: r.timeout,
+                    timestamp: r.timestamp,
+                    globalpriority: r.globalpriority,
+                    priority: r.priority,
+                })
+            })
             .collect()
     }
 
@@ -60,7 +76,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         drv_path: &StorePath,
         system: &str,
     ) -> crate::Result<()> {
-        let drv_path = store_dir.display(drv_path).to_string();
+        let drv_path = drv_path.to_string();
         sqlx::query!(
             r#"INSERT INTO builds (
               finished,
@@ -69,6 +85,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
               job,
               nixname,
               drvpath,
+              storedir,
               system,
               maxsilent,
               timeout,
@@ -85,6 +102,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
               'debug',
               $2,
               $3,
+              $4,
               7200,
               36000,
               0,
@@ -94,6 +112,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
             0);"#,
             jobset_id,
             drv_path,
+            store_dir.to_str(),
             system,
         )
         .execute(&mut *self.conn)
@@ -106,26 +125,39 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         out_path: &StorePath,
     ) -> crate::Result<Option<crate::models::BuildOutput>> {
-        let out_path = store_dir.display(out_path).to_string();
-        Ok(sqlx::query_as!(
-            crate::models::BuildOutput,
+        let out_paths = path_forms(store_dir, out_path);
+        let row = sqlx::query!(
             r#"
             SELECT
-              id, buildStatus AS "buildstatus!: BuildStatus", releaseName, closureSize, size
+              id, buildStatus AS "buildstatus!: BuildStatus", releaseName, closureSize, size,
+              o.storeDir
             FROM builds b
             JOIN buildoutputs o on b.id = o.build
-            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1
+            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = ANY($1)
             LIMIT 1;"#,
-            out_path.as_str(),
+            &out_paths,
         )
         .fetch_optional(&mut *self.conn)
-        .await?)
+        .await?;
+        row.map(|r| {
+            if let Some(found) = &r.storedir {
+                check_store_dir(store_dir, found)?;
+            }
+            Ok(crate::models::BuildOutput {
+                id: r.id,
+                buildstatus: r.buildstatus,
+                releasename: r.releasename,
+                closuresize: r.closuresize,
+                size: r.size,
+            })
+        })
+        .transpose()
     }
 
     pub async fn get_build_products_for_build_id(
         &mut self,
-        build_id: BuildID,
         store_dir: &StoreDir,
+        build_id: BuildID,
     ) -> crate::Result<Vec<nix_support::BuildProduct>> {
         let rows = sqlx::query_as!(
             crate::models::BuildProductRow,
@@ -138,6 +170,8 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
               fileSize,
               sha256hash,
               path,
+              subPath,
+              storeDir,
               name,
               defaultPath
             FROM buildproducts
@@ -147,7 +181,12 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         .fetch_all(&mut *self.conn)
         .await?;
         rows.into_iter()
-            .map(|r| Ok(r.into_build_product(store_dir)?))
+            .map(|r| {
+                if let Some(found) = &r.storedir {
+                    check_store_dir(store_dir, found)?;
+                }
+                Ok(r.into_build_product(store_dir)?)
+            })
             .collect()
     }
 
@@ -225,13 +264,14 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         build_id: BuildID,
     ) -> crate::Result<Option<StorePath>> {
-        Ok(
-            sqlx::query!("SELECT drvPath FROM Builds WHERE id = $1", build_id)
-                .fetch_optional(&mut *self.conn)
-                .await?
-                .map(|v| store_dir.parse(&v.drvpath))
-                .transpose()?,
+        sqlx::query!(
+            "SELECT drvPath, storeDir FROM Builds WHERE id = $1",
+            build_id
         )
+        .fetch_optional(&mut *self.conn)
+        .await?
+        .map(|v| parse_row_path(store_dir, &v.drvpath, v.storedir.as_deref()))
+        .transpose()
     }
 }
 
@@ -295,18 +335,20 @@ impl Transaction<'_> {
         build_id: BuildID,
         outputs: &BTreeMap<OutputName, StorePath>,
     ) -> crate::Result<()> {
-        let (names, paths) = names_and_paths(store_dir, outputs);
+        let (names, paths) = names_and_paths(outputs);
         // The evaluator pre-inserts a build's BuildOutputs rows and this
         // used to only update them; a build filed without an evaluation
         // (hydra-ad-hoc) has none, and hydra-update-gc-roots reads this
         // table, so insert or update.
         sqlx::query!(
-            "INSERT INTO buildoutputs (build, name, path)
-             SELECT $1, name, path FROM UNNEST($2::text[], $3::text[]) AS o(name, path)
-             ON CONFLICT (build, name) DO UPDATE SET path = EXCLUDED.path",
+            "INSERT INTO buildoutputs (build, name, path, storeDir)
+             SELECT $1, name, path, $4 FROM UNNEST($2::text[], $3::text[]) AS o(name, path)
+             ON CONFLICT (build, name) DO UPDATE
+               SET path = EXCLUDED.path, storeDir = EXCLUDED.storeDir",
             build_id,
             &names,
             &paths,
+            store_dir.to_str(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -342,22 +384,21 @@ impl Transaction<'_> {
         sqlx::query!(
             r#"
             INSERT INTO buildproducts
-              (build, productnr, type, subtype, fileSize, sha256hash, path, name, defaultPath)
-            SELECT $1, nr::int, type, subtype, fileSize, sha256hash, path, name, defaultPath
-            FROM UNNEST($2::text[], $3::text[], $4::int8[], $5::text[], $6::text[], $7::text[], $8::text[])
-              WITH ORDINALITY AS p(type, subtype, fileSize, sha256hash, path, name, defaultPath, nr)
+              (build, productnr, type, subtype, fileSize, sha256hash, path, subPath, storeDir, name, defaultPath)
+            SELECT $1, nr::int, type, subtype, fileSize, sha256hash, path, subPath, $10, name, defaultPath
+            FROM UNNEST($2::text[], $3::text[], $4::int8[], $5::text[], $6::text[], $7::text[], $8::text[], $9::text[])
+              WITH ORDINALITY AS p(type, subtype, fileSize, sha256hash, path, subPath, name, defaultPath, nr)
             "#,
             build_id,
             &column(|p| p.r#type.clone()),
             &column(|p| p.subtype.clone()),
             &file_sizes as _,
             &hashes as _,
-            &products
-                .iter()
-                .map(|p| p.path.print(store_dir))
-                .collect::<Vec<_>>(),
+            &column(|p| p.path.base_path.to_string()),
+            &column(|p| p.path.relative_path.to_string()),
             &column(|p| p.name.clone()),
             &column(|p| p.default_path.clone()),
+            store_dir.to_str(),
         )
         .execute(&mut *self.conn)
         .await?;
@@ -459,8 +500,9 @@ mod tests {
         let (_pg, mut conn) = setup().await;
         let sd = test_store_dir();
         sqlx::query!(
-            "INSERT INTO builds (id, finished, timestamp, jobset_id, job, drvPath, system)
-             VALUES (1, 0, 0, 1, 'job', 'job.drv', 'x86_64-linux')"
+            "INSERT INTO builds (id, finished, timestamp, jobset_id, job, drvPath, storeDir, system)
+             VALUES (1, 0, 0, 1, 'job', 'job.drv', $1, 'x86_64-linux')",
+            sd.to_str(),
         )
         .execute(&mut *conn.conn)
         .await
@@ -520,21 +562,26 @@ mod tests {
         tx.commit().await.unwrap();
 
         let rows = sqlx::query!(
-            "SELECT productnr, path, filesize, sha256hash FROM buildproducts WHERE build = 1 ORDER BY productnr"
+            "SELECT productnr, path, subPath, storeDir, filesize, sha256hash FROM buildproducts WHERE build = 1 ORDER BY productnr"
         )
         .fetch_all(&mut *conn.conn)
         .await
         .unwrap();
+        // Both products are inside the one output, so only the sub-path differs.
+        let out = sp("out").to_string();
+        for r in &rows {
+            assert_eq!(r.path.as_deref(), Some(out.as_str()));
+            assert_eq!(r.storedir.as_deref(), Some(sd.to_str()));
+        }
         let rows: Vec<_> = rows
             .into_iter()
-            .map(|r| (r.productnr, r.path, r.filesize, r.sha256hash))
+            .map(|r| (r.productnr, r.subpath, r.filesize, r.sha256hash))
             .collect();
-        let out = sd.display(&sp("out")).to_string();
         assert_eq!(
             rows,
             [
-                (1, Some(format!("{out}/a")), Some(42), Some("ab".repeat(32))),
-                (2, Some(format!("{out}/b")), None, None),
+                (1, Some("a".to_owned()), Some(42), Some("ab".repeat(32))),
+                (2, Some("b".to_owned()), None, None),
             ]
         );
 
