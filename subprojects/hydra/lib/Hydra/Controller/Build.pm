@@ -58,9 +58,11 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
 
 sub findBuildStepByOutPath {
     my ($self, $c, $storePath) = @_;
-    # `search` conditions are never deflated, so print for the query.
+    # `search` conditions are never deflated, and a row may still hold either
+    # format, so both spellings go in by hand.
     return $c->model('DB::BuildSteps')->search(
-        { path => printStorePath($c->model('DB')->schema->storeDir, $storePath), busy => 0 },
+        { path => { -in => storePathForms($c->model('DB')->schema->storeDir, $storePath) },
+          busy => 0 },
         { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -68,7 +70,8 @@ sub findBuildStepByOutPath {
 sub findBuildStepByDrvPath {
     my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => printStorePath($c->model('DB')->schema->storeDir, $drvPath), busy => 0 },
+        { drvpath => { -in => storePathForms($c->model('DB')->schema->storeDir, $drvPath) },
+          busy => 0 },
         { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -260,7 +263,7 @@ sub download : Chained('buildChain') PathPart {
     notFound($c, "Build doesn't have a product $productRef.") if !defined $product;
 
     # That the product is in the store, and where its store path ends, is
-    # settled by inflating the column; `$product->storePath` is that half.
+    # settled by the columns themselves; `$product->storePath` is that half.
 
     return $c->res->redirect(defaultUriForProduct($self, $c, $product, @path))
         if scalar @path == 0 && ($product->name || $product->defaultpath);
@@ -275,7 +278,7 @@ sub download : Chained('buildChain') PathPart {
     }
 
     # A real file on disk, so the store directory goes back on.
-    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
+    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->storePath, $product->subPath);
     $path .= "/" . join("/", @path) if scalar @path > 0;
 
     serveFile($c, $path);
@@ -323,7 +326,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     my $product = $c->stash->{build}->buildproducts->find({productnr => $productnr});
     notFound($c, "Build doesn't have a product $productnr.") if !defined $product;
 
-    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
+    my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->storePath, $product->subPath);
 
     $path = checkPath($self, $c, $path);
 
@@ -413,7 +416,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     die unless $res;
 
     $c->stash->{title} = "Contents of "
-        . printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
+        . printRelativeStorePath(machineLocalStore()->storeDir, $product->storePath, $product->subPath);
     $c->stash->{contents} = decode("utf-8", $res);
     $c->stash->{template} = 'plain.tt';
 }
@@ -503,7 +506,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(
         { id => $build->id },
         { join => ["buildoutputs"]
-        , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+        , '+select' => [\ "coalesce(buildoutputs.storedir || '/' || buildoutputs.path, buildoutputs.path)", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -575,8 +578,9 @@ sub get_info : Chained('buildChain') PathPart('api/get-info') Args(0) {
     $c->stash->{json}->{buildId} = $build->id;
     $c->stash->{json}->{drvPath} = printStorePath($c->model('DB')->schema->storeDir, $build->drvpath);
     my $out = getMainOutput($build);
+    # A content-addressed output that has not been built yet has no path.
     $c->stash->{json}->{outPath} = printStorePath($c->model('DB')->schema->storeDir, $out->path)
-        if defined $out;
+        if defined $out && defined $out->path;
 
     my @resolved;
     for my $step ($build->buildsteps->search({ status => 13 })) {

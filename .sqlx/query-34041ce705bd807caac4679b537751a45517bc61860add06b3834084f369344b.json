@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO builds (id, finished, timestamp, jobset_id, job, drvPath, storeDir, system)\n             VALUES (1, 0, 0, 1, 'job', 'job.drv', $1, 'x86_64-linux')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34041ce705bd807caac4679b537751a45517bc61860add06b3834084f369344b"
+}

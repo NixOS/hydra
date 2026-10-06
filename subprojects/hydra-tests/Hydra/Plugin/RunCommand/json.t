@@ -116,7 +116,7 @@ subtest "Validate the products match" => sub {
         is($product->{subtype}, "", "The subtype is empty.");
         is($product->{productNr}, $expectedproduct->productnr, "The product number matches.");
         is($product->{defaultPath}, "", "The default path matches.");
-        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->path), "The path matches the output.");
+        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->storePath, $expectedproduct->subPath), "The path matches the output.");
         is($product->{fileSize}, undef, "The fileSize is undefined for the nix-build output type.");
         is($product->{sha256hash}, undef, "The sha256hash is undefined for the nix-build output type.");
     };
@@ -129,7 +129,7 @@ subtest "Validate the products match" => sub {
         is($product->{subtype}, "bin", "The subtype matches the output name");
         is($product->{productNr}, $expectedproduct->productnr, "The product number matches.");
         is($product->{defaultPath}, "", "The default path matches.");
-        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->path), "The path matches the output.");
+        is($product->{path}, printRelativeStorePath($storeDir, $expectedproduct->storePath, $expectedproduct->subPath), "The path matches the output.");
         is($product->{fileSize}, undef, "The fileSize is undefined for the nix-build output type.");
         is($product->{sha256hash}, undef, "The sha256hash is undefined for the nix-build output type.");
     };
