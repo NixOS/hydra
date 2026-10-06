@@ -52,6 +52,12 @@ use JSON::MaybeXS;
 # out, because `IPC::Run3` saves and restores `STDOUT` and `addToStore` uses
 # it -- a closed descriptor fails with "Bad file descriptor saving STDOUT"
 # before the plugin gets as far as its own work.
+#
+# Stdin likewise: requests arrive on a private duplicate, and `STDIN` is
+# pointed at /dev/null, so a subprocess a plugin runs sees EOF rather than
+# blocking on the open request pipe.
+open(my $requests, "<&", \*STDIN) or die "$0: cannot duplicate stdin: $!\n";
+open(STDIN, "<", "/dev/null") or die "$0: cannot redirect stdin: $!\n";
 open(my $proto, ">&", \*STDOUT) or die "$0: cannot duplicate stdout: $!\n";
 open(STDOUT, ">&", \*STDERR) or die "$0: cannot redirect stdout: $!\n";
 $proto->autoflush(1);
@@ -128,7 +134,7 @@ sub answer {
 }
 
 
-while (defined(my $line = <STDIN>)) {
+while (defined(my $line = <$requests>)) {
     next if $line =~ /^\s*$/;
 
     # A malformed request is the caller's bug rather than an input that

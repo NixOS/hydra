@@ -247,8 +247,12 @@ sub fetchInputEval {
 # arrives as the bare name it prints as, made a store path again.
 sub inputFromJson {
     my ($input) = @_;
-    $input->{storePath} = Nix::StorePath->new($input->{storePath})
-        if defined $input->{storePath};
+    if (defined $input->{storePath}) {
+        $input->{storePath} = Nix::StorePath->new($input->{storePath});
+        # The worker's temp root lasts only as long as the worker does. Add
+        # our own while the worker still holds its root.
+        machineLocalStore()->addTempRoot($input->{storePath});
+    }
     return $input;
 }
 
@@ -264,6 +268,10 @@ sub fetchPluginInput {
         $fetcherIn->autoflush(1);
     }
 
+    # If the worker died between requests, writing to it raises SIGPIPE,
+    # which would kill us before `checkJobset` records the error. Ignore the
+    # signal and let `print` fail instead.
+    local $SIG{PIPE} = 'IGNORE';
     my $json = JSON::MaybeXS->new(utf8 => 1, canonical => 1);
     print $fetcherIn $json->encode({
         type => $type,
@@ -271,7 +279,7 @@ sub fetchPluginInput {
         value => $value,
         project => $project->name,
         jobset => $jobset->name,
-    }), "\n";
+    }), "\n" or die "hydra-fetch-input exited before fetching `$name': $!\n";
 
     my $line = <$fetcherOut>;
     die "hydra-fetch-input exited while fetching `$name'\n" unless defined $line;
@@ -781,10 +789,13 @@ sub checkJobsetWrapped {
         # there for what it replies.
         my ($res, $stdout, $stderr) = captureStdoutStderr(
             600, "hydra-prepare-declarative-jobset", $project->name, $declFile);
+        $stderr = decode("utf-8", $stderr // "");
         if ($res) {
             chomp $stderr;
             die "$stderr\n";
         }
+        # Even on success, stderr can report jobsets that failed to apply.
+        print STDERR $stderr;
         if (decode_json($stdout)->{declared}) {
             $db->txn_do(sub {
                 $jobset->update({ lastcheckedtime => time, fetcherrormsg => undef });
