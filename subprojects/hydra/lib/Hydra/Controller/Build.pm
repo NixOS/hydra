@@ -58,11 +58,9 @@ sub buildChain :Chained('/') :PathPart('build') :CaptureArgs(1) {
 
 sub findBuildStepByOutPath {
     my ($self, $c, $storePath) = @_;
-    # `search` conditions are never deflated, and a row may still hold either
-    # format, so both spellings go in by hand.
+    # `search` conditions are never deflated, so the basename goes in by hand.
     return $c->model('DB::BuildSteps')->search(
-        { path => { -in => storePathForms($c->model('DB')->schema->storeDir, $storePath) },
-          busy => 0 },
+        { path => $storePath->to_string, busy => 0 },
         { join => ["buildstepoutputs"], order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -70,8 +68,7 @@ sub findBuildStepByOutPath {
 sub findBuildStepByDrvPath {
     my ($self, $c, $drvPath) = @_;
     return $c->model('DB::BuildSteps')->search(
-        { drvpath => { -in => storePathForms($c->model('DB')->schema->storeDir, $drvPath) },
-          busy => 0 },
+        { drvpath => $drvPath->to_string, busy => 0 },
         { order_by => ["status", "stopTime"], rows => 1 })->single;
 }
 
@@ -506,7 +503,7 @@ sub nix : Chained('buildChain') PathPart('nix') CaptureArgs(0) {
     $c->stash->{channelBuilds} = $c->model('DB::Builds')->search(
         { id => $build->id },
         { join => ["buildoutputs"]
-        , '+select' => [\ "coalesce(buildoutputs.storedir || '/' || buildoutputs.path, buildoutputs.path)", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+        , '+select' => [\ "buildoutputs.storedir || '/' || buildoutputs.path", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
