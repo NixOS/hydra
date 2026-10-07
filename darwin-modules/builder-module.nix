@@ -188,11 +188,12 @@ in
       environment = {
         RUST_BACKTRACE = "1";
         NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-        # The builder execs `nix build` to realise derivations.  The linux
-        # module sets `path = [ config.nix.package ]` on the systemd service;
-        # launchd has no equivalent, so we set PATH explicitly.
-        PATH = "${config.nix.package}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
       };
+
+      path = [
+        config.nix.package
+        config.environment.systemPath
+      ];
 
       serviceConfig = {
         KeepAlive = true;
