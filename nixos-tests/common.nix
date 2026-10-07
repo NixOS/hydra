@@ -15,6 +15,7 @@ in
     {
       imports = [
         nixosModules.web-app
+        nixosModules.evaluator
         nixosModules.queue-runner
         nixosModules.ad-hoc
       ];
