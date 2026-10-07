@@ -210,6 +210,13 @@ in
       lib.filterAttrsRecursive (_: v: v != null) cfg.settings
     );
 
+    nix = {
+      settings = {
+        trusted-users = [ user.name ];
+        experimental-features = [ "nix-command" ];
+      };
+    };
+
     users = {
       users.hydra-queue-builder = {
         uid = lib.mkDefault 535;
