@@ -1,10 +1,11 @@
 //! Filing a daemon-submitted build in Hydra's database.
 //!
-//! The `db` crate owns the schema knowledge the whole of Hydra shares.
-//! The hidden `adhoc/adhoc` jobset and the shape of a build filed
-//! without an evaluation are this daemon's business alone, so their
-//! queries live here, compile-time checked against the same schema,
-//! on the raw connections `db` hands out for exactly this purpose.
+//! The `db` crate owns the schema knowledge the whole of Hydra shares,
+//! including how to queue a build without an evaluation, which the queue
+//! runner's debug builds do too. The hidden `adhoc/adhoc` jobset is this
+//! daemon's business alone, so its queries live here, compile-time
+//! checked against the same schema, on the raw connections `db` hands
+//! out for exactly this purpose.
 
 use db::models::BuildID;
 use sqlx::Connection as _;
@@ -56,25 +57,17 @@ impl AdhocSubmitter {
     /// its outputs, since no jobset evaluation will ever claim them.
     pub(crate) async fn submit(
         &self,
-        tx: &mut sqlx::PgTransaction<'_>,
+        tx: &mut db::Transaction<'_>,
         request: BuildRequest<'_>,
     ) -> Result<BuildID, db::Error> {
-        let id = sqlx::query_scalar!(
-            "INSERT INTO Builds (
-                finished, timestamp, jobset_id, job, nixname, drvPath, system,
-                maxsilent, timeout, ischannel, iscurrent, priority, globalpriority, keep
-             ) VALUES (
-                0, EXTRACT(EPOCH FROM NOW())::INT4, $1, $2, $2, $3, $4,
-                7200, 36000, 0, 0, 100, 0, 1
-             ) RETURNING id",
+        tx.insert_unevaluated_build(
             self.jobset_id,
             request.nix_name,
             request.drv_path,
             request.system,
+            true,
         )
-        .fetch_one(&mut **tx)
-        .await?;
-        Ok(id)
+        .await
     }
 }
 
@@ -140,7 +133,7 @@ mod tests {
         let (_pg, db) = setup().await;
         let submitter = AdhocSubmitter::new(db.clone()).await.unwrap();
         let mut conn = db.get().await.unwrap();
-        let mut tx = conn.raw().begin().await.unwrap();
+        let mut tx = conn.begin_transaction().await.unwrap();
         let build_id = submitter
             .submit(
                 &mut tx,
