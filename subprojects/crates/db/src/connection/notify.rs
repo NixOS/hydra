@@ -10,6 +10,26 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         Ok(())
     }
 
+    /// An evaluation of this jobset has begun.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_eval_started(&mut self, trace: &str, jobset_id: i32) -> crate::Result<()> {
+        self.notify_any("eval_started", &format!("{trace}\t{jobset_id}"))
+            .await
+    }
+
+    /// An evaluation of this jobset was skipped, its inputs unchanged since
+    /// the `previous` one.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_eval_cached(
+        &mut self,
+        trace: &str,
+        jobset_id: i32,
+        previous: i32,
+    ) -> crate::Result<()> {
+        self.notify_any("eval_cached", &format!("{trace}\t{jobset_id}\t{previous}"))
+            .await
+    }
+
     #[tracing::instrument(skip(self), err)]
     pub async fn notify_builds_added(&mut self) -> crate::Result<()> {
         self.notify_any("builds_added", "?").await
@@ -37,6 +57,70 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
 }
 
 impl Transaction<'_> {
+    /// An evaluation of this jobset failed. `error_changed` is whether its
+    /// error differs from the one the jobset had before.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_eval_failed(
+        &mut self,
+        trace: &str,
+        jobset_id: i32,
+        error_changed: bool,
+    ) -> crate::Result<()> {
+        self.notify_any(
+            "eval_failed",
+            &format!("{trace}\t{jobset_id}\t{}", i32::from(error_changed)),
+        )
+        .await
+    }
+
+    /// An evaluation of this jobset was recorded. `error_changed` is as for
+    /// `notify_eval_failed`.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_eval_added(
+        &mut self,
+        trace: &str,
+        jobset_id: i32,
+        eval_id: i32,
+        error_changed: bool,
+    ) -> crate::Result<()> {
+        self.notify_any(
+            "eval_added",
+            &format!(
+                "{trace}\t{jobset_id}\t{eval_id}\t{}",
+                i32::from(error_changed)
+            ),
+        )
+        .await
+    }
+
+    /// A build this evaluation queued.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_build_queued(&mut self, build_id: BuildID) -> crate::Result<()> {
+        self.notify_any("build_queued", &build_id.to_string()).await
+    }
+
+    /// A build this evaluation inherited from an earlier one, still running.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_cached_build_queued(
+        &mut self,
+        eval_id: i32,
+        build_id: BuildID,
+    ) -> crate::Result<()> {
+        self.notify_any("cached_build_queued", &format!("{eval_id}\t{build_id}"))
+            .await
+    }
+
+    /// A build this evaluation inherited from an earlier one, already done.
+    #[tracing::instrument(skip(self), err)]
+    pub async fn notify_cached_build_finished(
+        &mut self,
+        eval_id: i32,
+        build_id: BuildID,
+    ) -> crate::Result<()> {
+        self.notify_any("cached_build_finished", &format!("{eval_id}\t{build_id}"))
+            .await
+    }
+
     #[tracing::instrument(skip(self, build_id, dependent_ids,), err)]
     pub async fn notify_build_finished(
         &mut self,

@@ -98,6 +98,13 @@ sub new {
         }
 
         write_file($central->{hydra_config_file}, $hydra_config);
+
+        # Built outputs go to the destination store, not the central one, so
+        # a `build` input naming one has to fetch it from there: that is what
+        # `eval_substituter` is for.
+        $central->{evaluator_config_file} = "$dir/evaluator.toml";
+        write_file($central->{evaluator_config_file},
+            defined $deststoredir ? "eval_substituter = \"file://$deststoredir\"\n" : "");
     }
 
     my $pgsql = Test::PostgreSQL->new(
@@ -136,13 +143,14 @@ sub new {
         # Env vars for central services (evaluator, hydra-init, hydra-notify, etc.).
         # Applied via local %ENV right before each process spawn.
         central_env => {
-            'HYDRA_DATA'         => $central->{hydra_data},
-            'HYDRA_CONFIG'       => $central->{hydra_config_file},
-            'HYDRA_DATABASE_URL' => $central->{hydra_database_url},
-            'NIX_CONF_DIR'       => $central->{nix_conf_dir},
-            'NIX_REMOTE'         => $central->{nix_store_uri},
-            'NIX_STATE_DIR'      => $central->{nix_state_dir}, # FIXME: remove
-            'NIX_STORE_DIR'      => $central->{nix_store_dir}, # FIXME: remove
+            'HYDRA_DATA'             => $central->{hydra_data},
+            'HYDRA_CONFIG'           => $central->{hydra_config_file},
+            'HYDRA_EVALUATOR_CONFIG' => $central->{evaluator_config_file},
+            'HYDRA_DATABASE_URL'     => $central->{hydra_database_url},
+            'NIX_CONF_DIR'           => $central->{nix_conf_dir},
+            'NIX_REMOTE'             => $central->{nix_store_uri},
+            'NIX_STATE_DIR'          => $central->{nix_state_dir}, # FIXME: remove
+            'NIX_STORE_DIR'          => $central->{nix_store_dir}, # FIXME: remove
         },
     }, $class;
 
