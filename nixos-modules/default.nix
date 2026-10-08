@@ -7,12 +7,19 @@ rec {
       _file = ./default.nix;
       imports = [ ./web-app.nix ];
       services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
-      services.hydra-dev.evaluatorExecutable = lib.mkDefault "${
-        flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator
-      }/bin/hydra-evaluator";
     };
 
   postgresql = ./postgresql.nix;
+
+  evaluator =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./evaluator-module.nix ];
+      services.hydra-evaluator-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator;
+    };
 
   queue-runner =
     { pkgs, lib, ... }:
@@ -60,6 +67,7 @@ rec {
       _file = ./default.nix;
       imports = [
         web-app
+        evaluator
         queue-runner
         builder
         ws-server

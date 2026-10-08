@@ -11,42 +11,14 @@ let
 
   cfg = config.services.hydra-dev;
 
-  baseDir = "/var/lib/hydra";
+  inherit (import ./web-app-env.nix { inherit lib cfg; })
+    baseDir
+    hydraEnv
+    dbUrlWithAppName
+    env
+    ;
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
-
-  evaluatorFormat = pkgs.formats.toml { };
-
-  hydraEnv = {
-    HYDRA_DATABASE_URL = cfg.dbUrl;
-    HYDRA_CONFIG = "${baseDir}/hydra.conf";
-    HYDRA_DATA = "${baseDir}";
-  };
-
-  # The database URL with an `application_name` query parameter added, to
-  # distinguish where queries come from in Postgres statistics.
-  #
-  # `%` is doubled because these end up in systemd `Environment=`, where a
-  # bare `%` starts a specifier: the percent-encoded socket directory in the
-  # default URL (`%2Frun%2Fpostgresql`) otherwise makes systemd drop the
-  # whole assignment as an invalid specifier, and the services silently fall
-  # back to connecting as their own Unix user.
-  dbUrlWithAppName =
-    name:
-    replaceStrings [ "%" ] [ "%%" ] (
-      "${cfg.dbUrl}${if hasInfix "?" cfg.dbUrl then "&" else "?"}application_name=${name}"
-    );
-
-  env = {
-    NIX_REMOTE = "daemon";
-    PGPASSFILE = "${baseDir}/pgpass";
-  }
-  // optionalAttrs (cfg.smtpHost != null) {
-    EMAIL_SENDER_TRANSPORT = "SMTP";
-    EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
-  }
-  // hydraEnv
-  // cfg.extraEnv;
 
   serverEnv =
     env
@@ -106,11 +78,6 @@ in
         description = "The Hydra package.";
       };
 
-      evaluatorExecutable = mkOption {
-        type = types.path;
-        description = "Path to the hydra-evaluator executable.";
-      };
-
       hydraURL = mkOption {
         type = types.str;
         description = ''
@@ -133,34 +100,6 @@ in
         default = 3000;
         description = ''
           TCP port the web server should listen to.
-        '';
-      };
-
-      evaluatorSettings = mkOption {
-        type = types.submodule {
-          freeformType = evaluatorFormat.type;
-          options = {
-            max_concurrent_evals = mkOption {
-              type = types.ints.positive;
-              default = 4;
-              description = "How many jobsets to evaluate at once.";
-            };
-          };
-        };
-        default = { };
-        description = ''
-          Settings for `hydra-evaluator`, written to `/etc/hydra/evaluator.toml`.
-
-          Every service in Rust in hydra has its own separate TOML configuration file,
-          with just the settings it needs.
-        '';
-      };
-
-      minimumDiskFreeEvaluator = mkOption {
-        type = types.int;
-        default = 0;
-        description = ''
-          Threshold of minimum disk space (GiB) to determine if the evaluator should run or not.
         '';
       };
 
@@ -335,51 +274,6 @@ in
       };
     };
 
-    environment.etc."hydra/evaluator.toml".source =
-      evaluatorFormat.generate "evaluator.toml" cfg.evaluatorSettings;
-
-    systemd.services.hydra-evaluator = {
-      wantedBy = [ "multi-user.target" ];
-      requires = [ "hydra-init.service" ];
-      restartTriggers = [
-        hydraConf
-        config.environment.etc."hydra/evaluator.toml".source
-      ];
-      after = [
-        "hydra-init.service"
-        "network.target"
-      ];
-      path = with pkgs; [
-        hostname-debian
-        # Because hydra-evaluator calls `hydra-eval-jobset`. If we
-        # move that perl script into rust, then we can get rid of
-        # this.
-        cfg.package
-      ];
-      environment = env // {
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
-      };
-      serviceConfig = {
-        ExecStart = escapeShellArgs [
-          "@${cfg.evaluatorExecutable}"
-          "hydra-evaluator"
-          "--config-path"
-          "/etc/hydra/evaluator.toml"
-        ];
-        # `--unlock` goes through the same argument parsing, so it needs the
-        # path too.
-        ExecStopPost = escapeShellArgs [
-          "${cfg.evaluatorExecutable}"
-          "--config-path"
-          "/etc/hydra/evaluator.toml"
-          "--unlock"
-        ];
-        User = "hydra";
-        Restart = "always";
-        WorkingDirectory = baseDir;
-      };
-    };
-
     systemd.services.hydra-update-gc-roots = {
       requires = [ "hydra-init.service" ];
       after = [ "hydra-init.service" ];
@@ -433,19 +327,6 @@ in
         Restart = "always";
         RestartSec = 5;
       };
-    };
-
-    # If there is less than a certain amount of free disk space, stop
-    # the evaluator to prevent builds from failing or aborting.
-    # Leaves a tag file indicating this reason; if the tag file exists
-    # and disk space is above the threshold + 10GB, the evaluator will be
-    # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-evaluator-check-space = {
-      script = ''
-        ${builtins.readFile ./check-space.sh}
-        spacestopstart hydra-evaluator ${toString cfg.minimumDiskFreeEvaluator}
-      '';
-      startAt = "*:0/5";
     };
 
     # Periodically compress build logs. The queue runner compresses
