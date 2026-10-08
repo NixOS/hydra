@@ -523,6 +523,12 @@ sub jobsIterFromLines {
             $job->{constituents} = [
                 map { parseStorePath($storeDir, $_) } @{$job->{constituents}}
             ] if defined $job->{constituents};
+            $job->{outputs} = {
+                map { $_ => defined $job->{outputs}->{$_}
+                        ? parseStorePath($storeDir, $job->{outputs}->{$_})
+                        : undef }
+                keys %{$job->{outputs}}
+            } if defined $job->{outputs};
             return $job;
         }
     };
@@ -572,9 +578,12 @@ sub checkBuild {
         # new build to be scheduled if the meta.maintainers field is
         # changed?
         if (defined $prevEval) {
+            # Rows `hydra-backfill-store-dirs` has not reached yet still hold
+            # a full path, so match either spelling.
+            my $storeDir = machineLocalStore()->storeDir;
             my $pathOrDrvConstraint = defined $firstOutputPath
-                ? { path => $firstOutputPath }
-                : { drvPath => $drvPath };
+                ? { path => { -in => storePathForms($storeDir, $firstOutputPath) } }
+                : { drvPath => { -in => storePathForms($storeDir, $drvPath) } };
 
             my ($prevBuild) = $prevEval->builds->search(
                 # The "project" and "jobset" constraints are
@@ -659,8 +668,15 @@ sub checkBuild {
 
         # Output rows are inserted in bulk by the caller (see populate below);
         # row-at-a-time creates dominate eval insertion time on large jobsets.
+        # These rows go in via `populate` in void context, which bypasses both
+        # deflation and the `insert` that would otherwise fill in `storedir`,
+        # so this is the one place that has to write the pair out by hand.
+        my $storeDir = machineLocalStore()->storeDir;
         $buildMap->{$build->id} = { id => $build->id, jobName => $jobName, new => 1, drvPath => $drvPath
-                                  , outputs => [ map { { build => $build->id, name => $_, path => $buildInfo->{outputs}->{$_} } } @outputNames ] };
+                                  , outputs => [ map { my $p = $buildInfo->{outputs}->{$_};
+                                                       { build => $build->id, name => $_
+                                                       , path => defined $p ? $p->to_string : undef
+                                                       , storedir => defined $p ? $storeDir : undef } } @outputNames ] };
         $$jobOutPathMap{$jobName . "\t" . $firstOutputPath} = $build->id;
 
         $db->storage->dbh->do("notify build_queued, ?", undef, $build->id);
@@ -758,10 +774,14 @@ sub applyDrvPathRepoints {
         eval {
             $db->txn_do(sub {
                 for my $id (@ids) {
-                    # `update` on a resultset does not deflate, so print the
-                    # full store path ourselves.
+                    # `update` on a resultset does not deflate, so write the
+                    # basename and the store dir ourselves. `storedir` too,
+                    # not just `drvpath`: an unconverted row would otherwise
+                    # be left holding a basename with no store dir beside it,
+                    # which is neither format.
                     $builds->search({ id => $id })->update(
-                        { drvpath => printStorePath($db->schema->storeDir, $buildMap->{$id}->{drvPath})
+                        { drvpath => $buildMap->{$id}->{drvPath}->to_string
+                        , storedir => machineLocalStore()->storeDir
                         , finished => 0, buildstatus => undef });
                 }
             });

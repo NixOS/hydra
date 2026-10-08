@@ -228,10 +228,11 @@ sub findLog {
     # that haven't built yet or failed to build may have a NULL outPath.
     @outPaths = grep {defined} @outPaths;
 
-    # `search` does not deflate, so the store directory has to go back on
-    # by hand for the query.
+    # `search` does not deflate, and a row may hold either format, so both
+    # spellings have to be put in by hand.
+    my $storeDir = $c->model('DB')->schema->storeDir;
     my @steps = $c->model('DB::BuildSteps')->search(
-        { path => { -in => [map { printStorePath($c->model('DB')->schema->storeDir, $_) } @outPaths] } },
+        { path => { -in => [map { @{storePathForms($storeDir, $_)} } @outPaths] } },
         { select => ["drvpath"]
         , distinct => 1
         , join => "buildstepoutputs"
@@ -557,12 +558,24 @@ sub restartBuilds {
 
         # Clear the failed paths cache.
         # FIXME: Add this to the API.
-        my $cleared = $db->resultset('FailedPaths')->search(
-            { path => { -in => $builds->search({}, { join => "buildoutputs", select => "buildoutputs.path", as => "path", distinct => 1 })->as_query }
-            })->delete;
-        $cleared += $db->resultset('FailedPaths')->search(
-            { path => { -in => $builds->search({}, { join => "buildstepoutputs", select => "buildstepoutputs.path", as => "path", distinct => 1 })->as_query }
-            })->delete;
+        #
+        # Either side may still hold a full path while
+        # `hydra-backfill-store-dirs` is running, and the two tables
+        # convert independently, so the outputs are matched in every form
+        # they might be stored in: as-is, with the store dir glued back
+        # on, and stripped down to the basename. Once everything is
+        # converted the first of the three is the one that matches.
+        my $cleared = 0;
+        for my $rel ("buildoutputs", "buildstepoutputs") {
+            for my $expr ("$rel.path",
+                          "coalesce($rel.storedir || '/' || $rel.path, $rel.path)",
+                          "regexp_replace($rel.path, '^.*/', '')") {
+                $cleared += $db->resultset('FailedPaths')->search(
+                    { path => { -in => $builds->search({},
+                        { join => $rel, select => \$expr, as => "path" })->as_query }
+                    })->delete;
+            }
+        }
         print STDERR "cleared $cleared failed paths\n";
 
         $nrRestarted = $builds->update(

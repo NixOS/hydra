@@ -87,6 +87,11 @@ __PACKAGE__->table("jobsetevalinputs");
   data_type: 'text'
   is_nullable: 1
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 sha256hash
 
   data_type: 'text'
@@ -114,6 +119,8 @@ __PACKAGE__->add_columns(
   "dependency",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "path",
+  { data_type => "text", is_nullable => 1 },
+  "storedir",
   { data_type => "text", is_nullable => 1 },
   "sha256hash",
   { data_type => "text", is_nullable => 1 },
@@ -173,8 +180,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-04-13 18:35:07
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:q/qrpAvMOAbZZZ+1RjumcQ
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 03:26:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:C/eQXDrewYKLOf2mWyPlZQ
 
 my %hint = (
     columns => [
@@ -218,3 +225,4 @@ __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_optional_store_paths(qw/path/);
 
 1;
+

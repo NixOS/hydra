@@ -15,6 +15,12 @@ pub enum DataError {
         build_id: crate::models::BuildID,
         productnr: i32,
     },
+
+    /// A row's storeDir column disagrees with the store dir this queue
+    /// runner is configured for. The DB may legitimately hold rows from
+    /// another store, but this deployment cannot act on them.
+    #[error("row's store dir `{found}` does not match the configured store dir `{expected}`")]
+    StoreDirMismatch { expected: String, found: String },
 }
 
 /// Errors from the db crate.

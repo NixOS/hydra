@@ -165,7 +165,7 @@ sub nix : Chained('evalChain') PathPart('channel') CaptureArgs(0) {
                  { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
                  , join => ["buildoutputs"]
                  , order_by => ["build.id", "buildoutputs.name"]
-                 , '+select' => ['buildoutputs.path', 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+                 , '+select' => [\ "coalesce(buildoutputs.storedir || '/' || buildoutputs.path, buildoutputs.path)", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 
@@ -189,7 +189,7 @@ sub store_paths : Chained('evalChain') PathPart('store-paths') Args(0) {
         ->search_literal("exists (select 1 from buildproducts where build = build.id and type = 'nix-build')")
         ->search({ finished => 1, buildstatus => 0 },
                  { columns => [], join => ["buildoutputs"]
-                 , '+select' => ['buildoutputs.path'], '+as' => ['outpath'] });
+                 , '+select' => [\ "coalesce(buildoutputs.storedir || '/' || buildoutputs.path, buildoutputs.path)"], '+as' => ['outpath'] });
 
     $self->status_ok(
         $c,

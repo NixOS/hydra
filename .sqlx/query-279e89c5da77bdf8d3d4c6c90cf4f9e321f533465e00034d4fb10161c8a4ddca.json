@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO buildoutputs (build, name, path, storeDir)\n             SELECT $1, name, path, $4 FROM UNNEST($2::text[], $3::text[]) AS o(name, path)\n             ON CONFLICT (build, name) DO UPDATE\n               SET path = EXCLUDED.path, storeDir = EXCLUDED.storeDir",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "TextArray",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "279e89c5da77bdf8d3d4c6c90cf4f9e321f533465e00034d4fb10161c8a4ddca"
+}

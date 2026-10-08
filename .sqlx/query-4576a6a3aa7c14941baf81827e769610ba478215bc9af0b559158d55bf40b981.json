@@ -1,33 +1,34 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, path FROM buildoutputs WHERE build = $1 AND path IS NOT NULL",
+  "query": "SELECT drvPath, storeDir FROM BuildSteps WHERE build = $1 AND stepnr = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "name",
+        "name": "drvpath",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "buildoutputs",
-            "name": "name"
+            "table": "buildsteps",
+            "name": "drvpath"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "path",
+        "name": "storedir",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "buildoutputs",
-            "name": "path"
+            "table": "buildsteps",
+            "name": "storedir"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
+        "Int4",
         "Int4"
       ]
     },
@@ -36,5 +37,5 @@
       true
     ]
   },
-  "hash": "85e74d1acc41e2799e5c0f92918a6d9d2647f0cb9ce5a55144a1636f5d41230d"
+  "hash": "4576a6a3aa7c14941baf81827e769610ba478215bc9af0b559158d55bf40b981"
 }

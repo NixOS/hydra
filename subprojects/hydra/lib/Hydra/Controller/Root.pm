@@ -415,7 +415,10 @@ sub lookupBuildTrace {
     my ($c, $drvPath, $outputName) = @_;
     my $storeDir = machineLocalStore()->storeDir;
 
-    my $drvPathInStore = "$storeDir/$drvPath";
+    # `drvpath` holds the basename in a converted row and the full path in one
+    # `hydra-backfill-store-dirs` has not reached, so every comparison against
+    # it has to admit both. `resolveddrvpath` has always been a basename.
+    my @drvPathForms = ($drvPath, "$storeDir/$drvPath");
 
     my $output = $c->model('DB::BuildStepOutputs')->search(
         { "me.name" => $outputName
@@ -424,13 +427,18 @@ sub lookupBuildTrace {
         # Either the derivation asked about was built directly, or -- being
         # content-addressed -- it was resolved first and built under the
         # resolved name, which is the step the outputs hang off. The Resolved
-        # step records that name, without a store directory.
+        # step records that name, without a store directory, so the step built
+        # under it is found by either spelling of that name in turn.
         , -or =>
-            [ "buildstep.drvpath" => $drvPathInStore
+            [ "buildstep.drvpath" => { -in => \@drvPathForms }
+            , "buildstep.drvpath" => { -in => \[
+                "select resolveddrvpath from buildsteps"
+                . " where drvpath in (?, ?) and status = 13",
+                @drvPathForms ] }
             , "buildstep.drvpath" => { -in => \[
                 "select ? || '/' || resolveddrvpath from buildsteps"
-                . " where drvpath = ? and status = 13",
-                $storeDir, $drvPathInStore ] }
+                . " where drvpath in (?, ?) and status = 13",
+                $storeDir, @drvPathForms ] }
             ]
         },
         { join => "buildstep"
@@ -607,15 +615,26 @@ sub search :Local Args(0) {
             } )
         ];
 
+        # These columns hold the basename, so a store path pasted in full would
+        # match nothing. Search on the basename instead, which is a substring
+        # of either format and so finds rows `hydra-backfill-store-dirs` has
+        # not converted yet as well.
+        #
+        # The basename is the component that looks like one, so the store
+        # directory before it and any sub-path after it both go. A query
+        # with no such component is used as it is.
+        my ($pathQuery) = $query =~ m{(?:^|/)([0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/]+)};
+        $pathQuery //= $query;
+
         # Perform build search in separate queries to prevent seq scan on buildoutputs table.
         $c->stash->{builds} = [ $c->model('DB::Builds')->search(
-            { "buildoutputs.path" => { ilike => "%$query%" } },
+            { "buildoutputs.path" => { ilike => "%$pathQuery%" } },
             { order_by => ["id desc"], join => ["buildoutputs"]
             , rows => $c->stash->{limit}
             } ) ];
 
         $c->stash->{buildsdrv} = [ $c->model('DB::Builds')->search(
-            { "drvpath" => { ilike => "%$query%" } },
+            { "drvpath" => { ilike => "%$pathQuery%" } },
             { order_by => ["id desc"]
             , rows => $c->stash->{limit}
             } ) ];

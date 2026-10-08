@@ -57,6 +57,11 @@ __PACKAGE__->table("buildstepoutputs");
   data_type: 'text'
   is_nullable: 1
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -67,6 +72,8 @@ __PACKAGE__->add_columns(
   "name",
   { data_type => "text", is_nullable => 0 },
   "path",
+  { data_type => "text", is_nullable => 1 },
+  "storedir",
   { data_type => "text", is_nullable => 1 },
 );
 
@@ -119,8 +126,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-04-13 18:35:07
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:E+upIb5db2BiF4TfXtLSWQ
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PZAMK4o1g3YmMRc9IdtaOw
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
@@ -128,3 +135,4 @@ __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/path/);
 
 1;
+

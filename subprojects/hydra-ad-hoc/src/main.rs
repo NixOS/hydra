@@ -44,7 +44,7 @@ async fn main() -> eyre::Result<()> {
     let database =
         db::Database::new(config.db_url.expose_secret(), config.max_db_connections).await?;
     let waiter = BuildWaiter::start(&database).await?;
-    let submitter = AdhocSubmitter::new(database.clone()).await?;
+    let submitter = AdhocSubmitter::new(database.clone(), store_dir.clone()).await?;
     let logs = LogSource {
         db: database.clone(),
         store_dir: store_dir.clone(),

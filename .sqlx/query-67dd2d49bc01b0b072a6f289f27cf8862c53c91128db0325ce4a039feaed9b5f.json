@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT productnr, path, filesize, sha256hash FROM buildproducts WHERE build = 1 ORDER BY productnr",
+  "query": "SELECT productnr, path, subPath, storeDir, filesize, sha256hash FROM buildproducts WHERE build = 1 ORDER BY productnr",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,28 @@
       },
       {
         "ordinal": 2,
+        "name": "subpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildproducts",
+            "name": "subpath"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "storedir",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildproducts",
+            "name": "storedir"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "filesize",
         "type_info": "Int8",
         "origin": {
@@ -37,7 +59,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "sha256hash",
         "type_info": "Text",
         "origin": {
@@ -55,8 +77,10 @@
       false,
       true,
       true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "921cb73e730e9b74ee746c9606091eb4b700f5a5ba8429a8b141e88d21aaee1c"
+  "hash": "67dd2d49bc01b0b072a6f289f27cf8862c53c91128db0325ce4a039feaed9b5f"
 }

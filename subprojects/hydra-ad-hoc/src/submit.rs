@@ -34,6 +34,7 @@ pub(crate) struct BuildRequest<'a> {
 #[derive(Debug, Clone)]
 pub(crate) struct AdhocSubmitter {
     jobset_id: i32,
+    store_dir: db::StoreDir,
 }
 
 impl AdhocSubmitter {
@@ -43,9 +44,12 @@ impl AdhocSubmitter {
     /// Resolved once at startup rather than per build: the jobset is
     /// created on demand and never removed, so re-checking on every
     /// request would be a round trip to learn the same answer.
-    pub(crate) async fn new(db: db::Database) -> Result<Self, db::Error> {
+    pub(crate) async fn new(db: db::Database, store_dir: db::StoreDir) -> Result<Self, db::Error> {
         let jobset_id = ensure_adhoc_jobset(db.get().await?.raw()).await?;
-        Ok(Self { jobset_id })
+        Ok(Self {
+            jobset_id,
+            store_dir,
+        })
     }
 
     /// Insert the `Builds` row for `request` and return its id.
@@ -59,17 +63,19 @@ impl AdhocSubmitter {
         tx: &mut sqlx::PgTransaction<'_>,
         request: BuildRequest<'_>,
     ) -> Result<BuildID, db::Error> {
+        let drv_path: harmonia_store_path::StorePath = self.store_dir.parse(request.drv_path)?;
         let id = sqlx::query_scalar!(
             "INSERT INTO Builds (
-                finished, timestamp, jobset_id, job, nixname, drvPath, system,
+                finished, timestamp, jobset_id, job, nixname, drvPath, storeDir, system,
                 maxsilent, timeout, ischannel, iscurrent, priority, globalpriority, keep
              ) VALUES (
-                0, EXTRACT(EPOCH FROM NOW())::INT4, $1, $2, $2, $3, $4,
+                0, EXTRACT(EPOCH FROM NOW())::INT4, $1, $2, $2, $3, $4, $5,
                 7200, 36000, 0, 0, 100, 0, 1
              ) RETURNING id",
             self.jobset_id,
             request.nix_name,
-            request.drv_path,
+            drv_path.to_string(),
+            self.store_dir.to_str(),
             request.system,
         )
         .fetch_one(&mut **tx)
@@ -121,6 +127,10 @@ async fn ensure_adhoc_jobset(conn: &mut sqlx::PgConnection) -> Result<i32, db::E
 mod tests {
     use super::*;
 
+    fn test_store_dir() -> db::StoreDir {
+        db::StoreDir::new("/nix/store").unwrap()
+    }
+
     async fn setup() -> (test_utils::TestPg, db::Database) {
         let (pg, _pool) = test_utils::TestPg::new().await;
         let db = db::Database::new(&pg.url(), 2).await.unwrap();
@@ -130,22 +140,30 @@ mod tests {
     #[tokio::test]
     async fn ensure_adhoc_jobset_is_idempotent() {
         let (_pg, db) = setup().await;
-        let id1 = AdhocSubmitter::new(db.clone()).await.unwrap().jobset_id;
-        let id2 = AdhocSubmitter::new(db).await.unwrap().jobset_id;
+        let id1 = AdhocSubmitter::new(db.clone(), test_store_dir())
+            .await
+            .unwrap()
+            .jobset_id;
+        let id2 = AdhocSubmitter::new(db, test_store_dir())
+            .await
+            .unwrap()
+            .jobset_id;
         assert_eq!(id1, id2);
     }
 
     #[tokio::test]
     async fn submit_sets_keep_and_starts_unfinished() {
         let (_pg, db) = setup().await;
-        let submitter = AdhocSubmitter::new(db.clone()).await.unwrap();
+        let submitter = AdhocSubmitter::new(db.clone(), test_store_dir())
+            .await
+            .unwrap();
         let mut conn = db.get().await.unwrap();
         let mut tx = conn.raw().begin().await.unwrap();
         let build_id = submitter
             .submit(
                 &mut tx,
                 BuildRequest {
-                    drv_path: "/nix/store/foo.drv",
+                    drv_path: "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0-foo.drv",
                     nix_name: "hello",
                     system: "x86_64-linux",
                 },
@@ -155,7 +173,7 @@ mod tests {
         tx.commit().await.unwrap();
 
         let row = sqlx::query!(
-            "SELECT keep, finished, drvPath, system FROM Builds WHERE id = $1",
+            "SELECT keep, finished, drvPath, storeDir, system FROM Builds WHERE id = $1",
             build_id
         )
         .fetch_one(conn.raw())
@@ -166,7 +184,8 @@ mod tests {
             "keep=1 so hydra-update-gc-roots retains outputs"
         );
         assert_eq!(row.finished, 0, "build starts unfinished");
-        assert_eq!(row.drvpath, "/nix/store/foo.drv");
+        assert_eq!(row.drvpath, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0-foo.drv");
+        assert_eq!(row.storedir.as_deref(), Some("/nix/store"));
         assert_eq!(row.system, "x86_64-linux");
     }
 }

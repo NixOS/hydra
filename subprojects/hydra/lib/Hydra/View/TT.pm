@@ -44,9 +44,10 @@ sub printStorePath {
 }
 
 sub printRelativeStorePath {
-    my ($self, $c, $split) = @_;
-    return "" unless ref $split;
-    return Hydra::StorePath::printRelativeStorePath($c->model('DB')->schema->storeDir, $split);
+    my ($self, $c, $storePath, $subPath) = @_;
+    return "" unless ref $storePath;
+    return Hydra::StorePath::printRelativeStorePath(
+        $c->model('DB')->schema->storeDir, $storePath, $subPath);
 }
 
 sub metricDivId {

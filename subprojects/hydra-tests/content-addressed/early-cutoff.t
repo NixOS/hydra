@@ -64,13 +64,13 @@ is($downstream1_out->path->to_string, $downstream2_out->path->to_string,
 
 my $downstream1_step = $db->resultset('BuildSteps')->find({
     build => $downstream1->id,
-    # A find condition is never deflated, so print the store directory back on.
-    drvPath => printStorePath($db->storeDir, $downstream1->drvpath),
+    # A find condition is never deflated, so spell out the stored form.
+    drvPath => $downstream1->drvpath->to_string,
 });
 
 my $downstream2_step = $db->resultset('BuildSteps')->find({
     build => $downstream2->id,
-    drvPath => printStorePath($db->storeDir, $downstream2->drvpath),
+    drvPath => $downstream2->drvpath->to_string,
 });
 
 ok(length($downstream1_step->resolveddrvpath) > 32,

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO Builds (\n                finished, timestamp, jobset_id, job, nixname, drvPath, storeDir, system,\n                maxsilent, timeout, ischannel, iscurrent, priority, globalpriority, keep\n             ) VALUES (\n                0, EXTRACT(EPOCH FROM NOW())::INT4, $1, $2, $2, $3, $4, $5,\n                7200, 36000, 0, 0, 100, 0, 1\n             ) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c7c7e986d07c1747f453a7fb827c62b7ce3b7700a252d5e546bffc33bac9035"
+}
