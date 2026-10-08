@@ -413,12 +413,6 @@ sub nix_cache_info :Path('nix-cache-info') :Args(0) {
 # the difference to reconcile if these are ever merged.
 sub lookupBuildTrace {
     my ($c, $drvPath, $outputName) = @_;
-    my $storeDir = machineLocalStore()->storeDir;
-
-    # `drvpath` holds the basename in a converted row and the full path in one
-    # `hydra-backfill-store-dirs` has not reached, so every comparison against
-    # it has to admit both. `resolveddrvpath` has always been a basename.
-    my @drvPathForms = ($drvPath, "$storeDir/$drvPath");
 
     my $output = $c->model('DB::BuildStepOutputs')->search(
         { "me.name" => $outputName
@@ -426,19 +420,14 @@ sub lookupBuildTrace {
         , "buildstep.status" => 0
         # Either the derivation asked about was built directly, or -- being
         # content-addressed -- it was resolved first and built under the
-        # resolved name, which is the step the outputs hang off. The Resolved
-        # step records that name, without a store directory, so the step built
-        # under it is found by either spelling of that name in turn.
+        # resolved name, which is the step the outputs hang off. Both columns
+        # are store paths, so the resolved name matches `drvpath` as it stands.
         , -or =>
-            [ "buildstep.drvpath" => { -in => \@drvPathForms }
+            [ "buildstep.drvpath" => $drvPath
             , "buildstep.drvpath" => { -in => \[
                 "select resolveddrvpath from buildsteps"
-                . " where drvpath in (?, ?) and status = 13",
-                @drvPathForms ] }
-            , "buildstep.drvpath" => { -in => \[
-                "select ? || '/' || resolveddrvpath from buildsteps"
-                . " where drvpath in (?, ?) and status = 13",
-                $storeDir, @drvPathForms ] }
+                . " where drvpath = ? and status = 13",
+                $drvPath ] }
             ]
         },
         { join => "buildstep"
@@ -615,10 +604,9 @@ sub search :Local Args(0) {
             } )
         ];
 
-        # These columns hold the basename, so a store path pasted in full would
-        # match nothing. Search on the basename instead, which is a substring
-        # of either format and so finds rows `hydra-backfill-store-dirs` has
-        # not converted yet as well.
+        # These columns hold the basename, so a store path pasted in full --
+        # which is how one is usually to hand -- would match nothing. Drop the
+        # store directory from the query rather than making the user do it.
         #
         # The basename is the component that looks like one, so the store
         # directory before it and any sub-path after it both go. A query

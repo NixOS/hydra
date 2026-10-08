@@ -81,7 +81,7 @@ __PACKAGE__->table("builds");
 =head2 storedir
 
   data_type: 'text'
-  is_nullable: 1
+  is_nullable: 0
 
 =head2 system
 
@@ -210,7 +210,7 @@ __PACKAGE__->add_columns(
   "drvpath",
   { data_type => "text", is_nullable => 0 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_nullable => 0 },
   "system",
   { data_type => "text", is_nullable => 0 },
   "license",
@@ -262,6 +262,22 @@ __PACKAGE__->add_columns(
 =cut
 
 __PACKAGE__->set_primary_key("id");
+
+=head1 UNIQUE CONSTRAINTS
+
+=head2 C<builds_storedir_id_key>
+
+=over 4
+
+=item * L</storedir>
+
+=item * L</id>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("builds_storedir_id_key", ["storedir", "id"]);
 
 =head1 RELATIONS
 
@@ -355,6 +371,21 @@ __PACKAGE__->has_many(
   undef,
 );
 
+=head2 buildoutputs_storedir_builds
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Result::BuildOutputs>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildoutputs_storedir_builds",
+  "Hydra::Schema::Result::BuildOutputs",
+  { "foreign.build" => "self.id", "foreign.storedir" => "self.storedir" },
+  undef,
+);
+
 =head2 buildproducts
 
 Type: has_many
@@ -367,6 +398,21 @@ __PACKAGE__->has_many(
   "buildproducts",
   "Hydra::Schema::Result::BuildProducts",
   { "foreign.build" => "self.id" },
+  undef,
+);
+
+=head2 buildproducts_storedir_builds
+
+Type: has_many
+
+Related object: L<Hydra::Schema::Result::BuildProducts>
+
+=cut
+
+__PACKAGE__->has_many(
+  "buildproducts_storedir_builds",
+  "Hydra::Schema::Result::BuildProducts",
+  { "foreign.build" => "self.id", "foreign.storedir" => "self.storedir" },
   undef,
 );
 
@@ -396,7 +442,7 @@ Related object: L<Hydra::Schema::Result::BuildSteps>
 __PACKAGE__->has_many(
   "buildsteps",
   "Hydra::Schema::Result::BuildSteps",
-  { "foreign.build" => "self.id" },
+  { "foreign.build" => "self.id", "foreign.storedir" => "self.storedir" },
   undef,
 );
 
@@ -504,8 +550,8 @@ __PACKAGE__->many_to_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 13:14:01
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:SidONUOOeWTNiBbEd9WQ7A
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 15:04:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:V4MRawkq4NmoH8Ffw7PotA
 
 __PACKAGE__->has_many(
   "dependents",

@@ -173,18 +173,17 @@ create table Builds (
     -- Store-path columns (drvPath here, and the path/storePath columns of other
     -- tables) hold just the store-path basename ("<hash>-<name>[.drv]");
     -- the store dir it belongs to is recorded separately in the accompanying
-    -- storeDir column. Foreign keys include the store dir (multi-column foreign
-    -- keys) to ensure coherence, but we also require store paths themselves to
-    -- be unique.
+    -- storeDir column. This avoids repeating the store dir in every row while
+    -- still recording which store each row was created against.
     --
-    -- Having the separate column avoids repeating the store dir in every row
-    -- while still recording which store each row was created against. Having
-    -- the uniqueness with and without the store dir works because the store dir
-    -- is include in the store path digest calculation; it enforces that this is
-    -- being done properly so store paths across different stores should never
-    -- collide.
+    -- Migration in progress: rows written before schema version 89 still
+    -- carry a full path here and a null storeDir, and both formats are
+    -- readable (a full path contains a slash, a basename never does). The
+    -- `hydra-backfill-store-dirs` script converts them in resumable
+    -- batches; schema version 90 then makes storeDir mandatory and adds
+    -- the constraints that tie each row's store dir to its parent's.
     drvPath       text not null,
-    storeDir      text not null,
+    storeDir      text,
     system        text not null,
 
     license       text, -- meta.license
@@ -238,10 +237,6 @@ create table Builds (
     check (finished = 0 or (stoptime is not null and stoptime != 0)),
     check (finished = 0 or (starttime is not null and starttime != 0)),
 
-    -- Referenced by the composite foreign keys of child tables so their
-    -- storeDir provably agrees with the build's.
-    unique (storeDir, id),
-
     foreign key (jobset_id) references Jobsets(id) on delete cascade
 );
 
@@ -267,13 +262,8 @@ create table BuildOutputs (
     name          text not null,
     path          text, -- store-path basename; see Builds.drvPath
     storeDir      text,
-    check ((path is null) = (storeDir is null)),
     primary key   (build, name),
-    foreign key   (build) references Builds(id) on delete cascade,
-    -- When a path is recorded, its store must agree with the build's.
-    -- (A null storeDir skips this check but is still cascaded by the
-    -- single-column foreign key above.)
-    foreign key   (storeDir, build) references Builds(storeDir, id) on delete cascade
+    foreign key   (build) references Builds(id) on delete cascade
 );
 
 
@@ -286,7 +276,7 @@ create table BuildSteps (
     type          integer not null, -- 0 = build, 1 = substitution
 
     drvPath       text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null, -- also the store of resolvedDrvPath below
+    storeDir      text, -- also the store of resolvedDrvPath below
 
     -- 0 = not busy
     -- 1 = building
@@ -325,10 +315,7 @@ create table BuildSteps (
     resolvedDrvPath  text,
 
     primary key   (build, stepnr),
-    -- Referenced by BuildStepOutputs' composite foreign key.
-    unique (storeDir, build, stepnr),
-    -- A step builds in its build's store.
-    foreign key   (storeDir, build) references Builds(storeDir, id) on delete cascade,
+    foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (propagatedFrom) references Builds(id) on delete cascade,
     -- status = 13 (Resolved) iff resolvedDrvPath is set
     check ((status = 13) = (resolvedDrvPath is not null))
@@ -348,12 +335,9 @@ create table BuildStepOutputs (
     name          text not null,
     path          text, -- store-path basename; see Builds.drvPath
     storeDir      text,
-    check ((path is null) = (storeDir is null)),
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
-    foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade,
-    -- When a path is recorded, its store must agree with the step's.
-    foreign key   (storeDir, build, stepnr) references BuildSteps(storeDir, build, stepnr) on delete cascade
+    foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
 );
 
 
@@ -375,7 +359,6 @@ create table BuildInputs (
 
     path          text, -- store-path basename; see Builds.drvPath
     storeDir      text,
-    check ((path is null) = (storeDir is null)),
 
     sha256hash    text,
 
@@ -399,14 +382,10 @@ create table BuildProducts (
     -- takes a column of its own rather than being run together with `path'.
     subPath       text,
     storeDir      text,
-    check ((path is null) = (storeDir is null)),
-    check ((path is null) = (subPath is null)),
     name          text not null, -- generally just the filename part of `path'
     defaultPath   text, -- if `path' is a directory, the default file relative to `path' to be served
     primary key   (build, productnr),
-    foreign key   (build) references Builds(id) on delete cascade,
-    -- When a path is recorded, its store must agree with the build's.
-    foreign key   (storeDir, build) references Builds(storeDir, id) on delete cascade
+    foreign key   (build) references Builds(id) on delete cascade
 );
 
 
@@ -440,7 +419,7 @@ create table CachedPathInputs (
     lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (srcPath, sha256hash)
 );
 
@@ -450,7 +429,7 @@ create table CachedSubversionInputs (
     revision      integer not null,
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (uri, revision)
 );
 
@@ -459,7 +438,7 @@ create table CachedBazaarInputs (
     revision      integer not null,
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (uri, revision)
 );
 
@@ -470,7 +449,7 @@ create table CachedGitInputs (
     isDeepClone   boolean not null,
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (uri, branch, revision, isDeepClone)
 );
 
@@ -479,7 +458,7 @@ create table CachedDarcsInputs (
     revision      text not null,
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     revCount      integer not null,
     primary key   (uri, revision)
 );
@@ -490,7 +469,7 @@ create table CachedHgInputs (
     revision      text not null,
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (uri, branch, revision)
 );
 
@@ -501,7 +480,7 @@ create table CachedCVSInputs (
     lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
     storePath     text not null, -- store-path basename; see Builds.drvPath
-    storeDir      text not null,
+    storeDir      text,
     primary key   (uri, module, sha256hash)
 );
 
@@ -563,7 +542,6 @@ create table JobsetEvalInputs (
 
     path          text, -- store-path basename; see Builds.drvPath
     storeDir      text,
-    check ((path is null) = (storeDir is null)),
 
     sha256hash    text,
 
@@ -686,12 +664,7 @@ create index IndexRunCommandLogsOnBuildID on RunCommandLogs(build_id);
 -- The output paths that have permanently failed.
 create table FailedPaths (
     path text primary key not null, -- store-path basename; see Builds.drvPath
-    storeDir text not null,
-    -- Redundant given the bare-path primary key, but spells out the pair.
-    -- The store dir is included in the store-path digest calculation, so
-    -- the same basename can never legitimately appear in two stores; the
-    -- bare-path primary key enforces that this is being done properly.
-    unique (storeDir, path)
+    storeDir text
 );
 
 

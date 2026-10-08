@@ -11,16 +11,21 @@
 # Here each batch commits on its own, so an interrupted run resumes where
 # it stopped -- just start it again.
 #
-# It is safe to run while Hydra is up. A row is converted iff its
-# storeDir is set, Hydra reads both formats, and it only ever writes the
-# new one, so a partly-converted table is consistent at every point. The
-# exception is content-addressed derivation resolution, which assumes the
-# converted format and may fail to find rows that are still pending; CA
-# builds are expected to be degraded until this finishes.
+# A row is converted iff its storeDir is set. The Hydra that goes with
+# schema version 89 reads both formats and only ever writes the new one,
+# so with that version deployed this is safe to run while Hydra is up: a
+# partly-converted table is consistent at every point. The exception is
+# content-addressed derivation resolution, which assumes the converted
+# format and may fail to find rows that are still pending; CA builds are
+# expected to be degraded until this finishes.
 #
 # When no rows remain, apply schema version 90, which makes storeDir
 # mandatory and adds the constraints relating each row's store dir to its
-# parent's.
+# parent's. From then on Hydra reads the converted format only.
+#
+# So a deployment upgrading straight past version 89 has to stop there
+# with Hydra down: `hydra-init` applies 89, then refuses 90 while rows
+# remain to convert. Run this to completion, then `hydra-init` again.
 
 use strict;
 use warnings;
