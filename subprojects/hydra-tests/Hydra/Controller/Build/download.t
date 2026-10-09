@@ -69,4 +69,21 @@ subtest "Test downloading build products (regression test for #1520)" => sub {
     }
 };
 
+subtest "Download paths cannot escape the store" => sub {
+    my $build_id = $build->id;
+    my ($doc_product) = grep { $_->type eq "doc" } $build->buildproducts;
+    ok($doc_product, "Should have a doc product") or return;
+    my $base = "/build/$build_id/download/" . $doc_product->productnr;
+
+    my $secret_file = "$ctx{tmpdir}/secret.txt";
+    write_file($secret_file, "some secret\n");
+    my $rel = substr($secret_file, 1);
+
+    for my $traversal ("../" x 32 . $rel, "%2e%2e/" x 32 . $rel) {
+        my $response = request(GET "$base/$traversal");
+        like($response->content, qr/Invalid filename/, "'$traversal' is refused");
+        unlike($response->content, qr/some secret/, "'$traversal' does not leak the file");
+    }
+};
+
 done_testing();
