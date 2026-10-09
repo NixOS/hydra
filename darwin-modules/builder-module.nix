@@ -187,12 +187,13 @@ in
 
       environment = {
         RUST_BACKTRACE = "1";
-        NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-        # The builder execs `nix build` to realise derivations.  The linux
-        # module sets `path = [ config.nix.package ]` on the systemd service;
-        # launchd has no equivalent, so we set PATH explicitly.
-        PATH = "${config.nix.package}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        inherit (config.environment.variables) NIX_SSL_CERT_FILE;
       };
+
+      path = [
+        config.nix.package
+        config.environment.systemPath
+      ];
 
       serviceConfig = {
         KeepAlive = true;
@@ -208,6 +209,13 @@ in
     environment.etc."hydra/builder.toml".source = format.generate "builder.toml" (
       lib.filterAttrsRecursive (_: v: v != null) cfg.settings
     );
+
+    nix = {
+      settings = {
+        trusted-users = [ user.name ];
+        experimental-features = [ "nix-command" ];
+      };
+    };
 
     users = {
       users.hydra-queue-builder = {
