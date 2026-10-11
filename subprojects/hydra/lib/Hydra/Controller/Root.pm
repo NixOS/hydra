@@ -370,7 +370,7 @@ sub nar :Local :Args(1) {
     }
 
     else {
-        $path = machineLocalStore()->storeDir . "/$path";
+        $path = Nix::StorePath->new($path);
 
         gone($c, "Path " . $path . " is no longer available.") unless machineLocalStore()->isValidPath($path);
 
