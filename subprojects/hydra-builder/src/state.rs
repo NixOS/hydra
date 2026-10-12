@@ -1440,6 +1440,10 @@ fn build_client_options(
     options
         .other_settings
         .insert("timeout".to_string(), build_timeout.to_string().into());
+    // Always run build locally
+    options
+        .other_settings
+        .insert("builders".to_string(), "".into());
     if presigned {
         // With presigned uploads, inputs are substituted from a binary cache
         // that other builders write to continuously; a cached negative narinfo
