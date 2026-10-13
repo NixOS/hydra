@@ -185,7 +185,7 @@ mod tests {
         );
         assert_eq!(row.finished, 0, "build starts unfinished");
         assert_eq!(row.drvpath, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0-foo.drv");
-        assert_eq!(row.storedir.as_deref(), Some("/nix/store"));
+        assert_eq!(row.storedir, "/nix/store");
         assert_eq!(row.system, "x86_64-linux");
     }
 }

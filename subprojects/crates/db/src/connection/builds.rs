@@ -3,9 +3,7 @@ use std::collections::BTreeMap;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use super::{
-    Connection, Handle, Transaction, check_store_dir, names_and_paths, parse_row_path, path_forms,
-};
+use super::{Connection, Handle, Transaction, check_store_dir, names_and_paths};
 use crate::models::{Build, BuildID, BuildSmall, BuildStatus, UpdateBuild};
 
 impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
@@ -52,13 +50,14 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         .await?;
         rows.into_iter()
             .map(|r| {
+                check_store_dir(store_dir, &r.storedir)?;
                 Ok(Build {
                     id: r.id,
                     jobset_id: r.jobset_id,
                     project: r.project,
                     jobset: r.jobset,
                     job: r.job,
-                    drvpath: parse_row_path(store_dir, &r.drvpath, r.storedir.as_deref())?,
+                    drvpath: StorePath::from_base_path(&r.drvpath)?,
                     maxsilent: r.maxsilent,
                     timeout: r.timeout,
                     timestamp: r.timestamp,
@@ -125,24 +124,22 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         store_dir: &StoreDir,
         out_path: &StorePath,
     ) -> crate::Result<Option<crate::models::BuildOutput>> {
-        let out_paths = path_forms(store_dir, out_path);
+        let out_path = out_path.to_string();
         let row = sqlx::query!(
             r#"
             SELECT
               id, buildStatus AS "buildstatus!: BuildStatus", releaseName, closureSize, size,
-              o.storeDir
+              o.storeDir AS "storedir!"
             FROM builds b
             JOIN buildoutputs o on b.id = o.build
-            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = ANY($1)
+            WHERE finished = 1 and (buildStatus = 0 or buildStatus = 6) and path = $1
             LIMIT 1;"#,
-            &out_paths,
+            out_path.as_str(),
         )
         .fetch_optional(&mut *self.conn)
         .await?;
         row.map(|r| {
-            if let Some(found) = &r.storedir {
-                check_store_dir(store_dir, found)?;
-            }
+            check_store_dir(store_dir, &r.storedir)?;
             Ok(crate::models::BuildOutput {
                 id: r.id,
                 buildstatus: r.buildstatus,
@@ -185,7 +182,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
                 if let Some(found) = &r.storedir {
                     check_store_dir(store_dir, found)?;
                 }
-                Ok(r.into_build_product(store_dir)?)
+                Ok(r.into_build_product()?)
             })
             .collect()
     }
@@ -270,7 +267,10 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         )
         .fetch_optional(&mut *self.conn)
         .await?
-        .map(|v| parse_row_path(store_dir, &v.drvpath, v.storedir.as_deref()))
+        .map(|v| -> crate::Result<_> {
+            check_store_dir(store_dir, &v.storedir)?;
+            Ok(StorePath::from_base_path(&v.drvpath)?)
+        })
         .transpose()
     }
 }

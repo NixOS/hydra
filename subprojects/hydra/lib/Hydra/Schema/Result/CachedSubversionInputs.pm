@@ -58,7 +58,7 @@ __PACKAGE__->table("cachedsubversioninputs");
 =head2 storedir
 
   data_type: 'text'
-  is_nullable: 1
+  is_nullable: 0
 
 =cut
 
@@ -72,7 +72,7 @@ __PACKAGE__->add_columns(
   "storepath",
   { data_type => "text", is_nullable => 0 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -90,8 +90,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:a8wv27ueAUCeaJ2Lvmw9hg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:45:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:lYRJ1PSaLAgB8kLe4DsXjw
 
 1;
 

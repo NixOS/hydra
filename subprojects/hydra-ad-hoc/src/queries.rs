@@ -46,16 +46,17 @@ pub(crate) async fn get_finished_build(
     };
 
     let outputs = sqlx::query!(
-        "SELECT name, path, storeDir FROM buildoutputs WHERE build = $1 AND path IS NOT NULL",
+        r#"SELECT name, path AS "path!", storeDir AS "storedir!"
+           FROM buildoutputs WHERE build = $1 AND path IS NOT NULL"#,
         build_id,
     )
     .fetch_all(&mut *conn)
     .await?
     .into_iter()
-    .filter_map(|r| r.path.map(|p| (r.name, p, r.storedir)))
-    .map(|(name, path, row_store_dir)| -> Result<_, db::Error> {
-        let name: OutputName = name.parse()?;
-        let path = db::parse_row_path(store_dir, &path, row_store_dir.as_deref())?;
+    .map(|r| -> Result<_, db::Error> {
+        db::check_store_dir(store_dir, &r.storedir)?;
+        let name: OutputName = r.name.parse()?;
+        let path = StorePath::from_base_path(&r.path)?;
         Ok((name, path))
     })
     .collect::<Result<_, _>>()?;
