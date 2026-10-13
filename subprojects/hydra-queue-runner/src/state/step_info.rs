@@ -117,10 +117,11 @@ impl StepInfo {
                     });
 
                 // A successful build step can record an incorrect output path.
-                // For statically known outputs, the `.drv` file is authoritative;
-                // using the recorded path would omit the real input from the
-                // builder's sandbox. Dynamic chains need per-link resolution so
-                // a statically known intermediate output takes precedence too.
+                // For a single, statically known output, the `.drv` file is
+                // authoritative; using the recorded path would omit the real
+                // input from the builder's sandbox. Keep the recursive SQL
+                // result for dynamic chains: it follows resolved derivation
+                // steps, which the single-output DB lookup cannot do.
                 results
                     .into_iter()
                     .zip(&chain_refs)
@@ -149,11 +150,11 @@ impl StepInfo {
                             });
                         }
 
-                        let mut current = (*root).clone();
-                        for output_name in outputs {
-                            current = resolve_from_drv_file(store_dir, &current, output_name)
-                                .or_else(|| {
-                                    rt.block_on(conn.resolve_drv_output(
+                        result.or_else(|| {
+                            let mut current = (*root).clone();
+                            for output_name in outputs {
+                                current = rt
+                                    .block_on(conn.resolve_drv_output(
                                         store_dir,
                                         &current,
                                         output_name,
@@ -162,9 +163,12 @@ impl StepInfo {
                                         tracing::warn!("resolve_drv_output failed: {e}");
                                         None
                                     })
-                                })?;
-                        }
-                        Some(current)
+                                    .or_else(|| {
+                                        resolve_from_drv_file(store_dir, &current, output_name)
+                                    })?;
+                            }
+                            Some(current)
+                        })
                     })
                     .collect()
             })
