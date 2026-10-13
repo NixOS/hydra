@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT keep, finished, drvPath, system FROM Builds WHERE id = $1",
+  "query": "SELECT keep, finished, drvPath, storeDir, system FROM Builds WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "storedir",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "storedir"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "system",
         "type_info": "Text",
         "origin": {
@@ -57,8 +68,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "e72b66e52b7485669ec0c409d661c3551e1d189107e265997678fdbd5b0b1f10"
+  "hash": "8ab4ea95cefd5598516f90945ec7f5807430ed1048bb3b683f4a39989a1b61ea"
 }

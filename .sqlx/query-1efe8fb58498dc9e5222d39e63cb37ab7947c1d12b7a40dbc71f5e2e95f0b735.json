@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, path, storeDir FROM buildoutputs WHERE build = $1 AND path IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "storedir",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "storedir"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "1efe8fb58498dc9e5222d39e63cb37ab7947c1d12b7a40dbc71f5e2e95f0b735"
+}

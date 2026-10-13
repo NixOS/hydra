@@ -90,6 +90,11 @@ __PACKAGE__->table("buildinputs");
   data_type: 'text'
   is_nullable: 1
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 sha256hash
 
   data_type: 'text'
@@ -122,6 +127,8 @@ __PACKAGE__->add_columns(
   "dependency",
   { data_type => "integer", is_foreign_key => 1, is_nullable => 1 },
   "path",
+  { data_type => "text", is_nullable => 1 },
+  "storedir",
   { data_type => "text", is_nullable => 1 },
   "sha256hash",
   { data_type => "text", is_nullable => 1 },
@@ -182,8 +189,8 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:IBNdR4VPMGusDQex5omT+g
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 03:26:15
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:Qnur7U+/gNmvSFE9ISn05Q
 
 my %hint = (
     columns => [
@@ -200,3 +207,4 @@ sub json_hint {
 }
 
 1;
+
