@@ -116,23 +116,44 @@ impl StepInfo {
                         vec![None; inputs.len()]
                     });
 
-                // The build-history lookup can miss outputs that never got
-                // a successful build step row. For chains the SQL couldn't
-                // resolve, retry link by link, falling back to reading the
-                // `.drv` file, which is authoritative for input-addressed
-                // derivations. The per-link DB lookup matters too: a chain
-                // can mix links known only to the DB with links whose drv
-                // only exists on disk, and the recursive SQL stops at the
-                // first miss.
+                // A successful build step can record an incorrect output path.
+                // For statically known outputs, the `.drv` file is authoritative;
+                // using the recorded path would omit the real input from the
+                // builder's sandbox. Dynamic chains need per-link resolution so
+                // a statically known intermediate output takes precedence too.
                 results
                     .into_iter()
                     .zip(&chain_refs)
                     .map(|(result, (root, outputs))| {
-                        result.or_else(|| {
-                            let mut current = (*root).clone();
-                            for output_name in outputs {
-                                current = rt
-                                    .block_on(conn.resolve_drv_output(
+                        if outputs.len() == 1 {
+                            if let Some(path) = resolve_from_drv_file(store_dir, root, outputs[0]) {
+                                if let Some(recorded) = &result
+                                    && recorded != &path
+                                {
+                                    tracing::warn!(
+                                        %root,
+                                        output = %outputs[0],
+                                        %recorded,
+                                        authoritative = %path,
+                                        "ignoring incorrect build-step output path"
+                                    );
+                                }
+                                return Some(path);
+                            }
+                            return result.or_else(|| {
+                                rt.block_on(conn.resolve_drv_output(store_dir, root, outputs[0]))
+                                    .unwrap_or_else(|e| {
+                                        tracing::warn!("resolve_drv_output failed: {e}");
+                                        None
+                                    })
+                            });
+                        }
+
+                        let mut current = (*root).clone();
+                        for output_name in outputs {
+                            current = resolve_from_drv_file(store_dir, &current, output_name)
+                                .or_else(|| {
+                                    rt.block_on(conn.resolve_drv_output(
                                         store_dir,
                                         &current,
                                         output_name,
@@ -141,12 +162,9 @@ impl StepInfo {
                                         tracing::warn!("resolve_drv_output failed: {e}");
                                         None
                                     })
-                                    .or_else(|| {
-                                        resolve_from_drv_file(store_dir, &current, output_name)
-                                    })?;
-                            }
-                            Some(current)
-                        })
+                                })?;
+                        }
+                        Some(current)
                     })
                     .collect()
             })
