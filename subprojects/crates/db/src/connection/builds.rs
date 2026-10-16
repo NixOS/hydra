@@ -61,7 +61,23 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         system: &str,
     ) -> crate::Result<()> {
         let drv_path = store_dir.display(drv_path).to_string();
-        sqlx::query!(
+        self.insert_unevaluated_build(jobset_id, "debug", &drv_path, system, false)
+            .await?;
+        Ok(())
+    }
+
+    /// Queue a build that no evaluation produced, under `jobset_id`, and
+    /// return its id. `job` is also its `nixname`. `keep` tells
+    /// `hydra-update-gc-roots` to retain its outputs.
+    pub async fn insert_unevaluated_build(
+        &mut self,
+        jobset_id: i32,
+        job: &str,
+        drv_path: &str,
+        system: &str,
+        keep: bool,
+    ) -> crate::Result<BuildID> {
+        Ok(sqlx::query_scalar!(
             r#"INSERT INTO builds (
               finished,
               timestamp,
@@ -81,24 +97,26 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
               0,
               EXTRACT(EPOCH FROM NOW())::INT8,
               $1,
-              'debug',
-              'debug',
+              $2,
               $2,
               $3,
+              $4,
               7200,
               36000,
               0,
               0,
               100,
               0,
-            0);"#,
+              $5
+            ) RETURNING id"#,
             jobset_id,
+            job,
             drv_path,
             system,
+            i32::from(keep),
         )
-        .execute(&mut *self.conn)
-        .await?;
-        Ok(())
+        .fetch_one(&mut *self.conn)
+        .await?)
     }
 
     pub async fn get_build_output_for_path(

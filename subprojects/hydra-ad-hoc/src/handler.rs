@@ -24,7 +24,6 @@ use harmonia_store_remote::pool::{ConnectionPool, PoolConfig};
 
 use db::StoreDir;
 use db::models::{BuildID, BuildStatus};
-use sqlx::Connection as _;
 use tokio::sync::{mpsc, oneshot, watch};
 
 use crate::logs::{LogSource, build_log_stream};
@@ -257,8 +256,7 @@ impl HydraDaemonHandler {
             .await
             .map_err(|e| ProtocolError::custom(format!("hydra db: {e}")))?;
         let mut tx = conn
-            .raw()
-            .begin()
+            .begin_transaction()
             .await
             .map_err(|e| ProtocolError::custom(format!("begin tx: {e}")))?;
         let build_id = self
@@ -288,8 +286,7 @@ impl HydraDaemonHandler {
 
         let committed: Result<(), ProtocolError> = async {
             // What the queue runner listens on to pick up new rows.
-            sqlx::query!("SELECT pg_notify('builds_added', '?')")
-                .execute(&mut *tx)
+            tx.notify_builds_added()
                 .await
                 .map_err(|e| ProtocolError::custom(format!("notify builds_added: {e}")))?;
             tx.commit()
