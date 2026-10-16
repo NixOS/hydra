@@ -126,9 +126,12 @@ foreach my $project ($db->resultset('Projects')->search({}, { order_by => ["name
         my @evals;
 
         # Get the unfinished evals.
+        # hydra-ad-hoc makes builds with no associated eval and thus DBIx returns undef
+        # for their eval field, but the query generator fails when given an undef.
+        # Filter out the null values in SQL before they get to perl.
         push @evals, $_->get_column("eval") foreach $jobset->builds->search(
             { finished => 0 },
-            { join => "jobsetevalmembers", select => "jobsetevalmembers.eval", as => "eval", distinct => 1 });
+            { join => "jobsetevalmembers", select => "jobsetevalmembers.eval", as => "eval", distinct => 1, where => { eval => { '!=', undef } } });
 
         # Get the N most recent finished evals.
         if ($keepnr) {
