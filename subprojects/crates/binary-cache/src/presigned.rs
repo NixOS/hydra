@@ -168,7 +168,7 @@ impl PresignedUploadClient {
         let stream = read_nar_stream(store_dir, store_path);
         let compressor = upload
             .compression
-            .get_compression_fn(upload.compression_level, false);
+            .get_nar_compression_fn(upload.compression_level, false);
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 

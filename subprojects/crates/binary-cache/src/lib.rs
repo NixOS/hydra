@@ -19,6 +19,7 @@ mod multipart;
 mod narinfo;
 mod presence_cache;
 mod presigned;
+mod seekable;
 mod streaming_hash;
 
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme, UrlParseError};
@@ -685,7 +686,7 @@ impl S3BinaryCacheClient {
 
         let stream = read_nar_stream(store_dir, &narinfo.path);
 
-        let compressor = compression.get_compression_fn(
+        let compressor = compression.get_nar_compression_fn(
             self.cfg.get_compression_level(),
             self.cfg.parallel_compression,
         );
