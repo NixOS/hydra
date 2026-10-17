@@ -82,6 +82,25 @@ store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&wr
 
 This example uses [Zstandard](https://github.com/facebook/zstd) compression on derivations to reduce CPU usage on the server, but [Brotli](https://brotli.org/) compression for derivation listings and build logs because it has better browser support.
 
+### Seekable Zstandard NARs
+
+With `compression=zstd`, Hydra writes each NAR in the [zstd seekable format](https://github.com/facebook/zstd/blob/dev/contrib/seekable_format/zstd_seekable_compression_format.md): a sequence of independent zstd frames, followed by a seek table in a skippable frame.
+A new frame starts at the first directory entry after 8 MiB of NAR, and after at most 16 MiB of NAR.
+Thus a NAR that is smaller than 8 MiB is one frame.
+With the `narOffset` values in the `.ls` listing (`write-nar-listing=1`), a client can use the seek table to find the frames that hold a file.
+The client can then get only those frames with an HTTP range request, instead of the full NAR.
+Other compression methods do not change.
+
+RFC 8878 makes concatenated frames valid zstd, and decoders skip skippable frames.
+Thus Nix and the `zstd` tool read these NARs without changes.
+Other readers must decode all frames, not only the first frame.
+
+The frame size is a trade-off.
+Each frame starts with no compression history, so zstd cannot use matches in earlier frames.
+Smaller frames make the NAR larger, mostly when files near each other are similar, for example binaries that contain the same code.
+Larger frames make a client get more bytes for one file.
+On 145 NARs from a NixOS system closure, at zstd level 3, the total size increased by less than 0.5% when compared to one frame for each NAR, and no NAR increased by more than 6%.
+
 See [`nix help stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html) for a description of the store URI format.
 
 Statsd Configuration
