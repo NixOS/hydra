@@ -20,7 +20,7 @@ jobs:
       actions: write
       contents: read
     steps:
-      - uses: Mic92/hestia@v3
+      - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
       - run: |
           "$HESTIA_BIN" gc ${{ inputs.dry-run && '--dry-run' || '' }}
         env:
