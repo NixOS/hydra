@@ -22,6 +22,11 @@
 
   inputs.crane.url = "github:ipetkov/crane";
 
+  inputs.flake-compat = {
+    url = "github:NixOS/flake-compat";
+    flake = false;
+  };
+
   outputs =
     {
       self,
