@@ -270,7 +270,6 @@ my %hint = (
     columns => [
         "timestamp",
         "checkouttime",
-        "evaltime",
         "hasnewbuilds",
         "id",
         "flake",

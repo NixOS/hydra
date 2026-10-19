@@ -86,11 +86,15 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
     let mut args = Vec::new();
 
     for (name, alts) in inputs {
-        eyre::ensure!(
-            alts.len() == 1,
-            "multiple jobset input alternatives are no longer supported"
-        );
-        let alt = &alts[0];
+        // A `build` input whose job has never been built resolves to
+        // nothing, and the expression is left to default it.
+        let [alt] = alts.as_slice() else {
+            eyre::ensure!(
+                alts.is_empty(),
+                "multiple jobset input alternatives are no longer supported"
+            );
+            continue;
+        };
 
         if let Some(path) = &alt.store_path {
             args.extend(["-I".to_owned(), format!("{name}={}", full(store_dir, path))]);

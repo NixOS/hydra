@@ -74,8 +74,9 @@ pub(crate) async fn complete(db: &db::Database, config: &Config, eval_id: i32) -
 
     // Root every job's derivation, not only those that became builds: an
     // aggregate is reported as a job and nothing else in the store refers to
-    // its derivation. This is what `nix-eval-jobs --gc-roots-dir` did for
-    // `hydra-eval-jobs`.
+    // its derivation. `nix-eval-jobs --gc-roots-dir` did this while
+    // evaluation ran on this machine; the build that runs it now cannot
+    // write outside its sandbox, so the roots are made here instead.
     if let Err(e) = add_roots(
         config.roots_dir(),
         jobs.iter().filter_map(|j| j.drv_path.as_deref()),

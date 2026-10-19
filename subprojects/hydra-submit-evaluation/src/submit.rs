@@ -237,7 +237,8 @@ async fn current_system() -> eyre::Result<String> {
         out.status.success(),
         "could not ask nix for the current system"
     );
-    Ok(String::from_utf8_lossy(&out.stdout)
+    Ok(String::from_utf8(out.stdout)
+        .wrap_err("nix printed a non-UTF-8 system")?
         .trim()
         .trim_matches('"')
         .to_owned())

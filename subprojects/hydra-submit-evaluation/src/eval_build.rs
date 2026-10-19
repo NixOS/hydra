@@ -207,16 +207,21 @@ pub(crate) async fn instantiate(
         .await
         .wrap_err("could not run nix-instantiate")?;
 
-    eyre::ensure!(
-        out.status.success(),
-        "instantiating the evaluation derivation failed:\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    if !out.status.success() {
+        let stderr = String::from_utf8(out.stderr)
+            .wrap_err("instantiating the evaluation derivation failed, with non-UTF-8 output")?;
+        eyre::bail!("instantiating the evaluation derivation failed:\n{stderr}");
+    }
 
-    Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
+    Ok(String::from_utf8(out.stdout)
+        .wrap_err("nix-instantiate printed a non-UTF-8 derivation path")?
+        .trim()
+        .to_owned())
 }
 
-/// The first `PATH` entry that holds an executable of this name.
+/// The first `PATH` entry that holds an executable of this name. Entries
+/// that are not UTF-8 are passed over, since the result goes into a Nix
+/// string.
 fn which(name: &str) -> Option<String> {
     if name.contains('/') {
         return Some(name.to_owned());
@@ -224,8 +229,8 @@ fn which(name: &str) -> Option<String> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
         .map(|dir| dir.join(name))
-        .find(|candidate| candidate.is_file())
-        .map(|p| p.to_string_lossy().into_owned())
+        .filter(|candidate| candidate.is_file())
+        .find_map(|p| p.into_os_string().into_string().ok())
 }
 
 /// The store path a file belongs to, if it is in this store.
@@ -254,12 +259,15 @@ async fn evaluation_nix_config() -> eyre::Result<Option<String>> {
         .await
         .wrap_err("could not read the evaluator's experimental features")?;
 
-    eyre::ensure!(
-        out.status.success(),
-        "could not read the evaluator's experimental features:\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    if !out.status.success() {
+        let stderr = String::from_utf8(out.stderr)
+            .wrap_err("could not read the evaluator's experimental features")?;
+        eyre::bail!("could not read the evaluator's experimental features:\n{stderr}");
+    }
 
-    let features = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    let features = String::from_utf8(out.stdout)
+        .wrap_err("nix printed non-UTF-8 experimental features")?
+        .trim()
+        .to_owned();
     Ok((!features.is_empty()).then(|| format!("experimental-features = {features}")))
 }

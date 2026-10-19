@@ -46,8 +46,7 @@ async fn main() -> color_eyre::Result<()> {
         .wrap_err("failed to connect to database")?;
     let config = config::HydraConfig::load(&cli.config_path)?;
 
-    // The store is needed both to describe inputs to the expression and to
-    // find out whether a build an input names is actually here.
+    // The store directory is needed to describe inputs to the expression.
     let remote = daemon_client_utils::parse_nix_remote()
         .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
     let available = store_paths::Availability::new(
@@ -66,7 +65,9 @@ async fn main() -> color_eyre::Result<()> {
                     tracing::info!("scheduled evaluation {eval} as build {build}");
                 }
                 Ok(submit::Outcome::Declared) => {
-                    tracing::info!("jobsets created from the declarative specification");
+                    tracing::info!(
+                        "the declarative specification named the jobsets; nothing to evaluate"
+                    );
                 }
                 Err(e) => {
                     tracing::error!("{e:#}");
