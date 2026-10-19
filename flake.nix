@@ -133,6 +133,7 @@
           };
           programs.nixfmt.enable = true;
           programs.taplo.enable = true;
+          programs.zizmor.enable = true;
         };
 
       treefmtEval = system: treefmt-nix.lib.evalModule nixpkgs.legacyPackages.${system} treefmtConfig;

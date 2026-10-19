@@ -19,18 +19,19 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
-    - uses: cachix/install-nix-action@v31
+        persist-credentials: false
+    - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
       with:
         extra_nix_config: |
           extra-systems = ${{ matrix.system }}
-    - uses: cachix/cachix-action@v17
+    - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
       with:
         name: hydra-test-cache
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - uses: Mic92/hestia@v3
+    - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
     - run: nix-build -A packages.${{ matrix.system }}.hydra-cargo-deps
     - run: nix-build -A checks.${{ matrix.system }}.rustTests
     - run: nix-build -A checks.${{ matrix.system }}.systemTests
@@ -50,13 +51,14 @@ jobs:
           - s3-overflow
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
-    - uses: cachix/install-nix-action@v31
-    - uses: cachix/cachix-action@v17
+        persist-credentials: false
+    - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+    - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
       with:
         name: hydra-test-cache
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
-    - uses: Mic92/hestia@v3
+    - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
     - run: nix-build -A hydraJobs.nixosTests.${{ matrix.test }}.x86_64-linux
