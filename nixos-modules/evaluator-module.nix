@@ -37,11 +37,22 @@ in
       [ "services" "hydra-dev" "minimumDiskFreeEvaluator" ]
       [ "services" "hydra-evaluator-dev" "minimumDiskFree" ]
     )
-    (mkRemovedOptionModule [
-      "services"
-      "hydra-dev"
-      "evaluatorExecutable"
-    ] "Set `services.hydra-evaluator-dev.package` to the `hydra-evaluator` package instead.")
+    (mkRemovedOptionModule
+      [
+        "services"
+        "hydra-dev"
+        "evaluatorExecutable"
+      ]
+      "Set `services.hydra-evaluator-dev.submitEvaluationPackage` and `processEvaluationPackage` instead."
+    )
+    (mkRemovedOptionModule
+      [
+        "services"
+        "hydra-evaluator-dev"
+        "package"
+      ]
+      "Set `services.hydra-evaluator-dev.submitEvaluationPackage` and `processEvaluationPackage` instead."
+    )
   ];
 
   options = {
@@ -61,9 +72,14 @@ in
         '';
       };
 
-      package = mkOption {
+      submitEvaluationPackage = mkOption {
         type = types.package;
-        description = "The `hydra-evaluator` package.";
+        description = "The `hydra-submit-evaluation` package.";
+      };
+
+      processEvaluationPackage = mkOption {
+        type = types.package;
+        description = "The `hydra-process-evaluation` package.";
       };
 
       nixEvalJobsPackage = mkOption {
@@ -133,7 +149,7 @@ in
 
     environment.etc."hydra/evaluator.toml".source = format.generate "evaluator.toml" cfg.settings;
 
-    systemd.services.hydra-evaluator = {
+    systemd.services.hydra-submit-evaluation = {
       wantedBy = [ "multi-user.target" ];
       requires = [ "hydra-init.service" ];
       # Not `hydra.conf`: only the Perl the evaluator runs reads it, and
@@ -145,19 +161,19 @@ in
       ];
       path = with pkgs; [
         hostname-debian
-        # Because hydra-evaluator calls `hydra-fetch-input`, which is Perl
-        # and must stay so: input types are a plugin interface.
+        # Because hydra-submit-evaluation calls `hydra-fetch-input`, which is
+        # Perl and must stay so: input types are a plugin interface.
         webCfg.package
         config.nix.package
         cfg.nixEvalJobsPackage
       ];
       environment = env // {
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-submit-evaluation";
       };
       serviceConfig = {
         ExecStart = escapeShellArgs [
-          "@${cfg.package}/bin/hydra-evaluator"
-          "hydra-evaluator"
+          "@${cfg.submitEvaluationPackage}/bin/hydra-submit-evaluation"
+          "hydra-submit-evaluation"
           "--config-path"
           "/etc/hydra/evaluator.toml"
         ];
@@ -167,15 +183,42 @@ in
       };
     };
 
+    # The other half of evaluating: reads finished evaluation builds back
+    # and turns them into the builds they found. Driven by `build_finished`,
+    # with a catch-up pass at startup. It reads `evaluator.toml` only for
+    # where to root the evaluated derivations.
+    systemd.services.hydra-process-evaluation = {
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      restartTriggers = [ config.environment.etc."hydra/evaluator.toml".source ];
+      after = [ "hydra-init.service" ];
+      path = [ webCfg.package ];
+      environment = env // {
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-process-evaluation";
+      };
+      serviceConfig = {
+        ExecStart = escapeShellArgs [
+          "@${cfg.processEvaluationPackage}/bin/hydra-process-evaluation"
+          "hydra-process-evaluation"
+          "--config-path"
+          "/etc/hydra/evaluator.toml"
+        ];
+        User = "hydra";
+        Restart = "always";
+        RestartSec = 5;
+        WorkingDirectory = baseDir;
+      };
+    };
+
     # If there is less than a certain amount of free disk space, stop
     # the evaluator to prevent builds from failing or aborting.
     # Leaves a tag file indicating this reason; if the tag file exists
     # and disk space is above the threshold + 10GB, the evaluator will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-evaluator-check-space = {
+    systemd.services.hydra-submit-evaluation-check-space = {
       script = ''
         ${builtins.readFile ./check-space.sh}
-        spacestopstart hydra-evaluator ${toString cfg.minimumDiskFree}
+        spacestopstart hydra-submit-evaluation ${toString cfg.minimumDiskFree}
       '';
       startAt = "*:0/5";
     };

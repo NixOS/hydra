@@ -73,7 +73,7 @@ in
           internally).
 
           NOTE: an `application_name` query parameter is appended per
-          service (e.g. `hydra-evaluator`) to more easily distinguish
+          service (e.g. `hydra-submit-evaluation`) to more easily distinguish
           where queries are coming from, so do not set one here.
         '';
       };

@@ -24,8 +24,8 @@ use crate::queries::NewEval;
 const CURRENT_BATCH: i32 = 10_000;
 
 /// What evaluating a jobset produced.
-#[derive(Debug)]
-pub(crate) enum Outcome {
+#[derive(Debug, Clone, Copy)]
+pub enum Outcome {
     /// These inputs had been evaluated before, so nothing was done.
     Cached { previous: i32 },
     /// An evaluation was scheduled as a build; it is finished when that
@@ -37,7 +37,7 @@ pub(crate) enum Outcome {
 }
 
 #[allow(clippy::too_many_lines)]
-pub(crate) async fn evaluate(
+pub async fn evaluate(
     db: &db::Database,
     config: &HydraConfig,
     available: &crate::store_paths::Availability,
@@ -261,11 +261,7 @@ async fn current_system() -> eyre::Result<String> {
 
 /// Read a finished evaluation build's output back, and turn its jobs into
 /// builds of the jobset that was evaluated.
-pub(crate) async fn complete(
-    db: &db::Database,
-    config: &HydraConfig,
-    eval_id: i32,
-) -> eyre::Result<()> {
+pub async fn complete(db: &db::Database, config: &HydraConfig, eval_id: i32) -> eyre::Result<()> {
     let mut conn = db.get().await?;
     let Some(eval) = queries::get_eval_to_complete(&mut conn, eval_id).await? else {
         return Ok(());

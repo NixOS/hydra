@@ -9,4 +9,4 @@ wait_for_postgres
 wait_for_hydra_db
 wait_for_hydra_server
 
-HYDRA_CONFIG=$HYDRA_DATA/hydra.conf exec hydra-evaluator
+exec hydra-process-evaluation

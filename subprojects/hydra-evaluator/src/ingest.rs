@@ -19,7 +19,7 @@ use crate::queries::NewBuild;
 /// build, which is what makes an evaluation a complete record of its jobs
 /// rather than only of the new work it created.
 #[derive(Debug, Clone)]
-pub(crate) struct Member {
+pub struct Member {
     pub build: i32,
     pub job: String,
     /// Whether this evaluation queued the build, as opposed to finding it
@@ -37,7 +37,7 @@ pub(crate) struct Member {
 /// Returns `None` when the job is a duplicate within this same evaluation --
 /// two attributes producing the same output path -- which is not an error and
 /// not a second build.
-pub(crate) async fn check_build(
+pub async fn check_build(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     eval: i32,
@@ -246,7 +246,8 @@ fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<S
 /// members, its aggregates and the notifications announcing them are true
 /// together or not at all. It is also why the notifications are sent from in
 /// here -- `NOTIFY` is delivered on commit.
-pub(crate) struct Recorded {
+#[derive(Debug)]
+pub struct Recorded {
     pub jobset_changed: bool,
     pub error: String,
     /// Builds inherited from an earlier evaluation whose derivation has
@@ -255,7 +256,7 @@ pub(crate) struct Recorded {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn record(
+pub async fn record(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     trace: &str,

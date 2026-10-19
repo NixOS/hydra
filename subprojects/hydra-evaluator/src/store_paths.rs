@@ -18,20 +18,20 @@ use db::StoreDir;
 
 /// Whether a build's output can be given to an evaluation.
 #[derive(Debug)]
-pub(crate) struct Availability {
+pub struct Availability {
     store_dir: StoreDir,
     substituter: Option<String>,
 }
 
 impl Availability {
-    pub(crate) fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
+    pub fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
         Self {
             store_dir,
             substituter,
         }
     }
 
-    pub(crate) fn store_dir(&self) -> &StoreDir {
+    pub fn store_dir(&self) -> &StoreDir {
         &self.store_dir
     }
 
@@ -42,7 +42,7 @@ impl Availability {
     /// has something to contribute, and a failed fetch does not mean it does.
     /// Logged rather than raised, because a jobset with one stale `build`
     /// input should still evaluate.
-    pub(crate) async fn is_available(&self, path: &str) -> bool {
+    pub async fn is_available(&self, path: &str) -> bool {
         // Anything malformed fails the check.
         let full = crate::nix_eval_jobs::full(&self.store_dir, path);
 

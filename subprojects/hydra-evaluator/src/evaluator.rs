@@ -7,12 +7,8 @@ use futures::{FutureExt as _, StreamExt as _};
 use tokio::sync::{Mutex, Notify};
 
 use crate::config::HydraConfig;
+use crate::evaluate::{Outcome, evaluate};
 use crate::queries;
-
-/// How often to look for evaluation builds that have finished. Nothing
-/// notifies the evaluator when one does, and the work is a single indexed
-/// query, so this only bounds how stale an evaluation can look.
-const FINISHER_INTERVAL: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
@@ -59,35 +55,38 @@ struct State {
     jobsets: BTreeMap<i32, Jobset>,
 }
 
-pub(crate) struct Evaluator {
+pub struct Evaluator {
     db: db::Database,
     /// Kept because evaluating is done here now, rather than by a program
     /// spawned per jobset that would read the configuration itself.
     config: Arc<HydraConfig>,
     available: Arc<crate::store_paths::Availability>,
-    eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
 }
 
+impl std::fmt::Debug for Evaluator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Evaluator").finish_non_exhaustive()
+    }
+}
+
 impl Evaluator {
-    pub(crate) fn new(
+    pub fn new(
         db: db::Database,
         config: Arc<HydraConfig>,
         available: Arc<crate::store_paths::Availability>,
-        eval_one: Option<(String, String)>,
     ) -> Self {
         Self {
             db,
             config,
             available,
-            eval_one,
             state: Arc::new(Mutex::new(State::default())),
             notify_work: Arc::new(Notify::new()),
         }
     }
 
-    pub(crate) async fn run(self) -> eyre::Result<()> {
+    pub async fn run(self) -> eyre::Result<()> {
         let this = Arc::new(self);
 
         let monitor = {
@@ -128,29 +127,6 @@ impl Evaluator {
         }
     }
 
-    async fn finish_evals(&self) -> eyre::Result<()> {
-        let mut conn = self.db.get().await?;
-        let pending = queries::get_evals_awaiting_completion(&mut conn)
-            .await
-            .wrap_err("failed to look for evaluations awaiting completion")?;
-
-        for eval_id in pending {
-            tracing::info!("completing evaluation {eval_id}");
-
-            // Run to completion rather than spawning and forgetting: two
-            // finishers for the same evaluation would both write its jobs,
-            // and the poll below would start the second while the first is
-            // still going.
-            if let Err(e) = crate::evaluate::complete(&self.db, &self.config, eval_id).await {
-                // Left for the next poll to retry: the row is still
-                // uncompleted, which is the whole state this needs.
-                tracing::error!("completing evaluation {eval_id} failed: {e:#}");
-            }
-        }
-
-        Ok(())
-    }
-
     async fn main_loop_task(&self) {
         loop {
             if let Err(e) = self.main_loop_iteration().await {
@@ -178,11 +154,6 @@ impl Evaluator {
                 () = self.notify_work.notified() => {}
             }
 
-            // Both halves of an evaluation's lifecycle, in the loop that
-            // owns it: start the ones that are due, and read back the ones
-            // whose build has finished.
-            self.finish_evals().await?;
-
             let mut state = self.state.lock().await;
             self.start_evals(&mut state).await?;
         }
@@ -202,12 +173,7 @@ impl Evaluator {
             }
         }
 
-        // Capped, because nothing notifies the evaluator when an evaluation
-        // build finishes: that is the queue runner's event, and this is also
-        // what picks up evaluations left behind while the evaluator was down.
-        u64::try_from(sleep_secs)
-            .map_or(Duration::MAX, Duration::from_secs)
-            .min(FINISHER_INTERVAL)
+        u64::try_from(sleep_secs).map_or(Duration::MAX, Duration::from_secs)
     }
 
     async fn db_monitor_task(&self) {
@@ -273,12 +239,6 @@ impl Evaluator {
         let mut seen = HashSet::new();
 
         for row in &rows {
-            if let Some((ref proj, ref js)) = self.eval_one
-                && (row.project != *proj || row.name != *js)
-            {
-                continue;
-            }
-
             seen.insert(row.id);
 
             let evaluation_style = EvaluationStyle::from_i32(row.enabled);
@@ -299,11 +259,6 @@ impl Evaluator {
             jobset.trigger_time = row.triggertime;
             jobset.check_interval = row.checkinterval.into();
             jobset.evaluation_style = evaluation_style;
-        }
-
-        if self.eval_one.is_some() && seen.is_empty() {
-            tracing::error!("the specified jobset does not exist or is disabled");
-            std::process::exit(1);
         }
 
         let forgotten: Vec<i32> = state
@@ -397,16 +352,7 @@ impl Evaluator {
         let mut candidates: Vec<(i32, Option<db::Timestamp>, db::Timestamp)> = Vec::new();
 
         for jobset in state.jobsets.values() {
-            // Checked here as well as in should_evaluate so that eval-one
-            // mode (which bypasses should_evaluate) cannot start a second
-            // concurrent eval of its jobset on a mid-eval wakeup.
-            if state.running_ids.contains(&jobset.id) {
-                continue;
-            }
-            if self.eval_one.is_some()
-                || (jobset.evaluation_style.is_some()
-                    && self.should_evaluate(jobset, state).await?)
-            {
+            if jobset.evaluation_style.is_some() && self.should_evaluate(jobset, state).await? {
                 candidates.push((jobset.id, jobset.trigger_time, jobset.last_checked_time));
             }
         }
@@ -458,118 +404,62 @@ impl Evaluator {
 
         state.running_ids.insert(jobset_id);
 
-        let eval_one = self.eval_one.is_some();
         let db = self.db.clone();
         let state_arc = Arc::clone(&self.state);
         let notify_work = Arc::clone(&self.notify_work);
-
         let config = Arc::clone(&self.config);
         let available = Arc::clone(&self.available);
         let trace = format!("{now}.{jobset_id}");
-        let reap_trace = trace.clone();
-
-        let eval_db = db.clone();
 
         tokio::spawn(async move {
-            // Built inside the task so the future owns what it borrows; it
-            // outlives this scope by design.
-            let evaluation = Box::pin(async move {
-                crate::evaluate::evaluate(
-                    &eval_db,
-                    &config,
-                    &available,
-                    &project,
-                    &jobset_name,
-                    &trace,
-                )
-                .await
-            });
+            // Nothing to cancel: this only fetches the inputs and queues a
+            // build. Once that build exists the evaluation is the queue
+            // runner's business, and disabling a jobset cancels builds.
+            let (exit_ok, status_str) =
+                match evaluate(&db, &config, &available, &project, &jobset_name, &trace).await {
+                    Ok(Outcome::Cached { previous }) => {
+                        (true, format!("cached, same as evaluation {previous}"))
+                    }
+                    Ok(Outcome::Scheduled { eval, build }) => (
+                        true,
+                        format!("scheduled evaluation {eval} as build {build}"),
+                    ),
+                    Ok(Outcome::Declared) => (
+                        true,
+                        "jobsets created from the declarative specification".to_owned(),
+                    ),
+                    Err(e) => (false, format!("{e:#}")),
+                };
+            tracing::info!("evaluation of jobset '{jobset_display}' {status_str}");
 
-            reap_eval(
-                evaluation,
-                jobset_id,
-                reap_trace,
-                jobset_display,
-                now,
-                eval_one,
-                db,
-                state_arc,
-                notify_work,
-            )
-            .await;
+            let finished = now_epoch();
+            let mut st = state_arc.lock().await;
+            let exit_ok = if let Some(jobset) = st.jobsets.get_mut(&jobset_id) {
+                // A trigger that arrived meanwhile is kept in the database
+                // (see update_jobset_after_eval); keep it in memory too so the
+                // jobset is re-evaluated without waiting for another NOTIFY.
+                if jobset.trigger_time.is_some_and(|t| t <= now) {
+                    jobset.trigger_time = None;
+                }
+                jobset.last_checked_time = finished;
+                exit_ok
+            } else {
+                // The jobset was disabled or deleted meanwhile; do not record
+                // that as an evaluation error.
+                true
+            };
+
+            if let Err(e) =
+                update_db_after_eval(&db, &trace, jobset_id, exit_ok, &status_str, finished).await
+            {
+                tracing::error!("exception setting jobset error: {e:#}");
+            }
+
+            st.running_ids.remove(&jobset_id);
+            notify_work.notify_one();
         });
 
         Ok(())
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn reap_eval(
-    evaluation: std::pin::Pin<
-        Box<dyn Future<Output = eyre::Result<crate::evaluate::Outcome>> + Send>,
-    >,
-    jobset_id: i32,
-    trace: String,
-    jobset_display: String,
-    start_time: db::Timestamp,
-    eval_one: bool,
-    db: db::Database,
-    state: Arc<Mutex<State>>,
-    notify_work: Arc<Notify>,
-) {
-    // Nothing to cancel: this only fetches the inputs and queues a build.
-    // Once that build exists the evaluation is the queue runner's business,
-    // and disabling a jobset cancels builds, not this.
-    let (exit_ok, status_str) = match &evaluation.await {
-        Ok(crate::evaluate::Outcome::Cached { previous }) => {
-            (true, format!("cached, same as evaluation {previous}"))
-        }
-        Ok(crate::evaluate::Outcome::Scheduled { eval, build }) => (
-            true,
-            format!("scheduled evaluation {eval} as build {build}"),
-        ),
-        Ok(crate::evaluate::Outcome::Declared) => (
-            true,
-            "jobsets created from the declarative specification".to_owned(),
-        ),
-        Err(e) => (false, format!("{e:#}")),
-    };
-
-    tracing::info!("evaluation of jobset '{}' {}", jobset_display, status_str);
-
-    let now = now_epoch();
-
-    let mut st = state.lock().await;
-    let exit_ok = if let Some(jobset) = st.jobsets.get_mut(&jobset_id) {
-        // A trigger that arrived while the eval was running is kept in the
-        // database (see update_jobset_after_eval); keep it in memory too so
-        // the jobset is re-evaluated without waiting for another NOTIFY.
-        if jobset.trigger_time.is_some_and(|t| t <= start_time) {
-            jobset.trigger_time = None;
-        }
-        jobset.last_checked_time = now;
-        exit_ok
-    } else {
-        // The jobset was disabled or deleted while this was scheduling; do
-        // not record that as an evaluation error.
-        true
-    };
-
-    if let Err(e) = update_db_after_eval(&db, &trace, jobset_id, exit_ok, &status_str, now).await {
-        tracing::error!("exception setting jobset error: {e:#}");
-    }
-
-    st.running_ids.remove(&jobset_id);
-
-    notify_work.notify_one();
-
-    // Exit while still holding the lock: start_evals skips should_evaluate
-    // in eval-one mode, so a woken main loop could otherwise start a second
-    // eval of the jobset before the process is gone.
-    if eval_one {
-        // Non-zero when the evaluation failed: `hydra-evaluator p j` is how
-        // a single evaluation is asked for, and its caller wants to know.
-        std::process::exit(i32::from(!exit_ok));
     }
 }
 

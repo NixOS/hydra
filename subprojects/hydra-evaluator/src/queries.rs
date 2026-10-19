@@ -9,7 +9,7 @@ use sqlx::Acquire as _;
 /// Scheduling-relevant view of an enabled jobset, as the evaluator's
 /// scheduler sees it.
 #[derive(Debug)]
-pub(crate) struct JobsetSchedulingInfo {
+pub struct JobsetSchedulingInfo {
     pub id: i32,
     pub project: String,
     pub name: String,
@@ -22,7 +22,7 @@ pub(crate) struct JobsetSchedulingInfo {
 
 /// A jobset input as configured, before it is resolved.
 #[derive(Debug)]
-pub(crate) struct ConfiguredInputRow {
+pub struct ConfiguredInputRow {
     pub name: String,
     pub r#type: String,
     pub value: Option<String>,
@@ -31,7 +31,7 @@ pub(crate) struct ConfiguredInputRow {
 
 /// What a `build`, `sysbuild` or `eval` input needs to know about a build.
 #[derive(Debug)]
-pub(crate) struct InputBuild {
+pub struct InputBuild {
     pub id: i32,
     pub releasename: Option<String>,
     pub nixname: Option<String>,
@@ -40,7 +40,7 @@ pub(crate) struct InputBuild {
 }
 
 /// All enabled jobsets of enabled projects.
-pub(crate) async fn get_schedulable_jobsets(
+pub async fn get_schedulable_jobsets(
     conn: &mut db::Connection,
 ) -> Result<Vec<JobsetSchedulingInfo>, sqlx::Error> {
     sqlx::query_as!(
@@ -63,7 +63,7 @@ pub(crate) async fn get_schedulable_jobsets(
 }
 
 /// The most recent evaluation of a jobset, if any.
-pub(crate) async fn get_latest_eval_id(
+pub async fn get_latest_eval_id(
     conn: &mut db::Connection,
     jobset_id: i32,
 ) -> Result<Option<i32>, sqlx::Error> {
@@ -77,7 +77,7 @@ pub(crate) async fn get_latest_eval_id(
 }
 
 /// Whether an evaluation still has unfinished builds.
-pub(crate) async fn eval_has_unfinished_builds(
+pub async fn eval_has_unfinished_builds(
     conn: &mut db::Connection,
     eval_id: i32,
 ) -> Result<bool, sqlx::Error> {
@@ -100,7 +100,7 @@ pub(crate) async fn eval_has_unfinished_builds(
 /// separate events: the build produces the jobs, and a later pass turns them
 /// into rows. This is the gap between the two, and `completed IS NULL` is the
 /// only honest way to spot it -- an evaluation may legitimately find no jobs.
-pub(crate) async fn get_evals_awaiting_completion(
+pub async fn get_evals_awaiting_completion(
     conn: &mut db::Connection,
 ) -> Result<Vec<i32>, sqlx::Error> {
     Ok(sqlx::query!(
@@ -118,7 +118,7 @@ pub(crate) async fn get_evals_awaiting_completion(
 
 /// A jobset's configured inputs, with their alternatives, in the order
 /// the evaluator should resolve them.
-pub(crate) async fn get_jobset_inputs(
+pub async fn get_jobset_inputs(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -140,7 +140,7 @@ pub(crate) async fn get_jobset_inputs(
 }
 
 /// A finished, successful build by id, for a `build` input given a number.
-pub(crate) async fn get_build_for_input_by_id(
+pub async fn get_build_for_input_by_id(
     conn: &mut db::Connection,
     id: i32,
 ) -> Result<Option<InputBuild>, sqlx::Error> {
@@ -160,7 +160,7 @@ pub(crate) async fn get_build_for_input_by_id(
 
 /// The most recent successful build of a job, for a `build` input given
 /// a job name.
-pub(crate) async fn get_latest_succeeded_build(
+pub async fn get_latest_succeeded_build(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -188,7 +188,7 @@ pub(crate) async fn get_latest_succeeded_build(
 
 /// The most recent successful build of a job for each system, which is
 /// what a `sysbuild` input is.
-pub(crate) async fn get_latest_succeeded_build_per_system(
+pub async fn get_latest_succeeded_build_per_system(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -217,7 +217,7 @@ pub(crate) async fn get_latest_succeeded_build_per_system(
 }
 
 /// The evaluation an `eval` input names, by id.
-pub(crate) async fn get_eval_by_id(
+pub async fn get_eval_by_id(
     conn: &mut db::Connection,
     id: i32,
 ) -> Result<Option<i32>, sqlx::Error> {
@@ -229,7 +229,7 @@ pub(crate) async fn get_eval_by_id(
 
 /// The most recent evaluation of a jobset all of whose builds have
 /// finished -- what an `eval` input means by `project:jobset`.
-pub(crate) async fn get_latest_finished_eval(
+pub async fn get_latest_finished_eval(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -253,7 +253,7 @@ pub(crate) async fn get_latest_finished_eval(
 }
 
 /// As above, but only an evaluation in which the named job succeeded.
-pub(crate) async fn get_latest_finished_eval_with_job(
+pub async fn get_latest_finished_eval_with_job(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -282,7 +282,7 @@ pub(crate) async fn get_latest_finished_eval_with_job(
 }
 
 /// The successful jobs of an evaluation, as job name to output path.
-pub(crate) async fn get_eval_jobs(
+pub async fn get_eval_jobs(
     conn: &mut db::Connection,
     eval: i32,
 ) -> Result<Vec<(String, String)>, sqlx::Error> {
@@ -309,7 +309,7 @@ pub(crate) async fn get_eval_jobs(
 /// 100k builds this touches every row, and holding those locks for the
 /// evaluation's duration deadlocks against the queue runner finishing
 /// builds.
-pub(crate) async fn mark_current(
+pub async fn mark_current(
     conn: &mut db::Connection,
     jobset_id: i32,
     eval: i32,
@@ -363,7 +363,7 @@ pub(crate) async fn mark_current(
 
 /// Point a build at the derivation this evaluation found for it, and put
 /// it back in the queue.
-pub(crate) async fn repoint_build(
+pub async fn repoint_build(
     conn: &mut db::Connection,
     id: i32,
     drv_path: &str,
@@ -382,7 +382,7 @@ pub(crate) async fn repoint_build(
 }
 
 /// What a jobset says to evaluate, and how it was evaluated last time.
-pub(crate) async fn get_jobset_for_eval(
+pub async fn get_jobset_for_eval(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
@@ -404,7 +404,7 @@ pub(crate) async fn get_jobset_for_eval(
 
 /// The jobset's most recent evaluation, whose hash says whether these
 /// inputs have been evaluated before.
-pub(crate) async fn get_previous_eval(
+pub async fn get_previous_eval(
     conn: &mut db::Connection,
     jobset_id: i32,
 ) -> Result<Option<PreviousEval>, sqlx::Error> {
@@ -426,7 +426,7 @@ pub(crate) async fn get_previous_eval(
 ///
 /// Excludes the evaluation itself: unlike the old flow, the row exists before
 /// its jobs do, so "the newest" would be this one.
-pub(crate) async fn get_eval_before(
+pub async fn get_eval_before(
     conn: &mut db::Connection,
     jobset_id: i32,
     eval_id: i32,
@@ -447,13 +447,13 @@ pub(crate) async fn get_eval_before(
 
 /// What completing an evaluation needs to know about the jobset it belongs to.
 #[derive(Debug)]
-pub(crate) struct JobsetForCompletion {
+pub struct JobsetForCompletion {
     pub declfile: Option<String>,
     pub name: String,
     pub errormsg: Option<String>,
 }
 
-pub(crate) async fn get_jobset_for_completion(
+pub async fn get_jobset_for_completion(
     conn: &mut db::Connection,
     jobset_id: i32,
 ) -> Result<Option<JobsetForCompletion>, sqlx::Error> {
@@ -470,10 +470,7 @@ pub(crate) async fn get_jobset_for_completion(
 }
 
 /// How many jobs the previous evaluation covered.
-pub(crate) async fn count_eval_members(
-    conn: &mut db::Connection,
-    eval: i32,
-) -> Result<i64, sqlx::Error> {
+pub async fn count_eval_members(conn: &mut db::Connection, eval: i32) -> Result<i64, sqlx::Error> {
     Ok(sqlx::query!(
         r#"SELECT COUNT(*) as "n!" FROM jobsetevalmembers WHERE eval = $1"#,
         eval,
@@ -489,7 +486,7 @@ pub(crate) async fn count_eval_members(
 /// Runs in a transaction so that a partial failure cannot clear
 /// `triggerTime` but leave `startTime` set, which would make the
 /// jobset appear permanently running.
-pub(crate) async fn update_jobset_after_eval(
+pub async fn update_jobset_after_eval(
     conn: &mut db::Connection,
     jobset_id: i32,
     error_msg: Option<&str>,
@@ -534,7 +531,7 @@ pub(crate) async fn update_jobset_after_eval(
 /// new error. Reading the old one, writing the new one and announcing it
 /// are one transaction, both so the flag cannot race another evaluation
 /// and because `NOTIFY` is delivered on commit.
-pub(crate) async fn fail_jobset_eval(
+pub async fn fail_jobset_eval(
     conn: &mut db::Connection,
     trace: &str,
     jobset_id: i32,
@@ -590,7 +587,7 @@ async fn clear_trigger_time(
 
 /// What a jobset says to evaluate.
 #[derive(Debug)]
-pub(crate) struct JobsetForEval {
+pub struct JobsetForEval {
     pub id: i32,
     pub flake: Option<String>,
     pub nixexprinput: Option<String>,
@@ -604,7 +601,7 @@ pub(crate) struct JobsetForEval {
 
 /// The previous evaluation, for deciding whether to evaluate again.
 #[derive(Debug)]
-pub(crate) struct PreviousEval {
+pub struct PreviousEval {
     pub id: i32,
     pub hash: String,
     pub flake: Option<String>,
@@ -612,7 +609,7 @@ pub(crate) struct PreviousEval {
 
 /// A build found in the previous evaluation of the same job.
 #[derive(Debug)]
-pub(crate) struct PreviousBuild {
+pub struct PreviousBuild {
     pub id: i32,
     pub finished: i32,
     pub drvpath: String,
@@ -621,7 +618,7 @@ pub(crate) struct PreviousBuild {
 /// Everything needed to queue a build. The `meta` fields are all optional,
 /// because a jobset may set none of them.
 #[derive(Debug)]
-pub(crate) struct NewBuild<'a> {
+pub struct NewBuild<'a> {
     pub jobset_id: i32,
     pub job: &'a str,
     pub drv_path: &'a str,
@@ -640,7 +637,7 @@ pub(crate) struct NewBuild<'a> {
 /// The evaluation row, as it is first written: what was evaluated and with
 /// what, before anything is known about the result.
 #[derive(Debug)]
-pub(crate) struct NewEval<'a> {
+pub struct NewEval<'a> {
     pub jobset_id: i32,
     pub checkout_time: i32,
     pub hash: &'a str,
@@ -661,7 +658,7 @@ pub(crate) struct NewEval<'a> {
 /// evaluation's builds and the notifications announcing them must appear
 /// together or not at all, and `NOTIFY` is delivered on commit.
 /// Record the evaluation itself, returning its id.
-pub(crate) async fn insert_eval(
+pub async fn insert_eval(
     tx: &mut db::Transaction<'_>,
     eval: &NewEval<'_>,
 ) -> Result<i32, sqlx::Error> {
@@ -697,7 +694,7 @@ pub(crate) async fn insert_eval(
 
 /// Record what the evaluation found: whether it changed anything, and
 /// how many builds it covers.
-pub(crate) async fn finish_eval(
+pub async fn finish_eval(
     tx: &mut db::Transaction<'_>,
     eval: i32,
     has_new_builds: bool,
@@ -715,7 +712,7 @@ pub(crate) async fn finish_eval(
 }
 
 /// The evaluation's members, in bulk.
-pub(crate) async fn insert_eval_members(
+pub async fn insert_eval_members(
     tx: &mut db::Transaction<'_>,
     eval: i32,
     members: &[(i32, bool)],
@@ -737,7 +734,7 @@ pub(crate) async fn insert_eval_members(
 
 /// One aggregate's constituents. Upserted, since a constituent may be
 /// named by more than one aggregate.
-pub(crate) async fn insert_aggregate_constituent(
+pub async fn insert_aggregate_constituent(
     tx: &mut db::Transaction<'_>,
     aggregate: i32,
     constituent: i32,
@@ -757,7 +754,7 @@ pub(crate) async fn insert_aggregate_constituent(
 
 /// The inputs this evaluation was performed with, recorded so that the
 /// evaluation remains reproducible after they move on.
-pub(crate) async fn insert_eval_input(
+pub async fn insert_eval_input(
     tx: &mut db::Transaction<'_>,
     eval: i32,
     name: &str,
@@ -802,7 +799,7 @@ pub(crate) async fn insert_eval_input(
 }
 
 /// Start an error record for the evaluation, returning its id.
-pub(crate) async fn insert_evaluation_error(
+pub async fn insert_evaluation_error(
     tx: &mut db::Transaction<'_>,
     time: i64,
 ) -> Result<i32, sqlx::Error> {
@@ -816,7 +813,7 @@ pub(crate) async fn insert_evaluation_error(
 }
 
 /// Fill in what went wrong, once the whole evaluation has been seen.
-pub(crate) async fn set_evaluation_error(
+pub async fn set_evaluation_error(
     tx: &mut db::Transaction<'_>,
     id: i32,
     msg: &str,
@@ -834,7 +831,7 @@ pub(crate) async fn set_evaluation_error(
 /// A build of this job already present in the given evaluation, matched
 /// on its first output's path, or on the derivation when there is no
 /// path yet.
-pub(crate) async fn find_build_in_eval(
+pub async fn find_build_in_eval(
     tx: &mut db::Transaction<'_>,
     eval: i32,
     jobset_id: i32,
@@ -868,7 +865,7 @@ pub(crate) async fn find_build_in_eval(
 }
 
 /// Add a build to the queue, returning its id.
-pub(crate) async fn insert_build(
+pub async fn insert_build(
     tx: &mut db::Transaction<'_>,
     build: &NewBuild<'_>,
 ) -> Result<i32, sqlx::Error> {
@@ -906,7 +903,7 @@ pub(crate) async fn insert_build(
 
 /// Record a build's outputs. In bulk, because a row at a time dominates
 /// insertion time on a large jobset.
-pub(crate) async fn insert_build_outputs(
+pub async fn insert_build_outputs(
     tx: &mut db::Transaction<'_>,
     build: i32,
     outputs: &[(String, Option<String>)],
@@ -931,7 +928,7 @@ pub(crate) async fn insert_build_outputs(
 ///
 /// They are builds and so must live in some jobset, but they are not anyone's
 /// jobs: this keeps them out of the jobsets people look at.
-pub(crate) async fn ensure_eval_jobset(conn: &mut db::Connection) -> Result<i32, sqlx::Error> {
+pub async fn ensure_eval_jobset(conn: &mut db::Connection) -> Result<i32, sqlx::Error> {
     sqlx::query!(
         "INSERT INTO projects (name, displayName, description, enabled, hidden, owner)
          VALUES ('hydra', 'Hydra', 'Hydra internals', 0, 1, 'root')
@@ -964,7 +961,7 @@ pub(crate) async fn ensure_eval_jobset(conn: &mut db::Connection) -> Result<i32,
 /// build `check_build` inserts it; this build has no job, so it is inserted
 /// here. The single `out` is the JSONL the evaluation produces, and reading
 /// it back is the whole point of the build.
-pub(crate) async fn insert_eval_build(
+pub async fn insert_eval_build(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     job: &str,
@@ -1001,14 +998,14 @@ pub(crate) async fn insert_eval_build(
 
 /// What completing an evaluation needs to know about it.
 #[derive(Debug)]
-pub(crate) struct EvalToComplete {
+pub struct EvalToComplete {
     pub jobset_id: i32,
     pub trace_id: Option<String>,
     pub build_status: Option<i32>,
     pub out_path: Option<String>,
 }
 
-pub(crate) async fn get_eval_to_complete(
+pub async fn get_eval_to_complete(
     conn: &mut db::Connection,
     eval_id: i32,
 ) -> Result<Option<EvalToComplete>, sqlx::Error> {
@@ -1032,7 +1029,7 @@ pub(crate) async fn get_eval_to_complete(
 /// `completed` is what tells the finisher not to look at this evaluation
 /// again; nothing else in the row can say so, since an evaluation may
 /// legitimately have found no jobs.
-pub(crate) async fn mark_eval_completed(
+pub async fn mark_eval_completed(
     tx: &mut db::Transaction<'_>,
     eval_id: i32,
     now: db::Timestamp,
@@ -1045,4 +1042,23 @@ pub(crate) async fn mark_eval_completed(
     .execute(tx.raw())
     .await?;
     Ok(())
+}
+
+/// The evaluations a build was performing, if it was performing any.
+///
+/// Normally one or none; the join is by `eval_build`, which is what says a
+/// build was an evaluation at all.
+pub async fn get_evals_for_build(
+    conn: &mut db::Connection,
+    build_id: i32,
+) -> Result<Vec<i32>, sqlx::Error> {
+    Ok(sqlx::query!(
+        "SELECT id FROM jobsetevals WHERE eval_build = $1 AND completed IS NULL ORDER BY id",
+        build_id,
+    )
+    .fetch_all(conn.raw())
+    .await?
+    .into_iter()
+    .map(|r| r.id)
+    .collect())
 }

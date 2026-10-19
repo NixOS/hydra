@@ -143,7 +143,7 @@ fn expression(
 }
 
 /// Instantiate the derivation that will perform this evaluation.
-pub(crate) async fn instantiate(
+pub async fn instantiate(
     config: &HydraConfig,
     inputs: &InputInfo,
     cmd: &[String],

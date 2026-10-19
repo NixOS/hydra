@@ -26,7 +26,7 @@ use crate::store_paths::Availability;
 /// internal detail, so renaming them would be a breaking change.
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JobsetInput {
+pub struct JobsetInput {
     /// The input's type, filled in by whoever resolved it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub r#type: Option<String>,
@@ -99,11 +99,11 @@ fn number_or_digits<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<i64
 }
 
 /// A jobset's inputs, by name, each with its alternatives.
-pub(crate) type InputInfo = BTreeMap<String, Vec<JobsetInput>>;
+pub type InputInfo = BTreeMap<String, Vec<JobsetInput>>;
 
 /// How an input is configured: what the jobset says, before resolution.
 #[derive(Debug)]
-pub(crate) struct ConfiguredInput {
+pub struct ConfiguredInput {
     pub name: String,
     pub r#type: String,
     pub value: Option<String>,
@@ -114,7 +114,7 @@ pub(crate) struct ConfiguredInput {
 ///
 /// An input that cannot be resolved is fatal, as it was before: an
 /// evaluation missing one of its inputs is not an evaluation of anything.
-pub(crate) async fn resolve(
+pub async fn resolve(
     conn: &mut db::Connection,
     fetcher: &mut InputFetcher,
     available: &Availability,

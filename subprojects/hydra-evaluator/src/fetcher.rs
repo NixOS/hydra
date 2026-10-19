@@ -37,14 +37,14 @@ struct Reply {
 
 /// A running `hydra-fetch-input`.
 #[derive(Debug)]
-pub(crate) struct InputFetcher {
+pub struct InputFetcher {
     child: Child,
     stdin: ChildStdin,
     stdout: Lines<BufReader<tokio::process::ChildStdout>>,
 }
 
 impl InputFetcher {
-    pub(crate) fn start() -> eyre::Result<Self> {
+    pub fn start() -> eyre::Result<Self> {
         // stderr is inherited on purpose: the worker's diagnostics, and
         // anything a plugin prints, belong in our log.
         let mut child = tokio::process::Command::new("hydra-fetch-input")
@@ -73,7 +73,7 @@ impl InputFetcher {
     ///
     /// An input that fails to fetch is an error for that input alone; the
     /// worker stays up and the caller may ask for the next one.
-    pub(crate) async fn fetch(
+    pub async fn fetch(
         &mut self,
         r#type: &str,
         name: &str,
@@ -116,7 +116,7 @@ impl InputFetcher {
     }
 
     /// Close the pipe and wait, so the worker is not left behind.
-    pub(crate) async fn shutdown(mut self) {
+    pub async fn shutdown(mut self) {
         drop(self.stdin);
         if let Err(e) = self.child.wait().await {
             tracing::warn!("hydra-fetch-input did not exit cleanly: {e}");
