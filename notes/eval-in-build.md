@@ -142,6 +142,9 @@ Migration 89 adds three nullable columns to `JobsetEvals`, all metadata-only, so
   That cannot be inferred: a build finishing and its result being consumed are separate events, and an evaluation may legitimately find no jobs.
 - `trace_id`, so the evaluation's notifications are traced to the submission that started it.
 
+It also drops `Jobsets.startTime`, which nothing maintains or reads any more; see below.
+The migration is this branch's own and unreleased, so it is the place for that.
+
 `eval_build` is `ON DELETE SET NULL`, never cascade.
 Evaluation builds live in a high-churn jobset that will be garbage collected aggressively; a cascading delete would remove the `JobsetEval` an aged-out build produced.
 Losing the provenance while keeping the evaluation is the right failure mode, and `evaluationerror_id` already uses `on delete set null` for the same reason.
@@ -162,12 +165,12 @@ Supervising a long evaluation in-process went with the evaluation:
   One query asks the database which jobsets are due, including the one-at-a-time rule, and the loop wakes on a jobset event, a finished submission, or a short timer.
 - `jobsets.startTime` as a lock, `--unlock`, and the `ExecStopPost` that called it.
   A build is queued or running, and a crash leaves no jobset wedged.
-  Nothing sets the column any more.
+  The column is dropped; it only ever said what was happening now.
 - Measuring how long evaluating took.
   The build knows; `JobsetEvals.evalTime` is written as 0.
   The column stays: it is the only record of how long evaluations took before this, so dropping it waits until nothing reads the old values.
 
-The two columns are still there, but nothing reads them.
+No page shows `evalTime` any more, though the API still returns it, so old values stay readable.
 No page says how long an evaluation took or that one is running, since the build says both; what is left is how long fetching the inputs took, which happens before any build exists.
 
 On the way, `forceEval` is now reset once the evaluation it forced is submitted.
