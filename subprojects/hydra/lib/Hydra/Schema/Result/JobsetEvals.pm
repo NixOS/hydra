@@ -64,11 +64,6 @@ __PACKAGE__->table("jobsetevals");
   data_type: 'integer'
   is_nullable: 0
 
-=head2 evaltime
-
-  data_type: 'integer'
-  is_nullable: 0
-
 =head2 hasnewbuilds
 
   data_type: 'integer'
@@ -137,8 +132,6 @@ __PACKAGE__->add_columns(
   "timestamp",
   { data_type => "bigint", is_nullable => 0 },
   "checkouttime",
-  { data_type => "integer", is_nullable => 0 },
-  "evaltime",
   { data_type => "integer", is_nullable => 0 },
   "hasnewbuilds",
   { data_type => "integer", is_nullable => 0 },
@@ -262,8 +255,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-28 05:00:28
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PeB/2DGJ3QnQa4iuRetvNg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-09-04 21:05:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:OZbmQPCXeETYf2Pe93no1g
 
 __PACKAGE__->has_many(
   "buildIds",

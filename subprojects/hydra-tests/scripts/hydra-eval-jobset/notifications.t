@@ -42,7 +42,6 @@ $listener->subscribe("cached_build_queued");
 $listener->subscribe("eval_added");
 $listener->subscribe("eval_cached");
 $listener->subscribe("eval_failed");
-$listener->subscribe("eval_started");
 
 
 my $jobsetdir = $ctx->tmpdir . '/jobset';
@@ -57,12 +56,10 @@ my $builds = $ctx->makeAndEvaluateJobset(
 my $jobset = $builds->{"stable-job-queued"}->jobset;
 my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
+# Evaluating is a build, and the build's own `build_started` and
+# `build_finished` are not subscribed to here: what is checked is what the
+# evaluation itself announces once that build has been read back.
 subtest "on the initial evaluation" => sub {
-    expectEvent($listener, "eval_started", sub {
-        isnt($_->{"trace_id"}, "", "We got a trace ID");
-        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
-    });
-
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 1/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 2/4 builds being queued");
     is($listener->block_for_messages(0)->()->{"channel"}, "build_queued", "expect 3/4 builds being queued");
@@ -73,7 +70,6 @@ subtest "on the initial evaluation" => sub {
         is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
         is($_->{"error_changed"}, 0, "a clean evaluation has no error to report");
     });
-    is($listener->block_for_messages(0)->()->{"channel"}, "builds_added", "new builds have been scheduled");
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 };
 
@@ -81,15 +77,8 @@ subtest "on a subsequent, totally cached / unchanged evaluation" => sub {
     ok(evalSucceeds($ctx, $jobset), "evaluating for the second time");
     my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
-    my $traceID;
-    expectEvent($listener, "eval_started", sub {
-        isnt($_->{"trace_id"}, "", "We got a trace ID");
-        $traceID = $_->{"trace_id"};
-        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
-    });
-
     expectEvent($listener, "eval_cached", sub {
-        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
         is($_->{"evaluation_id"}, $evaluation->get_column('id'), "the evaluation ID matches");
     });
@@ -107,9 +96,6 @@ subtest "on a fresh evaluation with changed sources" => sub {
     $builds->{"stable-job-failing"}->discard_changes();
 
     ok(evalSucceeds($ctx, $builds->{"variable-job"}->jobset), "evaluating for the third time");
-    expectEvent($listener, "eval_started", sub {
-        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
-    });
 
     # The order of builds is randomized when writing to the database,
     # so we can't expect the list in any specific order here.
@@ -138,7 +124,6 @@ subtest "on a fresh evaluation with changed sources" => sub {
     );
 
     is($listener->block_for_messages(0)->()->{"channel"}, "eval_added", "a new evaluation was added");
-    is($listener->block_for_messages(0)->()->{"channel"}, "builds_added", "a new build was added");
     is($listener->block_for_messages(0)->(), undef, "there are no more messages from the evaluator");
 };
 
@@ -149,15 +134,10 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
 
     ok(evalFails($ctx, $builds->{"variable-job"}->jobset), "evaluating the corrupted job");
 
-    my $traceID;
-    expectEvent($listener, "eval_started", sub {
-        isnt($_->{"trace_id"}, "", "We got a trace ID");
-        $traceID = $_->{"trace_id"};
-        is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
-    });
-
+    # The corruption is found by the evaluation build, so the failure is
+    # announced when that build is read back.
     expectEvent($listener, "eval_failed", sub {
-        is($_->{"trace_id"}, $traceID, "Trace ID matches");
+        isnt($_->{"trace_id"}, "", "We got a trace ID");
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
         is($_->{"error_changed"}, 1, "the jobset had not failed this way before");
     });

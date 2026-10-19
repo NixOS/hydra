@@ -29,8 +29,10 @@ let
       ../subprojects/hydra-queue-runner/examples
       ../subprojects/hydra-builder/Cargo.toml
       ../subprojects/hydra-builder/src
-      ../subprojects/hydra-evaluator/Cargo.toml
-      ../subprojects/hydra-evaluator/src
+      ../subprojects/hydra-submit-evaluation/Cargo.toml
+      ../subprojects/hydra-submit-evaluation/src
+      ../subprojects/hydra-process-evaluation/Cargo.toml
+      ../subprojects/hydra-process-evaluation/src
       ../subprojects/hydra-ws/Cargo.toml
       ../subprojects/hydra-ws/src
       ../subprojects/hydra-ad-hoc/Cargo.toml

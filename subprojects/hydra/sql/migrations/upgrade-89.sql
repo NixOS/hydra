@@ -21,3 +21,10 @@ ALTER TABLE JobsetEvals ADD COLUMN completed bigint;
 -- that now perform it. See the comment in hydra.sql. Metadata-only like the
 -- rest: nullable, no default.
 ALTER TABLE JobsetEvals ADD COLUMN trace_id text;
+
+-- Two columns nothing maintains any more. `startTime` was the evaluator's
+-- lock on a jobset it was evaluating; an evaluation is a build now, and a
+-- build says for itself whether it is running. `evalTime` was how long
+-- evaluating took, which is likewise the build's to know.
+ALTER TABLE Jobsets DROP COLUMN startTime;
+ALTER TABLE JobsetEvals DROP COLUMN evalTime;

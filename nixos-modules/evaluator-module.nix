@@ -122,7 +122,7 @@ in
         };
         default = { };
         description = ''
-          Settings for `hydra-evaluator`, written to `/etc/hydra/evaluator.toml`.
+          Settings for `hydra-submit-evaluation` and `hydra-process-evaluation`, written to `/etc/hydra/evaluator.toml`.
 
           Every service in Rust in hydra has its own separate TOML configuration file,
           with just the settings it needs.

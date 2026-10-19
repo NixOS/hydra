@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET lastcheckedtime = $3, forceeval = NULL, triggertime = CASE WHEN triggertime <= $2 THEN NULL ELSE triggertime END, errormsg = $4, errortime = $3, fetcherrormsg = NULL WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8642dd8ca25268f573427cb9ac0f3679b64e461cb673c37befd678981c829edc"
+}

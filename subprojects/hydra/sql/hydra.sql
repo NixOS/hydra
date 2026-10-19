@@ -86,7 +86,6 @@ create table Jobsets (
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
     forceEval     boolean,
-    startTime     bigint, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
     enable_dynamic_run_command boolean not null default false,
@@ -472,11 +471,6 @@ create table JobsetEvals (
 
     timestamp     bigint not null, -- when this entry was added
     checkoutTime  integer not null, -- how long obtaining the inputs took (in seconds)
-    -- TODO: no longer maintained, and no longer needed. Evaluating is a
-    -- build, so how long it took is how long that build took, recorded on
-    -- the build. New rows carry 0. Kept only because it is `not null` with
-    -- history behind it; drop it once nothing reads the old values.
-    evalTime      integer not null, -- how long evaluation took (in seconds)
 
     -- If 0, then the evaluation of this jobset did not cause any new
     -- builds to be added to the database.  Otherwise, *all* the
