@@ -86,7 +86,6 @@ create table Jobsets (
     schedulingShares integer not null default 100,
     fetchErrorMsg text,
     forceEval     boolean,
-    startTime     bigint, -- if jobset is currently running
     type          integer not null default 0, -- 0 == legacy, 1 == flake
     flake         text,
     enable_dynamic_run_command boolean not null default false,
