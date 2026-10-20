@@ -22,6 +22,11 @@ pub struct S3CacheConfig {
     pub write_build_trace: bool,
     pub secret_key_files: SmallVec<[std::path::PathBuf; 4]>,
     pub parallel_compression: bool,
+    /// Write zstd NARs in the seekable format, see [`crate::seekable`].
+    pub seekable_compression: bool,
+    /// Minimum NAR bytes in a seekable frame. If not set,
+    /// [`crate::seekable::DEFAULT_MIN_FRAME_SIZE`].
+    pub seekable_min_frame_size: Option<u64>,
     pub compression_level: Option<i32>,
 
     pub narinfo_compression: Compression,
@@ -50,6 +55,8 @@ impl S3CacheConfig {
             write_build_trace: false,
             secret_key_files: SmallVec::default(),
             parallel_compression: false,
+            seekable_compression: false,
+            seekable_min_frame_size: None,
             compression_level: Option::default(),
             narinfo_compression: Compression::None,
             ls_compression: Compression::None,
@@ -128,6 +135,32 @@ impl S3CacheConfig {
     }
 
     #[must_use]
+    pub fn with_seekable_compression(mut self, seekable_compression: Option<&str>) -> Self {
+        if let Some(seekable_compression) = seekable_compression {
+            let s = seekable_compression.trim().to_ascii_lowercase();
+            self.seekable_compression = s.as_str() == "1" || s.as_str() == "true";
+        }
+        self
+    }
+
+    pub fn with_seekable_min_frame_size(
+        mut self,
+        min_frame_size: Option<u64>,
+    ) -> Result<Self, UrlParseError> {
+        if let Some(min_frame_size) = min_frame_size {
+            let max = crate::seekable::MAX_FRAME_SIZE;
+            if !(1..=max).contains(&min_frame_size) {
+                return Err(UrlParseError::InvalidSeekableMinFrameSize(
+                    min_frame_size,
+                    max,
+                ));
+            }
+            self.seekable_min_frame_size = Some(min_frame_size);
+        }
+        Ok(self)
+    }
+
+    #[must_use]
     pub const fn with_compression_level(mut self, compression_level: Option<i32>) -> Self {
         if let Some(compression_level) = compression_level {
             self.compression_level = Some(compression_level);
@@ -194,6 +227,15 @@ impl S3CacheConfig {
         Ok(self)
     }
 
+    /// The minimum frame size for seekable zstd NARs, or `None` if
+    /// `seekable_compression` is not set.
+    pub(crate) fn get_seekable_min_frame_size(&self) -> Option<u64> {
+        self.seekable_compression.then(|| {
+            self.seekable_min_frame_size
+                .unwrap_or(crate::seekable::DEFAULT_MIN_FRAME_SIZE)
+        })
+    }
+
     pub(crate) const fn get_compression_level(&self) -> async_compression::Level {
         if let Some(l) = self.compression_level {
             async_compression::Level::Precise(l)
@@ -221,6 +263,8 @@ pub enum UrlParseError {
     NoBucket,
     #[error("Invalid presigned URL expiry: {0}. Must be between {1} and {2} seconds")]
     InvalidPresignedUrlExpiry(u64, u64, u64),
+    #[error("Invalid seekable minimum frame size: {0}. Must be between 1 and {1} bytes")]
+    InvalidSeekableMinFrameSize(u64, u64),
 }
 
 impl std::str::FromStr for S3CacheConfig {
@@ -282,6 +326,13 @@ impl std::str::FromStr for S3CacheConfig {
                     .unwrap_or_default(),
             )
             .with_parallel_compression(query.get("parallel-compression").map(String::as_str))
+            .with_seekable_compression(query.get("seekable-compression").map(String::as_str))
+            .with_seekable_min_frame_size(
+                query
+                    .get("seekable-min-frame-size")
+                    .map(|x| x.parse::<u64>())
+                    .transpose()?,
+            )?
             .with_compression_level(
                 query
                     .get("compression-level")
@@ -719,6 +770,27 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
     }
 
     #[test]
+    fn test_seekable_min_frame_size_validation() {
+        for size in ["1", "8388608", "16777216"] {
+            let config_str = format!("s3://test-bucket?seekable-min-frame-size={size}");
+            assert!(
+                S3CacheConfig::from_str(&config_str).is_ok(),
+                "Should accept size: {size}"
+            );
+        }
+        for size in ["0", "16777217"] {
+            let config_str = format!("s3://test-bucket?seekable-min-frame-size={size}");
+            let result = S3CacheConfig::from_str(&config_str);
+            if let Err(UrlParseError::InvalidSeekableMinFrameSize(value, max)) = result {
+                assert_eq!(value, size.parse::<u64>().unwrap());
+                assert_eq!(max, 16_777_216);
+            } else {
+                panic!("Expected InvalidSeekableMinFrameSize error for size: {size}");
+            }
+        }
+    }
+
+    #[test]
     fn test_s3_cache_config_new_default_values() {
         let client_config = S3ClientConfig::new("test-bucket".to_string());
         let config = S3CacheConfig::new(client_config);
@@ -729,6 +801,9 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert!(!config.write_build_trace);
         assert!(config.secret_key_files.is_empty());
         assert!(!config.parallel_compression);
+        assert!(!config.seekable_compression);
+        assert_eq!(config.seekable_min_frame_size, None);
+        assert_eq!(config.get_seekable_min_frame_size(), None);
         assert_eq!(config.compression_level, None);
         assert_eq!(config.narinfo_compression, Compression::None);
         assert_eq!(config.ls_compression, Compression::None);
@@ -738,6 +813,26 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             config.presigned_url_expiry,
             std::time::Duration::from_hours(1)
         );
+    }
+
+    #[test]
+    fn test_seekable_min_frame_size_builder() {
+        let client_config = S3ClientConfig::new("test-bucket".to_string());
+
+        let config = S3CacheConfig::new(client_config.clone()).with_seekable_compression(Some("1"));
+        assert_eq!(
+            config.get_seekable_min_frame_size(),
+            Some(crate::seekable::DEFAULT_MIN_FRAME_SIZE)
+        );
+
+        let config = S3CacheConfig::new(client_config.clone())
+            .with_seekable_min_frame_size(Some(4_194_304))
+            .unwrap();
+        assert_eq!(config.seekable_min_frame_size, Some(4_194_304));
+        // Only `seekable-compression` makes NARs seekable.
+        assert_eq!(config.get_seekable_min_frame_size(), None);
+        let config = config.with_seekable_compression(Some("1"));
+        assert_eq!(config.get_seekable_min_frame_size(), Some(4_194_304));
     }
 
     #[test]
@@ -809,6 +904,10 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
             S3CacheConfig::new(client_config.clone()).with_parallel_compression(Some("false"));
         assert!(!config.parallel_compression);
 
+        let config =
+            S3CacheConfig::new(client_config.clone()).with_seekable_compression(Some("TRUE"));
+        assert!(config.seekable_compression);
+
         let config = S3CacheConfig::new(client_config.clone()).with_compression_level(Some(9));
         assert_eq!(config.compression_level, Some(9));
         assert!(matches!(
@@ -879,7 +978,7 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
 
     #[test]
     fn test_s3_cache_config_from_str_with_parameters() {
-        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&compression-level=9&narinfo-compression=bzip2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
+        let config_str = "s3://test-bucket?region=eu-west-1&scheme=http&endpoint=custom.example.com&profile=myprofile&compression=zstd&write-nar-listing=true&write-debug-info=1&parallel-compression=true&seekable-compression=true&seekable-min-frame-size=2097152&compression-level=9&narinfo-compression=bzip2&ls-compression=br&log-compression=xz&buffer-size=16777216&presigned-url-expiry=7200";
 
         let config = S3CacheConfig::from_str(config_str).unwrap();
 
@@ -895,6 +994,8 @@ aws_secret_access_key = je7MtGbClwBF/2Zp9Utk/h3yCo8nvb123KEY"
         assert!(config.write_nar_listing);
         assert!(config.write_debug_info);
         assert!(config.parallel_compression);
+        assert!(config.seekable_compression);
+        assert_eq!(config.get_seekable_min_frame_size(), Some(2_097_152));
         assert_eq!(config.compression_level, Some(9));
         assert_eq!(config.narinfo_compression, Compression::Bzip2);
         assert_eq!(config.ls_compression, Compression::Brotli);

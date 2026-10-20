@@ -2,9 +2,10 @@
 //!
 //! The output is a sequence of independent zstd frames, followed by a seek
 //! table in a skippable frame, in the [zstd seekable format]. A new frame
-//! starts at the first NAR directory entry after [`MIN_FRAME_SIZE`] bytes of
-//! NAR, and after at most [`MAX_FRAME_SIZE`] bytes of NAR. Thus a NAR that is
-//! smaller than [`MIN_FRAME_SIZE`] is one frame. A client that has the `narOffset`
+//! starts at the first NAR directory entry after the minimum frame size of NAR
+//! ([`DEFAULT_MIN_FRAME_SIZE`] if not configured), and after at most
+//! [`MAX_FRAME_SIZE`] bytes of NAR. Thus a NAR that is smaller than the minimum
+//! frame size is one frame. A client that has the `narOffset`
 //! of a file from the `.ls` listing can use the seek table to find the frames
 //! that hold the file, and get them with an HTTP range request instead of the
 //! full NAR.
@@ -25,20 +26,15 @@ use std::{
 use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 use zstd_safe::{CCtx, InBuffer, OutBuffer, seekable::SeekableCStream};
 
-/// Minimum NAR bytes in a frame before a directory entry starts a new frame.
+/// Default minimum NAR bytes in a frame before a directory entry starts a new
+/// frame. The `seekable-min-frame-size` store URI parameter changes it.
 ///
 /// Each frame starts with no compression history, so zstd cannot use matches
 /// in earlier frames. Small frames make the NAR larger, mostly when files
 /// near each other are similar, for example binaries that contain the same
-/// code. Large frames make a client get more bytes for one file.
-///
-/// We measured this on 145 NARs from a NixOS system closure, with zstd level
-/// 3, against one frame for each NAR. With 8 MiB, the total size increased by
-/// less than 0.5%, and no NAR increased by more than 6%. With 4 MiB, the
-/// total increased by up to 0.8%, and one NAR increased by 19%. A frame at
-/// each entry of depth 2 or less increased the total by up to 2.6%, and some
-/// small NARs by more than 100%.
-pub(crate) const MIN_FRAME_SIZE: u64 = 8 * 1024 * 1024;
+/// code. Large frames make a client get more bytes for one file. The section
+/// "Seekable Zstandard NARs" in the Hydra manual gives measurements.
+pub(crate) const DEFAULT_MIN_FRAME_SIZE: u64 = 8 * 1024 * 1024;
 
 /// Maximum NAR bytes in one frame. This is the frame size that Nix uses for
 /// zstd, see <https://github.com/NixOS/nix/pull/15550>.
@@ -90,8 +86,8 @@ fn zstd_level(level: async_compression::Level) -> i32 {
 }
 
 impl<R> SeekableZstdEncoder<R> {
-    pub(crate) fn new(inner: R, level: async_compression::Level) -> Self {
-        Self::with_frame_sizes(inner, level, MIN_FRAME_SIZE, MAX_FRAME_SIZE)
+    pub(crate) fn new(inner: R, level: async_compression::Level, min_frame: u64) -> Self {
+        Self::with_frame_sizes(inner, level, min_frame, MAX_FRAME_SIZE)
     }
 
     fn with_frame_sizes(
@@ -574,8 +570,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn seek_table_only_with_seekable() {
+        let (_dir, root, _) = make_tree();
+        let nar = nar_of(&root).await;
+        for seekable in [false, true] {
+            let mut enc = crate::Compression::Zstd.get_nar_compression_fn(
+                async_compression::Level::Default,
+                false,
+                seekable.then_some(1),
+            )(io::Cursor::new(nar.clone()));
+            let mut z = Vec::new();
+            enc.read_to_end(&mut z).await.expect("encode");
+            assert_eq!(u32_at(&z, z.len() - 4) == SEEKABLE_MAGIC, seekable);
+            if seekable {
+                // The minimum frame size gets to the encoder.
+                assert!(seek_table(&z).len() > 1);
+            }
+            let mut dec = crate::Compression::Zstd.get_decompression_fn()(io::Cursor::new(z));
+            let mut out = Vec::new();
+            dec.read_to_end(&mut out).await.expect("decode");
+            assert_eq!(out, nar, "seekable = {seekable}");
+        }
+    }
+
+    #[tokio::test]
     async fn empty_input() {
-        let z = encode(&[], 8192, MIN_FRAME_SIZE, MAX_FRAME_SIZE).await;
+        let z = encode(&[], 8192, DEFAULT_MIN_FRAME_SIZE, MAX_FRAME_SIZE).await;
         let mut dec = crate::Compression::Zstd.get_decompression_fn()(io::Cursor::new(z));
         let mut out = Vec::new();
         dec.read_to_end(&mut out).await.expect("decode");

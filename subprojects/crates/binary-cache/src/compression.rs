@@ -86,16 +86,21 @@ impl Compression {
         }
     }
 
-    /// Like [`Self::get_compression_fn`], for a NAR. A zstd NAR is in the
-    /// seekable format, see [`crate::seekable`].
+    /// Like [`Self::get_compression_fn`], for a NAR. If
+    /// `seekable_min_frame_size` is set, a zstd NAR is in the seekable format
+    /// with this minimum frame size, see [`crate::seekable`]. Other compression
+    /// methods ignore `seekable_min_frame_size`.
     #[must_use]
     pub fn get_nar_compression_fn<C: tokio::io::AsyncBufRead + Unpin + Send + 'static>(
         self,
         level: Level,
         parallel: bool,
+        seekable_min_frame_size: Option<u64>,
     ) -> CompressorFn<C> {
-        match self {
-            Self::Zstd => Box::new(move |s| Box::new(SeekableZstdEncoder::new(s, level))),
+        match (self, seekable_min_frame_size) {
+            (Self::Zstd, Some(min_frame)) => {
+                Box::new(move |s| Box::new(SeekableZstdEncoder::new(s, level, min_frame)))
+            }
             _ => self.get_compression_fn(level, parallel),
         }
     }
@@ -112,7 +117,7 @@ impl Compression {
             Self::Bzip2 => Box::new(|s| Box::new(BzDecoder::new(s))),
             Self::Brotli => Box::new(|s| Box::new(BrotliDecoder::new(s))),
             Self::Zstd => Box::new(|s| {
-                // Read all frames. A seekable NAR has one frame per part.
+                // Read all frames. A seekable NAR has more than one frame.
                 let mut decoder = ZstdDecoder::new(s);
                 decoder.multiple_members(true);
                 Box::new(decoder)
