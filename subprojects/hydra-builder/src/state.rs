@@ -44,6 +44,8 @@ pub enum JobFailure {
     Upload(#[source] eyre::Report),
     #[error("Post processing failure")]
     PostProcessing(#[source] eyre::Report),
+    #[error("Transient failure")]
+    Transient(#[source] eyre::Report),
 }
 
 impl From<eyre::Report> for JobFailure {
@@ -63,6 +65,7 @@ impl From<&JobFailure> for BuildResultState {
             JobFailure::Import(_) => Self::ImportFailure,
             JobFailure::Upload(_) => Self::UploadFailure,
             JobFailure::PostProcessing(_) => Self::PostProcessingFailure,
+            JobFailure::Transient(_) => Self::TransientFailure,
         }
     }
 }
@@ -485,6 +488,7 @@ impl State {
                 return Err(match f.status {
                     FailureStatus::TimedOut => JobFailure::TimedOut(report),
                     FailureStatus::LogLimitExceeded => JobFailure::LogLimit(report),
+                    FailureStatus::TransientFailure => JobFailure::Transient(report),
                     _ => JobFailure::Build(report),
                 });
             }
@@ -783,7 +787,8 @@ fn format_failure(e: &JobFailure) -> String {
         | JobFailure::Preparing(r)
         | JobFailure::Import(r)
         | JobFailure::Upload(r)
-        | JobFailure::PostProcessing(r) => r,
+        | JobFailure::PostProcessing(r)
+        | JobFailure::Transient(r) => r,
     };
     strip_ansi(&format!("{report:#}"))
 }
