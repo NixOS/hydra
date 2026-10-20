@@ -166,8 +166,12 @@ sub registerRoot {
         return if defined $target && machineLocalStore()->isValidPath(parseStorePath(machineLocalStore()->storeDir, $target));
         # Stale symlink: remove it so we can replace it below.
         unlink $link;
+    } elsif (-e $link) {
+        # A plain file root already exists. It may belong to another user
+        # (e.g. the old queue runner or hydra-server), so don't open it for writing.
+        return;
     }
-    open(my $root, ">", $link) or die "cannot create GC root `$link' to `$path'";
+    open(my $root, ">", $link) or die "cannot create GC root `$link' to `$path': $!";
     close $root;
 }
 
