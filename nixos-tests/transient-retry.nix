@@ -27,40 +27,10 @@ let
     }
   '';
 
-  setupJobset = pkgs.writeShellScript "setup-jobset.sh" ''
-    set -eux
-    su -l hydra -c "hydra-create-user root --email-address 'alice@example.org' \
-      --password foobar --role admin"
-
-    URL=http://localhost:3000
-    mycurl() {
-      curl --fail --silent --referer $URL -H "Accept: application/json" \
-        -H "Content-Type: application/json" "$@"
-    }
-
-    mycurl -X POST -d '{"username":"root","password":"foobar"}' \
-      $URL/login -c hydra-cookie.txt
-
-    mycurl -X PUT $URL/project/retry -b hydra-cookie.txt -d '{
-      "displayname": "Retry",
-      "enabled": "1",
-      "visible": "1"
-    }'
-
-    mycurl -X PUT $URL/jobset/retry/default -b hydra-cookie.txt -d '{
-      "description": "transient failure retry regression",
-      "checkinterval": "5",
-      "enabled": "1",
-      "visible": "1",
-      "keepnr": "1",
-      "type": 0,
-      "nixexprinput": "src",
-      "nixexprpath": "default.nix",
-      "inputs": {
-        "src": { "type": "path", "value": "/run/jobset" }
-      }
-    }'
-  '';
+  setupJobset = common.setupJobset pkgs {
+    project = "retry";
+    inherit jobset;
+  };
 in
 
 (import (nixpkgs + "/nixos/lib/testing-python.nix") { inherit system; }).makeTest {
@@ -82,11 +52,6 @@ in
     server.wait_for_unit("hydra-server.service")
     server.wait_for_open_port(3000)
 
-    server.succeed(
-        "mkdir -p /run/jobset && "
-        + "cp ${jobset} /run/jobset/default.nix && "
-        + "chmod 644 /run/jobset/default.nix && chown -R hydra /run/jobset"
-    )
     server.succeed("${setupJobset}")
 
     server.wait_until_succeeds(
