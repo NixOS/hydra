@@ -1083,7 +1083,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1404,7 +1404,7 @@ dependencies = [
 [[package]]
 name = "harmonia-file-core"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "serde",
  "serde_json",
@@ -1414,7 +1414,7 @@ dependencies = [
 [[package]]
 name = "harmonia-file-nar"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "bstr",
  "bytes",
@@ -1438,7 +1438,7 @@ dependencies = [
 [[package]]
 name = "harmonia-protocol"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "async-stream",
  "bstr",
@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "harmonia-protocol-derive"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1482,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-aterm"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "bytes",
  "harmonia-store-content-address",
@@ -1498,7 +1498,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-build-result"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "harmonia-store-derivation",
  "num_enum",
@@ -1509,7 +1509,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-content-address"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "derive_more",
  "harmonia-store-path",
@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-derivation"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-nar-info"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "harmonia-store-content-address",
  "harmonia-store-path",
@@ -1554,7 +1554,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-path"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "derive_more",
  "harmonia-utils-base-encoding",
@@ -1567,7 +1567,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-path-info"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "harmonia-store-content-address",
  "harmonia-store-path",
@@ -1579,7 +1579,7 @@ dependencies = [
 [[package]]
 name = "harmonia-store-remote"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "async-stream",
  "futures-core",
@@ -1599,7 +1599,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-base-encoding"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "data-encoding",
  "derive_more",
@@ -1609,7 +1609,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-hash"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "aws-lc-rs",
  "blake3",
@@ -1627,7 +1627,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-io"
 version = "0.0.0-alpha.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1641,7 +1641,7 @@ dependencies = [
 [[package]]
 name = "harmonia-utils-signature"
 version = "3.3.0"
-source = "git+https://github.com/nix-community/harmonia.git#c1be8eba70b3d06cd502056719d119c95e36c9d8"
+source = "git+https://github.com/nix-community/harmonia.git#d6ce9ddb4f433ac84e18b25c27f355ccbfb4d6ca"
 dependencies = [
  "data-encoding",
  "ed25519-dalek",
@@ -3264,7 +3264,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3548,7 +3548,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3606,7 +3606,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4235,10 +4235,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5059,7 +5059,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
