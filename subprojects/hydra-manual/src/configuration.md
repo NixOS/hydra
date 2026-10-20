@@ -108,38 +108,38 @@ Each frame starts with no compression history, so zstd cannot use matches in ear
 Smaller frames make the NAR larger, mostly when files near each other are similar, for example binaries that contain the same code.
 Larger frames make a client get more bytes for one file.
 
-The tables below show measurements on 105 NARs from a NixOS system closure, at zstd level 3, weighted to the mix of NAR sizes in the closure.
+The tables below show measurements on 105 NARs from the NixOS 26.05 KDE system closure on cache.nixos.org, at zstd level 3, weighted to the mix of NAR sizes in the closure.
 All values compare with one frame for each NAR (`seekable-compression=false`).
-The sample does not include paths smaller than 64 KiB (60% of the paths, 0.1% of the bytes), because they are always one frame.
+The sample does not include paths smaller than 64 KiB (30% of the paths, 0.1% of the bytes), because they are always one frame.
 
 | `seekable-min-frame-size` | Cache size | Data for one file | Frames for each NAR |
 |---|---|---|---|
-| `16777216` (16 MiB) | +0.14% | 3241 KB | 1.41 |
-| `8388608` (8 MiB, default) | +0.26% | 1740 KB | 1.69 |
-| `4194304` (4 MiB) | +0.57% | 895 KB | 2.25 |
-| `2097152` (2 MiB) | +1.09% | 467 KB | 3.21 |
-| `1048576` (1 MiB) | +2.15% | 249 KB | 4.88 |
+| `16777216` (16 MiB) | +0.17% | 4351 KB | 1.20 |
+| `8388608` (8 MiB, default) | +0.30% | 2433 KB | 1.38 |
+| `4194304` (4 MiB) | +0.54% | 1300 KB | 1.75 |
+| `2097152` (2 MiB) | +1.05% | 670 KB | 2.37 |
+| `1048576` (1 MiB) | +2.59% | 354 KB | 3.45 |
 
 "Cache size" is the increase of the total compressed size.
 "Data for one file" is the mean compressed size of the frames that hold one file.
-With one frame, a client gets the full NAR, which is 38 MB on average for one file.
+With one frame, a client gets the full NAR, which is 21 MB on average for one file.
 Each time the minimum frame size is halved, the data for one file is approximately halved, and the cache size increase approximately doubles.
 
 The increase is not the same for all NARs.
 This table shows the largest increase of one NAR in the sample, for each NAR size:
 
-| `seekable-min-frame-size` | 1 to 4 MiB (9% of the paths) | 4 to 16 MiB (5%) | 16 to 64 MiB (2%) | More than 64 MiB (1%) |
+| `seekable-min-frame-size` | 1 to 4 MiB (16% of the paths) | 4 to 16 MiB (9%) | 16 to 64 MiB (4%) | More than 64 MiB (1%) |
 |---|---|---|---|---|
-| 16 MiB | 0.01% | <0.01% | 0.40% | 0.58% |
-| 8 MiB (default) | 0.01% | 5.4% | 1.1% | 0.76% |
-| 4 MiB | 0.01% | 19% | 2.4% | 4.0% |
-| 2 MiB | 3.5% | 39% | 6.7% | 5.4% |
-| 1 MiB | 36% | 80% | 13% | 9.0% |
+| 16 MiB | 0.01% | <0.01% | 5.9% | 0.79% |
+| 8 MiB (default) | 0.01% | 2.2% | 6.5% | 2.5% |
+| 4 MiB | 0.01% | 19% | 11% | 2.2% |
+| 2 MiB | 2.6% | 39% | 18% | 3.3% |
+| 1 MiB | 59% | 80% | 34% | 6.5% |
 
-NARs smaller than 1 MiB (83% of the paths) are one frame with all of these values, and the seek table adds at most 0.13% to them.
-NARs that are a few times larger than the minimum frame size increase most.
-For example, with 8 MiB, `gcc-14.3.0-lib` (9.5 MiB of NAR) increased by 5.4% (162 KB).
-In each NAR size, the median increase is at most 1.4%.
+NARs smaller than 1 MiB (70% of the paths) are one frame with all of these values, and the seek table adds only 25 bytes to them.
+NARs that are only a few times larger than the minimum frame size increase most, because then each frame is a large part of the NAR.
+For example, `docbook-xsl-ns-1.79.2` (17.7 MiB of NAR) increased by 5.9% (125 KB) with 16 MiB, and by 6.5% (138 KB) with 8 MiB.
+In each NAR size, the median increase is at most 0.35% with 8 MiB, and at most 4.6% with 1 MiB.
 Thus enable `seekable-compression` only if clients use range requests.
 
 See [`nix help stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html) for a description of the store URI format.
