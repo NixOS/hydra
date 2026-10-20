@@ -20,6 +20,10 @@ in
 
   limits = forEachSystem (system: import ./limits.nix { inherit system nixpkgs common; });
 
+  transient-retry = forEachSystem (
+    system: import ./transient-retry.nix { inherit system nixpkgs common; }
+  );
+
   s3-nar-listing = forEachSystem (
     system: import ./s3-nar-listing.nix { inherit system nixpkgs common; }
   );

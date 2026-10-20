@@ -250,7 +250,8 @@ impl RemoteBuild {
             hydra_proto::BuildResultState::PreparingFailure
             | hydra_proto::BuildResultState::ImportFailure
             | hydra_proto::BuildResultState::UploadFailure
-            | hydra_proto::BuildResultState::PostProcessingFailure => {
+            | hydra_proto::BuildResultState::PostProcessingFailure
+            | hydra_proto::BuildResultState::TransientFailure => {
                 self.can_retry = true;
                 // Retryable: only genuine build failures are recorded as Failed.
                 self.step_status = BuildStatus::Aborted;
@@ -650,6 +651,7 @@ mod tests {
             hydra_proto::BuildResultState::ImportFailure,
             hydra_proto::BuildResultState::UploadFailure,
             hydra_proto::BuildResultState::PostProcessingFailure,
+            hydra_proto::BuildResultState::TransientFailure,
         ] {
             let mut result = RemoteBuild::new();
             result.step_status = BuildStatus::Failed;

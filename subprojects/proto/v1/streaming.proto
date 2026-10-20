@@ -215,6 +215,7 @@ enum BuildResultState {
   TimedOutFailure = 6;
   LogLimitFailure = 7;
   NarSizeLimitFailure = 8;
+  TransientFailure = 9;
 }
 
 message BuildResultInfo {
