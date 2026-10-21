@@ -79,7 +79,8 @@ in
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.callPackage ./. { };
+        default = pkgs.hydraComponents.hydra-ws;
+        defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-ws";
       };
     };
   };
