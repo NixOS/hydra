@@ -19,6 +19,7 @@ mod multipart;
 mod narinfo;
 mod presence_cache;
 mod presigned;
+mod seekable;
 mod streaming_hash;
 
 pub use crate::cfg::{S3CacheConfig, S3ClientConfig, S3CredentialsConfig, S3Scheme, UrlParseError};
@@ -685,9 +686,10 @@ impl S3BinaryCacheClient {
 
         let stream = read_nar_stream(store_dir, &narinfo.path);
 
-        let compressor = compression.get_compression_fn(
+        let compressor = compression.get_nar_compression_fn(
             self.cfg.get_compression_level(),
             self.cfg.parallel_compression,
+            self.cfg.get_seekable_min_frame_size(),
         );
         let compressed_stream = compressor(stream);
         let (mut hashing_reader, _) = streaming_hash::HashingReader::new(compressed_stream);
@@ -1065,6 +1067,7 @@ impl S3BinaryCacheClient {
                 compression: self.cfg.ls_compression,
                 compression_level: self.cfg.get_compression_level(),
                 multipart: None,
+                seekable_min_frame_size: None,
             })
         } else {
             None
@@ -1094,6 +1097,7 @@ impl S3BinaryCacheClient {
                             compression: Compression::None,
                             compression_level: async_compression::Level::Default,
                             multipart: None,
+                            seekable_min_frame_size: None,
                         }))
                     }
                 })
@@ -1118,6 +1122,7 @@ impl S3BinaryCacheClient {
                 compression: self.cfg.compression,
                 compression_level: self.cfg.get_compression_level(),
                 multipart: Some(multipart),
+                seekable_min_frame_size: self.cfg.get_seekable_min_frame_size(),
             },
             ls_upload,
             debug_info_upload,

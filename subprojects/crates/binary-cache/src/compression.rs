@@ -6,6 +6,8 @@ use async_compression::{
     },
 };
 
+use crate::seekable::SeekableZstdEncoder;
+
 pub(crate) type CompressorFn<C> =
     Box<dyn FnOnce(C) -> Box<dyn tokio::io::AsyncRead + Unpin + Send> + Send>;
 
@@ -84,6 +86,25 @@ impl Compression {
         }
     }
 
+    /// Like [`Self::get_compression_fn`], for a NAR. If
+    /// `seekable_min_frame_size` is set, a zstd NAR is in the seekable format
+    /// with this minimum frame size, see [`crate::seekable`]. Other compression
+    /// methods ignore `seekable_min_frame_size`.
+    #[must_use]
+    pub fn get_nar_compression_fn<C: tokio::io::AsyncBufRead + Unpin + Send + 'static>(
+        self,
+        level: Level,
+        parallel: bool,
+        seekable_min_frame_size: Option<u64>,
+    ) -> CompressorFn<C> {
+        match (self, seekable_min_frame_size) {
+            (Self::Zstd, Some(min_frame)) => {
+                Box::new(move |s| Box::new(SeekableZstdEncoder::new(s, level, min_frame)))
+            }
+            _ => self.get_compression_fn(level, parallel),
+        }
+    }
+
     /// Wrap a compressed byte stream in the matching decoder, yielding the
     /// plaintext NAR bytes. Used when reading NARs back out of the cache.
     #[must_use]
@@ -95,7 +116,12 @@ impl Compression {
             Self::Xz => Box::new(|s| Box::new(XzDecoder::new(s))),
             Self::Bzip2 => Box::new(|s| Box::new(BzDecoder::new(s))),
             Self::Brotli => Box::new(|s| Box::new(BrotliDecoder::new(s))),
-            Self::Zstd => Box::new(|s| Box::new(ZstdDecoder::new(s))),
+            Self::Zstd => Box::new(|s| {
+                // Read all frames. A seekable NAR has more than one frame.
+                let mut decoder = ZstdDecoder::new(s);
+                decoder.multiple_members(true);
+                Box::new(decoder)
+            }),
         }
     }
 }
