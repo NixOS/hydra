@@ -64,21 +64,50 @@ sub view_GET {
 
     $c->stash->{otherEval} = $eval2 if defined $eval2;
 
-    my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
-    my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+    # Only a top-ranked, directly mapped JSON type with the normal resource key
+    # proves that Root's serializer will not use the diff. Leave other cases alone.
+    my $jsonOnly = 0;
+    my $root = $c->controller('Root');
+    my $map = $root->{map};
+    if ($c->req->method eq 'GET'
+        && !ref($c->stash->{filter}) && $c->stash->{filter} eq ''
+        && !exists $root->{serialize}
+        && defined($root->{stash_key}) && !ref($root->{stash_key}) && $root->{stash_key} eq 'resource'
+        && defined($self->{stash_key}) && !ref($self->{stash_key}) && $self->{stash_key} eq 'resource'
+        && !$root->{compliance_mode}
+        && !$root->{content_type_stash_key}
+        && $c->req->compliance_mode == 3
+        && ref($map) eq 'HASH'
+        && $c->res->status == 200 && !$c->res->has_body
+        && !@{$c->error}
+        && !defined $c->stash->{json}
+        && !defined $c->stash->{current_view}
+        && !defined $c->stash->{current_view_instance})
+    {
+        my $type = $c->req->accepted_content_types->[0];
+        $jsonOnly = defined($type)
+            && ($type eq 'application/json' || $type eq 'text/x-json')
+            && defined($map->{$type}) && !ref($map->{$type})
+            && $map->{$type} eq 'JSON';
+    }
 
-    my $diff = buildDiff([@builds], [@builds2]);
-    $c->stash->{stillSucceed} = $diff->{stillSucceed};
-    $c->stash->{stillFail} = $diff->{stillFail};
-    $c->stash->{nowSucceed} = $diff->{nowSucceed};
-    $c->stash->{nowFail} = $diff->{nowFail};
-    $c->stash->{new} = $diff->{new};
-    $c->stash->{removed} = $diff->{removed};
-    $c->stash->{unfinished} = $diff->{unfinished};
-    $c->stash->{aborted} = $diff->{aborted};
-    $c->stash->{totalAborted} = $diff->{totalAborted};
-    $c->stash->{totalFailed} = $diff->{totalFailed};
-    $c->stash->{totalQueued} = $diff->{totalQueued};
+    unless ($jsonOnly) {
+        my @builds = $eval->builds->search($filter, { columns => [@buildListColumns] });
+        my @builds2 = defined $eval2 ? $eval2->builds->search($filter, { columns => [@buildListColumns] }) : ();
+
+        my $diff = buildDiff([@builds], [@builds2]);
+        $c->stash->{stillSucceed} = $diff->{stillSucceed};
+        $c->stash->{stillFail} = $diff->{stillFail};
+        $c->stash->{nowSucceed} = $diff->{nowSucceed};
+        $c->stash->{nowFail} = $diff->{nowFail};
+        $c->stash->{new} = $diff->{new};
+        $c->stash->{removed} = $diff->{removed};
+        $c->stash->{unfinished} = $diff->{unfinished};
+        $c->stash->{aborted} = $diff->{aborted};
+        $c->stash->{totalAborted} = $diff->{totalAborted};
+        $c->stash->{totalFailed} = $diff->{totalFailed};
+        $c->stash->{totalQueued} = $diff->{totalQueued};
+    }
 
     $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
 
