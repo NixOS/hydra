@@ -41,7 +41,7 @@ sub nix : Chained('get_builds') PathPart('channel/latest') CaptureArgs(0) {
         ->search({}, { columns => [@buildListColumns, 'drvpath', 'description', 'homepage']
                      , join => ["buildoutputs"]
                      , order_by => ["me.id", "buildoutputs.name"]
-                     , '+select' => [\ "coalesce(buildoutputs.storedir || '/' || buildoutputs.path, buildoutputs.path)", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
+                     , '+select' => [\ "buildoutputs.storedir || '/' || buildoutputs.path", 'buildoutputs.name'], '+as' => ['outpath', 'outname'] });
 }
 
 

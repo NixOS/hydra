@@ -58,7 +58,7 @@ __PACKAGE__->table("cacheddarcsinputs");
 =head2 storedir
 
   data_type: 'text'
-  is_nullable: 1
+  is_nullable: 0
 
 =head2 revcount
 
@@ -77,7 +77,7 @@ __PACKAGE__->add_columns(
   "storepath",
   { data_type => "text", is_nullable => 0 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_nullable => 0 },
   "revcount",
   { data_type => "integer", is_nullable => 0 },
 );
@@ -97,8 +97,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:5uoalmWIcj0hoDzuiTGTcQ
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:45:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6WRzeLgnrJTYGYAjY0KTVQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
