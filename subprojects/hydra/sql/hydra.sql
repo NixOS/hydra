@@ -170,7 +170,20 @@ create table Builds (
     -- Info about the build result.
     nixName       text, -- name attribute of the derivation
     description   text, -- meta.description
+    -- Store-path columns (drvPath here, and the path/storePath columns of other
+    -- tables) hold just the store-path basename ("<hash>-<name>[.drv]");
+    -- the store dir it belongs to is recorded separately in the accompanying
+    -- storeDir column. This avoids repeating the store dir in every row while
+    -- still recording which store each row was created against.
+    --
+    -- Migration in progress: rows written before schema version 89 still
+    -- carry a full path here and a null storeDir, and both formats are
+    -- readable (a full path contains a slash, a basename never does). The
+    -- `hydra-backfill-store-dirs` script converts them in resumable
+    -- batches; schema version 90 then makes storeDir mandatory and adds
+    -- the constraints that tie each row's store dir to its parent's.
     drvPath       text not null,
+    storeDir      text,
     system        text not null,
 
     license       text, -- meta.license
@@ -247,7 +260,8 @@ create trigger BuildBumped after update on Builds for each row
 create table BuildOutputs (
     build         integer not null,
     name          text not null,
-    path          text,
+    path          text, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (build, name),
     foreign key   (build) references Builds(id) on delete cascade
 );
@@ -261,7 +275,8 @@ create table BuildSteps (
 
     type          integer not null, -- 0 = build, 1 = substitution
 
-    drvPath       text not null,
+    drvPath       text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text, -- also the store of resolvedDrvPath below
 
     -- 0 = not busy
     -- 1 = building
@@ -294,13 +309,9 @@ create table BuildSteps (
     isNonDeterministic boolean,
 
     -- If this step was resolved to a different CA derivation, stores the
-    -- resolved drv path so outputs can be looked up by drv path.
-    --
-    -- Note: Unlike the other store path fields, this one does *not* include
-    -- the store dir. Eventually, it would be nice to migrate the other fields
-    -- to also not include the store dir, as it is repeated / denormalizes the
-    -- database. There is nothing special about this field that makes it not
-    -- include it, it is just newer.
+    -- resolved drv path (a store-path basename, like drvPath) so outputs can
+    -- be looked up by drv path. Resolution stays within the same store, so
+    -- storeDir above covers this column too.
     resolvedDrvPath  text,
 
     primary key   (build, stepnr),
@@ -322,7 +333,8 @@ create table BuildStepOutputs (
     build         integer not null,
     stepnr        integer not null,
     name          text not null,
-    path          text,
+    path          text, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (build, stepnr, name),
     foreign key   (build) references Builds(id) on delete cascade,
     foreign key   (build, stepnr) references BuildSteps(build, stepnr) on delete cascade
@@ -345,7 +357,8 @@ create table BuildInputs (
     emailResponsible integer not null default 0,
     dependency    integer, -- build ID of the input, for type == 'build'
 
-    path          text,
+    path          text, -- store-path basename; see Builds.drvPath
+    storeDir      text,
 
     sha256hash    text,
 
@@ -361,7 +374,14 @@ create table BuildProducts (
     subtype       text not null, -- "source-dist", "rpm", ...
     fileSize      bigint,
     sha256hash    text,
+    -- Store-path basename; see Builds.drvPath.
     path          text,
+    -- The sub-path below that store path, e.g. "share/doc/README", or "" when
+    -- the product is the store path itself. Unlike every other store-path
+    -- column, this one can name something inside a store path, which is why it
+    -- takes a column of its own rather than being run together with `path'.
+    subPath       text,
+    storeDir      text,
     name          text not null, -- generally just the filename part of `path'
     defaultPath   text, -- if `path' is a directory, the default file relative to `path' to be served
     primary key   (build, productnr),
@@ -398,7 +418,8 @@ create table CachedPathInputs (
     timestamp     bigint not null, -- when we first saw this hash
     lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (srcPath, sha256hash)
 );
 
@@ -407,7 +428,8 @@ create table CachedSubversionInputs (
     uri           text not null,
     revision      integer not null,
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (uri, revision)
 );
 
@@ -415,7 +437,8 @@ create table CachedBazaarInputs (
     uri           text not null,
     revision      integer not null,
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (uri, revision)
 );
 
@@ -425,7 +448,8 @@ create table CachedGitInputs (
     revision      text not null,
     isDeepClone   boolean not null,
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (uri, branch, revision, isDeepClone)
 );
 
@@ -433,7 +457,8 @@ create table CachedDarcsInputs (
     uri           text not null,
     revision      text not null,
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     revCount      integer not null,
     primary key   (uri, revision)
 );
@@ -443,7 +468,8 @@ create table CachedHgInputs (
     branch        text not null,
     revision      text not null,
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (uri, branch, revision)
 );
 
@@ -453,7 +479,8 @@ create table CachedCVSInputs (
     timestamp     bigint not null, -- when we first saw this hash
     lastSeen      bigint not null, -- when we last saw this hash
     sha256hash    text not null,
-    storePath     text not null,
+    storePath     text not null, -- store-path basename; see Builds.drvPath
+    storeDir      text,
     primary key   (uri, module, sha256hash)
 );
 
@@ -513,7 +540,8 @@ create table JobsetEvalInputs (
     value          text,
     dependency     integer, -- build ID of the input, for type == 'build'
 
-    path          text,
+    path          text, -- store-path basename; see Builds.drvPath
+    storeDir      text,
 
     sha256hash    text,
 
@@ -635,7 +663,8 @@ create index IndexRunCommandLogsOnBuildID on RunCommandLogs(build_id);
 
 -- The output paths that have permanently failed.
 create table FailedPaths (
-    path text primary key not null
+    path text primary key not null, -- store-path basename; see Builds.drvPath
+    storeDir text
 );
 
 
