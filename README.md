@@ -87,6 +87,8 @@ their capabilities, slots and capacity must not be combined. `machinesCount`
 counts registrations. The web machine view displays hostnames and associates a
 busy step with the registration's own active derivation list. A hostname alone
 does not identify a worker registration.
+If a busy database step is newer than the worker snapshot, the view reports
+that its registration ownership is unavailable instead of displaying idle.
 
 The web adapter also accepts older hostname-keyed responses during upgrades.
 The legacy SSH builder configuration continues to use its existing machine keys.

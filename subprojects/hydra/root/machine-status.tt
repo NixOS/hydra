@@ -80,7 +80,7 @@
           </tr>
       [% END %]
       [% IF idle == 1 %]
-        <tr><td colspan="6">[% IF m.value.hasReportedJobs %]Active jobs reported; details unavailable.[% ELSE %]Idle[% END %]</td></tr>
+        <tr><td colspan="6">[% IF m.value.hasReportedJobs %]Active jobs reported; details unavailable.[% ELSIF m.value.hasUnassignedSteps %]Busy steps recorded for this host; registration ownership unavailable.[% ELSE %]Idle[% END %]</td></tr>
       [% END %]
     </tbody>
   [% END %]

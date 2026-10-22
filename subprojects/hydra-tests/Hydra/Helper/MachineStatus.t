@@ -50,6 +50,19 @@ my $not_yet_in_db = withMachineSteps({ $linux => { %{$machines->{$linux}}, jobs 
 is_deeply($not_yet_in_db->{$linux}->{steps}, [], 'unavailable step details are not invented');
 ok($not_yet_in_db->{$linux}->{hasReportedJobs}, 'worker is not labelled idle just because step details are unavailable');
 
+my $dispatching_roster = dclone($machines);
+$dispatching_roster->{$native}->{jobs} = [];
+$dispatching_roster->{$linux}->{jobs} = [];
+my $dispatching = withMachineSteps($dispatching_roster, [$steps->[0]]);
+ok($dispatching->{$native}->{hasUnassignedSteps}, 'newer busy DB row prevents a false idle report for its host');
+ok($dispatching->{$linux}->{hasUnassignedSteps}, 'unknown registration ownership is visible to both siblings');
+is_deeply($dispatching->{$native}->{steps}, [], 'unassigned busy row is not attributed to the native registration');
+is_deeply($dispatching->{$linux}->{steps}, [], 'unassigned busy row is not attributed to the Linux registration');
+my $matched = withMachineSteps($machines, [@$steps[0, 1]]);
+ok(!$matched->{$native}->{hasUnassignedSteps} && !$matched->{$linux}->{hasUnassignedSteps}, 'known sibling jobs are not treated as unassigned work');
+my $other_host = withMachineSteps($dispatching_roster, [$steps->[2]]);
+ok(!$other_host->{$native}->{hasUnassignedSteps}, 'another host does not affect idle status');
+
 my $legacy_roster = { 'ssh://nix@mac-6' => {}, '' => {} };
 my $legacy_before = dclone($legacy_roster);
 my $legacy = withMachineSteps($legacy_roster, [

@@ -46,6 +46,22 @@ sub machineName {
 
 sub withMachineSteps {
     my ($machines, $steps) = @_;
+    my %reported;
+    foreach my $id (keys %$machines) {
+        my $machine = $machines->{$id};
+        next unless defined $machine->{registrationId};
+        my $name = machineName($machine->{hostname} // $id);
+        $reported{$name}->{basename($_)} = 1 foreach @{$machine->{jobs} || []};
+    }
+    # The database read follows the worker snapshot. A newly dispatched job
+    # may therefore have a busy row but no registration owner in that snapshot.
+    # Show this uncertainty for the host instead of calling its workers idle.
+    my %unassigned;
+    foreach my $step (@$steps) {
+        my $name = machineName($step->{machine});
+        my $reported_jobs = $reported{$name} || {};
+        $unassigned{$name} = 1 unless $reported_jobs->{basename($step->{drvpath})};
+    }
     my %result;
     foreach my $id (keys %$machines) {
         my $machine = $machines->{$id};
@@ -61,6 +77,7 @@ sub withMachineSteps {
         $result{$id} =
             { %$machine, steps => \@owned
             , hasReportedJobs => (scalar(@{$machine->{jobs} || []}) || ($stats->{currentJobs} // 0)) ? 1 : 0
+            , hasUnassignedSteps => defined($machine->{registrationId}) && $unassigned{$name} ? 1 : 0
             };
     }
     return \%result;
