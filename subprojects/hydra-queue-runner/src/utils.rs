@@ -20,6 +20,7 @@ where
     db::retry_serialization_failures(what, f).await
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tracing::instrument(skip(db, store_dir, res, timings), err)]
 pub async fn finish_build_step(
     db: &db::Database,

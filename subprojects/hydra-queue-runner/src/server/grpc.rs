@@ -114,7 +114,11 @@ fn handle_message(state: &Arc<State>, msg: builder_request::Message) {
         // is kept in the freed list so that the subsequent `CompleteBuild`
         // RPC can still look up build_id / step_nr for DB finalisation.
         builder_request::Message::SlotFreed(msg) => {
-            tracing::info!("slot freed: build_id={} machine_id={}", msg.build_id, msg.machine_id);
+            tracing::info!(
+                "slot freed: build_id={} machine_id={}",
+                msg.build_id,
+                msg.machine_id
+            );
             let Ok(machine_id) = uuid::Uuid::parse_str(&msg.machine_id) else {
                 return;
             };

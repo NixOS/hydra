@@ -178,22 +178,22 @@ pub struct AppConfig {
 
     /// Timeout in seconds for the import (input fetching) phase of a build.
     /// If importing requisites takes longer than this, the build fails with
-    /// an ImportFailure.  Set to 0 to disable.
+    /// an `ImportFailure`.  Set to 0 to disable.
     #[serde(default = "default_import_timeout")]
     pub import_timeout: u64,
 
     /// Timeout in seconds for the upload (output transfer) phase of a build.
     /// If uploading build outputs takes longer than this, the build fails
-    /// with an UploadFailure.  Set to 0 to disable.
+    /// with an `UploadFailure`.  Set to 0 to disable.
     #[serde(default = "default_upload_timeout")]
     pub upload_timeout: u64,
 
-    /// Prefetch factor: how many extra builds (beyond max_jobs) the builder
+    /// Prefetch factor: how many extra builds (beyond `max_jobs`) the builder
     /// accepts for input pre-fetching.  With the default of 2, a builder
-    /// with max_jobs=4 reports 4 prefetch slots, for 8 total.  Builds
-    /// beyond max_jobs import inputs immediately but wait for a build
+    /// with `max_jobs`=4 reports 4 prefetch slots, for 8 total.  Builds
+    /// beyond `max_jobs` import inputs immediately but wait for a build
     /// semaphore before running `nix build`.  Set to 1 to disable prefetch
-    /// (total capacity == max_jobs).
+    /// (total capacity == `max_jobs`).
     #[serde(default = "default_prefetch_factor")]
     pub prefetch_factor: u32,
 }

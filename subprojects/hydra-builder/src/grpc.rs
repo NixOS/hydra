@@ -184,7 +184,7 @@ impl BuilderClient {
 
 /// If no message arrives from the queue runner within this window the
 /// stream is considered dead and the builder will reconnect.  The runner
-/// sends pings every BACKWARDS_PING_INTERVAL (30s), so 90s without any
+/// sends pings every `BACKWARDS_PING_INTERVAL` (30s), so 90s without any
 /// message is a reliable signal that the connection is dead.
 const STREAM_RECV_TIMEOUT: Duration = Duration::from_secs(90);
 

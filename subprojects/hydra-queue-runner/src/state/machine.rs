@@ -838,9 +838,7 @@ impl Machine {
         }
         drop(jobs);
         let freed = self.freed_jobs.read();
-        freed
-            .get(&build_id)
-            .map(|j| (j.build_id, j.step_nr))
+        freed.get(&build_id).map(|j| (j.build_id, j.step_nr))
     }
 
     #[tracing::instrument(skip(self), fields(%build_id))]
@@ -855,10 +853,7 @@ impl Machine {
     /// builds) and `freed_jobs` (slot already released, awaiting
     /// `CompleteBuild`).
     #[tracing::instrument(skip(self), fields(%build_id))]
-    pub fn get_job_drv_for_build_id_or_freed(
-        &self,
-        build_id: uuid::Uuid,
-    ) -> Option<StorePath> {
+    pub fn get_job_drv_for_build_id_or_freed(&self, build_id: uuid::Uuid) -> Option<StorePath> {
         // Check active jobs first.
         if let Some(path) = self.get_job_drv_for_build_id(build_id) {
             return Some(path);
@@ -909,12 +904,11 @@ impl Machine {
             let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
             if now <= (jobs_in_last_30s_start + 30) {
                 // Saturating subtract to avoid wrapping to u64::MAX.
-                let _ = self
-                    .stats
-                    .jobs_in_last_30s_count
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
-                        v.checked_sub(1)
-                    });
+                let _ = self.stats.jobs_in_last_30s_count.fetch_update(
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                    |v| v.checked_sub(1),
+                );
             }
         }
 
@@ -930,9 +924,7 @@ impl Machine {
     pub fn remove_job_by_build_id(&self, build_id: uuid::Uuid) -> Option<Job> {
         let job = {
             let mut jobs = self.jobs.write();
-            let idx = jobs
-                .iter()
-                .position(|j| j.internal_build_id == build_id);
+            let idx = jobs.iter().position(|j| j.internal_build_id == build_id);
             if let Some(idx) = idx {
                 let job = jobs.remove(idx);
                 self.stats.incr_nr_steps_done();
@@ -948,12 +940,11 @@ impl Machine {
             let jobs_in_last_30s_start = self.stats.jobs_in_last_30s_start.load(Ordering::Relaxed);
             if now <= (jobs_in_last_30s_start + 30) {
                 // Saturating subtract to avoid wrapping to u64::MAX.
-                let _ = self
-                    .stats
-                    .jobs_in_last_30s_count
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
-                        v.checked_sub(1)
-                    });
+                let _ = self.stats.jobs_in_last_30s_count.fetch_update(
+                    Ordering::Relaxed,
+                    Ordering::Relaxed,
+                    |v| v.checked_sub(1),
+                );
             }
         }
 
@@ -966,14 +957,12 @@ impl Machine {
     /// Called when the builder sends `SlotFreed` to indicate that the nix
     /// build is done and the builder can accept new work.  The job metadata
     /// is kept in `freed_jobs` so that the subsequent `CompleteBuild` RPC
-    /// can still look up build_id / step_nr for DB finalisation.
+    /// can still look up `build_id` / `step_nr` for DB finalisation.
     #[tracing::instrument(skip(self), fields(%build_id))]
     pub fn free_slot_for_build_id(&self, build_id: uuid::Uuid) -> bool {
         let job = {
             let mut jobs = self.jobs.write();
-            let idx = jobs
-                .iter()
-                .position(|j| j.internal_build_id == build_id);
+            let idx = jobs.iter().position(|j| j.internal_build_id == build_id);
             if let Some(idx) = idx {
                 let job = jobs.remove(idx);
                 self.stats.store_current_jobs(jobs.len() as u64);
@@ -1026,6 +1015,7 @@ impl Machine {
     /// Used by `remove_machine` to fail orphaned builds whose slot was
     /// freed but whose `CompleteBuild` never arrived (e.g. builder crashed
     /// during upload).
+    #[must_use]
     pub fn drain_freed_jobs(&self) -> Vec<Job> {
         let mut freed = self.freed_jobs.write();
         freed.drain().map(|(_, job)| job).collect()

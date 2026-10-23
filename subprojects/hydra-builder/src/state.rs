@@ -105,7 +105,7 @@ pub struct Config {
     pub import_timeout: std::time::Duration,
     /// Timeout for the upload phase (0 = disabled).
     pub upload_timeout: std::time::Duration,
-    /// Extra prefetch slots beyond max_jobs.
+    /// Extra prefetch slots beyond `max_jobs`.
     pub prefetch_slots: u32,
     pub substituters: Vec<String>,
     pub nix_version: String,
@@ -147,8 +147,9 @@ pub struct State {
     /// uploads that exhaust memory and network sockets.
     upload_semaphore: Arc<tokio::sync::Semaphore>,
     /// Semaphore that gates the actual `nix build` phase.  The queue runner
-    /// may dispatch up to (max_jobs + prefetch_slots) builds; builds beyond
-    /// max_jobs import inputs immediately but acquire this semaphore before
+    /// may dispatch up to (`max_jobs` + `prefetch_slots`) builds; builds
+    /// beyond `max_jobs` import inputs immediately but acquire this
+    /// semaphore before
     /// starting `nix build`.  This keeps builders always busy: while N
     /// builds are running, up to N more can be importing inputs in parallel.
     build_semaphore: Arc<tokio::sync::Semaphore>,
@@ -257,9 +258,7 @@ impl State {
             // Gate actual `nix build` on max_jobs permits.  The queue runner
             // dispatches up to (max_jobs + prefetch_slots) builds; extras
             // import inputs immediately but wait here before building.
-            build_semaphore: Arc::new(tokio::sync::Semaphore::new(
-                app_config.max_jobs as usize,
-            )),
+            build_semaphore: Arc::new(tokio::sync::Semaphore::new(app_config.max_jobs as usize)),
         });
         tracing::info!("Builder systems={:?}", state.config.systems);
         tracing::info!(
@@ -331,6 +330,7 @@ impl State {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     #[tracing::instrument(skip(self, m), fields(drv = m.drv.as_ref().map(tracing::field::display), build_id = %m.build_id))]
     pub fn schedule_build(self: Arc<Self>, m: BuildMessage) -> eyre::Result<()> {
         if self.halt.load(Ordering::SeqCst) {
@@ -364,9 +364,7 @@ impl State {
                             machine_id: self_.id.to_string(),
                         });
                         self_.remove_build(build_id);
-                        tracing::info!(
-                            "Slot freed for {drv}, spawning background upload"
-                        );
+                        tracing::info!("Slot freed for {drv}, spawning background upload");
 
                         // Upload outputs and call CompleteBuild in the
                         // background -- this no longer holds a build slot.
@@ -378,11 +376,11 @@ impl State {
                             let _permit = upload_permit.acquire().await;
 
                             let mut bg_timings = timings;
-                            match Box::pin(self_bg.upload_and_complete(result, &mut bg_timings)).await {
+                            match Box::pin(self_bg.upload_and_complete(result, &mut bg_timings))
+                                .await
+                            {
                                 Ok(()) => {
-                                    tracing::info!(
-                                        "Successfully completed upload for {drv_bg}"
-                                    );
+                                    tracing::info!("Successfully completed upload for {drv_bg}");
                                 }
                                 Err(e) => {
                                     tracing::error!(
@@ -412,7 +410,9 @@ impl State {
                                         error_msg: Some(format_failure(&e)),
                                     };
 
-                                    if let Err(e) = self_bg.client.complete_build(failed_build).await {
+                                    if let Err(e) =
+                                        self_bg.client.complete_build(failed_build).await
+                                    {
                                         tracing::error!(
                                             "Failed to submit upload failure info: {e}"
                                         );
@@ -718,20 +718,20 @@ impl State {
         // their import phase above and then wait here until a build slot is
         // free.  This keeps builders saturated: while N builds run, N more
         // can be importing inputs in parallel.
-        let _ = client.build_step_update(StepUpdate {
-            build_id: m.build_id.clone(),
-            machine_id: machine_id.to_string(),
-            step_status: StepStatus::WaitingForLocalSlot as i32,
-            progress_current: 0,
-            progress_total: 0,
-        }).await;
+        let _ = client
+            .build_step_update(StepUpdate {
+                build_id: m.build_id.clone(),
+                machine_id: machine_id.to_string(),
+                step_status: StepStatus::WaitingForLocalSlot as i32,
+                progress_current: 0,
+                progress_total: 0,
+            })
+            .await;
         let _build_permit = self
             .build_semaphore
             .acquire()
             .await
-            .map_err(|e| {
-                JobFailure::Preparing(eyre::eyre!("build semaphore closed: {e}"))
-            })?;
+            .map_err(|e| JobFailure::Preparing(eyre::eyre!("build semaphore closed: {e}")))?;
 
         let _ = client // we ignore the error here, as this step status has no prio
             .build_step_update(StepUpdate {
@@ -1120,7 +1120,10 @@ async fn substitute_paths(
                 if elapsed > std::time::Duration::from_secs(5) {
                     tracing::warn!(
                         "Slow substitution {}/{}: {} took {:.1}s",
-                        i + 1, total, path, elapsed.as_secs_f64()
+                        i + 1,
+                        total,
+                        path,
+                        elapsed.as_secs_f64()
                     );
                 }
                 eyre::Result::<_>::Ok((path, result))
@@ -1155,9 +1158,7 @@ async fn substitute_paths(
         }
     }
     if err > 0 {
-        tracing::info!(
-            "Substitution: {ok}/{total} succeeded, {err} failed (will fetch via gRPC)"
-        );
+        tracing::info!("Substitution: {ok}/{total} succeeded, {err} failed (will fetch via gRPC)");
     } else if total > 0 {
         tracing::info!("Substitution: all {total} paths resolved locally or via substituters");
     }
@@ -1223,7 +1224,10 @@ async fn import_paths(
     drop(conn);
 
     metrics.sub_downloading_path(num_paths);
-    tracing::info!("Finished streaming {} paths from queue runner", imported.len());
+    tracing::info!(
+        "Finished streaming {} paths from queue runner",
+        imported.len()
+    );
     Ok(())
 }
 
@@ -1275,13 +1279,15 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             imported = src_imported,
             total = src_total,
         );
-        let _ = client.build_step_update(StepUpdate {
-            build_id: build_id.to_owned(),
-            machine_id: machine_id.to_owned(),
-            step_status: StepStatus::SeningInputs as i32,
-            progress_current: src_imported as u32,
-            progress_total: import_total as u32,
-        }).await;
+        let _ = client
+            .build_step_update(StepUpdate {
+                build_id: build_id.to_owned(),
+                machine_id: machine_id.to_owned(),
+                step_status: StepStatus::SeningInputs as i32,
+                progress_current: u32::try_from(src_imported).unwrap_or(u32::MAX),
+                progress_total: u32::try_from(import_total).unwrap_or(u32::MAX),
+            })
+            .await;
     }
 
     let mut drv_imported = 0usize;
@@ -1303,13 +1309,15 @@ async fn import_requisites<T: IntoIterator<Item = StorePath>>(
             imported = drv_imported,
             total = drv_total,
         );
-        let _ = client.build_step_update(StepUpdate {
-            build_id: build_id.to_owned(),
-            machine_id: machine_id.to_owned(),
-            step_status: StepStatus::SeningInputs as i32,
-            progress_current: (src_imported + drv_imported) as u32,
-            progress_total: import_total as u32,
-        }).await;
+        let _ = client
+            .build_step_update(StepUpdate {
+                build_id: build_id.to_owned(),
+                machine_id: machine_id.to_owned(),
+                step_status: StepStatus::SeningInputs as i32,
+                progress_current: u32::try_from(src_imported + drv_imported).unwrap_or(u32::MAX),
+                progress_total: u32::try_from(import_total).unwrap_or(u32::MAX),
+            })
+            .await;
     }
 
     tracing::info!("Import complete for {drv}");
