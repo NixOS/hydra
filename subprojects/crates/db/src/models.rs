@@ -149,6 +149,9 @@ pub struct UpdateBuildStepInFinish<'a> {
     pub stop_time: crate::Timestamp,
     pub machine: Option<&'a str>,
     pub overhead: Option<i32>,
+    pub import_time_ms: Option<i32>,
+    pub build_time_ms: Option<i32>,
+    pub upload_time_ms: Option<i32>,
     pub times_built: Option<i32>,
     pub is_non_deterministic: Option<bool>,
 }

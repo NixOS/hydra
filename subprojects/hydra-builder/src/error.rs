@@ -44,6 +44,9 @@ pub enum BuilderError {
     #[error("Failed to communicate {0} times over the channel. Terminating the application.")]
     RepeatedFailure(u32),
 
+    #[error("No message from queue runner in {0}s — assuming dead connection")]
+    StreamTimeout(u64),
+
     #[error("While handling request")]
     HandlingRequest(#[source] eyre::Report),
 
