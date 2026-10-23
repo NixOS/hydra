@@ -58,12 +58,11 @@ async fn main() -> color_eyre::Result<()> {
                 state.abort_all_active_builds();
                 match r.map_err(BuilderError::from).flatten() {
                     Ok(()) => true,
-                    Err(e) => match e {
-                        BuilderError::VersionIncompatible(_) => {
+                    Err(e) => {
+                        if matches!(e, BuilderError::VersionIncompatible(_)) {
                             tracing::error!("ERROR: {e:?}");
-                            std::process::exit(65) // EX_DATAERR
-                        },
-                        _ => {
+                            std::process::exit(65); // EX_DATAERR
+                        } else {
                             // Transient error (e.g. stream receive timeout) —
                             // wait briefly and reconnect.  Temp roots are
                             // connection-scoped, so no stale-root cleanup is
