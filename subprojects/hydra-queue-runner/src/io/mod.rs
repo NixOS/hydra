@@ -1,6 +1,7 @@
 pub mod build;
 pub mod jobset;
 pub mod machine;
+pub mod machine_registry;
 pub mod queue_runner;
 pub mod response_types;
 pub mod stats;

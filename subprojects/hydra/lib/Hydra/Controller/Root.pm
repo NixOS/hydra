@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::MachineStatus qw(withMachineSteps);
 use Hydra::Helper::OIDC qw(configuredProvider);
 use Hydra::Config qw(signinMethods passwordSigninEnabled);
 use Hydra::View::TT;
@@ -231,7 +232,6 @@ sub machines :Local Args(0) {
     my ($self, $c) = @_;
     my $machines = getMachines;
 
-    $c->stash->{machines} = $machines;
     $c->stash->{steps} = dbh($c)->selectall_arrayref(
         "select build, stepnr, s.system as system, s.drvpath as drvpath, machine, s.starttime as starttime, jobsets.project as project, jobsets.name as jobset, job, s.busy as busy " .
         "from BuildSteps s " .
@@ -239,6 +239,7 @@ sub machines :Local Args(0) {
         "join Jobsets jobsets on jobsets.id = b.jobset_id " .
         "where busy != 0 order by machine, s.starttime asc",
         { Slice => {} });
+    $c->stash->{machines} = withMachineSteps($machines, $c->stash->{steps});
     $c->stash->{template} = 'machine-status.tt';
     $c->stash->{human_bytes} = sub {
         my ($bytes) = @_;
