@@ -84,6 +84,7 @@ in
         # resolves features once for the whole workspace build.
         default = (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-ad-hoc;
         defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-ad-hoc";
+        description = "The `hydra-ad-hoc` package.";
       };
     };
   };

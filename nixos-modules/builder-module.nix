@@ -168,6 +168,7 @@ in
         default =
           (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-builder;
         defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-builder";
+        description = "The `hydra-builder` package.";
       };
     };
   };

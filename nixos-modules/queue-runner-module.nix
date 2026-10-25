@@ -306,6 +306,7 @@ in
         default =
           (pkgs.hydraComponents.overrideScope (_: _: { withOtel = cfg.otel.enable; })).hydra-queue-runner;
         defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-queue-runner";
+        description = "The `hydra-queue-runner` package.";
       };
     };
   };
