@@ -81,6 +81,7 @@ in
         type = lib.types.package;
         default = pkgs.hydraComponents.hydra-ws;
         defaultText = lib.literalExpression "pkgs.hydraComponents.hydra-ws";
+        description = "The `hydra-ws` package.";
       };
     };
   };
