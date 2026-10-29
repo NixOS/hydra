@@ -143,6 +143,7 @@ impl MachineStats {
 #[serde(rename_all = "camelCase")]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Machine {
+    registration_id: String,
     systems: SmallVec<[crate::state::System; 4]>,
     hostname: String,
     uptime: f64,
@@ -182,6 +183,7 @@ impl Machine {
         let jobs = { item.jobs.read().iter().map(|j| j.path.clone()).collect() };
         let time = jiff::Timestamp::now();
         Self {
+            registration_id: item.id.to_string(),
             systems: item.systems.clone(),
             uptime: (time - item.joined_at)
                 .total(jiff::Unit::Second)
@@ -212,5 +214,11 @@ impl Machine {
             has_dynamic_capacity: item.has_dynamic_capacity(),
             has_static_capacity: item.has_static_capacity(),
         }
+    }
+}
+
+impl super::machine_registry::Registration for Machine {
+    fn registration_id(&self) -> &str {
+        &self.registration_id
     }
 }
