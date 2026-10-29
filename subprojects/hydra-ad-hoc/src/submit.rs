@@ -53,8 +53,8 @@ impl AdhocSubmitter {
     ///
     /// Runs inside the transaction that the handler later commits, so
     /// the row lands atomically with everything else the handler writes.
-    /// The row is kept (`keep = 1`) so `hydra-update-gc-roots` retains
-    /// its outputs, since no jobset evaluation will ever claim them.
+    /// The row is not set to `keep` because hydra must not maintain
+    /// a garbage collecor root, they are handled by the calling `nix-build`.
     pub(crate) async fn submit(
         &self,
         tx: &mut db::Transaction<'_>,
@@ -65,7 +65,7 @@ impl AdhocSubmitter {
             request.nix_name,
             request.drv_path,
             request.system,
-            true,
+            false,
         )
         .await
     }
@@ -129,7 +129,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn submit_sets_keep_and_starts_unfinished() {
+    async fn submit_starts_unfinished() {
         let (_pg, db) = setup().await;
         let submitter = AdhocSubmitter::new(db.clone()).await.unwrap();
         let mut conn = db.get().await.unwrap();
@@ -154,10 +154,6 @@ mod tests {
         .fetch_one(conn.raw())
         .await
         .unwrap();
-        assert_eq!(
-            row.keep, 1,
-            "keep=1 so hydra-update-gc-roots retains outputs"
-        );
         assert_eq!(row.finished, 0, "build starts unfinished");
         assert_eq!(row.drvpath, "/nix/store/foo.drv");
         assert_eq!(row.system, "x86_64-linux");
