@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n              builds.id,\n              builds.jobset_id,\n              jobsets.project as project,\n              jobsets.name as jobset,\n              job,\n              drvPath,\n              maxsilent,\n              timeout,\n              timestamp,\n              globalPriority,\n              priority\n            FROM builds\n            INNER JOIN jobsets ON builds.jobset_id = jobsets.id\n            WHERE finished = 0 ORDER BY globalPriority desc, schedulingshares, random();",
+  "query": "\n            SELECT\n              builds.id,\n              builds.jobset_id,\n              jobsets.project as project,\n              jobsets.name as jobset,\n              job,\n              drvPath,\n              storeDir,\n              maxsilent,\n              timeout,\n              timestamp,\n              globalPriority,\n              priority\n            FROM builds\n            INNER JOIN jobsets ON builds.jobset_id = jobsets.id\n            WHERE finished = 0 ORDER BY globalPriority desc, schedulingshares, random();",
   "describe": {
     "columns": [
       {
@@ -71,6 +71,17 @@
       },
       {
         "ordinal": 6,
+        "name": "storedir",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "storedir"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
         "name": "maxsilent",
         "type_info": "Int4",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "timeout",
         "type_info": "Int4",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "timestamp",
         "type_info": "Int8",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "globalpriority",
         "type_info": "Int4",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "priority",
         "type_info": "Int4",
         "origin": {
@@ -137,10 +148,11 @@
       false,
       true,
       true,
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "05e4170e17728e552240a2474d97bdd750d7adc15ea27c0d7b10ba5330ca4f9e"
+  "hash": "bf042dd4893b48d1d79c7de2d699edd7a253e9da9b104830c85acfebf3d4ed39"
 }

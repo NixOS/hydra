@@ -55,6 +55,11 @@ __PACKAGE__->table("cachedbazaarinputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -66,6 +71,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "storepath",
   { data_type => "text", is_nullable => 0 },
+  "storedir",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -83,8 +90,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "revision");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:/9cCRtmGzlDGxjqBEPI2Mw
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GJWE4+hmYfYmg+L3LcdnfA
 
 
 # You can replace this text with custom content, and it will be preserved on regeneration
@@ -92,3 +99,4 @@ __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/storepath/);
 
 1;
+

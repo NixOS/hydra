@@ -21,6 +21,7 @@ is(nrBuildsForJobset($jobset), 1, "The second evaluation reuses the build");
 $build->discard_changes;
 my $drvPath = $build->get_column('drvpath');
 isnt($drvPath, $firstDrvPath, "The build points at the new derivation");
-like($drvPath, qr{^\Q${\$db->storeDir}\E/}, "drvpath is stored with the store directory");
+unlike($drvPath, qr{/}, "drvpath is stored as a basename");
+is($build->get_column('storedir'), $db->storeDir, "with the store directory beside it");
 
 done_testing;

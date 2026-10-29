@@ -45,16 +45,18 @@ subtest "bad input is rejected" => sub {
     like(dies { Nix::StorePath->new("") }, qr{must not be empty}, "an empty name");
 };
 
-subtest "a relative store path keeps both halves" => sub {
-    my $relative = parseRelativeStorePath($storeDir, "/nix/store/$base/share/doc/index.html");
-    is($relative->basePath->to_string, $base, "the store path");
-    is($relative->relativePath, "share/doc/index.html", "the remainder");
-    is(printRelativeStorePath($storeDir, $relative), "/nix/store/$base/share/doc/index.html",
-        "round-trips");
+subtest "a relative store path is a pair" => sub {
+    my ($storePath, $subPath) =
+        parseRelativeStorePath($storeDir, "/nix/store/$base/share/doc/index.html");
+    is($storePath->to_string, $base, "the store path");
+    is($subPath, "share/doc/index.html", "the sub-path");
+    is(printRelativeStorePath($storeDir, $storePath, $subPath),
+        "/nix/store/$base/share/doc/index.html", "round-trips");
 
-    my $exact = parseRelativeStorePath($storeDir, "/nix/store/$base");
-    is($exact->relativePath, "", "an exact store path has an empty remainder");
-    is(printRelativeStorePath($storeDir, $exact), "/nix/store/$base", "and round-trips too");
+    my ($exact, $empty) = parseRelativeStorePath($storeDir, "/nix/store/$base");
+    is($empty, "", "a path naming a store path exactly has an empty sub-path");
+    is(printRelativeStorePath($storeDir, $exact, $empty), "/nix/store/$base",
+        "and round-trips too");
 };
 
 done_testing;

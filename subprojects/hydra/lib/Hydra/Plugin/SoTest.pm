@@ -89,7 +89,7 @@ sub buildFinished {
             # filesystem path rather than a store-relative one.
             $sotest_config =
               printRelativeStorePath( machineLocalStore()->storeDir,
-                $product->path );
+                $product->storePath, $product->subPath );
         }
     }
 
