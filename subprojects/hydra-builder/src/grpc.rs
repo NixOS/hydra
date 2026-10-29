@@ -182,6 +182,12 @@ impl BuilderClient {
     }
 }
 
+/// If no message arrives from the queue runner within this window the
+/// stream is considered dead and the builder will reconnect.  The runner
+/// sends pings every `BACKWARDS_PING_INTERVAL` (30s), so 90s without any
+/// message is a reliable signal that the connection is dead.
+const STREAM_RECV_TIMEOUT: Duration = Duration::from_secs(90);
+
 /// Apply HTTP/2 keepalive pings to the channel. The builder holds a single
 /// long-lived channel and the queue runner sits behind nginx, which recycles
 /// idle HTTP/2 connections; keepalive pings keep the connection healthy and let
@@ -360,6 +366,16 @@ pub async fn start_bidirectional_stream(
         .await
         .map_err(BuilderError::ReadingSystemInfo)?;
     let state2 = state.clone();
+
+    // Subscribe a fresh receiver for this stream connection.  Using a
+    // broadcast channel means each reconnection gets its own receiver
+    // without needing to recreate the sender or the State.
+    let mut slot_freed_rx = state.slot_freed_tx.subscribe();
+
+    // The outbound stream merges periodic ping messages with SlotFreed
+    // notifications from build tasks.  Using `tokio::select!` inside an
+    // `async_stream` lets us yield whichever is ready first while keeping
+    // a single ordered stream for the gRPC tunnel.
     let ping_stream = async_stream::stream! {
         yield BuilderRequest {
             message: Some(builder_request::Message::Join(join_msg))
@@ -367,20 +383,42 @@ pub async fn start_bidirectional_stream(
 
         let mut interval = tokio::time::interval(Duration::from_secs(state.config.ping_interval));
         loop {
-            interval.tick().await;
+            tokio::select! {
+                _ = interval.tick() => {
+                    let ping = match state.get_ping_message() {
+                        Ok(v) => builder_request::Message::Ping(v),
+                        Err(e) => {
+                            tracing::error!("Failed to construct ping message: {e}");
+                            continue
+                        },
+                    };
+                    tracing::debug!("sending ping: {ping:?}");
 
-            let ping = match state.get_ping_message() {
-                Ok(v) => builder_request::Message::Ping(v),
-                Err(e) => {
-                    tracing::error!("Failed to construct ping message: {e}");
-                    continue
-                },
-            };
-            tracing::debug!("sending ping: {ping:?}");
-
-            yield BuilderRequest {
-                message: Some(ping)
-            };
+                    yield BuilderRequest {
+                        message: Some(ping)
+                    };
+                }
+                msg = slot_freed_rx.recv() => {
+                    match msg {
+                        Ok(msg) => {
+                            tracing::info!(
+                                "sending slot_freed: build_id={} machine_id={}",
+                                msg.build_id, msg.machine_id
+                            );
+                            yield BuilderRequest {
+                                message: Some(builder_request::Message::SlotFreed(msg))
+                            };
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("slot_freed receiver lagged by {n} messages");
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                            // Sender dropped -- no more SlotFreed messages,
+                            // but keep pinging.
+                        }
+                    }
+                }
+            }
         }
     };
 
@@ -398,23 +436,35 @@ pub async fn start_bidirectional_stream(
     };
 
     let mut consecutive_failure_count = 0;
-    while let Some(item) = stream.next().await {
-        match item.map(|v| v.message) {
-            Ok(Some(v)) => {
-                consecutive_failure_count = 0;
-                if let Err(err) = handle_request(state2.clone(), v).await {
-                    tracing::error!("Failed to correctly handle request: {err}");
+    loop {
+        match tokio::time::timeout(STREAM_RECV_TIMEOUT, stream.next()).await {
+            Ok(Some(item)) => match item.map(|v| v.message) {
+                Ok(Some(v)) => {
+                    consecutive_failure_count = 0;
+                    if let Err(err) = handle_request(state2.clone(), v).await {
+                        tracing::error!("Failed to correctly handle request: {err}");
+                    }
                 }
-            }
+                Ok(None) => {
+                    consecutive_failure_count = 0;
+                }
+                Err(e) => {
+                    consecutive_failure_count += 1;
+                    tracing::error!("stream message delivery failed: {e}");
+                    if consecutive_failure_count == 10 {
+                        return Err(BuilderError::RepeatedFailure(consecutive_failure_count));
+                    }
+                }
+            },
             Ok(None) => {
-                consecutive_failure_count = 0;
+                // Stream ended cleanly.
+                tracing::info!("gRPC stream ended");
+                break;
             }
-            Err(e) => {
-                consecutive_failure_count += 1;
-                tracing::error!("stream message delivery failed: {e}");
-                if consecutive_failure_count == 10 {
-                    return Err(BuilderError::RepeatedFailure(consecutive_failure_count));
-                }
+            Err(_) => {
+                // No message received within STREAM_RECV_TIMEOUT — the
+                // connection is likely dead; the caller reconnects.
+                return Err(BuilderError::StreamTimeout(STREAM_RECV_TIMEOUT.as_secs()));
             }
         }
     }

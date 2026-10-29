@@ -99,6 +99,15 @@ const fn default_cpu_psi_threshold() -> f32 {
 const fn default_mem_psi_threshold() -> f32 {
     80.0
 }
+const fn default_import_timeout() -> u64 {
+    3600
+}
+const fn default_upload_timeout() -> u64 {
+    1800
+}
+const fn default_prefetch_factor() -> u32 {
+    2
+}
 
 /// Reloadable builder settings read from the TOML config file. Connection
 /// and security options (gateway endpoint, mTLS, auth token) stay on the
@@ -166,6 +175,27 @@ pub struct AppConfig {
     /// Use substitution over pulling inputs via queue runner
     #[serde(default)]
     pub use_substitutes: bool,
+
+    /// Timeout in seconds for the import (input fetching) phase of a build.
+    /// If importing requisites takes longer than this, the build fails with
+    /// an `ImportFailure`.  Set to 0 to disable.
+    #[serde(default = "default_import_timeout")]
+    pub import_timeout: u64,
+
+    /// Timeout in seconds for the upload (output transfer) phase of a build.
+    /// If uploading build outputs takes longer than this, the build fails
+    /// with an `UploadFailure`.  Set to 0 to disable.
+    #[serde(default = "default_upload_timeout")]
+    pub upload_timeout: u64,
+
+    /// Prefetch factor: how many extra builds (beyond `max_jobs`) the builder
+    /// accepts for input pre-fetching.  With the default of 2, a builder
+    /// with `max_jobs`=4 reports 4 prefetch slots, for 8 total.  Builds
+    /// beyond `max_jobs` import inputs immediately but wait for a build
+    /// semaphore before running `nix build`.  Set to 1 to disable prefetch
+    /// (total capacity == `max_jobs`).
+    #[serde(default = "default_prefetch_factor")]
+    pub prefetch_factor: u32,
 }
 
 /// Load the builder settings from `filepath`. A missing file yields the
