@@ -43,7 +43,7 @@ ws_endpoint = ws://localhost:$HYDRA_WS_PORT
 <oidc>
   <provider kanidm>
     display_name = "Kanidm"
-    discovery_url = "https://localhost:$KANIDM_PORT/oauth2/openid/hydra/.well-known/openid-configuration"
+    discovery_url = "https://localhost:$HYDRA_KANIDM_PORT/oauth2/openid/hydra/.well-known/openid-configuration"
     client_id = "hydra"
     client_secret_file = ".hydra-data/kanidm/hydra_client_secret"
     ca_file = ".hydra-data/kanidm/ca.pem"
