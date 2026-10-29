@@ -57,6 +57,9 @@ my $builds = $ctx->makeAndEvaluateJobset(
 my $jobset = $builds->{"stable-job-queued"}->jobset;
 my $evaluation = $builds->{"stable-job-queued"}->jobsetevals->first();
 
+# Evaluating is a build, and the build's own `build_started` and
+# `build_finished` are not subscribed to here: what is checked is what the
+# evaluation itself announces once that build has been read back.
 subtest "on the initial evaluation" => sub {
     expectEvent($listener, "eval_started", sub {
         isnt($_->{"trace_id"}, "", "We got a trace ID");
@@ -156,6 +159,8 @@ subtest "on a fresh evaluation with corrupted sources" => sub {
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");
     });
 
+    # The corruption is found by the evaluation build, so the failure is
+    # announced when that build is read back.
     expectEvent($listener, "eval_failed", sub {
         is($_->{"trace_id"}, $traceID, "Trace ID matches");
         is($_->{"jobset_id"}, $jobset->get_column('id'), "the jobset ID matches");

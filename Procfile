@@ -1,4 +1,5 @@
-hydra-evaluator: ./foreman/start-evaluator.sh
+hydra-submit-evaluation: ./foreman/start-submit-evaluation.sh
+hydra-process-evaluation: ./foreman/start-process-evaluation.sh
 hydra-queue-runner: ./foreman/start-queue-runner.sh
 hydra-ws: ./foreman/start-hydra-ws.sh
 hydra-builder: ./foreman/start-builder.sh

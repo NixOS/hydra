@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT j.id, j.project, j.name\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.enabled IN (1, 2, 3) AND p.enabled != 0\n          AND (j.triggertime IS NOT NULL\n               OR (j.checkinterval > 0\n                   AND coalesce(j.lastcheckedtime, 0) + j.checkinterval <= $1\n                   AND NOT (j.enabled = 3 AND EXISTS (\n                     SELECT 1 FROM jobsetevals e\n                     WHERE e.id = (SELECT max(id) FROM jobsetevals WHERE jobset_id = j.id)\n                       AND ((e.eval_build IS NOT NULL AND e.completed IS NULL)\n                            OR EXISTS (\n                              SELECT 1 FROM jobsetevalmembers m\n                              JOIN builds b ON b.id = m.build\n                              WHERE m.eval = e.id AND b.finished = 0))))))\n        ORDER BY j.triggertime NULLS LAST, j.lastcheckedtime NULLS FIRST, j.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "project",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "project"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2fe59885b4390033ab73ae2156ae34fc83e7fbbefd7d3931f11cab3b2f4adb30"
+}

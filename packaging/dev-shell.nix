@@ -8,7 +8,8 @@
   hydra-queue-runner,
   hydra-builder,
   hydra-ad-hoc,
-  hydra-evaluator,
+  hydra-submit-evaluation,
+  hydra-process-evaluation,
   hydra-cargo-deps,
 }:
 
@@ -24,7 +25,8 @@ let
     hydra-queue-runner
     hydra-builder
     hydra-ad-hoc
-    hydra-evaluator
+    hydra-submit-evaluation
+    hydra-process-evaluation
     # The Rust crates are thin `runCommand`s that copy a binary out of the
     # shared workspace build, so they carry no build inputs of their own.
     # This is where cargo and rustc come from.
