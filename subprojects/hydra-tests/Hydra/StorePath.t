@@ -7,7 +7,8 @@ use Nix::StorePath;
 
 # The store directory is a parameter, so none of this needs a store to exist.
 my $storeDir = "/nix/store";
-my $base = "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-bar";
+my $hash = "g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q";
+my $base = "$hash-bar";
 
 subtest "a store path is the bare name, and prints back to a full path" => sub {
     my $storePath = parseStorePath($storeDir, "/nix/store/$base");
@@ -43,6 +44,22 @@ subtest "bad input is rejected" => sub {
     like(dies { Nix::StorePath->new("$base/sub") }, qr{must not contain},
         "a bare name containing a slash");
     like(dies { Nix::StorePath->new("") }, qr{must not be empty}, "an empty name");
+    like(dies { Nix::StorePath->new("..hydra.conf") }, qr{too short},
+        "a dot-dot name with no hash part");
+    like(dies { Nix::StorePath->new("..$base") }, qr{invalid hash},
+        "a dot-dot prefix in front of a hash");
+    like(dies { Nix::StorePath->new("e" x 32 . "-bar") }, qr{invalid hash},
+        "a hash with a non-nix32 character");
+    like(dies { Nix::StorePath->new("${hash}_bar") }, qr{no dash},
+        "no dash after the hash");
+    like(dies { Nix::StorePath->new("$hash-") }, qr{empty name},
+        "an empty name after the hash");
+    like(dies { Nix::StorePath->new("$hash-..") }, qr{illegal name},
+        "a '..' name");
+    like(dies { Nix::StorePath->new("$hash-a b") }, qr{illegal name},
+        "a name with a space");
+    ok(lives { Nix::StorePath->new("$hash-.foo-1.0+x_y?z=w") },
+        "a name using every allowed character class");
 };
 
 subtest "a relative store path keeps both halves" => sub {

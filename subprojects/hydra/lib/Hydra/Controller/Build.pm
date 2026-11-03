@@ -182,7 +182,7 @@ sub defaultUriForProduct {
 
 
 sub checkPath {
-    my ($self, $c, $path) = @_;
+    my ($c, $path) = @_;
     my $p = pathIsInsidePrefix($path, machineLocalStore()->storeDir);
     error($c, "Build product refers outside of the Nix store.") unless defined $p;
     return $p;
@@ -191,6 +191,9 @@ sub checkPath {
 
 sub serveFile {
     my ($c, $path) = @_;
+
+    # Checked here so that the symlink targets followed below are covered too.
+    checkPath($c, $path);
 
     my $res = runCommand(cmd => ["nix", "--experimental-features", "nix-command",
                           "ls-store", "--store", getStoreUri(), "--json", "$path"]);
@@ -325,7 +328,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     my $path = printRelativeStorePath(machineLocalStore()->storeDir, $product->path);
 
-    $path = checkPath($self, $c, $path);
+    $path = checkPath($c, $path);
 
     notFound($c, "Product $path has disappeared.") unless -e $path;
 

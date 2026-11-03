@@ -639,7 +639,7 @@ sub log :Local :Args(1) {
 
     # The URL names a store path, which is what the log lookup wants: no
     # store directory involved either way.
-    $drvPath = Nix::StorePath->new($drvPath);
+    $drvPath = eval { Nix::StorePath->new($drvPath) } // notFound($c, "Not a valid store path.");
 
     my $tail = $c->request->params->{"tail"};
 

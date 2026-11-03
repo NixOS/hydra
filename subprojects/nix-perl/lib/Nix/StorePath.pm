@@ -23,11 +23,27 @@ use overload
     'bool' => sub { 1 },
     fallback => 1;
 
+my $hashLen = 32;
+my $maxNameLen = 211;
+
 sub new {
     my ($class, $baseName) = @_;
+    die "store path must not be empty\n" if $baseName eq "";
     die "store path '$baseName' must not contain a '/'\n"
         if index($baseName, "/") != -1;
-    die "store path must not be empty\n" if $baseName eq "";
+    die "store path '$baseName' is too short\n"
+        if length($baseName) < $hashLen + 1;
+    die "store path '$baseName' has an invalid hash part\n"
+        unless substr($baseName, 0, $hashLen) =~ /\A[0-9a-df-np-sv-z]+\z/;
+    die "store path '$baseName' has no dash after the hash part\n"
+        unless substr($baseName, $hashLen, 1) eq "-";
+    my $name = substr($baseName, $hashLen + 1);
+    die "store path '$baseName' has an empty name\n" if $name eq "";
+    die "store path '$baseName' has a name longer than $maxNameLen characters\n"
+        if length($name) > $maxNameLen;
+    die "store path '$baseName' has an illegal name\n"
+        if $name =~ /\A\.\.?(?:-|\z)/
+        || $name !~ /\A[A-Za-z0-9+\-._?=]+\z/;
     return bless \$baseName, $class;
 }
 

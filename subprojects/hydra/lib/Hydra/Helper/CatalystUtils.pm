@@ -350,7 +350,7 @@ sub paramToList {
 
 
 # Security checking of filenames.
-Readonly::Scalar our $pathCompRE    => "(?:[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
+Readonly::Scalar our $pathCompRE    => "(?:(?![.][.](?![^/]))[A-Za-z0-9-\+\._\$][A-Za-z0-9-\+\._\$:]*)";
 Readonly::Scalar our $relPathRE     => "(?:$pathCompRE(?:/$pathCompRE)*)";
 Readonly::Scalar our $relNameRE     => "(?:[A-Za-z0-9-_][A-Za-z0-9-\._]*)";
 Readonly::Scalar our $attrNameRE    => "(?:[A-Za-z_][A-Za-z0-9-_]*)";
