@@ -78,7 +78,7 @@
         <th>Homepage:</th>
         <td>
           [% IF project.homepage %]
-            [% INCLUDE maybeLink uri=safeExternalURL(project.homepage) content=project.homepage %]
+            [% INCLUDE externalLink link=project.homepage %]
           [% ELSE %]
             <em>(not specified)</em>
           [% END %]

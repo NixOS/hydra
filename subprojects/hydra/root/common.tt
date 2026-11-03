@@ -179,7 +179,31 @@ BLOCK renderLink %]<a [% HTML.attributes(href => uri) %]>[% HTML.escape(title) %
 
 
 BLOCK maybeLink;
-  IF uri %]<a [% HTML.attributes(href => uri, class => class); IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>[% HTML.escape(content) %]</a>[% ELSE; HTML.escape(content); END;
+  IF uri %]
+<a [% HTML.attributes(href => uri, class => class) %]
+[% IF confirmmsg +%] onclick="javascript:return confirm('[% confirmmsg %]')"[% END %]>
+[% HTML.escape(content) %]
+</a>
+[% ELSE;
+    HTML.escape(content);
+  END;
+END;
+
+
+# Like maybeLink, but for a `Hydra::ExternalLink`, which may have been
+# rejected. A rejected link is shown, flagged, but not linked to. `content`
+# defaults to the link's own text.
+BLOCK externalLink;
+  DEFAULT content = link.text;
+  IF link.uri;
+    INCLUDE maybeLink uri=link.uri;
+  ELSIF link %]
+<span class="text-muted" [% HTML.attributes(title => "Not linked: " _ link.text _ " is not an http:// or https:// URL") %]>
+[% HTML.escape(content) +%]
+<span class="text-warning">(invalid link)</span></span>
+[% ELSE;
+    HTML.escape(content);
+  END;
 END;
 
 

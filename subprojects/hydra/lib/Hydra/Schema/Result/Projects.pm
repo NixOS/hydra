@@ -260,7 +260,7 @@ sub as_json {
         "name" => $self->get_column("name") // "",
         "displayname" => $self->get_column("displayname") // "",
         "description" => $self->get_column("description") // "",
-        "homepage" => $self->get_column("homepage") // "",
+        "homepage" => defined $self->homepage ? $self->homepage->text : "",
         "owner" => $self->get_column("owner") // "",
 
         # boolean_columns
@@ -283,5 +283,8 @@ sub as_json {
 
     return \%json;
 }
+
+__PACKAGE__->load_components("+Hydra::Component::InflateExternalLink");
+__PACKAGE__->inflate_external_links(qw/homepage/);
 
 1;
