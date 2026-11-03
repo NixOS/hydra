@@ -18,7 +18,6 @@ our @EXPORT = qw(
     requireCancelBuildPrivileges
     requireEvalJobsetPrivileges
     trim
-    normalizeExternalLink
     getLatestFinishedEval getFirstEval
     paramToList
     backToReferer
@@ -316,15 +315,6 @@ sub trim {
     my $s = shift // "";
     $s =~ s/^\s+|\s+$//g;
     return $s;
-}
-
-sub normalizeExternalLink {
-    my $url = trim(shift);
-    return "" if $url eq "";
-    return $url if $url =~ m{\Ahttps?://}iaa;
-    return undef if $url =~ m{\A[a-z][a-z0-9+.-]*:(?!\d)}iaa;
-    $url =~ s{\A/+}{};
-    return "https://$url";
 }
 
 

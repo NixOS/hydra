@@ -605,4 +605,7 @@ sub project {
 __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/drvpath/);
 
+__PACKAGE__->load_components("+Hydra::Component::InflateExternalLink");
+__PACKAGE__->inflate_external_links(qw/homepage/);
+
 1;
