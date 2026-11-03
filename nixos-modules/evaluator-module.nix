@@ -63,11 +63,15 @@ in
 
       package = mkOption {
         type = types.package;
+        default = pkgs.hydraComponents.hydra-evaluator;
+        defaultText = literalExpression "pkgs.hydraComponents.hydra-evaluator";
         description = "The `hydra-evaluator` package.";
       };
 
       nixEvalJobsPackage = mkOption {
         type = types.package;
+        default = pkgs.hydraComponents.nix-eval-jobs;
+        defaultText = literalExpression "pkgs.hydraComponents.nix-eval-jobs";
         description = "The `nix-eval-jobs` package the evaluator runs.";
       };
 
