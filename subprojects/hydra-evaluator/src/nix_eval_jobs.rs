@@ -91,7 +91,12 @@ pub(crate) fn command(
             "cannot find the input containing the job expression"
         );
 
-        cmd.extend(["--option", "restrict-eval", "true"].map(str::to_owned));
+        let restrict_eval = if config.allow_unrestricted_eval() {
+            "false"
+        } else {
+            "true"
+        };
+        cmd.extend(["--option", "restrict-eval", restrict_eval].map(str::to_owned));
         cmd.push(format!("<{input_name}/{path}>"));
         cmd.extend(inputs_to_args(store_dir, inputs)?);
     }
