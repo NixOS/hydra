@@ -150,6 +150,9 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
+    my $homepage = normalizeExternalLink($c->stash->{params}->{homepage})
+        // badRequest($c, "The homepage must be an http:// or https:// URL.");
+
     my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
     if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
         badRequest($c, "Dynamic RunCommand is not enabled by the server.");
@@ -159,7 +162,7 @@ sub updateProject {
         { name => $projectName
         , displayname => $displayName
         , description => trim($c->stash->{params}->{description})
-        , homepage => trim($c->stash->{params}->{homepage})
+        , homepage => $homepage
         , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
         , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner

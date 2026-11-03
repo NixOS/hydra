@@ -78,7 +78,7 @@
         <th>Homepage:</th>
         <td>
           [% IF project.homepage %]
-            <a [% HTML.attributes(href => project.homepage) %]>[% HTML.escape(project.homepage) %]</a>
+            [% INCLUDE maybeLink uri=safeExternalURL(project.homepage) content=project.homepage %]
           [% ELSE %]
             <em>(not specified)</em>
           [% END %]
