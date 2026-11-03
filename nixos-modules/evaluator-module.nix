@@ -87,6 +87,14 @@ in
                 Off unless asked for, because it lets an evaluation demand builds.
               '';
             };
+            allow_unrestricted_eval = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Whether non-flake jobsets are evaluated without `restrict-eval`.
+                Off unless asked for, because it lets an evaluation read any path and URL.
+              '';
+            };
             evaluator_workers = mkOption {
               type = types.ints.positive;
               default = 1;

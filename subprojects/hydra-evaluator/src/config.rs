@@ -29,6 +29,10 @@ pub(crate) struct HydraConfig {
     #[serde(default)]
     allow_import_from_derivation: bool,
 
+    /// Whether non-flake jobsets may be evaluated without `restrict-eval`.
+    #[serde(default)]
+    allow_unrestricted_eval: bool,
+
     /// How many `nix-eval-jobs` workers to run.
     #[serde(default = "default_workers")]
     evaluator_workers: u64,
@@ -96,6 +100,10 @@ impl HydraConfig {
 
     pub(crate) fn allow_import_from_derivation(&self) -> bool {
         self.allow_import_from_derivation
+    }
+
+    pub(crate) fn allow_unrestricted_eval(&self) -> bool {
+        self.allow_unrestricted_eval
     }
 
     pub(crate) fn evaluator_workers(&self) -> u64 {
