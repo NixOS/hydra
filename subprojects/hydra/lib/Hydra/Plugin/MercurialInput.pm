@@ -48,17 +48,17 @@ sub fetchInput {
 
     if (! -d $clonePath) {
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "hg", "clone", $uri, $clonePath);
+            program("hg"), "clone", $uri, $clonePath);
         die "error cloning mercurial repo at `$uri':\n$stderr" if $res;
     }
 
     # hg pull + check rev
     chdir $clonePath or die $!;
-    (my $res, $stdout, $stderr) = captureStdoutStderr(600, "hg", "pull");
+    (my $res, $stdout, $stderr) = captureStdoutStderr(600, program("hg"), "pull");
     die "error pulling latest change mercurial repo at `$uri':\n$stderr" if $res;
 
     (my $res1, $stdout, $stderr) = captureStdoutStderr(600,
-        "hg", "log", "-r", $id, "--template", "{node} {rev} {branch}");
+        program("hg"), "log", "-r", $id, "--template", "{node} {rev} {branch}");
     die "error getting branch and revision of $id from `$uri':\n$stderr" if $res1;
 
     my ($revision, $revCount, $branch) = split ' ', $stdout;
@@ -79,7 +79,7 @@ sub fetchInput {
         local $ENV{"PRINT_PATH"} = "1";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(600,
-            "nix-prefetch-hg", $clonePath, $revision);
+            program("nix-prefetch-hg"), $clonePath, $revision);
         die "cannot check out Mercurial repository `$uri':\n$stderr" if $res;
 
         my $storePathStr;
@@ -123,7 +123,7 @@ sub getCommits {
     chdir $clonePath or die $!;
 
     my $out;
-    IPC::Run::run(["hg", "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1::$rev2", $clonePath], \undef, \$out)
+    IPC::Run::run([program("hg"), "log", "--template", "{node|short}\t{author|person}\t{author|email}\n", "-r", "$rev1::$rev2", $clonePath], \undef, \$out)
         or die "cannot get mercurial logs: $?";
 
     my $res = [];

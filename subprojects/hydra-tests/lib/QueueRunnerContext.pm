@@ -4,6 +4,7 @@ use strict;
 package QueueRunnerContext;
 use IO::Socket::IP;
 use IPC::Run;
+use HydraTestPrograms;
 use LWP::UserAgent;
 use POSIX qw(dup2);
 use Hydra::Config;
@@ -133,7 +134,7 @@ sub start_queue_runner {
         local $ENV{LISTEN_FDNAMES} = "rest:grpc";
         # Don't set LISTEN_PID — listenfd skips the PID check when it's unset.
         delete $ENV{LISTEN_PID};
-        $qr_harness = IPC::Run::start(
+        $qr_harness = withProgramEnv(\@args, sub { IPC::Run::start(
             \@args,
             \$qr_in, \$qr_out, \$qr_err,
             init => sub {
@@ -144,7 +145,7 @@ sub start_queue_runner {
                 POSIX::close($rest_fd) if $rest_fd != 3 && $rest_fd != 4;
                 POSIX::close($grpc_fd) if $grpc_fd != 3 && $grpc_fd != 4;
             },
-        );
+        ) });
     }
 
     # Close our copies of the sockets (child has its own).

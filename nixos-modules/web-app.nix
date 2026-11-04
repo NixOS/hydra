@@ -11,19 +11,16 @@ let
 
   cfg = config.services.hydra-dev;
 
-  sharedEnv = import ./web-app-env.nix { inherit lib cfg; };
+  sharedEnv = import ./web-app-env.nix { inherit lib pkgs cfg; };
 
-  inherit (sharedEnv) baseDir hydraEnv dbUrlWithAppName;
+  inherit (sharedEnv)
+    baseDir
+    hydraEnv
+    hydraConf
+    dbUrlWithAppName
+    ;
 
-  # Only the web app's own services send email.
-  env =
-    optionalAttrs (cfg.smtpHost != null) {
-      EMAIL_SENDER_TRANSPORT = "SMTP";
-      EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
-    }
-    // sharedEnv.env;
-
-  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
+  env = sharedEnv.emailEnv // sharedEnv.env;
 
   serverEnv =
     env
@@ -163,6 +160,19 @@ in
         description = "Directory that holds Hydra garbage collector roots.";
       };
 
+      pluginPath = mkOption {
+        type = types.listOf types.package;
+        default = [ ];
+        description = ''
+          Packages whose programs are on the `PATH` of the services that run
+          plugins (the evaluator and `hydra-notify`), for plugins from outside
+          Hydra and for the commands `RunCommand` runs.
+
+          Hydra itself does not use this: every program it runs is named by its
+          own `HYDRA_PROGRAM_*` variable, which Hydra's packaging sets.
+        '';
+      };
+
       useSubstitutes = mkOption {
         type = types.bool;
         default = false;
@@ -187,7 +197,6 @@ in
     systemd.tmpfiles.rules = [
       "d ${baseDir} 0750 hydra hydra"
       "d ${baseDir}/www 0700 hydra-www hydra"
-      "d ${baseDir}/notify 0700 hydra-queue-runner hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
       "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
@@ -235,6 +244,9 @@ in
     environment.variables = hydraEnv;
 
     systemd.services.hydra-server = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       wantedBy = [ "multi-user.target" ];
       requires = [
         "hydra-init.service"
@@ -280,6 +292,9 @@ in
     };
 
     systemd.services.hydra-update-gc-roots = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       requires = [ "hydra-init.service" ];
       after = [ "hydra-init.service" ];
       environment = env // {
@@ -296,6 +311,9 @@ in
     };
 
     systemd.services.hydra-send-stats = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       wantedBy = [ "multi-user.target" ];
       after = [ "hydra-init.service" ];
       environment = env // {
@@ -308,51 +326,6 @@ in
         ];
         User = "hydra";
       };
-    };
-
-    systemd.services.hydra-notify = {
-      wantedBy = [ "multi-user.target" ];
-      requires = [ "hydra-init.service" ];
-      after = [ "hydra-init.service" ];
-      restartTriggers = [ hydraConf ];
-      path = [ pkgs.zstd ];
-      environment = env // {
-        PGPASSFILE = "${baseDir}/pgpass-notify";
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-notify";
-      };
-      serviceConfig = {
-        ExecStart = escapeShellArgs [
-          "@${cfg.package}/bin/hydra-notify"
-          "hydra-notify"
-        ];
-        # FIXME: hydra-notify should not need to write to build-logs.
-        # Move log compression into the queue-runner, then give
-        # hydra-notify its own user again.
-        User = "hydra-queue-runner";
-        Restart = "always";
-        RestartSec = 5;
-      };
-    };
-
-    # Periodically compress build logs. The queue runner compresses
-    # logs automatically after a step finishes, but this doesn't work
-    # if the queue runner is stopped prematurely.
-    systemd.services.hydra-compress-logs = {
-      path = [
-        pkgs.bzip2
-        pkgs.zstd
-      ];
-      script = ''
-        set -eou pipefail
-        compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
-        if [[ $compression == "" || $compression == bzip2 ]]; then
-          compressionCmd=(bzip2)
-        elif [[ $compression == zstd ]]; then
-          compressionCmd=(zstd --rm)
-        fi
-        find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
-      '';
-      startAt = "Sun 01:45";
     };
 
   };

@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 
@@ -35,7 +36,9 @@ sub process {
 
     my $fh = IO::Handle->new();
 
-    open($fh, "-|", "nix-store --dump '$fullPath' | pixz -0 $pParam");
+    my $nixStore = program("nix-store");
+    my $pixz = program("pixz");
+    open($fh, "-|", "$nixStore --dump '$fullPath' | $pixz -0 $pParam");
 
     setCacheHeaders($c, 365 * 24 * 60 * 60);
 

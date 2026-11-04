@@ -7,6 +7,9 @@
 let
   cfg = config.services.hydra-queue-runner-dev;
 
+  # What it runs, with the Nix this machine uses.
+  hydraPrograms = pkgs.callPackage ../packaging/programs.nix { nix = config.nix.package; };
+
   user = "hydra-queue-runner";
 
   format = pkgs.formats.toml { };
@@ -313,6 +316,9 @@ in
 
   config = lib.mkIf cfg.enable {
     systemd.services.hydra-queue-runner-dev = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       description = "Hydra Queue Runner main service";
 
       requires = [
@@ -339,6 +345,7 @@ in
         # otherwise
         HOME = "/run/hydra-queue-runner";
       }
+      // hydraPrograms.envFor { } hydraPrograms.programs.hydra-queue-runner
       // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
         AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
       }

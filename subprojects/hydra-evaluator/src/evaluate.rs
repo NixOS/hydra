@@ -79,7 +79,7 @@ pub(crate) async fn evaluate(
 
     // One worker fetches every plugin input this evaluation needs, the
     // declarative specification's included.
-    let mut fetcher = InputFetcher::default();
+    let mut fetcher = InputFetcher::new(&available.programs().fetch_input);
 
     // `.jobsets` is Hydra evaluating a declarative project's own
     // configuration. The specification may name the jobsets outright, in
@@ -112,7 +112,13 @@ pub(crate) async fn evaluate(
             "{}/{declfile}",
             nix_eval_jobs::full(available.store_dir(), store_path)
         );
-        if declarative::apply(project, &spec_file).await? {
+        if declarative::apply(
+            &available.programs().prepare_declarative_jobset,
+            project,
+            &spec_file,
+        )
+        .await?
+        {
             fetcher.shutdown().await;
             let mut tx = conn.begin_transaction().await?;
             queries::set_jobset_error(&mut tx, meta.id, "", jiff::Timestamp::now().as_second())
@@ -163,7 +169,7 @@ pub(crate) async fn evaluate(
     // revision. As in the Perl, a flake that cannot be locked fails the
     // evaluation even when an input also failed to fetch.
     let flake = match meta.flake.as_deref() {
-        Some(flake) => Some(lock_flake(flake).await?),
+        Some(flake) => Some(lock_flake(&available.programs().nix, flake).await?),
         None => None,
     };
     let checkout_time = checkout_start.elapsed().as_secs();
@@ -214,7 +220,7 @@ pub(crate) async fn evaluate(
     tracing::info!("evaluating");
     let cmd = nix_eval_jobs::command(available.store_dir(), config, &resolved, &expr)?;
     let eval_start = std::time::Instant::now();
-    let jobs = nix_eval_jobs::run(&cmd, roots_dir).await?;
+    let jobs = nix_eval_jobs::run(&available.programs().nix_eval_jobs, &cmd, roots_dir).await?;
     let eval_time = eval_start.elapsed().as_secs();
     if jobsets_jobset && jobs.iter().any(|job| job.attr != "jobsets") {
         eyre::bail!("The .jobsets jobset must only have a single job named 'jobsets'");
@@ -298,14 +304,14 @@ async fn get_jobset(
 
 /// Lock a flake reference with `nix flake metadata`, returning the locked
 /// reference.
-async fn lock_flake(flake: &str) -> eyre::Result<String> {
+async fn lock_flake(nix: &hydra_programs::NixPath, flake: &str) -> eyre::Result<String> {
     #[derive(serde::Deserialize)]
     struct Metadata {
         url: String,
     }
 
     let out = crate::run_with_timeout(
-        tokio::process::Command::new("nix")
+        tokio::process::Command::new(nix)
             .args(["flake", "metadata", "--refresh", "--json", "--"])
             .arg(flake),
     )

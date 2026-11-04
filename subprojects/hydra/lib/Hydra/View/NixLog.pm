@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use base qw/Catalyst::View/;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 
 sub process {
     my ($self, $c) = @_;
@@ -15,16 +16,19 @@ sub process {
     my $fh = IO::Handle->new();
 
     my $tail = int($c->stash->{tail} // "0");
+    my $tailProgram = program("tail");
 
     if ($logPath =~ /\.zst$/) {
-        my $doTail = $tail ? "| tail -n '$tail'" : "";
-        open($fh, "-|", "zstd -dc < '$logPath' $doTail") or die;
+        my $zstd = program("zstd");
+        my $doTail = $tail ? "| $tailProgram -n '$tail'" : "";
+        open($fh, "-|", "$zstd -dc < '$logPath' $doTail") or die;
     } elsif ($logPath =~ /\.bz2$/) {
-        my $doTail = $tail ? "| tail -n '$tail'" : "";
-        open($fh, "-|", "bzip2 -dc < '$logPath' $doTail") or die;
+        my $bzip2 = program("bzip2");
+        my $doTail = $tail ? "| $tailProgram -n '$tail'" : "";
+        open($fh, "-|", "$bzip2 -dc < '$logPath' $doTail") or die;
     } else {
         if ($tail) {
-            open($fh, "-|", "tail -n '$tail' '$logPath'") or die;
+            open($fh, "-|", "$tailProgram -n '$tail' '$logPath'") or die;
         } else {
             open($fh, "<", $logPath) or die;
         }

@@ -5,6 +5,7 @@ use warnings;
 use parent 'Hydra::Plugin';
 use Digest::SHA qw(sha256_hex);
 use File::Path;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 use Nix::Store;
@@ -48,7 +49,7 @@ sub _getDefaultBranch {
     my ($uri) = @_;
 
     my $res = runCommand(
-        cmd => ["git", "ls-remote", "--symref", $uri, "HEAD"],
+        cmd => [program("git"), "ls-remote", "--symref", $uri, "HEAD"],
     );
 
     return undef if $res->{status};
@@ -165,8 +166,8 @@ sub fetchInput {
     my $res;
     if (! -d $clonePath) {
         # Clone everything and fetch the branch.
-        $res = runCommand(cmd => ["git", "init", $clonePath]);
-        $res = runCommand(cmd => ["git", "remote", "add", "origin", "--", $uri], dir => $clonePath) unless $res->{status};
+        $res = runCommand(cmd => [program("git"), "init", $clonePath]);
+        $res = runCommand(cmd => [program("git"), "remote", "add", "origin", "--", $uri], dir => $clonePath) unless $res->{status};
         die "error creating git repo in `$clonePath':\n$res->{stderr}" if $res->{status};
     }
 
@@ -174,9 +175,9 @@ sub fetchInput {
     # the remote branch for whatever the repository state is.  This command mirrors
     # only one branch of the remote repository.
     my $localBranch = _isHash($branch) ? "_hydra_tmp" : $branch;
-    $res = runCommand(cmd => ["git", "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
+    $res = runCommand(cmd => [program("git"), "fetch", "-fu", "origin", "+$branch:$localBranch"], dir => $clonePath,
                timeout => $cfg->{timeout});
-    $res = runCommand(cmd => ["git", "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
+    $res = runCommand(cmd => [program("git"), "fetch", "-fu", "origin"], dir => $clonePath, timeout => $cfg->{timeout}) if $res->{status};
     die "error fetching latest change from git repo at `$uri':\n$res->{stderr}" if $res->{status};
 
     # If deepClone is defined, then we look at the content of the repository
@@ -184,16 +185,16 @@ sub fetchInput {
     if (defined $deepClone) {
 
         # Is the target branch a topgit branch?
-        $res = runCommand(cmd => ["git", "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
+        $res = runCommand(cmd => [program("git"), "ls-tree", "-r", "$branch", ".topgit"], dir => $clonePath);
 
         if ($res->{stdout} ne "") {
             # Checkout the branch to look at its content.
-            $res = runCommand(cmd => ["git", "checkout", "--force", "$branch"], dir => $clonePath);
+            $res = runCommand(cmd => [program("git"), "checkout", "--force", "$branch"], dir => $clonePath);
             die "error checking out Git branch '$branch' at `$uri':\n$res->{stderr}" if $res->{status};
 
             # This is a TopGit branch.  Fetch all the topic branches so
             # that builders can run "tg patch" and similar.
-            $res = runCommand(cmd => ["tg", "remote", "--populate", "origin"], dir => $clonePath, timeout => $cfg->{timeout});
+            $res = runCommand(cmd => [program("tg"), "remote", "--populate", "origin"], dir => $clonePath, timeout => $cfg->{timeout});
             print STDERR "warning: `tg remote --populate origin' failed:\n$res->{stderr}" if $res->{status};
         }
     }
@@ -203,7 +204,7 @@ sub fetchInput {
     my $storePath;
 
     my $revision = _isHash($branch) ? $branch
-        : grab(cmd => ["git", "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
+        : grab(cmd => [program("git"), "rev-parse", "$branch"], dir => $clonePath, chomp => 1);
     die "did not get a well-formated revision number of Git branch '$branch' at `$uri'"
         unless $revision =~ /^[0-9a-fA-F]+$/;
 
@@ -246,7 +247,7 @@ sub fetchInput {
 
         # FIXME: Don't use nix-prefetch-git.
         my $storePathStr;
-        ($sha256, $storePathStr) = split ' ', grab(cmd => ["nix-prefetch-git", $clonePath, $revision], chomp => 1);
+        ($sha256, $storePathStr) = split ' ', grab(cmd => [program("nix-prefetch-git"), $clonePath, $revision], chomp => 1);
         $storePath = parseStorePath(machineLocalStore()->storeDir, $storePathStr);
 
         # FIXME: time window between nix-prefetch-git and addTempRoot.
@@ -268,9 +269,9 @@ sub fetchInput {
     # number of commits in the history of this revision (‘revCount’)
     # the output of git-describe (‘gitTag’), and the abbreviated
     # revision (‘shortRev’).
-    my $revCount = grab(cmd => ["git", "rev-list", "--count", "$revision"], dir => $clonePath, chomp => 1);
-    my $gitTag = grab(cmd => ["git", "describe", "--always", "$revision"], dir => $clonePath, chomp => 1);
-    my $shortRev = grab(cmd => ["git", "rev-parse", "--short", "$revision"], dir => $clonePath, chomp => 1);
+    my $revCount = grab(cmd => [program("git"), "rev-list", "--count", "$revision"], dir => $clonePath, chomp => 1);
+    my $gitTag = grab(cmd => [program("git"), "describe", "--always", "$revision"], dir => $clonePath, chomp => 1);
+    my $shortRev = grab(cmd => [program("git"), "rev-parse", "--short", "$revision"], dir => $clonePath, chomp => 1);
 
     return
         { uri => $uri
@@ -294,7 +295,7 @@ sub getCommits {
 
     my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
 
-    my $out = grab(cmd => ["git", "--git-dir=.git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
+    my $out = grab(cmd => [program("git"), "--git-dir=.git", "log", "--pretty=format:%H%x09%an%x09%ae%x09%at", "$rev1..$rev2"], dir => $clonePath);
 
     my $res = [];
     foreach my $line (split /\n/, $out) {

@@ -1,5 +1,19 @@
 #! /bin/sh -e
 
+# The programs this runs. Hydra names each by its own `HYDRA_PROGRAM_*`
+# variable rather than looking it up on PATH; see `Hydra::Helper::Exec`.
+: "${HYDRA_PROGRAM_FIND:?must name the program to run}"
+: "${HYDRA_PROGRAM_GIT:?must name the program to run}"
+: "${HYDRA_PROGRAM_MKDIR:?must name the program to run}"
+: "${HYDRA_PROGRAM_MKTEMP:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_HASH:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_STORE:?must name the program to run}"
+: "${HYDRA_PROGRAM_RM:?must name the program to run}"
+: "${HYDRA_PROGRAM_SED:?must name the program to run}"
+: "${HYDRA_PROGRAM_TG:?must name the program to run}"
+: "${HYDRA_PROGRAM_TR:?must name the program to run}"
+: "${HYDRA_PROGRAM_XARGS:?must name the program to run}"
+
 url=$1
 rev=$2
 expHash=$3
@@ -47,7 +61,7 @@ for arg; do
   else
     case $argfun in
       set_*)
-        var=$(echo $argfun | sed 's,^set_,,')
+        var=$(echo $argfun | "$HYDRA_PROGRAM_SED" 's,^set_,,')
         eval $var=$arg
         ;;
     esac
@@ -78,20 +92,20 @@ fi
 
 init_remote(){
     local url=$1;
-    git init --initial-branch=trunk;
-    git remote add origin $url;
+    "$HYDRA_PROGRAM_GIT" init --initial-branch=trunk;
+    "$HYDRA_PROGRAM_GIT" remote add origin $url;
 }
 
 # Return the reference of an hash if it exists on the remote repository.
 ref_from_hash(){
     local hash=$1;
-    git ls-remote origin | sed -n "\,$hash\t, { s,\(.*\)\t\(.*\),\2,; p; q}"
+    "$HYDRA_PROGRAM_GIT" ls-remote origin | "$HYDRA_PROGRAM_SED" -n "\,$hash\t, { s,\(.*\)\t\(.*\),\2,; p; q}"
 }
 
 # Return the hash of a reference if it exists on the remote repository.
 hash_from_ref(){
     local ref=$1
-    git ls-remote origin | sed -n "\,\t$ref, { s,\(.*\)\t\(.*\),\1,; p; q}"
+    "$HYDRA_PROGRAM_GIT" ls-remote origin | "$HYDRA_PROGRAM_SED" -n "\,\t$ref, { s,\(.*\)\t\(.*\),\1,; p; q}"
 }
 
 # Fetch everything and checkout the right sha1
@@ -103,8 +117,8 @@ checkout_hash(){
         hash=$(hash_from_ref $ref);
     fi;
 
-    git fetch ${builder:+--progress} origin || return 1
-    git checkout -b fetchgit $hash || return 1
+    "$HYDRA_PROGRAM_GIT" fetch ${builder:+--progress} origin || return 1
+    "$HYDRA_PROGRAM_GIT" checkout -b fetchgit $hash || return 1
 }
 
 # Fetch only a branch/tag and checkout it.
@@ -126,8 +140,8 @@ checkout_ref(){
 
     if test -n "$ref"; then
         # --depth option is ignored on http repository.
-        git fetch ${builder:+--progress} --depth 1 origin +"$ref" || return 1
-        git checkout -b fetchgit FETCH_HEAD || return 1
+        "$HYDRA_PROGRAM_GIT" fetch ${builder:+--progress} --depth 1 origin +"$ref" || return 1
+        "$HYDRA_PROGRAM_GIT" checkout -b fetchgit FETCH_HEAD || return 1
     else
         return 1;
     fi;
@@ -136,11 +150,11 @@ checkout_ref(){
 # Update submodules
 init_submodules(){
     # Add urls into .git/config file
-    git submodule init
+    "$HYDRA_PROGRAM_GIT" submodule init
 
     # list submodule directories and their hashes
-    git submodule update
-    git submodule status
+    "$HYDRA_PROGRAM_GIT" submodule update
+    "$HYDRA_PROGRAM_GIT" submodule status
 }
 
 clone(){
@@ -166,10 +180,10 @@ clone(){
     init_submodules;
 
     if [ -z "$builder" -a -f .topdeps ]; then
-	if tg help 2>&1 > /dev/null
+	if "$HYDRA_PROGRAM_TG" help 2>&1 > /dev/null
 	then
 	    echo "populating TopGit branches..."
-	    tg remote --populate origin
+	    "$HYDRA_PROGRAM_TG" remote --populate origin
 	else
 	    echo "WARNING: would populate TopGit branches but TopGit is not available" >&2
 	    echo "WARNING: install TopGit to fix the problem" >&2
@@ -189,7 +203,7 @@ clone_user_rev() {
         HEAD|refs/*)
             clone "$dir" "$url" "" "$rev" 1>&2;;
         [0-9a-f]*)
-            if test -z "$(echo $rev | tr -d 0123456789abcdef)"; then
+            if test -z "$(echo $rev | "$HYDRA_PROGRAM_TR" -d 0123456789abcdef)"; then
                 clone "$dir" "$url" "$rev" "" 1>&2;
             else
                 echo 1>&2 "Bad commit hash or bad reference.";
@@ -203,13 +217,13 @@ clone_user_rev() {
     eval "$NIX_PREFETCH_GIT_CHECKOUT_HOOK"
     if test -z "$leaveDotGit"; then
 	echo "removing \`.git'..." >&2
-        find $dir -name .git | xargs rm -rf
+        "$HYDRA_PROGRAM_FIND" $dir -name .git | "$HYDRA_PROGRAM_XARGS" "$HYDRA_PROGRAM_RM" -rf
     fi
 }
 
 if test -n "$builder"; then
   test -n "$out" -a -n "$url" -a -n "$rev" || usage
-  mkdir $out
+  "$HYDRA_PROGRAM_MKDIR" $out
   clone_user_rev "$out" "$url" "$rev"
 else
   if test -z "$hashType"; then
@@ -219,8 +233,8 @@ else
   # If the hash was given, a file with that hash may already be in the
   # store.
   if test -n "$expHash"; then
-      finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" source)
-      if ! nix-store --check-validity "$finalPath" 2> /dev/null; then
+      finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --print-fixed-path --recursive "$hashType" "$expHash" source)
+      if ! "$HYDRA_PROGRAM_NIX_STORE" --check-validity "$finalPath" 2> /dev/null; then
           finalPath=
       fi
       hash=$expHash
@@ -230,21 +244,21 @@ else
   # download the file and add it to the store.
   if test -z "$finalPath"; then
 
-      tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/git-checkout-tmp-XXXXXXXX")"
-      trap "rm -rf \"$tmpPath\"" EXIT
+      tmpPath="$("$HYDRA_PROGRAM_MKTEMP" -d "${TMPDIR:-/tmp}/git-checkout-tmp-XXXXXXXX")"
+      trap "\"$HYDRA_PROGRAM_RM\" -rf \"$tmpPath\"" EXIT
 
       tmpFile="$tmpPath/source"
-      mkdir "$tmpFile"
+      "$HYDRA_PROGRAM_MKDIR" "$tmpFile"
 
       # Perform the checkout.
       clone_user_rev "$tmpFile" "$url" "$rev"
 
       # Compute the hash.
-      hash=$(nix-hash --type $hashType $hashFormat $tmpFile)
+      hash=$("$HYDRA_PROGRAM_NIX_HASH" --type $hashType $hashFormat $tmpFile)
       if ! test -n "$QUIET"; then echo "hash is $hash" >&2; fi
 
       # Add the downloaded file to the Nix store.
-      finalPath=$(nix-store --add-fixed --recursive "$hashType" $tmpFile)
+      finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --add-fixed --recursive "$hashType" $tmpFile)
 
       if test -n "$expHash" -a "$expHash" != "$hash"; then
           echo "hash mismatch for URL \`$url'"

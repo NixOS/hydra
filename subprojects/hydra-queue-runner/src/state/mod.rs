@@ -114,6 +114,7 @@ impl db::RetryableError for StateError {
 pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, RemoteBuild};
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
+use hydra_programs::Program as _;
 pub use jobset::{Jobset, JobsetID, Jobsets};
 pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
 pub use queue::{BuildQueueStats, Queues};
@@ -377,6 +378,9 @@ pub struct State {
     /// Cached from `nix_daemon_config.real_store_dir()`.
     /// `None` means the logical store dir is the filesystem path.
     pub real_store_dir: Option<std::path::PathBuf>,
+
+    /// `nix`, for copying outputs to the extra destinations.
+    nix: hydra_programs::NixPath,
 }
 
 impl State {
@@ -418,6 +422,7 @@ impl State {
     pub async fn new(mtls: MtlsConfig, config: App) -> Result<Arc<Self>, StateError> {
         let nix_config = daemon_client_utils::parse_nix_remote()
             .map_err(crate::config::ConfigError::ParseNixStore)?;
+        let nix = hydra_programs::NixPath::locate().map_err(crate::config::ConfigError::from)?;
         let store_dir = nix_config.store_dir.clone();
         let connector =
             daemon_client_utils::DaemonConnector::new(nix_config.socket.clone(), store_dir.clone());
@@ -497,6 +502,7 @@ impl State {
             upload_completion_rx: parking_lot::Mutex::new(Some(upload_completion_rx)),
             real_store_dir: nix_config.real_store_dir(),
             nix_daemon_config: nix_config,
+            nix,
             config,
         }))
     }
@@ -1986,7 +1992,7 @@ impl State {
                     .map(|p| self.connector.store_dir().display(p).to_string())
                     .collect();
                 for dest_uri in &nix_copy_uris {
-                    let output = tokio::process::Command::new("nix")
+                    let output = tokio::process::Command::new(&self.nix)
                         .arg("--extra-experimental-features")
                         .arg("nix-command")
                         .arg("copy")

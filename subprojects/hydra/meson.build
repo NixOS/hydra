@@ -70,9 +70,18 @@ custom_target(
 )
 
 # Scripts
+#
+# The scripts can't run as installed: they need `PERL5LIB`, `HYDRA_HOME` and
+# the tools they call on `PATH`, which this build intentionally does not set.
+#
+# The intended use case is that the packaging of Hydra will instead arrange for
+# these things to be appropriately set for each script, and only then put
+# things in bin dirs / on the `PATH`. For example, our Nix packaging wraps
+# scripts separately, based on what is needed / who calls them, and the
+# wrappers are installed in bindir as usual.
 
 install_subdir('script',
-  install_dir: get_option('bindir'),
+  install_dir: hydra_libexecdir / 'script',
   exclude_files: [
     'hydra-dev-server',
   ],

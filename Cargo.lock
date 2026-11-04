@@ -1814,6 +1814,7 @@ dependencies = [
  "harmonia-utils-hash",
  "hashbrown 0.17.1",
  "http",
+ "hydra-programs",
  "hydra-proto",
  "hydra-tracing",
  "hyper-util",
@@ -1853,6 +1854,7 @@ dependencies = [
  "fs-err",
  "futures",
  "hex",
+ "hydra-programs",
  "hydra-tracing",
  "jiff",
  "serde",
@@ -1863,6 +1865,13 @@ dependencies = [
  "tokio",
  "toml 1.1.6+spec-1.1.0",
  "tracing",
+]
+
+[[package]]
+name = "hydra-programs"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -1924,6 +1933,7 @@ dependencies = [
  "hashbrown 0.17.1",
  "hex",
  "http-body-util",
+ "hydra-programs",
  "hydra-proto",
  "hydra-tracing",
  "hyper",

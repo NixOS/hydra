@@ -52,7 +52,7 @@
 
       # Setup the project and jobset
       server.succeed(
-          "su - hydra -c 'perl -I ${nodes.server.services.hydra-dev.package.perlDeps}/lib/perl5/site_perl ${../subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
+          "su - hydra -c '${nodes.server.services.hydra-dev.package.perlEnv}/bin/perl ${../subprojects/hydra-tests/setup-notifications-jobset.pl}' >&2"
       )
 
       # Wait until hydra has build the job and

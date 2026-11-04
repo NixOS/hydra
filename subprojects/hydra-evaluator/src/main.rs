@@ -6,6 +6,7 @@ mod fetcher;
 mod ingest;
 mod inputs;
 mod nix_eval_jobs;
+mod programs;
 mod queries;
 mod store_paths;
 
@@ -55,6 +56,7 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     let config = HydraConfig::load(&cli.config_path)?;
+    let programs = std::sync::Arc::new(programs::Programs::locate()?);
 
     // One connection per running evaluation, and two for the scheduler.
     let connections = u32::try_from(config.max_concurrent_evals() + 2).unwrap_or(u32::MAX);
@@ -75,6 +77,7 @@ async fn main() -> color_eyre::Result<()> {
     let available = store_paths::Availability::new(
         remote.store_dir.clone(),
         config.eval_substituter().map(str::to_owned),
+        programs,
     );
     let roots_dir = match config.roots_dir() {
         Some(dir) => dir.to_owned(),

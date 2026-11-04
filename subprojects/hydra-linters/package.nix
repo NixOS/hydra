@@ -23,6 +23,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   sourceRoot = "${finalAttrs.src.name}/subprojects/hydra-linters";
 
+  strictDeps = true;
+
   nativeBuildInputs = [
     perl
     perlPackages.PerlCriticCommunity

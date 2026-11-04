@@ -16,6 +16,7 @@ use tokio::io::{AsyncBufReadExt as _, AsyncWriteExt as _, BufReader, Lines};
 use tokio::process::{Child, ChildStdin};
 
 use crate::inputs::JobsetInput;
+use crate::programs::FetchInputPath;
 
 /// What we ask the worker for: one input, by type and value.
 #[derive(Debug, serde::Serialize)]
@@ -35,8 +36,9 @@ struct Reply {
 }
 
 /// `hydra-fetch-input`, once something has asked it for an input.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct InputFetcher {
+    program: FetchInputPath,
     worker: Option<Worker>,
 }
 
@@ -48,10 +50,10 @@ struct Worker {
 }
 
 impl Worker {
-    fn start() -> eyre::Result<Self> {
+    fn start(program: &FetchInputPath) -> eyre::Result<Self> {
         // The worker's diagnostics, and anything a plugin prints, are logged
         // at debug. Errors that matter come back in the reply.
-        let mut child = tokio::process::Command::new("hydra-fetch-input")
+        let mut child = tokio::process::Command::new(program)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -78,6 +80,15 @@ impl Worker {
 }
 
 impl InputFetcher {
+    /// A fetcher that will start `hydra-fetch-input` when first asked for an
+    /// input.
+    pub(crate) fn new(program: &FetchInputPath) -> Self {
+        Self {
+            program: program.clone(),
+            worker: None,
+        }
+    }
+
     /// Resolve one input of a plugin-provided type.
     ///
     /// An input that fails to fetch is an error for that input alone; the
@@ -101,7 +112,7 @@ impl InputFetcher {
 
         let worker = match &mut self.worker {
             Some(worker) => worker,
-            None => self.worker.insert(Worker::start()?),
+            None => self.worker.insert(Worker::start(&self.program)?),
         };
         worker
             .stdin

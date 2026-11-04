@@ -14,6 +14,7 @@ use Digest::SHA;
 use Nix::Store;
 use Hydra::Model::DB;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 
@@ -112,11 +113,11 @@ sub buildFinished {
             my $fullPath = printStorePath($storeDir, $path);
             if ($compressor eq "") {
                 # No compression - use IPC::Run3 to redirect stdout to file
-                run3(["nix-store", "--dump", $fullPath],
+                run3([program("nix-store"), "--dump", $fullPath],
                      \undef, "$tempdir/nar", \undef) or die "nix-store --dump failed: $!";
             } else {
                 # With compression - use IPC::Run to pipe nix-store output to compressor
-                my $dump_cmd = ["nix-store", "--dump", $fullPath];
+                my $dump_cmd = [program("nix-store"), "--dump", $fullPath];
                 my $compress_cmd = [$compressor];
                 run($dump_cmd, '|', $compress_cmd, '>', "$tempdir/nar") or die "Pipeline failed: $?";
             }

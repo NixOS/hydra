@@ -4,6 +4,7 @@
 # all three.
 {
   lib,
+  pkgs,
   cfg,
 }:
 
@@ -11,6 +12,10 @@ with lib;
 
 rec {
   baseDir = "/var/lib/hydra";
+
+  # The web app links this into `baseDir`. Services that read it restart
+  # when it changes.
+  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   hydraEnv = {
     HYDRA_DATABASE_URL = cfg.dbUrl;
@@ -38,4 +43,11 @@ rec {
   }
   // hydraEnv
   // cfg.extraEnv;
+
+  # Only for the services that send email: the web app's own and
+  # `hydra-notify`. Put before `env`, so `extraEnv` can still override it.
+  emailEnv = optionalAttrs (cfg.smtpHost != null) {
+    EMAIL_SENDER_TRANSPORT = "SMTP";
+    EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
+  };
 }

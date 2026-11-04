@@ -42,6 +42,8 @@ perl.pkgs.toPerlModule (
     ];
 
     buildInputs = [
+      # The module is compiled against Perl, besides being built by it.
+      perl
       nix-store
       bzip2
       libsodium
@@ -70,7 +72,7 @@ perl.pkgs.toPerlModule (
       "--print-errorlogs"
     ];
 
-    strictDeps = false;
+    strictDeps = true;
 
     meta = {
       platforms = lib.platforms.unix;

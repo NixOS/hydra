@@ -6,9 +6,9 @@ You can use it as a guide to navigate the codebase or ask questions.
 ## Components
 
 Hydra's components are split across a coordinator machine and any number of builder machines.
-The NixOS modules in `nixos-modules/` reflect this split: `web-app` and `queue-runner` run on the master, while `builder` runs on remote machines.
+The NixOS modules in `nixos-modules/` reflect this split: `web-app`, `notify` and `queue-runner` run on the master, while `builder` runs on remote machines.
 The optional `ad-hoc` module also runs on the master.
-For small installations, all three can run on a single host (the `hydra` module combines them).
+For small installations, all of them can run on a single host (the `hydra` module combines them).
 But most installation will want to use multiple build machines for scale.
 
 ### Coordinator machine
@@ -51,6 +51,7 @@ These components all share a single Nix store and PostgreSQL database on the mas
 - **Plugin system** (Perl)
     - input plugins extend the evaluator with new source types (Git, Mercurial, Darcs, etc.)
     - notification plugins react to build lifecycle events
+    - which program calls which plugin hooks, and how they find the programs they run, is described under [Inputs](plugins/README.md#inputs)
 
 ### Destination store
 
@@ -83,7 +84,9 @@ graph BT
     hydra-ad-hoc --> build-logs
     hydra-ad-hoc --> db
     hydra-ad-hoc --> hydra-tracing
+    hydra-evaluator --> daemon-client-utils
     hydra-evaluator --> db
+    hydra-evaluator --> hydra-programs
     hydra-evaluator --> hydra-tracing
     hydra-ws --> build-logs
     hydra-ws --> db
@@ -91,10 +94,12 @@ graph BT
     store-transfer --> daemon-client-utils
     store-transfer --> hydra-proto
     hydra-builder --> binary-cache
+    hydra-builder --> hydra-programs
     hydra-builder --> hydra-tracing
     hydra-builder --> store-transfer
     hydra-queue-runner --> binary-cache
     hydra-queue-runner --> db
+    hydra-queue-runner --> hydra-programs
     hydra-queue-runner --> hydra-tracing
     hydra-queue-runner --> store-transfer
     binary-cache -.-> hydra-tracing
@@ -138,7 +143,7 @@ graph BT
 The repository is organized into subprojects:
 
 - [`subprojects/hydra/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra)
-  — the Perl/Catalyst web application, evaluator scripts, SQL schema, and plugins
+  — the Perl/Catalyst web application, evaluator scripts, SQL schema, and plugins, plus `wrappers.nix`, which wraps the scripts for each program
 - [`subprojects/hydra-queue-runner/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-queue-runner)
   — the Rust queue runner
 - [`subprojects/hydra-builder/`](https://github.com/NixOS/hydra/tree/master/subprojects/hydra-builder)

@@ -9,6 +9,7 @@ use File::Basename qw(dirname);
 use File::Path qw(make_path);
 use IPC::Run3;
 use Try::Tiny;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 
@@ -266,8 +267,12 @@ sub buildFinished {
             open($f, '>', $logPath);
             umask($oldUmask);
 
-            run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
-                or warn "notification command '$command' failed with exit status $? ($!)\n";
+            {
+                # The command is the deployment's, and runs what it likes.
+                local $ENV{PATH} = pluginPath();
+                run3($command, \undef, $f, $f, { return_if_system_error => 1 }) == 1
+                    or warn "notification command '$command' failed with exit status $? ($!)\n";
+            }
 
             close($f);
 

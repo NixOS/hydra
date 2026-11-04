@@ -16,7 +16,7 @@ let
 
   inherit
     (import ./web-app-env.nix {
-      inherit lib;
+      inherit lib pkgs;
       cfg = webCfg;
     })
     baseDir
@@ -25,6 +25,13 @@ let
     ;
 
   format = pkgs.formats.toml { };
+
+  # What the evaluator runs, with the Nix this machine uses.
+  hydraPrograms = pkgs.callPackage ../packaging/programs.nix {
+    nix = config.nix.package;
+    nix-eval-jobs = cfg.nixEvalJobsPackage;
+  };
+  programs = hydraPrograms.programs.hydra-evaluator;
 in
 
 {
@@ -66,6 +73,16 @@ in
         default = pkgs.hydraComponents.hydra-evaluator;
         defaultText = literalExpression "pkgs.hydraComponents.hydra-evaluator";
         description = "The `hydra-evaluator` package.";
+      };
+
+      helpersPackage = mkOption {
+        type = types.package;
+        default = pkgs.hydraComponents.hydra-evaluator-helpers;
+        defaultText = literalExpression "pkgs.hydraComponents.hydra-evaluator-helpers";
+        description = ''
+          The package providing `hydra-fetch-input` and `hydra-prepare-declarative-jobset`,
+          which the evaluator runs.
+        '';
       };
 
       nixEvalJobsPackage = mkOption {
@@ -161,6 +178,9 @@ in
     environment.etc."hydra/evaluator.toml".source = format.generate "evaluator.toml" cfg.settings;
 
     systemd.services.hydra-evaluator = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       wantedBy = [ "multi-user.target" ];
       requires = [ "hydra-init.service" ];
       # Not `hydra.conf`: only the Perl the evaluator runs reads it, and
@@ -170,20 +190,20 @@ in
         "hydra-init.service"
         "network.target"
       ];
-      path = with pkgs; [
-        hostname-debian
-        # Because hydra-evaluator calls `hydra-fetch-input`, which is Perl
-        # and must stay so: input types are a plugin interface.
-        webCfg.package
-        config.nix.package
-        cfg.nixEvalJobsPackage
-        # Nix's git fetcher execs `git`, which needs `ssh` for ssh:// remotes.
-        gitMinimal
-        openssh
-      ];
-      environment = env // {
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
-      };
+      # Not for anything Hydra runs, but for what Nix runs; see
+      # `packaging/programs.nix`.
+      path = programs.path;
+      environment =
+        env
+        // hydraPrograms.envFor {
+          # The Perl that has to stay so: input types are a plugin interface.
+          localPath = name: "${cfg.helpersPackage}/bin/${name}";
+        } programs
+        // {
+          HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
+          # What plugins from outside Hydra run.
+          HYDRA_PLUGIN_PATH = lib.makeBinPath webCfg.pluginPath;
+        };
       serviceConfig = {
         ExecStart = escapeShellArgs [
           "@${cfg.package}/bin/hydra-evaluator"

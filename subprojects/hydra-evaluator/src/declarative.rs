@@ -17,9 +17,13 @@ struct Reply {
 /// Apply the specification in `spec_file`. Returns whether it named the
 /// jobsets outright, in which case they have been created and there is
 /// nothing to evaluate; otherwise it has reconfigured `.jobsets`.
-pub(crate) async fn apply(project: &str, spec_file: &str) -> eyre::Result<bool> {
+pub(crate) async fn apply(
+    program: &crate::programs::PrepareDeclarativeJobsetPath,
+    project: &str,
+    spec_file: &str,
+) -> eyre::Result<bool> {
     let out = crate::run_with_timeout(
-        tokio::process::Command::new("hydra-prepare-declarative-jobset")
+        tokio::process::Command::new(program)
             .arg(project)
             .arg(spec_file),
     )

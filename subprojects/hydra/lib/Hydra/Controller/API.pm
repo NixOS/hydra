@@ -6,6 +6,7 @@ use warnings;
 use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 use Hydra::Controller::Project;
 use JSON::MaybeXS;
 use DateTime;
@@ -210,21 +211,21 @@ sub scmdiff : Path('/api/scmdiff') Args(0) {
         my $clonePath = getSCMCacheDir . "/hg/" . sha256_hex($uri);
         die "repository '$uri' is not in the SCM cache\n" if ! -d $clonePath;
         my $out;
-        run(["hg", "log", "-R", $clonePath, "-r", "reverse($rev1::$rev2) and not($rev1)"], \undef, \$out)
+        run([program("hg"), "log", "-R", $clonePath, "-r", "reverse($rev1::$rev2) and not($rev1)"], \undef, \$out)
             or die "hg log failed";
         $diff .= $out;
-        run(["hg", "diff", "-R", $clonePath, "-r", "$rev1::$rev2"], \undef, \$out)
+        run([program("hg"), "diff", "-R", $clonePath, "-r", "$rev1::$rev2"], \undef, \$out)
             or die "hg diff failed";
         $diff .= $out;
     } elsif ($type eq "git") {
         my $clonePath = getSCMCacheDir . "/git/" . sha256_hex($uri);
         die if ! -d $clonePath;
         my ($stdout1, $stderr1);
-        run3(['git', '--git-dir', '.git', '-C', $clonePath, 'log', "$rev1..$rev2"], \undef, \$stdout1, \$stderr1);
+        run3([program("git"), '--git-dir', '.git', '-C', $clonePath, 'log', "$rev1..$rev2"], \undef, \$stdout1, \$stderr1);
         $diff .= $stdout1 if $? == 0;
 
         my ($stdout2, $stderr2);
-        run3(['git', '--git-dir', '.git', '-C', $clonePath, 'diff', "$rev1..$rev2"], \undef, \$stdout2, \$stderr2);
+        run3([program("git"), '--git-dir', '.git', '-C', $clonePath, 'diff', "$rev1..$rev2"], \undef, \$stdout2, \$stderr2);
         $diff .= $stdout2 if $? == 0;
     }
 

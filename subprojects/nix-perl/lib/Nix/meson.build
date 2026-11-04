@@ -29,20 +29,6 @@ nix_perl_store_cc = custom_target(
   command : [ xsubpp, '@INPUT@', '-output', '@OUTPUT@' ],
 )
 
-# Build Nix::Store Library
-#-------------------------------------------------
-nix_perl_store_lib = library(
-  'Store',
-  sources : nix_perl_store_cc,
-  name_prefix : '',
-  prelink : true, # For C++ static initializers
-  install : true,
-  install_mode : 'rwxr-xr-x',
-  install_dir : join_paths(nix_perl_install_dir, 'auto', 'Nix', 'Store'),
-  dependencies : nix_perl_store_dep_list,
-)
-
-
 # Install Scripts
 #---------------------------------------------------
 install_data(

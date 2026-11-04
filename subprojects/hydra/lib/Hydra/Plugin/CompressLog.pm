@@ -5,6 +5,7 @@ use warnings;
 use utf8;
 use parent 'Hydra::Plugin';
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 
 sub stepFinished {
     my ($self, $step, $logPath) = @_;
@@ -22,9 +23,9 @@ sub stepFinished {
     }
 
     if ($compression eq 'bzip2') {
-        system('bzip2', '--force', $logPath);
+        system(program("bzip2"), '--force', $logPath);
     } elsif ($compression eq 'zstd') {
-        system('zstd', '--rm', '--quiet', '-T0', $logPath);
+        system(program("zstd"), '--rm', '--quiet', '-T0', $logPath);
     } else {
         print STDERR "unknown compression type '$compression'\n";
     }

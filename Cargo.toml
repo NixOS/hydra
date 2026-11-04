@@ -130,6 +130,7 @@ binary-cache        = { path = "subprojects/crates/binary-cache" }
 build-logs          = { path = "subprojects/crates/build-logs" }
 daemon-client-utils = { path = "subprojects/crates/daemon-client-utils" }
 db                  = { path = "subprojects/crates/db" }
+hydra-programs      = { path = "subprojects/crates/programs" }
 hydra-proto         = { path = "subprojects/crates/proto" }
 hydra-tracing       = { path = "subprojects/crates/tracing" }
 nix-support         = { path = "subprojects/crates/nix-support" }

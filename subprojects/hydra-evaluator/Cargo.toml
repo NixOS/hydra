@@ -26,4 +26,5 @@ tracing.workspace    = true
 
 daemon-client-utils = { path = "../crates/daemon-client-utils" }
 db                  = { path = "../crates/db" }
+hydra-programs      = { path = "../crates/programs" }
 hydra-tracing       = { path = "../crates/tracing" }

@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 use Hydra::Helper::LogEndpoints;
 use File::Basename;
 use File::LibMagic;
@@ -195,7 +196,7 @@ sub serveFile {
     # Checked here so that the symlink targets followed below are covered too.
     checkPath($c, $path);
 
-    my $res = runCommand(cmd => ["nix", "--experimental-features", "nix-command",
+    my $res = runCommand(cmd => [program("nix"), "--experimental-features", "nix-command",
                           "ls-store", "--store", getStoreUri(), "--json", "$path"]);
 
     if ($res->{status}) {
@@ -223,7 +224,7 @@ sub serveFile {
         # XSS hole.
         $c->response->header('Content-Security-Policy' => 'sandbox allow-scripts');
 
-        $c->stash->{'plain'} = { data => readIntoSocket(cmd => ["nix", "--experimental-features", "nix-command",
+        $c->stash->{'plain'} = { data => readIntoSocket(cmd => [program("nix"), "--experimental-features", "nix-command",
                                                       "store", "cat", "--store", getStoreUri(), "$path"]) };
 
         # Detect MIME type.
@@ -341,7 +342,7 @@ sub contents : Chained('buildChain') PathPart Args(1) {
         # We need to use a pipe between find and xargs, so we'll use IPC::Run
         my $error;
         # Run find with absolute path and post-process to get relative paths
-        my $success = run(['find', $path, '-print0'], '|', ['xargs', '-0', 'ls', '-ld', '--'], \$res, \$error);
+        my $success = run([program("find"), $path, '-print0'], '|', [program("xargs"), '-0', program("ls"), '-ld', '--'], \$res, \$error);
         error($c, "`find $path -print0 | xargs -0 ls -ld --' error: $error") unless $success;
 
         # Strip the base path to show relative paths
@@ -355,42 +356,52 @@ sub contents : Chained('buildChain') PathPart Args(1) {
 
     elsif ($path =~ /\.rpm$/) {
         my ($stdout1, $stderr1);
-        run3(['rpm', '--query', '--info', '--package', $path], \undef, \$stdout1, \$stderr1);
+        run3([program("rpm"), '--query', '--info', '--package', $path], \undef, \$stdout1, \$stderr1);
         error($c, "RPM error: $stderr1") if $? != 0;
         $res = $stdout1;
 
         $res .= "===\n";
 
         my ($stdout2, $stderr2);
-        run3(['rpm', '--query', '--list', '--verbose', '--package', $path], \undef, \$stdout2, \$stderr2);
+        run3([program("rpm"), '--query', '--list', '--verbose', '--package', $path], \undef, \$stdout2, \$stderr2);
         error($c, "RPM error: $stderr2") if $? != 0;
         $res .= $stdout2;
     }
 
     elsif ($path =~ /\.deb$/) {
         my ($stdout1, $stderr1);
-        run3(['dpkg-deb', '--info', $path], \undef, \$stdout1, \$stderr1);
+        run3([program("dpkg-deb"), '--info', $path], \undef, \$stdout1, \$stderr1);
         error($c, "`dpkg-deb' error: $stderr1") if $? != 0;
         $res = $stdout1;
 
         $res .= "===\n";
 
         my ($stdout2, $stderr2);
-        run3(['dpkg-deb', '--contents', $path], \undef, \$stdout2, \$stderr2);
+        {
+            # `dpkg-deb --contents` runs `tar` itself, from `PATH`, and has no
+            # setting to say where instead. So just for it, `PATH` is ours.
+            local $ENV{PATH} = dirname(program("tar"));
+            run3([program("dpkg-deb"), '--contents', $path], \undef, \$stdout2, \$stderr2);
+        }
         error($c, "`dpkg-deb' error: $stderr2") if $? != 0;
         $res .= $stdout2;
     }
 
     elsif ($path =~ /\.(tar(\.gz|\.bz2|\.xz|\.lzma)?|tgz)$/ ) {
+        my $suffix = $1 eq 'tgz' ? '.gz' : $2 // "";
         my ($stdout, $stderr);
-        run3(['tar', 'tvfa', $path], \undef, \$stdout, \$stderr);
+        # Not `tar a`, which would look the decompressor up on `PATH`. `xz`
+        # reads `.lzma` too.
+        my %decompressor = ('.gz' => "gzip", '.bz2' => "bzip2", '.xz' => "xz", '.lzma' => "xz");
+        my @decompress = $suffix ne "" ? ('-I', program($decompressor{$suffix})) : ();
+        run3([program("tar"), 'tvf', $path, @decompress], \undef, \$stdout, \$stderr);
         error($c, "`tar' error: $stderr") if $? != 0;
         $res = $stdout;
     }
 
     elsif ($path =~ /\.(zip|jar)$/ ) {
         my ($stdout, $stderr);
-        run3(['unzip', '-v', $path], \undef, \$stdout, \$stderr);
+        run3([program("unzip"), '-v', $path], \undef, \$stdout, \$stderr);
         error($c, "`unzip' error: $stderr") if $? != 0;
         $res = $stdout;
     }
@@ -398,13 +409,13 @@ sub contents : Chained('buildChain') PathPart Args(1) {
     elsif ($path =~ /\.iso$/ ) {
         # Run first isoinfo command
         my ($stdout1, $stderr1);
-        run3(['isoinfo', '-d', '-i', $path], \undef, \$stdout1, \$stderr1);
+        run3([program("isoinfo"), '-d', '-i', $path], \undef, \$stdout1, \$stderr1);
         error($c, "`isoinfo' error: $stderr1") if $? != 0;
         $res = $stdout1;
 
         # Run second isoinfo command
         my ($stdout2, $stderr2);
-        run3(['isoinfo', '-l', '-R', '-i', $path], \undef, \$stdout2, \$stderr2);
+        run3([program("isoinfo"), '-l', '-R', '-i', $path], \undef, \$stdout2, \$stderr2);
         error($c, "`isoinfo' error: $stderr2") if $? != 0;
         $res .= $stdout2;
     }

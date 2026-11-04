@@ -1,18 +1,22 @@
 //! Read nix configuration by shelling out to `nix show-config --json`.
 
 use color_eyre::eyre;
+use hydra_programs::Program as _;
 use std::collections::HashMap;
 
 /// Cached nix configuration values.
 #[derive(Debug, Clone)]
 pub struct NixConfig {
     values: HashMap<String, serde_json::Value>,
+    /// The `nix` they came from.
+    nix: hydra_programs::NixPath,
 }
 
 impl NixConfig {
     /// Read nix configuration by running `nix show-config --json`.
     pub fn load() -> eyre::Result<Self> {
-        let output = std::process::Command::new("nix")
+        let nix = hydra_programs::NixPath::locate()?;
+        let output = std::process::Command::new(&nix)
             .args([
                 "--extra-experimental-features",
                 "nix-command",
@@ -27,7 +31,7 @@ impl NixConfig {
             );
         }
         let values: HashMap<String, serde_json::Value> = serde_json::from_slice(&output.stdout)?;
-        Ok(Self { values })
+        Ok(Self { values, nix })
     }
 
     fn get_string(&self, key: &str) -> Option<String> {
@@ -92,9 +96,8 @@ impl NixConfig {
     }
 
     #[must_use]
-    #[allow(clippy::unused_self)]
     pub fn nix_version(&self) -> String {
-        std::process::Command::new("nix")
+        std::process::Command::new(&self.nix)
             .arg("--version")
             .output()
             .ok()

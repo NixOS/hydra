@@ -9,6 +9,7 @@ use File::Which qw(which);
 use Cwd qw(abs_path getcwd);
 use CliRunners;
 use Hydra::Helper::Exec;
+use HydraTestPrograms;
 use ShortSocketDir qw(short_socket_dir);
 
 # Set up the environment for running tests.
@@ -168,14 +169,14 @@ sub new {
 sub run_cmd {
     my ($self, $timeout, @cmd) = @_;
     local @ENV{keys %{$self->{central_env}}} = values %{$self->{central_env}};
-    expectOkay($timeout, @cmd);
+    withProgramEnv(\@cmd, sub { expectOkay($timeout, @cmd) });
 }
 
 # Like run_cmd but returns ($exit, $stdout, $stderr) instead of dying.
 sub capture_cmd {
     my ($self, $timeout, @cmd) = @_;
     local @ENV{keys %{$self->{central_env}}} = values %{$self->{central_env}};
-    return captureStdoutStderr($timeout, @cmd);
+    return withProgramEnv(\@cmd, sub { captureStdoutStderr($timeout, @cmd) });
 }
 
 sub db {
