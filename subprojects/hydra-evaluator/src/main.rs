@@ -63,9 +63,8 @@ async fn main() -> color_eyre::Result<()> {
         _ => eyre::bail!("Syntax: hydra-evaluator [<project> <jobset>]"),
     };
 
-    // The store is needed both to describe inputs to the expression -- which
-    // used to be the Perl's business -- and to find out whether a build an
-    // input names is actually here.
+    // The store is needed both to describe inputs to the expression and to
+    // find out whether a build an input names is actually here.
     let remote = daemon_client_utils::parse_nix_remote()
         .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
     let available = store_paths::Availability::new(
@@ -80,4 +79,16 @@ async fn main() -> color_eyre::Result<()> {
         eval_one,
     );
     evaluator.run().await
+}
+
+/// How long a helper process may run before we kill it. The Perl used the
+/// same limit.
+const HELPER_TIMEOUT: std::time::Duration = std::time::Duration::from_mins(10);
+
+/// Run a helper to completion, killing it if it outlasts [`HELPER_TIMEOUT`].
+async fn run_with_timeout(cmd: &mut tokio::process::Command) -> eyre::Result<std::process::Output> {
+    tokio::time::timeout(HELPER_TIMEOUT, cmd.kill_on_drop(true).output())
+        .await
+        .map_err(|_| eyre::eyre!("timed out after {}s", HELPER_TIMEOUT.as_secs()))?
+        .map_err(Into::into)
 }

@@ -208,7 +208,7 @@ async fn resolve_one(
                 if let Some(path) = &build.out_path
                     && available.is_available(path).await
                 {
-                    usable.push(from_build(build));
+                    usable.push(from_build(available, build).await);
                 }
             }
             if usable.is_empty() {
@@ -262,7 +262,9 @@ async fn resolve_build(
     // `builtins.storePath`.
     Ok(match build {
         Some(build) => match &build.out_path {
-            Some(path) if available.is_available(path).await => vec![from_build(&build)],
+            Some(path) if available.is_available(path).await => {
+                vec![from_build(available, &build).await]
+            }
             _ => vec![],
         },
         None => vec![],
@@ -319,28 +321,82 @@ fn split_job_name(project: &str, jobset: &str, value: &str) -> (String, String, 
 }
 
 /// Describe a build to the Nix expression the way the Perl did.
-fn from_build(build: &InputBuild) -> JobsetInput {
+async fn from_build(available: &Availability, build: &InputBuild) -> JobsetInput {
+    let name = build
+        .releasename
+        .as_deref()
+        .filter(|n| !n.is_empty())
+        .or(build.nixname.as_deref());
     JobsetInput {
         store_path: build.out_path.clone(),
         id: Some(build.id),
-        version: version_of(build),
+        version: name.and_then(version_of).map(str::to_owned),
         output_name: build.out_name.clone(),
+        // Only if it is in the store already. Unlike the output, the
+        // expression can do without it, so it is not worth fetching.
+        drv_path: available
+            .is_valid(&build.drvpath)
+            .await
+            .then(|| build.drvpath.clone()),
         ..Default::default()
     }
 }
 
 /// The version part of a `name-version` release name, if it looks like one.
 ///
-/// The pattern is the Perl's: a name of alphanumerics and hyphens that are
-/// not followed by a digit, then a hyphen, then the version.
-fn version_of(build: &InputBuild) -> Option<String> {
-    let name = build.releasename.as_ref().or(build.nixname.as_ref())?;
-    let (prefix, version) = name.rsplit_once('-')?;
-    if prefix.is_empty() || version.is_empty() {
-        return None;
+/// This matches the Perl's `^($pkgNameRE)-($versionRE)$`. The name is
+/// alphanumerics and hyphens not followed by a digit, the version is
+/// alphanumerics, dots and hyphens, and the name is as long as possible.
+fn version_of(name: &str) -> Option<&str> {
+    let is_version = |v: &str| {
+        !v.is_empty()
+            && v.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+    };
+    name.rmatch_indices('-')
+        .map(|(i, _)| (&name[..i], &name[i + 1..]))
+        .find(|(pkg, version)| is_pkg_name(pkg) && is_version(version))
+        .map(|(_, version)| version)
+}
+
+fn is_pkg_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    while let Some(c) = chars.next() {
+        let ok = if c == '-' {
+            chars.next().is_some_and(|c| !c.is_ascii_digit())
+        } else {
+            c.is_ascii_alphanumeric()
+        };
+        if !ok {
+            return false;
+        }
     }
-    version
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
-        .then(|| version.to_owned())
+    !name.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_of_matches_the_perl() {
+        assert_eq!(version_of("hello-2.12"), Some("2.12"));
+        assert_eq!(version_of("foo-1.0-rc1"), Some("1.0-rc1"));
+        assert_eq!(version_of("foo-bar-1.0"), Some("1.0"));
+        assert_eq!(version_of("hello-world"), Some("world"));
+        assert_eq!(version_of("foo--1"), Some("-1"));
+        assert_eq!(version_of("a-b-c"), Some("c"));
+        assert_eq!(version_of("x-1-2-y"), Some("1-2-y"));
+        assert_eq!(version_of("hello"), None);
+        assert_eq!(version_of("-1.0"), None);
+        assert_eq!(version_of("foo-1.0_2"), None);
+    }
+
+    #[test]
+    fn split_job_name_defaults_to_the_evaluated_jobset() {
+        let split = |v| split_job_name("p", "j", v);
+        assert_eq!(split("job"), ("p".into(), "j".into(), "job".into()));
+        assert_eq!(split("js:job"), ("p".into(), "js".into(), "job".into()));
+        assert_eq!(split("pr:js:job"), ("pr".into(), "js".into(), "job".into()));
+    }
 }

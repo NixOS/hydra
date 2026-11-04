@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET errorMsg = $2, errorTime = $3, fetchErrorMsg = null WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "92b6bf061e896fb6c53d43f9a436cce0c85bce82dbbc049e088d7dc58f3a1ee5"
+}

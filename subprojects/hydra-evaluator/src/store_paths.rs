@@ -74,6 +74,11 @@ impl Availability {
 
         is_valid(&full).await
     }
+
+    /// Whether `path` is in the store already, without fetching it.
+    pub(crate) async fn is_valid(&self, path: &str) -> bool {
+        is_valid(&crate::nix_eval_jobs::full(&self.store_dir, path)).await
+    }
 }
 
 async fn is_valid(full: &str) -> bool {

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET forceEval = null, enabled = CASE WHEN enabled = 2 THEN 0 ELSE enabled END WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5362dae390ca03846a482734cae563f19c5704939fe6eb348ea0551b945c7037"
+}

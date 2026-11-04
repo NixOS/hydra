@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT id, hash, flake FROM jobsetevals\n        WHERE jobset_id = $1\n        ORDER BY id DESC\n        LIMIT 1",
+  "query": "\n        SELECT id, hash, flake FROM jobsetevals\n        WHERE jobset_id = $1 AND (NOT $2 OR hasnewbuilds = 1)\n        ORDER BY id DESC\n        LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -39,7 +39,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Int4",
+        "Bool"
       ]
     },
     "nullable": [
@@ -48,5 +49,5 @@
       true
     ]
   },
-  "hash": "962820ceeec38e40109798689806c8953074ff7a5cdf28c62d34fa97cbaf5ec8"
+  "hash": "76ddea6afe690e7b083dfb618b6818d675896d06f314ac26a139ebd525362e65"
 }

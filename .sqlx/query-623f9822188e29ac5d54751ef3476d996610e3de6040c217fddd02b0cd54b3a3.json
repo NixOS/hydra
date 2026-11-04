@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT b.id, b.releasename, b.nixname,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.id DESC\n        LIMIT 1",
+  "query": "\n        SELECT b.id, b.releasename, b.nixname, b.drvpath,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN LATERAL (\n          SELECT path, name FROM buildoutputs WHERE build = b.id\n          ORDER BY name <> 'out', name LIMIT 1) o ON true\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.id DESC\n        LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "drvpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "drvpath"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "out_path?",
         "type_info": "Text",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "out_name?",
         "type_info": "Text",
         "origin": {
@@ -70,9 +81,10 @@
       false,
       true,
       true,
+      false,
       true,
       false
     ]
   },
-  "hash": "c5f41d18559850091377d31a86b3e7d9c9094fb83ac19bba667908e693bae2b3"
+  "hash": "623f9822188e29ac5d54751ef3476d996610e3de6040c217fddd02b0cd54b3a3"
 }

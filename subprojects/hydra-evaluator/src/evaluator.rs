@@ -9,6 +9,10 @@ use tokio::sync::{Mutex, Notify};
 use crate::config::HydraConfig;
 use crate::queries;
 
+/// How long an evaluation may run before the reaper abandons it and records
+/// it as failed. The Perl's `alarm` used the same limit.
+const EVAL_TIMEOUT: Duration = Duration::from_hours(1);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum EvaluationStyle {
@@ -171,7 +175,7 @@ impl Evaluator {
             return Duration::MAX;
         }
 
-        let now = now_epoch();
+        let now = jiff::Timestamp::now().as_second();
         let mut sleep_secs = i64::MAX;
 
         for jobset in state.jobsets.values() {
@@ -322,7 +326,7 @@ impl Evaluator {
             return Ok(false);
         }
 
-        let now = now_epoch();
+        let now = jiff::Timestamp::now().as_second();
         if jobset.last_checked_time + jobset.check_interval <= now {
             if jobset.evaluation_style == Some(EvaluationStyle::OneAtATime) {
                 return self.should_evaluate_one_at_a_time(jobset).await;
@@ -427,7 +431,7 @@ impl Evaluator {
         project: String,
         jobset_name: String,
     ) -> eyre::Result<()> {
-        let now = now_epoch();
+        let now = jiff::Timestamp::now().as_second();
         let jobset_display = format!("{project}:{jobset_name} (jobset#{jobset_id})");
 
         let last_checked = state
@@ -518,15 +522,18 @@ async fn reap_eval(
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
 ) {
-    // Abandoning the future is how an evaluation is cancelled now that it is
-    // not a process: dropping it stops the work, and anything it had already
-    // committed stands, as it would have with a killed child.
+    // Dropping the future cancels the evaluation and kills its child
+    // processes. Anything it already committed stays committed.
     let outcome = tokio::select! {
         result = evaluation => Some(result),
         _ = &mut kill_rx => {
             tracing::info!("abandoning evaluation of jobset '{jobset_display}'");
             None
         }
+        () = tokio::time::sleep(EVAL_TIMEOUT) => Some(Err(eyre::eyre!(
+            "evaluation timed out after {}s",
+            EVAL_TIMEOUT.as_secs()
+        ))),
     };
 
     let (exit_ok, status_str) = match &outcome {
@@ -545,13 +552,16 @@ async fn reap_eval(
             true,
             "jobsets created from the declarative specification".to_owned(),
         ),
+        Some(Ok(crate::evaluate::Outcome::FetchFailed)) => {
+            (true, "could not fetch its inputs".to_owned())
+        }
         Some(Err(e)) => (false, format!("{e:#}")),
         None => (true, "abandoned".to_owned()),
     };
 
     tracing::info!("evaluation of jobset '{}' {}", jobset_display, status_str);
 
-    let now = now_epoch();
+    let now = jiff::Timestamp::now().as_second();
 
     let mut st = state.lock().await;
     let exit_ok = if let Some(jobset) = st.jobsets.get_mut(&jobset_id) {
@@ -592,7 +602,8 @@ async fn reap_eval(
     if eval_one {
         // Non-zero when the evaluation failed: `hydra-evaluator p j` is how
         // a single evaluation is asked for, and its caller wants to know.
-        std::process::exit(i32::from(!exit_ok));
+        let fetch_failed = matches!(outcome, Some(Ok(crate::evaluate::Outcome::FetchFailed)));
+        std::process::exit(i32::from(!exit_ok || fetch_failed));
     }
 }
 
@@ -606,30 +617,14 @@ async fn update_db_after_eval(
 ) -> eyre::Result<()> {
     let mut conn = db.get().await?;
 
-    // A failure is announced; a success is not, because `record` already sent
-    // `eval_added` -- carrying the same flag -- from inside the transaction
-    // that produced the evaluation.
+    // Only a failure is announced here. `evaluate` already sent the
+    // notification for every other outcome.
     if exit_ok {
-        queries::update_jobset_after_eval(&mut conn, jobset_id, None, now).await?;
+        queries::update_jobset_after_eval(&mut conn, jobset_id, now).await?;
     } else {
-        queries::fail_jobset_eval(
-            &mut conn,
-            trace,
-            jobset_id,
-            &format!("evaluation {status_str}"),
-            now,
-        )
-        .await?;
+        queries::fail_jobset_eval(&mut conn, trace, jobset_id, status_str, now).await?;
     }
     Ok(())
-}
-
-fn now_epoch() -> db::Timestamp {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()
-        .and_then(|d| i64::try_from(d.as_secs()).ok())
-        .unwrap_or(0)
 }
 
 fn is_broken_connection(e: &eyre::Report) -> bool {

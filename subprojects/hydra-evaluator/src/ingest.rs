@@ -4,7 +4,7 @@
 //! job arrives there are no inputs left to fetch, only the question of
 //! whether this job is already built and, if not, queueing it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
 use color_eyre::eyre::{self, WrapErr as _};
@@ -37,13 +37,13 @@ pub(crate) struct Member {
 /// Returns `None` when the job is a duplicate within this same evaluation --
 /// two attributes producing the same output path -- which is not an error and
 /// not a second build.
-pub(crate) async fn check_build(
+async fn check_build(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     eval: i32,
     job: &Job,
     prev_eval: Option<i32>,
-    seen: &mut HashMap<String, i32>,
+    seen: &mut HashSet<String>,
 ) -> eyre::Result<Option<Member>> {
     let drv_path = job
         .drv_path
@@ -110,7 +110,7 @@ pub(crate) async fn check_build(
         job.attr,
         first_path.as_deref().unwrap_or(drv_path)
     );
-    if seen.contains_key(&key) {
+    if seen.contains(&key) {
         return Ok(None);
     }
 
@@ -143,7 +143,7 @@ pub(crate) async fn check_build(
         .collect();
     queries::insert_build_outputs(tx, build, &outputs).await?;
 
-    seen.insert(key, build);
+    seen.insert(key);
     tx.notify_build_queued(build).await?;
 
     Ok(Some(Member {
@@ -240,12 +240,7 @@ fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<S
     }
 }
 
-/// Everything an evaluation records, in one transaction.
-///
-/// One transaction because an evaluation is one fact: its builds, its
-/// members, its aggregates and the notifications announcing them are true
-/// together or not at all. It is also why the notifications are sent from in
-/// here -- `NOTIFY` is delivered on commit.
+/// What [`record`] wrote.
 pub(crate) struct Recorded {
     pub eval: i32,
     pub jobset_changed: bool,
@@ -255,6 +250,12 @@ pub(crate) struct Recorded {
     pub repoints: HashMap<i32, String>,
 }
 
+/// Everything an evaluation records, in the caller's transaction.
+///
+/// One transaction, because an evaluation's builds, members, aggregates and
+/// the notifications announcing them must be written together or not at all.
+/// The notifications are sent from here for the same reason, since `NOTIFY`
+/// is delivered on commit.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn record(
     tx: &mut db::Transaction<'_>,
@@ -274,7 +275,7 @@ pub(crate) async fn record(
 
     let mut error = String::new();
     let mut members: Vec<Member> = Vec::new();
-    let mut seen = HashMap::new();
+    let mut seen = HashSet::new();
     let mut with_constituents: Vec<&Job> = Vec::new();
 
     for job in jobs {
@@ -319,8 +320,8 @@ pub(crate) async fn record(
         jobset_changed.then_some(nr_builds).flatten(),
     )
     .await?;
-    // The jobset's error is not written until after this transaction commits,
-    // so `prev_error` is still the one it had coming in.
+    // `prev_error` is the error the jobset came in with. The caller writes
+    // the new one afterwards.
     tx.notify_eval_added(trace, jobset_id, eval_id, error != prev_error)
         .await?;
 
@@ -329,7 +330,9 @@ pub(crate) async fn record(
         queries::insert_eval_members(tx, eval_id, &rows).await?;
         record_aggregates(tx, &members, &with_constituents).await?;
         // What wakes the queue runner: it polls otherwise.
-        tx.notify_builds_added().await?;
+        if members.iter().any(|m| m.is_new) {
+            tx.notify_builds_added().await?;
+        }
 
         for (name, alts) in inputs {
             for (n, alt) in alts.iter().enumerate() {

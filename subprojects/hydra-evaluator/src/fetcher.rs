@@ -50,6 +50,7 @@ impl InputFetcher {
         let mut child = tokio::process::Command::new("hydra-fetch-input")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .kill_on_drop(true)
             .spawn()
             .wrap_err("failed to start hydra-fetch-input")?;
 

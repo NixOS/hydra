@@ -18,12 +18,13 @@ struct Reply {
 /// jobsets outright, in which case they have been created and there is
 /// nothing to evaluate; otherwise it has reconfigured `.jobsets`.
 pub(crate) async fn apply(project: &str, spec_file: &str) -> eyre::Result<bool> {
-    let out = tokio::process::Command::new("hydra-prepare-declarative-jobset")
-        .arg(project)
-        .arg(spec_file)
-        .output()
-        .await
-        .wrap_err("failed to run hydra-prepare-declarative-jobset")?;
+    let out = crate::run_with_timeout(
+        tokio::process::Command::new("hydra-prepare-declarative-jobset")
+            .arg(project)
+            .arg(spec_file),
+    )
+    .await
+    .wrap_err("failed to run hydra-prepare-declarative-jobset")?;
     let stderr = String::from_utf8(out.stderr)
         .wrap_err("hydra-prepare-declarative-jobset wrote non-UTF-8 to stderr")?;
     if !out.status.success() {

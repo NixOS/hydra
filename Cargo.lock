@@ -1854,6 +1854,7 @@ dependencies = [
  "futures",
  "hex",
  "hydra-tracing",
+ "jiff",
  "serde",
  "serde_json",
  "sha2 0.11.1",
