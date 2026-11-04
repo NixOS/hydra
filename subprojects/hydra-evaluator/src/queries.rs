@@ -212,12 +212,14 @@ pub(crate) async fn get_eval_by_id(
         .map(|r| r.id))
 }
 
-/// The most recent evaluation of a jobset all of whose builds have
-/// finished -- what an `eval` input means by `project:jobset`.
+/// The most recent evaluation of a jobset all of whose builds have finished,
+/// which is what an `eval` input means by `project:jobset`. Given a job, only
+/// an evaluation in which that job succeeded.
 pub(crate) async fn get_latest_finished_eval(
     conn: &mut db::Connection,
     project: &str,
     jobset: &str,
+    job: Option<&str>,
 ) -> Result<Option<i32>, sqlx::Error> {
     Ok(sqlx::query!(
         r#"
@@ -227,34 +229,9 @@ pub(crate) async fn get_latest_finished_eval(
           AND NOT EXISTS (
             SELECT 1 FROM jobsetevalmembers m JOIN builds b ON m.build = b.id
             WHERE m.eval = e.id AND b.finished = 0)
-        ORDER BY e.id DESC
-        LIMIT 1"#,
-        project,
-        jobset,
-    )
-    .fetch_optional(conn.raw())
-    .await?
-    .map(|r| r.id))
-}
-
-/// As above, but only an evaluation in which the named job succeeded.
-pub(crate) async fn get_latest_finished_eval_with_job(
-    conn: &mut db::Connection,
-    project: &str,
-    jobset: &str,
-    job: &str,
-) -> Result<Option<i32>, sqlx::Error> {
-    Ok(sqlx::query!(
-        r#"
-        SELECT e.id FROM jobsetevals e
-        JOIN jobsets j ON e.jobset_id = j.id
-        WHERE j.project = $1 AND j.name = $2 AND e.hasnewbuilds = 1
-          AND NOT EXISTS (
+          AND ($3::text IS NULL OR EXISTS (
             SELECT 1 FROM jobsetevalmembers m JOIN builds b ON m.build = b.id
-            WHERE m.eval = e.id AND b.finished = 0)
-          AND EXISTS (
-            SELECT 1 FROM jobsetevalmembers m JOIN builds b ON m.build = b.id
-            WHERE m.eval = e.id AND b.job = $3 AND b.buildstatus = 0)
+            WHERE m.eval = e.id AND b.job = $3 AND b.buildstatus = 0))
         ORDER BY e.id DESC
         LIMIT 1"#,
         project,
@@ -349,7 +326,7 @@ pub(crate) async fn mark_current(
 /// Point a build at the derivation this evaluation found for it, and put
 /// it back in the queue.
 pub(crate) async fn repoint_build(
-    conn: &mut db::Connection,
+    tx: &mut db::Transaction<'_>,
     id: i32,
     drv_path: &str,
 ) -> Result<(), sqlx::Error> {
@@ -361,7 +338,7 @@ pub(crate) async fn repoint_build(
         id,
         drv_path,
     )
-    .execute(conn.raw())
+    .execute(tx.raw())
     .await?;
     Ok(())
 }
@@ -376,7 +353,7 @@ pub(crate) async fn get_jobset_for_eval(
         JobsetForEval,
         r#"
         SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,
-               p.declfile, p.decltype, p.declvalue, j.errormsg
+               p.declfile, p.decltype, p.declvalue
         FROM jobsets j
         JOIN projects p ON j.project = p.name
         WHERE j.project = $1 AND j.name = $2"#,
@@ -414,14 +391,14 @@ pub(crate) async fn get_previous_eval(
 
 /// How many jobs the previous evaluation covered.
 pub(crate) async fn count_eval_members(
-    conn: &mut db::Connection,
+    tx: &mut db::Transaction<'_>,
     eval: i32,
 ) -> Result<i64, sqlx::Error> {
     Ok(sqlx::query!(
         r#"SELECT COUNT(*) as "n!" FROM jobsetevalmembers WHERE eval = $1"#,
         eval,
     )
-    .fetch_one(conn.raw())
+    .fetch_one(tx.raw())
     .await?
     .n)
 }
@@ -478,75 +455,19 @@ pub(crate) async fn update_jobset_after_eval(
     Ok(())
 }
 
-/// Set the jobset's evaluation error, empty for none. Like the Perl's
-/// `setJobsetError`, this also clears the fetch error.
-pub(crate) async fn set_jobset_error(
-    conn: &mut sqlx::PgConnection,
-    jobset_id: i32,
-    error_msg: &str,
-    now: db::Timestamp,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "UPDATE jobsets SET errorMsg = $2, errorTime = $3, fetchErrorMsg = null WHERE id = $1",
-        jobset_id,
-        error_msg,
-        now,
-    )
-    .execute(conn)
-    .await?;
-    Ok(())
-}
-
-/// Set or clear the jobset's fetch error, leaving its evaluation error alone.
-pub(crate) async fn set_fetch_error(
-    conn: &mut sqlx::PgConnection,
-    jobset_id: i32,
-    error_msg: Option<&str>,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "UPDATE jobsets SET fetchErrorMsg = $2 WHERE id = $1",
-        jobset_id,
-        error_msg,
-    )
-    .execute(conn)
-    .await?;
-    Ok(())
-}
-
-/// Clear `forceEval` and disable a one-shot jobset, after an evaluation that
-/// actually ran.
-pub(crate) async fn finish_jobset_eval(
-    conn: &mut sqlx::PgConnection,
-    jobset_id: i32,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "UPDATE jobsets SET forceEval = null, \
-           enabled = CASE WHEN enabled = 2 THEN 0 ELSE enabled END \
-         WHERE id = $1",
-        jobset_id,
-    )
-    .execute(conn)
-    .await?;
-    Ok(())
-}
-
-/// Record that an evaluation failed, and tell listeners.
+/// Set the jobset's evaluation error, empty for none, and return whether it
+/// differs from the one before. Like the Perl's `setJobsetError`, this also
+/// clears the fetch error.
 ///
-/// The notification carries whether the error differs from the one the
-/// jobset already had, because that decides whether anyone is told about
-/// it and it cannot be worked out afterwards -- by then the row holds the
-/// new error. Reading the old one, writing the new one and announcing it
-/// are one transaction, both so the flag cannot race another evaluation
-/// and because `NOTIFY` is delivered on commit.
-pub(crate) async fn fail_jobset_eval(
-    conn: &mut db::Connection,
-    trace: &str,
+/// Whether the error changed decides whether anyone is told about it, and
+/// once the row is written it cannot be worked out. Locking the row first
+/// stops another evaluation racing the comparison.
+pub(crate) async fn set_jobset_error(
+    tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     error_msg: &str,
     now: db::Timestamp,
-) -> Result<(), db::Error> {
-    let mut tx = conn.begin_transaction().await?;
-
+) -> Result<bool, sqlx::Error> {
     let previous = sqlx::query_scalar!(
         "SELECT errorMsg FROM jobsets WHERE id = $1 FOR UPDATE",
         jobset_id,
@@ -556,20 +477,70 @@ pub(crate) async fn fail_jobset_eval(
     .flatten()
     .unwrap_or_default();
 
-    clear_trigger_time(tx.raw(), jobset_id).await?;
-
     sqlx::query!(
-        "UPDATE jobsets SET startTime = null, errorMsg = $1, lastCheckedTime = $2, \
-         errorTime = $2, fetchErrorMsg = null WHERE id = $3",
+        "UPDATE jobsets SET errorMsg = $2, errorTime = $3, fetchErrorMsg = null WHERE id = $1",
+        jobset_id,
         error_msg,
         now,
+    )
+    .execute(tx.raw())
+    .await?;
+    Ok(error_msg != previous)
+}
+
+/// Set or clear the jobset's fetch error, leaving its evaluation error alone.
+pub(crate) async fn set_fetch_error(
+    tx: &mut db::Transaction<'_>,
+    jobset_id: i32,
+    error_msg: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsets SET fetchErrorMsg = $2 WHERE id = $1",
+        jobset_id,
+        error_msg,
+    )
+    .execute(tx.raw())
+    .await?;
+    Ok(())
+}
+
+/// Clear `forceEval` and disable a one-shot jobset, after an evaluation that
+/// actually ran.
+pub(crate) async fn finish_jobset_eval(
+    tx: &mut db::Transaction<'_>,
+    jobset_id: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsets SET forceEval = null, \
+           enabled = CASE WHEN enabled = 2 THEN 0 ELSE enabled END \
+         WHERE id = $1",
         jobset_id,
     )
     .execute(tx.raw())
     .await?;
+    Ok(())
+}
 
-    tx.notify_eval_failed(trace, jobset_id, error_msg != previous)
-        .await?;
+/// Record that an evaluation failed, and tell listeners. One transaction,
+/// because `NOTIFY` is delivered on commit.
+pub(crate) async fn fail_jobset_eval(
+    conn: &mut db::Connection,
+    trace: &str,
+    jobset_id: i32,
+    error_msg: &str,
+    now: db::Timestamp,
+) -> Result<(), db::Error> {
+    let mut tx = conn.begin_transaction().await?;
+    clear_trigger_time(tx.raw(), jobset_id).await?;
+    sqlx::query!(
+        "UPDATE jobsets SET startTime = null, lastCheckedTime = $2 WHERE id = $1",
+        jobset_id,
+        now,
+    )
+    .execute(tx.raw())
+    .await?;
+    let changed = set_jobset_error(&mut tx, jobset_id, error_msg, now).await?;
+    tx.notify_eval_failed(trace, jobset_id, changed).await?;
 
     tx.commit().await?;
     Ok(())
@@ -604,9 +575,6 @@ pub(crate) struct JobsetForEval {
     /// The type and value of the input holding `declfile`.
     pub decltype: Option<String>,
     pub declvalue: Option<String>,
-    /// The error the jobset already has, so that an evaluation can say
-    /// whether the one it ends up with is different.
-    pub errormsg: Option<String>,
 }
 
 /// The previous evaluation, for deciding whether to evaluate again.
@@ -646,7 +614,7 @@ pub(crate) struct NewBuild<'a> {
 
 /// The evaluation row, as it is first written: what was evaluated and with
 /// what, before anything is known about the result.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(crate) struct NewEval<'a> {
     pub jobset_id: i32,
     pub checkout_time: i32,
@@ -655,13 +623,13 @@ pub(crate) struct NewEval<'a> {
     pub flake: Option<&'a str>,
     pub nix_expr_input: Option<&'a str>,
     pub nix_expr_path: Option<&'a str>,
-    pub evaluation_error_id: Option<i32>,
 }
 
 /// Record the evaluation itself, returning its id.
 pub(crate) async fn insert_eval(
     tx: &mut db::Transaction<'_>,
     eval: &NewEval<'_>,
+    evaluation_error_id: i32,
 ) -> Result<i32, sqlx::Error> {
     let now = jiff::Timestamp::now().as_second();
 
@@ -681,7 +649,7 @@ pub(crate) async fn insert_eval(
         eval.flake,
         eval.nix_expr_input,
         eval.nix_expr_path,
-        eval.evaluation_error_id,
+        evaluation_error_id,
     )
     .fetch_one(tx.raw())
     .await?
@@ -756,7 +724,7 @@ pub(crate) async fn insert_eval_input(
     name: &str,
     alt_nr: i32,
     input: &crate::inputs::JobsetInput,
-    store_dir: &str,
+    store_dir: &db::StoreDir,
 ) -> Result<(), sqlx::Error> {
     let short_rev_length = input
         .short_rev
@@ -764,13 +732,10 @@ pub(crate) async fn insert_eval_input(
         .and_then(|r| i16::try_from(r.len()).ok());
     // Stored as a full path, which is what the schema's store path columns
     // hold; the fetcher reports bare names.
-    let path = input.store_path.as_deref().map(|p| {
-        if p.starts_with('/') {
-            p.to_owned()
-        } else {
-            format!("{store_dir}/{p}")
-        }
-    });
+    let path = input
+        .store_path
+        .as_deref()
+        .map(|p| crate::nix_eval_jobs::full(store_dir, p));
     sqlx::query!(
         r#"
         INSERT INTO jobsetevalinputs
@@ -895,24 +860,30 @@ pub(crate) async fn insert_build(
     .id)
 }
 
-/// Record a build's outputs. In bulk, because a row at a time dominates
-/// insertion time on a large jobset.
+/// Outputs of the builds an evaluation queued, as parallel columns. Kept
+/// together so they can be written in one statement.
+#[derive(Debug, Default)]
+pub(crate) struct NewOutputs<'a> {
+    pub builds: Vec<i32>,
+    pub names: Vec<&'a str>,
+    pub paths: Vec<Option<&'a str>>,
+}
+
+/// Record the outputs of every build an evaluation queued, in one statement,
+/// because a row at a time dominates insertion time on a large jobset.
 pub(crate) async fn insert_build_outputs(
     tx: &mut db::Transaction<'_>,
-    build: i32,
-    outputs: &[(String, Option<String>)],
+    outputs: &NewOutputs<'_>,
 ) -> Result<(), sqlx::Error> {
-    let names: Vec<String> = outputs.iter().map(|(n, _)| n.clone()).collect();
-    let paths: Vec<Option<String>> = outputs.iter().map(|(_, p)| p.clone()).collect();
     // Unchecked, because the checked macro will not take an array with nulls
     // in it as a parameter, and a content-addressed output's path is null.
     sqlx::query(
         "INSERT INTO buildoutputs (build, name, path) \
-         SELECT $1, * FROM UNNEST($2::text[], $3::text[])",
+         SELECT * FROM UNNEST($1::int[], $2::text[], $3::text[])",
     )
-    .bind(build)
-    .bind(&names)
-    .bind(&paths)
+    .bind(&outputs.builds)
+    .bind(&outputs.names)
+    .bind(&outputs.paths)
     .execute(tx.raw())
     .await?;
     Ok(())

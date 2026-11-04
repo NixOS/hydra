@@ -4,9 +4,10 @@
 //! types are resolved by `hydra-fetch-input` rather than here. Everything
 //! else about an evaluation is ours; this is the one thing we ask for.
 //!
-//! One worker serves a whole evaluation. Starting it costs a second or two --
-//! it loads the schema and instantiates every plugin -- which is worth paying
-//! once and not once per input.
+//! One worker serves a whole evaluation, started for its first plugin input.
+//! Starting it costs a second or two, because it loads the schema and
+//! instantiates every plugin, so it is worth paying once rather than once per
+//! input, and not at all for an evaluation without plugin inputs.
 
 use std::process::Stdio;
 
@@ -29,22 +30,25 @@ struct Request<'a> {
 /// What it answers with: the input's alternatives, or why it could not.
 #[derive(Debug, serde::Deserialize)]
 struct Reply {
-    #[serde(default)]
     inputs: Option<Vec<JobsetInput>>,
-    #[serde(default)]
     error: Option<String>,
 }
 
-/// A running `hydra-fetch-input`.
-#[derive(Debug)]
+/// `hydra-fetch-input`, once something has asked it for an input.
+#[derive(Debug, Default)]
 pub(crate) struct InputFetcher {
+    worker: Option<Worker>,
+}
+
+#[derive(Debug)]
+struct Worker {
     child: Child,
     stdin: ChildStdin,
     stdout: Lines<BufReader<tokio::process::ChildStdout>>,
 }
 
-impl InputFetcher {
-    pub(crate) fn start() -> eyre::Result<Self> {
+impl Worker {
+    fn start() -> eyre::Result<Self> {
         // stderr is inherited on purpose: the worker's diagnostics, and
         // anything a plugin prints, belong in our log.
         let mut child = tokio::process::Command::new("hydra-fetch-input")
@@ -69,7 +73,9 @@ impl InputFetcher {
             stdout: BufReader::new(stdout).lines(),
         })
     }
+}
 
+impl InputFetcher {
     /// Resolve one input of a plugin-provided type.
     ///
     /// An input that fails to fetch is an error for that input alone; the
@@ -91,13 +97,18 @@ impl InputFetcher {
         })
         .wrap_err("failed to encode an input request")?;
 
-        self.stdin
+        let worker = match &mut self.worker {
+            Some(worker) => worker,
+            None => self.worker.insert(Worker::start()?),
+        };
+        worker
+            .stdin
             .write_all(format!("{request}\n").as_bytes())
             .await
             .wrap_err("failed to send an input request")?;
-        self.stdin.flush().await?;
+        worker.stdin.flush().await?;
 
-        let line = self
+        let line = worker
             .stdout
             .next_line()
             .await
@@ -117,9 +128,12 @@ impl InputFetcher {
     }
 
     /// Close the pipe and wait, so the worker is not left behind.
-    pub(crate) async fn shutdown(mut self) {
-        drop(self.stdin);
-        if let Err(e) = self.child.wait().await {
+    pub(crate) async fn shutdown(self) {
+        let Some(mut worker) = self.worker else {
+            return;
+        };
+        drop(worker.stdin);
+        if let Err(e) = worker.child.wait().await {
             tracing::warn!("hydra-fetch-input did not exit cleanly: {e}");
         }
     }

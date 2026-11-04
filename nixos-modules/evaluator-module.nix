@@ -168,7 +168,6 @@ in
         config.nix.package
         cfg.nixEvalJobsPackage
         # Nix's git fetcher execs `git`, which needs `ssh` for ssh:// remotes.
-        # hydra-eval-jobset's wrapper used to provide both.
         gitMinimal
         openssh
       ];
