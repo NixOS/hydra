@@ -41,7 +41,7 @@
   <div class="form-group row">
     <label class="col-sm-3" for="editprojecthomepage">Homepage</label>
     <div class="col-sm-9">
-      <input type="text" class="form-control" id="editprojecthomepage" name="homepage" [% HTML.attributes(value => project.homepage) %]/>
+      <input type="text" class="form-control" id="editprojecthomepage" name="homepage" [% HTML.attributes(value => project.homepage.text) %]/>
     </div>
   </div>
 
