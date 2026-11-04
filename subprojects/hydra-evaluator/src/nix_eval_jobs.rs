@@ -1,8 +1,7 @@
 //! Running `nix-eval-jobs` over a jobset's resolved inputs.
 //!
 //! The arguments describe the evaluation, so they are built separately from
-//! running it: the same description is what the dedup hash is taken over, and
-//! what would be handed to something else to run.
+//! running it.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -10,6 +9,7 @@ use std::process::Stdio;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use db::StoreDir;
+use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncBufReadExt as _, BufReader};
 
 use crate::config::HydraConfig;
@@ -53,10 +53,6 @@ pub(crate) struct Job {
 }
 
 /// Assemble the `nix-eval-jobs` command line for a jobset.
-///
-/// Separate from running it because the arguments describe the evaluation
-/// regardless of who performs it: they are also what the deduplication hash
-/// is computed over.
 pub(crate) fn command(
     store_dir: &StoreDir,
     config: &HydraConfig,
@@ -118,6 +114,23 @@ pub(crate) fn command(
     ]);
 
     Ok(cmd)
+}
+
+/// The hash that decides whether these inputs were evaluated before. It
+/// covers the expression and the input arguments and is computed exactly as
+/// the Perl did, so evaluations the Perl recorded still count. Flakes are
+/// compared separately, by their locked reference.
+pub(crate) fn input_hash(
+    store_dir: &StoreDir,
+    inputs: &InputInfo,
+    expr: &Expression<'_>,
+) -> eyre::Result<String> {
+    let mut args = vec![
+        expr.nix_expr_input.unwrap_or_default().to_owned(),
+        expr.nix_expr_path.unwrap_or_default().to_owned(),
+    ];
+    args.extend(inputs_to_args(store_dir, inputs)?);
+    Ok(hex::encode(Sha256::digest(args.join(" ").as_bytes())))
 }
 
 /// Turn the resolved inputs into the arguments that make them visible to the
@@ -185,24 +198,24 @@ fn build_input_to_string(store_dir: &StoreDir, input: &JobsetInput) -> String {
         input.r#type.as_deref().unwrap_or("")
     );
 
-    let mut quoted = |key: &str, value: &Option<String>| {
+    // In the Perl's order, which the input hash depends on.
+    let quoted = |s: &mut String, key: &str, value: &Option<String>| {
         if let Some(v) = value {
             let _ = write!(s, "; {key} = \"{v}\"");
         }
     };
-    quoted("uri", &input.uri);
-    quoted("rev", &input.revision);
-    quoted("gitTag", &input.git_tag);
-    quoted("shortRev", &input.short_rev);
-    quoted("version", &input.version);
-    quoted("outputName", &input.output_name);
-
+    quoted(&mut s, "uri", &input.uri);
     if let Some(n) = input.rev_number {
         let _ = write!(s, "; rev = {n}");
     }
+    quoted(&mut s, "rev", &input.revision);
     if let Some(n) = input.rev_count {
         let _ = write!(s, "; revCount = {n}");
     }
+    quoted(&mut s, "gitTag", &input.git_tag);
+    quoted(&mut s, "shortRev", &input.short_rev);
+    quoted(&mut s, "version", &input.version);
+    quoted(&mut s, "outputName", &input.output_name);
     if let Some(drv) = &input.drv_path {
         let _ = write!(s, "; drvPath = builtins.storePath {}", full(store_dir, drv));
     }
@@ -221,17 +234,23 @@ pub(crate) fn full(store_dir: &StoreDir, path: &str) -> String {
     }
 }
 
-/// Run `nix-eval-jobs` and hand back the jobs it reports, one at a time.
+/// Run `nix-eval-jobs` and hand back the jobs it reports.
+///
+/// It roots each derivation in `gc_roots_dir` as it goes, so the garbage
+/// collector cannot delete one before the builds that need it are queued.
 ///
 /// Its stderr is inherited: diagnostics are how an evaluation explains
 /// itself, and they belong in the log rather than buffered up here.
-pub(crate) async fn run(cmd: &[String]) -> eyre::Result<Vec<Job>> {
+pub(crate) async fn run(cmd: &[String], gc_roots_dir: &std::path::Path) -> eyre::Result<Vec<Job>> {
     // NIX_PATH is cleared so that an evaluation depends on its declared
     // inputs and nothing about the machine it runs on.
     let mut child = tokio::process::Command::new("nix-eval-jobs")
         .args(cmd)
+        .arg("--gc-roots-dir")
+        .arg(gc_roots_dir)
         .env_remove("NIX_PATH")
         .stdout(Stdio::piped())
+        .kill_on_drop(true)
         .spawn()
         .wrap_err("failed to start nix-eval-jobs")?;
 

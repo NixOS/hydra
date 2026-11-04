@@ -30,8 +30,10 @@ These components all share a single Nix store and PostgreSQL database on the mas
     - adds new builds to the queue when evaluation results change
 - **`hydra-fetch-input`** (Perl)
     - fetches one jobset input of a plugin-provided type, on the evaluator's behalf
-    - the only Perl left in the evaluation path, because input types are a
-      plugin interface; it touches nothing but the plugins' own cache tables
+    - stays Perl because input types are a plugin interface;
+      it touches nothing but the plugins' own cache tables
+- **`hydra-prepare-declarative-jobset`** (Perl)
+    - applies a declarative project's specification before its `.jobsets` jobset is evaluated
 - **`hydra-queue-runner`** (Rust)
     - reads `.drv` files from the coordinator's Nix store
     - schedules build steps across builders

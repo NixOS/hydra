@@ -122,8 +122,7 @@ impl HydraConfig {
         self.roots_dir.as_deref()
     }
 
-    /// At least one, so that a configuration of zero does not stop the
-    /// evaluator rather than slowing it down.
+    /// At least one, because zero would never evaluate anything.
     pub(crate) fn max_concurrent_evals(&self) -> usize {
         usize::try_from(self.max_concurrent_evals.max(1)).unwrap_or(usize::MAX)
     }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT b.id, b.releasename, b.nixname,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE b.id = $1",
+  "query": "\n        SELECT b.id, b.releasename, b.nixname, b.drvpath,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        LEFT JOIN LATERAL (\n          SELECT path, name FROM buildoutputs WHERE build = b.id\n          ORDER BY name <> 'out', name LIMIT 1) o ON true\n        WHERE b.id = $1",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "drvpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "drvpath"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "out_path?",
         "type_info": "Text",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "out_name?",
         "type_info": "Text",
         "origin": {
@@ -68,9 +79,10 @@
       false,
       true,
       true,
+      false,
       true,
       true
     ]
   },
-  "hash": "e85a9cb7b5c47829f466c96b34ebca5fd36a6739e4ac88b734ff78adf5df58d3"
+  "hash": "77c9e9032e3c7eaa50b84b523c87ace236c793d74305f5d532a5063bcc83e917"
 }
