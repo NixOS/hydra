@@ -1,6 +1,7 @@
 //! What the evaluator is configured with.
 //!
 //! Its own file, as the queue runner and the builder have theirs.
+//! `Hydra::Config` warns about any of these settings left in `hydra.conf`.
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ConfigError {
@@ -19,12 +20,59 @@ pub(crate) enum ConfigError {
     },
 }
 
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct HydraConfig {
+    /// Whether jobsets may import from derivations. Off unless asked for,
+    /// because it lets an evaluation demand builds.
+    #[serde(default)]
+    allow_import_from_derivation: bool,
+
+    /// Whether non-flake jobsets may be evaluated without `restrict-eval`.
+    #[serde(default)]
+    allow_unrestricted_eval: bool,
+
+    /// How many `nix-eval-jobs` workers to run.
+    #[serde(default = "default_workers")]
+    evaluator_workers: u64,
+
+    /// The memory each of them may use, in MiB, before it is restarted.
+    #[serde(default = "default_max_memory_size")]
+    evaluator_max_memory_size: u64,
+
+    /// How many builds an evaluation may run locally, which matters for
+    /// import-from-derivation.
+    #[serde(default = "default_max_jobs")]
+    evaluator_max_jobs: u64,
+
     /// How many jobsets to evaluate at once.
     #[serde(default = "default_max_concurrent_evals")]
     max_concurrent_evals: u64,
+
+    /// Where to fetch a build's output from when a `build` or `sysbuild`
+    /// input names one this machine does not have. Unset means the store is
+    /// expected to have everything already.
+    #[serde(default)]
+    eval_substituter: Option<String>,
+
+    /// Where to root the evaluated derivations. This must be the
+    /// `gc_roots_dir` of `hydra.conf`, which `hydra-update-gc-roots` tidies.
+    /// Unset means `<state dir>/gcroots/per-user/$LOGNAME/hydra-roots`, as for
+    /// the queue runner.
+    #[serde(default)]
+    roots_dir: Option<std::path::PathBuf>,
+}
+
+fn default_workers() -> u64 {
+    1
+}
+
+fn default_max_memory_size() -> u64 {
+    4096
+}
+
+fn default_max_jobs() -> u64 {
+    1
 }
 
 fn default_max_concurrent_evals() -> u64 {
@@ -40,9 +88,10 @@ impl HydraConfig {
     pub(crate) fn load(path: &str) -> Result<Self, ConfigError> {
         let contents = match fs_err::read_to_string(path) {
             Ok(contents) => contents,
+            // Parsed as empty, so the serde defaults apply.
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 tracing::info!("no configuration at {path}, using defaults");
-                return Ok(Self::default());
+                String::new()
             }
             Err(source) => {
                 return Err(ConfigError::Io {
@@ -58,8 +107,35 @@ impl HydraConfig {
         })
     }
 
-    /// At least one, so that a configuration of zero slows the evaluator down
-    /// rather than stopping it.
+    pub(crate) fn allow_import_from_derivation(&self) -> bool {
+        self.allow_import_from_derivation
+    }
+
+    pub(crate) fn allow_unrestricted_eval(&self) -> bool {
+        self.allow_unrestricted_eval
+    }
+
+    pub(crate) fn evaluator_workers(&self) -> u64 {
+        self.evaluator_workers
+    }
+
+    pub(crate) fn evaluator_max_memory_size(&self) -> u64 {
+        self.evaluator_max_memory_size
+    }
+
+    pub(crate) fn evaluator_max_jobs(&self) -> u64 {
+        self.evaluator_max_jobs
+    }
+
+    pub(crate) fn eval_substituter(&self) -> Option<&str> {
+        self.eval_substituter.as_deref()
+    }
+
+    pub(crate) fn roots_dir(&self) -> Option<&std::path::Path> {
+        self.roots_dir.as_deref()
+    }
+
+    /// At least one, because zero would never evaluate anything.
     pub(crate) fn max_concurrent_evals(&self) -> usize {
         usize::try_from(self.max_concurrent_evals.max(1)).unwrap_or(usize::MAX)
     }

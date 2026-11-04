@@ -63,17 +63,66 @@ in
 
       package = mkOption {
         type = types.package;
+        default = pkgs.hydraComponents.hydra-evaluator;
+        defaultText = literalExpression "pkgs.hydraComponents.hydra-evaluator";
         description = "The `hydra-evaluator` package.";
+      };
+
+      nixEvalJobsPackage = mkOption {
+        type = types.package;
+        default = pkgs.hydraComponents.nix-eval-jobs;
+        defaultText = literalExpression "pkgs.hydraComponents.nix-eval-jobs";
+        description = "The `nix-eval-jobs` package the evaluator runs.";
       };
 
       settings = mkOption {
         type = types.submodule {
           freeformType = format.type;
           options = {
+            allow_import_from_derivation = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Whether jobsets may import from derivations.
+                Off unless asked for, because it lets an evaluation demand builds.
+              '';
+            };
+            allow_unrestricted_eval = mkOption {
+              type = types.bool;
+              default = false;
+              description = ''
+                Whether non-flake jobsets are evaluated without `restrict-eval`.
+                Off unless asked for, because it lets an evaluation read any path and URL.
+              '';
+            };
+            evaluator_workers = mkOption {
+              type = types.ints.positive;
+              default = 1;
+              description = "How many `nix-eval-jobs` workers to run.";
+            };
+            evaluator_max_memory_size = mkOption {
+              type = types.ints.positive;
+              default = 4096;
+              description = "The memory each worker may use, in MiB, before it is restarted.";
+            };
+            evaluator_max_jobs = mkOption {
+              type = types.ints.unsigned;
+              default = 1;
+              description = "How many builds an evaluation may run locally, e.g. for import-from-derivation. 0 forbids local builds.";
+            };
             max_concurrent_evals = mkOption {
               type = types.ints.positive;
               default = 4;
               description = "How many jobsets to evaluate at once.";
+            };
+            roots_dir = mkOption {
+              type = types.path;
+              default = webCfg.gcRootsDir;
+              defaultText = literalExpression "config.services.hydra-dev.gcRootsDir";
+              description = ''
+                Where to root the evaluated derivations.
+                It must be the directory `hydra-update-gc-roots` tidies.
+              '';
             };
           };
         };
@@ -118,10 +167,14 @@ in
       ];
       path = with pkgs; [
         hostname-debian
-        # Because hydra-evaluator calls `hydra-eval-jobset`. If we
-        # move that perl script into rust, then we can get rid of
-        # this.
+        # Because hydra-evaluator calls `hydra-fetch-input`, which is Perl
+        # and must stay so: input types are a plugin interface.
         webCfg.package
+        config.nix.package
+        cfg.nixEvalJobsPackage
+        # Nix's git fetcher execs `git`, which needs `ssh` for ssh:// remotes.
+        gitMinimal
+        openssh
       ];
       environment = env // {
         HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";

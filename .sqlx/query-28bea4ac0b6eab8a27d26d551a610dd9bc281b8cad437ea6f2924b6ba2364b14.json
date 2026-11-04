@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO aggregateconstituents (aggregate, constituent)\n        VALUES ($1, $2)\n        ON CONFLICT (aggregate, constituent) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "28bea4ac0b6eab8a27d26d551a610dd9bc281b8cad437ea6f2924b6ba2364b14"
+}
