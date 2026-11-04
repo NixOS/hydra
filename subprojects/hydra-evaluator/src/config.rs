@@ -20,7 +20,7 @@ pub(crate) enum ConfigError {
     },
 }
 
-#[derive(Debug, Default, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct HydraConfig {
     /// Whether jobsets may import from derivations. Off unless asked for,
@@ -79,9 +79,10 @@ impl HydraConfig {
     pub(crate) fn load(path: &str) -> Result<Self, ConfigError> {
         let contents = match fs_err::read_to_string(path) {
             Ok(contents) => contents,
+            // Parsed as empty, so the serde defaults apply.
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 tracing::info!("no configuration at {path}, using defaults");
-                return Ok(Self::default());
+                String::new()
             }
             Err(source) => {
                 return Err(ConfigError::Io {
