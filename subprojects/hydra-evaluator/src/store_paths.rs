@@ -10,29 +10,27 @@
 //! configured, and checked again. An input whose build is unavailable
 //! contributes nothing.
 //!
-//! Both are asked of the `nix` command rather than the daemon: the command
-//! talks to whatever store `NIX_REMOTE` names, daemon or not, so this works
-//! wherever `nix copy` does.
+//! Validity is asked of the nix-daemon, as the queue runner asks it. Fetching
+//! is `nix copy`, which the daemon protocol has no equivalent for.
 
+use daemon_client_utils::DaemonStoreReader;
 use db::StoreDir;
+use harmonia_store_path::StorePath;
 
 /// Whether a build's output can be given to an evaluation.
 #[derive(Debug)]
 pub(crate) struct Availability {
-    store_dir: StoreDir,
+    store: DaemonStoreReader,
     substituter: Option<String>,
 }
 
 impl Availability {
-    pub(crate) fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
-        Self {
-            store_dir,
-            substituter,
-        }
+    pub(crate) fn new(store: DaemonStoreReader, substituter: Option<String>) -> Self {
+        Self { store, substituter }
     }
 
     pub(crate) fn store_dir(&self) -> &StoreDir {
-        &self.store_dir
+        self.store.store_dir()
     }
 
     /// Whether `path` is in the store, fetching it first if it is not and a
@@ -43,10 +41,8 @@ impl Availability {
     /// Logged rather than raised, because a jobset with one stale `build`
     /// input should still evaluate.
     pub(crate) async fn is_available(&self, path: &str) -> bool {
-        // Anything malformed fails the check.
-        let full = crate::nix_eval_jobs::full(&self.store_dir, path);
-
-        if is_valid(&full).await {
+        let full = crate::nix_eval_jobs::full(self.store_dir(), path);
+        if self.check(&full).await {
             return true;
         }
         let Some(substituter) = &self.substituter else {
@@ -72,20 +68,27 @@ impl Availability {
             Err(e) => tracing::warn!("could not run nix copy: {e}"),
         }
 
-        is_valid(&full).await
+        self.check(&full).await
     }
 
     /// Whether `path` is in the store already, without fetching it.
     pub(crate) async fn is_valid(&self, path: &str) -> bool {
-        is_valid(&crate::nix_eval_jobs::full(&self.store_dir, path)).await
+        self.check(&crate::nix_eval_jobs::full(self.store_dir(), path))
+            .await
     }
-}
 
-async fn is_valid(full: &str) -> bool {
-    tokio::process::Command::new("nix-store")
-        .args(["--check-validity", "--", full])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .is_ok_and(|s| s.success())
+    /// Whether the full store path `full` is valid. A path that does not
+    /// parse, or a daemon that cannot answer, counts as no.
+    async fn check(&self, full: &str) -> bool {
+        let Ok(store_path) = self.store_dir().parse::<StorePath>(full) else {
+            return false;
+        };
+        match self.store.is_valid_path(&store_path).await {
+            Ok(valid) => valid,
+            Err(e) => {
+                tracing::warn!("could not ask the nix-daemon whether `{full}' is valid: {e}");
+                false
+            }
+        }
+    }
 }

@@ -73,7 +73,10 @@ async fn main() -> color_eyre::Result<()> {
     let remote = daemon_client_utils::parse_nix_remote()
         .map_err(|e| eyre::eyre!("could not work out which store to use: {e}"))?;
     let available = store_paths::Availability::new(
-        remote.store_dir.clone(),
+        daemon_client_utils::DaemonStoreReader::new(daemon_client_utils::DaemonConnector::new(
+            remote.socket.clone(),
+            remote.store_dir.clone(),
+        )),
         config.eval_substituter().map(str::to_owned),
     );
     let roots_dir = match config.roots_dir() {

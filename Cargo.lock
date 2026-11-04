@@ -1889,6 +1889,7 @@ dependencies = [
  "db",
  "fs-err",
  "futures",
+ "harmonia-store-path",
  "hex",
  "hydra-tracing",
  "jiff",
