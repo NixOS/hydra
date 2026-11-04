@@ -36,6 +36,23 @@ jobs:
     - run: nix-build -A checks.${{ matrix.system }}.rustTests
     - run: nix-build -A checks.${{ matrix.system }}.systemTests
 
+  # Only the builder is deployed on darwin; its macOS-only code paths are
+  # never compiled on the Linux jobs.
+  darwin-builder:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+    - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+      with:
+        name: hydra-test-cache
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - uses: Mic92/hestia@dfed9ced335d28978ba74e513939a10db1f71025 # v3.1.0
+    - run: nix-build -A packages.aarch64-darwin.hydra-builder
+
   # NixOS VM tests need KVM, which GitHub only provides on x86_64 runners.
   nixos-tests:
     strategy:

@@ -1,4 +1,5 @@
 use color_eyre::eyre;
+#[cfg(target_os = "linux")]
 use hashbrown::HashMap;
 
 #[cfg(target_os = "linux")]
@@ -33,9 +34,11 @@ impl BaseSystemInfo {
     #[cfg(target_os = "macos")]
     #[tracing::instrument(err)]
     pub fn new() -> eyre::Result<Self> {
-        let mut sys = sysinfo::System::new_all();
-        sys.refresh_memory();
-        sys.refresh_cpu_all();
+        let sys = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::nothing()
+                .with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram())
+                .with_cpu(sysinfo::CpuRefreshKind::nothing()),
+        )?;
 
         Ok(Self {
             cpu_count: sys.cpus().len(),
@@ -176,9 +179,11 @@ impl SystemLoad {
     #[cfg(target_os = "macos")]
     #[tracing::instrument(err)]
     pub fn new(build_dir: &str, store_dir: &str) -> eyre::Result<Self> {
-        let mut sys = sysinfo::System::new_all();
-        sys.refresh_memory();
-        let load = sysinfo::System::load_average();
+        let sys = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::nothing()
+                .with_memory(sysinfo::MemoryRefreshKind::nothing().with_ram()),
+        )?;
+        let load = sysinfo::System::load_average()?;
 
         Ok(Self {
             load_avg_1: load.one as f32,
