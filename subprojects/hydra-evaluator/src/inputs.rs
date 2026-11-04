@@ -112,8 +112,8 @@ pub(crate) struct ConfiguredInput {
 
 /// Resolve every input of a jobset.
 ///
-/// An input that cannot be resolved is fatal, as it was before: an
-/// evaluation missing one of its inputs is not an evaluation of anything.
+/// An input that cannot be resolved is fatal, because an evaluation missing
+/// one of its inputs is not an evaluation of anything.
 pub(crate) async fn resolve(
     conn: &mut db::Connection,
     fetcher: &mut InputFetcher,
@@ -160,17 +160,17 @@ async fn resolve_one(
     jobset: &str,
     input: &ConfiguredInput,
 ) -> eyre::Result<Vec<JobsetInput>> {
+    let value = || {
+        input
+            .value
+            .as_deref()
+            .ok_or_else(|| eyre::eyre!("`{}` inputs need a value", input.r#type))
+    };
     match input.r#type.as_str() {
-        "string" | "nix" => {
-            let value = input
-                .value
-                .clone()
-                .ok_or_else(|| eyre::eyre!("a `{}` input needs a value", input.r#type))?;
-            Ok(vec![JobsetInput {
-                value: Some(value),
-                ..Default::default()
-            }])
-        }
+        "string" | "nix" => Ok(vec![JobsetInput {
+            value: Some(value()?.to_owned()),
+            ..Default::default()
+        }]),
 
         "boolean" => {
             let value = input.value.as_deref().unwrap_or_default();
@@ -184,32 +184,18 @@ async fn resolve_one(
             }])
         }
 
-        "build" => {
-            let value = input
-                .value
-                .as_deref()
-                .ok_or_else(|| eyre::eyre!("a `build` input needs a value"))?;
-            resolve_build(conn, available, project, jobset, value).await
-        }
+        "build" => resolve_build(conn, available, project, jobset, value()?).await,
 
         // The most recent successful build of the job for each system. The
         // Perl asked `$db->resultset('LatestSucceededForJobName')`, which
         // exists nowhere, so this input type could only ever die; this is
         // what it evidently meant.
         "sysbuild" => {
-            let value = input
-                .value
-                .as_deref()
-                .ok_or_else(|| eyre::eyre!("a `sysbuild` input needs a value"))?;
-            let (p, j, job) = split_job_name(project, jobset, value);
+            let (p, j, job) = split_job_name(project, jobset, value()?);
             let builds = queries::get_latest_succeeded_build_per_system(conn, &p, &j, &job).await?;
             let mut usable = Vec::new();
             for build in &builds {
-                if let Some(path) = &build.out_path
-                    && available.is_available(path).await
-                {
-                    usable.push(from_build(available, build).await);
-                }
+                usable.extend(usable_build(available, build).await);
             }
             if usable.is_empty() {
                 tracing::info!("input `{}': no previous build available", input.name);
@@ -217,13 +203,7 @@ async fn resolve_one(
             Ok(usable)
         }
 
-        "eval" => {
-            let value = input
-                .value
-                .as_deref()
-                .ok_or_else(|| eyre::eyre!("an `eval` input needs a value"))?;
-            resolve_eval(conn, value).await
-        }
+        "eval" => resolve_eval(conn, value()?).await,
 
         _ => {
             // Plugin territory.
@@ -256,17 +236,10 @@ async fn resolve_build(
         queries::get_latest_succeeded_build(conn, &p, &j, &job).await?
     };
 
-    // No build, or one whose output is not in the store, is not an error: it
-    // means this input has nothing to contribute yet. The output has to be
-    // there and not merely recorded, since the expression is handed it as a
-    // `builtins.storePath`.
+    // No build, or an unusable one, is not an error: it means this input has
+    // nothing to contribute yet.
     Ok(match build {
-        Some(build) => match &build.out_path {
-            Some(path) if available.is_available(path).await => {
-                vec![from_build(available, &build).await]
-            }
-            _ => vec![],
-        },
+        Some(build) => usable_build(available, &build).await.into_iter().collect(),
         None => vec![],
     })
 }
@@ -283,11 +256,11 @@ async fn resolve_eval(conn: &mut db::Connection, value: &str) -> eyre::Result<Ve
         (Ok(id), _) => queries::get_eval_by_id(conn, id)
             .await?
             .ok_or_else(|| eyre::eyre!("evaluation {id} does not exist"))?,
-        (_, [project, jobset]) => queries::get_latest_finished_eval(conn, project, jobset)
+        (_, [project, jobset]) => queries::get_latest_finished_eval(conn, project, jobset, None)
             .await?
             .ok_or_else(|| eyre::eyre!("jobset `{value}' does not have a finished evaluation"))?,
         (_, [project, jobset, job]) => {
-            queries::get_latest_finished_eval_with_job(conn, project, jobset, job)
+            queries::get_latest_finished_eval(conn, project, jobset, Some(job))
                 .await?
                 .ok_or_else(|| {
                     eyre::eyre!(
@@ -320,15 +293,21 @@ fn split_job_name(project: &str, jobset: &str, value: &str) -> (String, String, 
     }
 }
 
-/// Describe a build to the Nix expression the way the Perl did.
-async fn from_build(available: &Availability, build: &InputBuild) -> JobsetInput {
+/// Describe a build to the Nix expression the way the Perl did, if its output
+/// is in the store. The output has to be there and not merely recorded, since
+/// the expression is handed it as a `builtins.storePath`.
+async fn usable_build(available: &Availability, build: &InputBuild) -> Option<JobsetInput> {
+    let out_path = build.out_path.as_deref()?;
+    if !available.is_available(out_path).await {
+        return None;
+    }
     let name = build
         .releasename
         .as_deref()
         .filter(|n| !n.is_empty())
         .or(build.nixname.as_deref());
-    JobsetInput {
-        store_path: build.out_path.clone(),
+    Some(JobsetInput {
+        store_path: Some(out_path.to_owned()),
         id: Some(build.id),
         version: name.and_then(version_of).map(str::to_owned),
         output_name: build.out_name.clone(),
@@ -339,7 +318,7 @@ async fn from_build(available: &Availability, build: &InputBuild) -> JobsetInput
             .await
             .then(|| build.drvpath.clone()),
         ..Default::default()
-    }
+    })
 }
 
 /// The version part of a `name-version` release name, if it looks like one.

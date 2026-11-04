@@ -8,7 +8,7 @@
 //!
 //! So the path is checked, fetched from `eval_substituter` if one is
 //! configured, and checked again. An input whose build is unavailable
-//! contributes nothing, which is what it did before this was Rust.
+//! contributes nothing.
 //!
 //! Both are asked of the `nix` command rather than the daemon: the command
 //! talks to whatever store `NIX_REMOTE` names, daemon or not, so this works
