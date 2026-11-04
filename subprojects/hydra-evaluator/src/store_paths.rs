@@ -13,6 +13,10 @@
 //! Both are asked of the `nix` command rather than the daemon: the command
 //! talks to whatever store `NIX_REMOTE` names, daemon or not, so this works
 //! wherever `nix copy` does.
+//!
+//! TODO: ask the nix-daemon for validity, as the queue runner does. That needs
+//! the evaluator to always have a daemon, including in the tests, which run it
+//! against a `local?root=` store.
 
 use db::StoreDir;
 
