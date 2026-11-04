@@ -126,7 +126,7 @@ pub(crate) async fn resolve(
 
     for input in configured {
         tracing::info!(
-            "({project}:{jobset}) fetching input `{}` ({}) {}",
+            "fetching input `{}` ({}) {}",
             input.name,
             input.r#type,
             input.value.as_deref().unwrap_or("")

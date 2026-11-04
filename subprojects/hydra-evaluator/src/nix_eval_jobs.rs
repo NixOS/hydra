@@ -233,8 +233,8 @@ pub(crate) fn full(store_dir: &StoreDir, path: &str) -> String {
 /// It roots each derivation in `gc_roots_dir` as it goes, so the garbage
 /// collector cannot delete one before the builds that need it are queued.
 ///
-/// Its stderr is inherited: diagnostics are how an evaluation explains
-/// itself, and they belong in the log rather than buffered up here.
+/// Its stderr is logged at debug, and its tail ends up in the error if it
+/// fails, so the jobset shows why.
 pub(crate) async fn run(cmd: &[String], gc_roots_dir: &std::path::Path) -> eyre::Result<Vec<Job>> {
     // NIX_PATH is cleared so that an evaluation depends on its declared
     // inputs and nothing about the machine it runs on.
@@ -244,9 +244,12 @@ pub(crate) async fn run(cmd: &[String], gc_roots_dir: &std::path::Path) -> eyre:
         .arg(gc_roots_dir)
         .env_remove("NIX_PATH")
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .wrap_err("failed to start nix-eval-jobs")?;
+
+    let stderr_tail = crate::forward_stderr("nix-eval-jobs", &mut child)?;
 
     let stdout = child
         .stdout
@@ -268,7 +271,13 @@ pub(crate) async fn run(cmd: &[String], gc_roots_dir: &std::path::Path) -> eyre:
     }
 
     let status = child.wait().await?;
-    eyre::ensure!(status.success(), "nix-eval-jobs failed: {status}");
+    if !status.success() {
+        let tail = stderr_tail.await.unwrap_or_default();
+        if tail.is_empty() {
+            eyre::bail!("nix-eval-jobs failed: {status}");
+        }
+        eyre::bail!("nix-eval-jobs failed: {status}\n{tail}");
+    }
 
     Ok(jobs)
 }

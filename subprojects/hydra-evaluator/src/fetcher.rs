@@ -49,11 +49,12 @@ struct Worker {
 
 impl Worker {
     fn start() -> eyre::Result<Self> {
-        // stderr is inherited on purpose: the worker's diagnostics, and
-        // anything a plugin prints, belong in our log.
+        // The worker's diagnostics, and anything a plugin prints, are logged
+        // at debug. Errors that matter come back in the reply.
         let mut child = tokio::process::Command::new("hydra-fetch-input")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .wrap_err("failed to start hydra-fetch-input")?;
@@ -66,6 +67,7 @@ impl Worker {
             .stdout
             .take()
             .ok_or_else(|| eyre::eyre!("hydra-fetch-input has no stdout"))?;
+        crate::forward_stderr("hydra-fetch-input", &mut child)?;
 
         Ok(Self {
             child,

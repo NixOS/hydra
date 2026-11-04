@@ -173,7 +173,6 @@ pub(crate) async fn evaluate(
         Err(e) => {
             fetcher.shutdown().await;
             let message = format!("{e:#}");
-            tracing::warn!("({project}:{jobset}) {message}");
             let mut tx = conn.begin_transaction().await?;
             queries::set_fetch_error(&mut tx, meta.id, Some(&message)).await?;
             // A fetch error leaves `errormsg` unchanged, so the notification
@@ -198,7 +197,7 @@ pub(crate) async fn evaluate(
         && (flake.is_none() || previous.flake == flake)
     {
         fetcher.shutdown().await;
-        tracing::info!("({project}:{jobset}) already evaluated these inputs");
+        tracing::info!("already evaluated these inputs");
         let mut tx = conn.begin_transaction().await?;
         queries::set_fetch_error(&mut tx, meta.id, None).await?;
         tx.notify_eval_cached(trace, meta.id, previous.id).await?;
@@ -212,7 +211,7 @@ pub(crate) async fn evaluate(
     // long enough that holding a pooled connection would starve the others.
     drop(conn);
 
-    tracing::info!("({project}:{jobset}) evaluating");
+    tracing::info!("evaluating");
     let cmd = nix_eval_jobs::command(available.store_dir(), config, &resolved, &expr)?;
     let eval_start = std::time::Instant::now();
     let jobs = nix_eval_jobs::run(&cmd, roots_dir).await?;

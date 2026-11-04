@@ -32,7 +32,7 @@ pub(crate) async fn apply(project: &str, spec_file: &str) -> eyre::Result<bool> 
     }
     // Even on success, stderr can report jobsets that failed to apply.
     if !stderr.trim().is_empty() {
-        tracing::warn!("hydra-prepare-declarative-jobset: {}", stderr.trim_end());
+        tracing::debug!("hydra-prepare-declarative-jobset: {}", stderr.trim_end());
     }
 
     let reply: Reply = serde_json::from_slice(&out.stdout)
