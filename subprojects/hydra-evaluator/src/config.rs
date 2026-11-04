@@ -40,6 +40,11 @@ pub(crate) struct HydraConfig {
     #[serde(default = "default_max_memory_size")]
     evaluator_max_memory_size: u64,
 
+    /// How many builds an evaluation may run locally, which matters for
+    /// import-from-derivation.
+    #[serde(default = "default_max_jobs")]
+    evaluator_max_jobs: u64,
+
     /// How many jobsets to evaluate at once.
     #[serde(default = "default_max_concurrent_evals")]
     max_concurrent_evals: u64,
@@ -64,6 +69,10 @@ fn default_workers() -> u64 {
 
 fn default_max_memory_size() -> u64 {
     4096
+}
+
+fn default_max_jobs() -> u64 {
+    1
 }
 
 fn default_max_concurrent_evals() -> u64 {
@@ -112,6 +121,10 @@ impl HydraConfig {
 
     pub(crate) fn evaluator_max_memory_size(&self) -> u64 {
         self.evaluator_max_memory_size
+    }
+
+    pub(crate) fn evaluator_max_jobs(&self) -> u64 {
+        self.evaluator_max_jobs
     }
 
     pub(crate) fn eval_substituter(&self) -> Option<&str> {
