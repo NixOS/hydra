@@ -92,7 +92,10 @@ pub(crate) fn command(
         cmd.extend(inputs_to_args(store_dir, inputs)?);
     }
 
-    cmd.extend(["--max-jobs", "1"].map(str::to_owned));
+    cmd.extend([
+        "--max-jobs".to_owned(),
+        config.evaluator_max_jobs().to_string(),
+    ]);
     cmd.push("--meta".to_owned());
     cmd.push("--constituents".to_owned());
     cmd.push("--force-recurse".to_owned());

@@ -105,6 +105,11 @@ in
               default = 4096;
               description = "The memory each worker may use, in MiB, before it is restarted.";
             };
+            evaluator_max_jobs = mkOption {
+              type = types.ints.unsigned;
+              default = 1;
+              description = "How many builds an evaluation may run locally, e.g. for import-from-derivation. 0 forbids local builds.";
+            };
             max_concurrent_evals = mkOption {
               type = types.ints.positive;
               default = 4;
