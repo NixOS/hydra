@@ -3,7 +3,10 @@
   lib,
   version,
 
+  hydra-perl,
   hydra,
+  hydra-notify,
+  hydra-evaluator-helpers,
   hydra-queue-runner,
   hydra-builder,
   hydra-ad-hoc,
@@ -63,6 +66,8 @@ stdenv.mkDerivation (finalAttrs: {
     meson
     ninja
     hydra
+    hydra-notify
+    hydra-evaluator-helpers
     hydra-queue-runner
     hydra-builder
     hydra-ad-hoc
@@ -108,7 +113,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   mesonBuildType = "release";
   mesonFlags = [
-    "-Dhydra_home=${hydra}/libexec/hydra"
+    "-Dhydra_home=${hydra-perl}/libexec/hydra"
   ];
 
   doCheck = true;

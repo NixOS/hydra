@@ -16,7 +16,7 @@ let
 
   inherit
     (import ./web-app-env.nix {
-      inherit lib;
+      inherit lib pkgs;
       cfg = webCfg;
     })
     baseDir
@@ -64,6 +64,11 @@ in
       package = mkOption {
         type = types.package;
         description = "The `hydra-evaluator` package.";
+      };
+
+      helpersPackage = mkOption {
+        type = types.package;
+        description = "The package providing `hydra-eval-jobset`, which the evaluator runs.";
       };
 
       settings = mkOption {
@@ -121,7 +126,7 @@ in
         # Because hydra-evaluator calls `hydra-eval-jobset`. If we
         # move that perl script into rust, then we can get rid of
         # this.
-        webCfg.package
+        cfg.helpersPackage
       ];
       environment = env // {
         HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";

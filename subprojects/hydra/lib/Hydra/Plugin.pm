@@ -96,6 +96,10 @@ sub instantiate {
 # Called to determine the set of supported input types.  The plugin
 # should add these to the $inputTypes hashref, e.g. $inputTypes{'svn'}
 # = 'Subversion checkout'.
+#
+# hydra-server calls this, and it doesn't have the tools that fetching
+# inputs needs (git, hg, svn, ssh, ...) on its PATH, so this must not
+# run any commands; just report the types.
 sub supportedInputTypes {
     my ($self, $inputTypes) = @_;
 }

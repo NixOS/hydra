@@ -9,6 +9,16 @@ rec {
       services.hydra-dev.package = lib.mkDefault flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra;
     };
 
+  notify =
+    { pkgs, lib, ... }:
+    {
+      _file = ./default.nix;
+      imports = [ ./notify-module.nix ];
+      services.hydra-notify-dev.package =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-notify;
+    };
+
   postgresql = ./postgresql.nix;
 
   evaluator =
@@ -19,6 +29,9 @@ rec {
       services.hydra-evaluator-dev.package =
         lib.mkDefault
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator;
+      services.hydra-evaluator-dev.helpersPackage =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator-helpers;
     };
 
   queue-runner =
@@ -67,6 +80,7 @@ rec {
       _file = ./default.nix;
       imports = [
         web-app
+        notify
         evaluator
         queue-runner
         builder

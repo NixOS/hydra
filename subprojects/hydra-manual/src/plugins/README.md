@@ -12,6 +12,15 @@ Hydra supports the following inputs:
 - Mercurial input
 - Path input
 
+Input plugins run in three places, each with different tools on its `PATH`:
+
+- `hydra-eval-jobset`, run by the evaluator, calls `fetchInput`.
+  It has the version control tools (`git`, `hg`, `svn`, `darcs`, `bzr`, `tg`, `ssh`) as well as Nix and the usual archive tools.
+- `hydra-notify` calls `getCommits`, to find the authors to blame for a failure.
+  It has the same tools as `hydra-eval-jobset`.
+- `hydra-server` calls `supportedInputTypes`, to list the input types a jobset may use.
+  It has none of the version control tools, so `supportedInputTypes` must not run any commands: it should only report the types the plugin handles.
+
 ## Bitbucket pull requests
 
 Create jobs based on open bitbucket pull requests.

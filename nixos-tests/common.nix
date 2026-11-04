@@ -58,6 +58,7 @@ in
     {
       imports = [
         nixosModules.web-app
+        nixosModules.notify
         nixosModules.evaluator
         nixosModules.queue-runner
         nixosModules.ad-hoc

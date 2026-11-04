@@ -161,7 +161,10 @@
           nixComponents = final.nixComponentsForHydra;
         };
         inherit (final.hydraComponents)
+          hydra-perl
           hydra
+          hydra-notify
+          hydra-evaluator-helpers
           hydra-tests
           hydra-manual
           hydra-linters
@@ -268,7 +271,10 @@
             inherit pkgs;
             inherit (self.packages.${system})
               nix-perl
+              hydra-perl
               hydra
+              hydra-notify
+              hydra-evaluator-helpers
               hydra-tests
               hydra-manual
               hydra-linters

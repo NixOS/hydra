@@ -6,7 +6,7 @@ You can use it as a guide to navigate the codebase or ask questions.
 ## Components
 
 Hydra's components are split across a coordinator machine and any number of builder machines.
-The NixOS modules in `nixos-modules/` reflect this split: `web-app` and `queue-runner` run on the master, while `builder` runs on remote machines.
+The NixOS modules in `nixos-modules/` reflect this split: `web-app`, `notify` and `queue-runner` run on the master, while `builder` runs on remote machines.
 The optional `ad-hoc` module also runs on the master.
 For small installations, all three can run on a single host (the `hydra` module combines them).
 But most installation will want to use multiple build machines for scale.

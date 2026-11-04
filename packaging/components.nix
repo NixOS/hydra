@@ -27,9 +27,17 @@ self': {
   nix-perl = self'.callPackage ../subprojects/nix-perl/package.nix {
     inherit (nixComponents) nix-store;
   };
-  hydra = self'.callPackage ../subprojects/hydra/package.nix {
+  hydra-perl = self'.callPackage ../subprojects/hydra/package.nix {
     inherit nixComponents rawSrc;
   };
+  inherit
+    (self'.callPackage ../subprojects/hydra/wrappers.nix {
+      inherit nixComponents;
+    })
+    hydra
+    hydra-notify
+    hydra-evaluator-helpers
+    ;
   hydra-tests = self'.callPackage ../subprojects/hydra-tests/package.nix {
     inherit nixComponents;
   };

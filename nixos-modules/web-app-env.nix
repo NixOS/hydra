@@ -4,6 +4,7 @@
 # all three.
 {
   lib,
+  pkgs,
   cfg,
 }:
 
@@ -11,6 +12,10 @@ with lib;
 
 rec {
   baseDir = "/var/lib/hydra";
+
+  # The web app links this into `baseDir`. Services that read it restart
+  # when it changes.
+  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   hydraEnv = {
     HYDRA_DATABASE_URL = cfg.dbUrl;

@@ -11,14 +11,13 @@ let
 
   cfg = config.services.hydra-dev;
 
-  inherit (import ./web-app-env.nix { inherit lib cfg; })
+  inherit (import ./web-app-env.nix { inherit lib pkgs cfg; })
     baseDir
     hydraEnv
+    hydraConf
     dbUrlWithAppName
     env
     ;
-
-  hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
   serverEnv =
     env
@@ -182,7 +181,6 @@ in
     systemd.tmpfiles.rules = [
       "d ${baseDir} 0750 hydra hydra"
       "d ${baseDir}/www 0700 hydra-www hydra"
-      "d ${baseDir}/notify 0700 hydra-queue-runner hydra"
       "d ${baseDir}/runcommand-logs 0750 hydra hydra"
       "L+ ${baseDir}/hydra.conf - - - - ${hydraConf}"
     ];
@@ -303,51 +301,6 @@ in
         ];
         User = "hydra";
       };
-    };
-
-    systemd.services.hydra-notify = {
-      wantedBy = [ "multi-user.target" ];
-      requires = [ "hydra-init.service" ];
-      after = [ "hydra-init.service" ];
-      restartTriggers = [ hydraConf ];
-      path = [ pkgs.zstd ];
-      environment = env // {
-        PGPASSFILE = "${baseDir}/pgpass-notify";
-        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-notify";
-      };
-      serviceConfig = {
-        ExecStart = escapeShellArgs [
-          "@${cfg.package}/bin/hydra-notify"
-          "hydra-notify"
-        ];
-        # FIXME: hydra-notify should not need to write to build-logs.
-        # Move log compression into the queue-runner, then give
-        # hydra-notify its own user again.
-        User = "hydra-queue-runner";
-        Restart = "always";
-        RestartSec = 5;
-      };
-    };
-
-    # Periodically compress build logs. The queue runner compresses
-    # logs automatically after a step finishes, but this doesn't work
-    # if the queue runner is stopped prematurely.
-    systemd.services.hydra-compress-logs = {
-      path = [
-        pkgs.bzip2
-        pkgs.zstd
-      ];
-      script = ''
-        set -eou pipefail
-        compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
-        if [[ $compression == "" || $compression == bzip2 ]]; then
-          compressionCmd=(bzip2)
-        elif [[ $compression == zstd ]]; then
-          compressionCmd=(zstd --rm)
-        fi
-        find ${baseDir}/build-logs -ignore_readdir_race -type f -name "*.drv" -mtime +3 -size +0c -print0 | xargs -0 -r "''${compressionCmd[@]}" --force --quiet
-      '';
-      startAt = "Sun 01:45";
     };
 
   };

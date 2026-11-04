@@ -1,7 +1,10 @@
 {
   pkgs,
   nix-perl,
+  hydra-perl,
   hydra,
+  hydra-notify,
+  hydra-evaluator-helpers,
   hydra-tests,
   hydra-manual,
   hydra-linters,
@@ -17,7 +20,10 @@ let
 
   components = [
     nix-perl
+    hydra-perl
     hydra
+    hydra-notify
+    hydra-evaluator-helpers
     hydra-tests
     hydra-manual
     hydra-linters
@@ -46,7 +52,7 @@ let
     attr: lib.unique (lib.filter (x: !isInternal x) (lib.concatMap (c: c.${attr} or [ ]) components));
 in
 
-hydra.overrideAttrs (
+hydra-perl.overrideAttrs (
   _: _: {
     pname = "shell-for-hydra";
 

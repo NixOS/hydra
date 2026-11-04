@@ -35,6 +35,7 @@ else
   hydra_evaluator = find_program('hydra-evaluator')
   hydra_init = find_program('hydra-init')
   hydra_notify = find_program('hydra-notify')
+  hydra_eval_jobset = find_program('hydra-eval-jobset')
 
   hydra_home = get_option('hydra_home')
   hydra_perl5lib = hydra_home / 'lib'
@@ -44,6 +45,7 @@ else
   exe_path += fs.parent(hydra_evaluator.full_path())
   exe_path += fs.parent(hydra_init.full_path())
   exe_path += fs.parent(hydra_notify.full_path())
+  exe_path += fs.parent(hydra_eval_jobset.full_path())
 endif
 
 testenv = environment(
