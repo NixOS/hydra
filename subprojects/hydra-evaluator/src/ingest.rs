@@ -418,7 +418,7 @@ async fn record_aggregates(
                 queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
                     .await?;
             } else {
-                tracing::warn!(
+                tracing::debug!(
                     "aggregate job ‘{}’ has a constituent ‘{constituent_drv}’ \
                      that doesn't correspond to a Hydra build",
                     job.attr

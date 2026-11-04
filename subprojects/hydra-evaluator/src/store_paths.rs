@@ -68,11 +68,23 @@ impl Availability {
             .arg(substituter)
             .arg("--")
             .arg(&full)
-            .status()
+            .kill_on_drop(true)
+            .output()
             .await;
         match fetched {
-            Ok(status) if status.success() => {}
-            Ok(status) => tracing::warn!("could not fetch `{full}' from {substituter}: {status}"),
+            Ok(out) if out.status.success() => {}
+            Ok(out) => {
+                tracing::warn!(
+                    "could not fetch `{full}' from {substituter}: {}",
+                    out.status
+                );
+                tracing::debug!(
+                    "nix copy: {}",
+                    std::str::from_utf8(&out.stderr)
+                        .unwrap_or("<non-UTF-8>")
+                        .trim_end()
+                );
+            }
             Err(e) => tracing::warn!("could not run nix copy: {e}"),
         }
 

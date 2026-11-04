@@ -19,6 +19,8 @@ our @EXPORT = qw(
 sub captureEvaluation {
     my ($ctx, $jobset) = @_;
     $jobset = $jobset->{"jobset"} if ref $jobset eq "HASH";
+    # nix-eval-jobs' stderr is only logged at debug; tests check it.
+    local $ENV{RUST_LOG} = "hydra_evaluator=debug,info";
     return $ctx->capture_cmd(60,
         "hydra-evaluator", $jobset->project->name, $jobset->name);
 }
