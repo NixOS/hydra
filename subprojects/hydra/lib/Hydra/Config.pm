@@ -32,14 +32,12 @@ my $hydraConfigCache;
 # Settings that used to live in `hydra.conf` and now belong to a component's
 # own configuration file. Left here they are silently inert, which looks
 # exactly like the setting having no effect, so say so once.
-our %movedSettings = (
-    max_concurrent_evals => "`max_concurrent_evals` in /etc/hydra/evaluator.toml",
-    evaluator_workers => "`evaluator_workers` in /etc/hydra/evaluator.toml",
-    evaluator_max_memory_size =>
-        "`evaluator_max_memory_size` in /etc/hydra/evaluator.toml",
-    allow_import_from_derivation =>
-        "`allow_import_from_derivation` in /etc/hydra/evaluator.toml",
-    eval_substituter => "`eval_substituter` in /etc/hydra/evaluator.toml",
+our %movedSettings = map { $_ => "`$_` in /etc/hydra/evaluator.toml" } qw(
+    max_concurrent_evals
+    evaluator_workers
+    evaluator_max_memory_size
+    allow_import_from_derivation
+    eval_substituter
 );
 
 sub warnAboutMovedSettings {

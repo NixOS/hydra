@@ -91,6 +91,17 @@ impl NixDaemonStoreConfig {
         }
     }
 
+    /// Where Hydra roots what it needs kept when no directory is configured.
+    /// The queue runner and the evaluator must agree on it, because
+    /// `hydra-update-gc-roots` tidies it.
+    #[must_use]
+    pub fn default_roots_dir(&self, logname: &str) -> PathBuf {
+        self.state_dir
+            .join("gcroots/per-user")
+            .join(logname)
+            .join("hydra-roots")
+    }
+
     /// Reconstruct a `unix://` URI suitable for `nix copy --from` etc.
     #[must_use]
     pub fn to_uri(&self) -> String {

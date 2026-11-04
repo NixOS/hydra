@@ -18,7 +18,7 @@ use crate::queries::NewBuild;
 /// Every job becomes a member of the evaluation whether or not it caused a
 /// build, which is what makes an evaluation a complete record of its jobs
 /// rather than only of the new work it created.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Member {
     pub build: i32,
     pub job: String,
@@ -37,20 +37,20 @@ pub(crate) struct Member {
 /// Returns `None` when the job is a duplicate within this same evaluation --
 /// two attributes producing the same output path -- which is not an error and
 /// not a second build.
-async fn check_build(
+async fn check_build<'j>(
     tx: &mut db::Transaction<'_>,
     jobset_id: i32,
     eval: i32,
-    job: &Job,
+    job: &'j Job,
     prev_eval: Option<i32>,
     seen: &mut HashSet<String>,
+    outputs: &mut queries::NewOutputs<'j>,
 ) -> eyre::Result<Option<Member>> {
     let drv_path = job
         .drv_path
         .as_deref()
         .ok_or_else(|| eyre::eyre!("job `{}` has no derivation", job.attr))?;
     eyre::ensure!(!job.attr.is_empty(), "a job has no name");
-    eyre::ensure!(!job.outputs.is_empty(), "job `{}` has no outputs", job.attr);
 
     // Any one output will do for the comparisons below: if one matches the
     // others will too, since they come from the same derivation. A
@@ -59,7 +59,6 @@ async fn check_build(
         .outputs
         .iter()
         .next()
-        .map(|(n, p)| (n.clone(), p.clone()))
         .ok_or_else(|| eyre::eyre!("job `{}` has no outputs", job.attr))?;
 
     // Already built, or already queued and still current for this job? Then
@@ -74,7 +73,7 @@ async fn check_build(
             prev_eval,
             jobset_id,
             &job.attr,
-            &first_name,
+            first_name,
             first_path.as_deref(),
             drv_path,
         )
@@ -124,9 +123,9 @@ async fn check_build(
             system: job.system.as_deref().unwrap_or_default(),
             nix_name: job.name.as_deref().or(meta.name.as_deref()),
             description: meta.description.as_deref(),
-            license: meta.license.clone(),
+            license: meta.license,
             homepage: meta.homepage.as_deref(),
-            maintainers: meta.maintainers.clone(),
+            maintainers: meta.maintainers,
             max_silent: meta.max_silent,
             timeout: meta.timeout,
             priority: meta.priority,
@@ -136,12 +135,11 @@ async fn check_build(
     .await
     .wrap_err_with(|| format!("failed to queue a build for `{}`", job.attr))?;
 
-    let outputs: Vec<(String, Option<String>)> = job
-        .outputs
-        .iter()
-        .map(|(n, p)| (n.clone(), p.clone()))
-        .collect();
-    queries::insert_build_outputs(tx, build, &outputs).await?;
+    for (name, path) in &job.outputs {
+        outputs.builds.push(build);
+        outputs.names.push(name);
+        outputs.paths.push(path.as_deref());
+    }
 
     seen.insert(key);
     tx.notify_build_queued(build).await?;
@@ -244,48 +242,38 @@ fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<S
 pub(crate) struct Recorded {
     pub eval: i32,
     pub jobset_changed: bool,
-    pub error: String,
     /// Builds inherited from an earlier evaluation whose derivation has
     /// changed, to be pointed at the new one once this transaction is done.
     pub repoints: HashMap<i32, String>,
 }
 
-/// Everything an evaluation records, in the caller's transaction.
+/// Everything an evaluation records, including the jobset's new error, in
+/// the caller's transaction.
 ///
 /// One transaction, because an evaluation's builds, members, aggregates and
 /// the notifications announcing them must be written together or not at all.
 /// The notifications are sent from here for the same reason, since `NOTIFY`
 /// is delivered on commit.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn record(
     tx: &mut db::Transaction<'_>,
-    jobset_id: i32,
     trace: &str,
     eval: &queries::NewEval<'_>,
-    error_id: i32,
-    prev_error: &str,
     jobs: &[Job],
     prev_eval: Option<i32>,
-    prev_member_count: Option<i64>,
     inputs: &crate::inputs::InputInfo,
-    store_dir: &str,
-    jobsets_jobset: bool,
+    store_dir: &db::StoreDir,
 ) -> eyre::Result<Recorded> {
-    let eval_id = queries::insert_eval(tx, eval).await?;
+    let jobset_id = eval.jobset_id;
+    let error_time = jiff::Timestamp::now().as_second();
+    let error_id = queries::insert_evaluation_error(tx, error_time).await?;
+    let eval_id = queries::insert_eval(tx, eval, error_id).await?;
 
     let mut error = String::new();
     let mut members: Vec<Member> = Vec::new();
     let mut seen = HashSet::new();
-    let mut with_constituents: Vec<&Job> = Vec::new();
+    let mut outputs = queries::NewOutputs::default();
 
     for job in jobs {
-        if jobsets_jobset {
-            eyre::ensure!(
-                job.attr == "jobsets",
-                "The .jobsets jobset must only have a single job named 'jobsets'"
-            );
-        }
-
         // A job that failed to evaluate is reported but not built. The
         // evaluation still happened; this is what it found.
         if let Some(message) = &job.error {
@@ -295,22 +283,36 @@ pub(crate) async fn record(
                 format!("in job ‘{}’", job.attr)
             };
             let _ = write!(error, "{where_}:\n{message}\n\n");
-        } else if let Some(member) =
-            check_build(tx, jobset_id, eval_id, job, prev_eval, &mut seen).await?
+        } else if let Some(member) = check_build(
+            tx,
+            jobset_id,
+            eval_id,
+            job,
+            prev_eval,
+            &mut seen,
+            &mut outputs,
+        )
+        .await?
         {
             members.push(member);
         }
-
-        if job.constituents.is_some() {
-            with_constituents.push(job);
-        }
+    }
+    if !outputs.builds.is_empty() {
+        queries::insert_build_outputs(tx, &outputs).await?;
     }
 
     // Did this evaluation change anything? Either it queued something, or the
     // set of jobs is a different size than last time -- a job disappearing is
     // a change even though it queues nothing.
-    let jobset_changed = members.iter().any(|m| m.is_new)
-        || prev_member_count.is_some_and(|n| i64::try_from(members.len()) != Ok(n));
+    let queued = members.iter().any(|m| m.is_new);
+    let jobset_changed = queued
+        || match prev_eval {
+            Some(prev) => {
+                i64::try_from(members.len()).ok()
+                    != Some(queries::count_eval_members(tx, prev).await?)
+            }
+            None => false,
+        };
 
     let nr_builds = i32::try_from(members.len()).ok();
     queries::finish_eval(
@@ -320,17 +322,17 @@ pub(crate) async fn record(
         jobset_changed.then_some(nr_builds).flatten(),
     )
     .await?;
-    // `prev_error` is the error the jobset came in with. The caller writes
-    // the new one afterwards.
-    tx.notify_eval_added(trace, jobset_id, eval_id, error != prev_error)
+    queries::finish_jobset_eval(tx, jobset_id).await?;
+    let error_changed = queries::set_jobset_error(tx, jobset_id, &error, error_time).await?;
+    tx.notify_eval_added(trace, jobset_id, eval_id, error_changed)
         .await?;
 
     if jobset_changed {
         let rows: Vec<(i32, bool)> = members.iter().map(|m| (m.build, m.is_new)).collect();
         queries::insert_eval_members(tx, eval_id, &rows).await?;
-        record_aggregates(tx, &members, &with_constituents).await?;
+        record_aggregates(tx, &members, jobs).await?;
         // What wakes the queue runner: it polls otherwise.
-        if members.iter().any(|m| m.is_new) {
+        if queued {
             tx.notify_builds_added().await?;
         }
 
@@ -362,7 +364,6 @@ pub(crate) async fn record(
     Ok(Recorded {
         eval: eval_id,
         jobset_changed,
-        error,
         repoints,
     })
 }
@@ -376,7 +377,7 @@ pub(crate) async fn record(
 async fn record_aggregates(
     tx: &mut db::Transaction<'_>,
     members: &[Member],
-    with_constituents: &[&Job],
+    jobs: &[Job],
 ) -> eyre::Result<()> {
     let mut by_drv: HashMap<&str, &Member> = HashMap::new();
     for member in members {
@@ -390,7 +391,7 @@ async fn record_aggregates(
         }
     }
 
-    for job in with_constituents {
+    for job in jobs {
         let Some(constituents) = &job.constituents else {
             continue;
         };

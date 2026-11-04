@@ -43,11 +43,10 @@ async fn main() -> color_eyre::Result<()> {
     let _tracing_guard = hydra_tracing::init()?;
     let cli = Cli::parse();
 
-    let db = db::Database::from_env(4)
-        .await
-        .wrap_err("failed to connect to database")?;
-
     if cli.unlock {
+        let db = db::Database::from_env(1)
+            .await
+            .wrap_err("failed to connect to database")?;
         queries::unlock_all_jobsets(&mut db.get().await?)
             .await
             .wrap_err("failed to unlock jobsets")?;
@@ -56,6 +55,12 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     let config = HydraConfig::load(&cli.config_path)?;
+
+    // One connection per running evaluation, and two for the scheduler.
+    let connections = u32::try_from(config.max_concurrent_evals() + 2).unwrap_or(u32::MAX);
+    let db = db::Database::from_env(connections)
+        .await
+        .wrap_err("failed to connect to database")?;
 
     let eval_one = match (cli.project, cli.jobset) {
         (Some(p), Some(j)) => Some((p, j)),
@@ -71,11 +76,17 @@ async fn main() -> color_eyre::Result<()> {
         remote.store_dir.clone(),
         config.eval_substituter().map(str::to_owned),
     );
+    let roots_dir = match config.roots_dir() {
+        Some(dir) => dir.to_owned(),
+        None => remote.default_roots_dir(&std::env::var("LOGNAME").wrap_err("LOGNAME is not set")?),
+    };
+    fs_err::create_dir_all(&roots_dir)?;
 
     let evaluator = Evaluator::new(
         db,
         std::sync::Arc::new(config),
         std::sync::Arc::new(available),
+        roots_dir.into(),
         eval_one,
     );
     evaluator.run().await

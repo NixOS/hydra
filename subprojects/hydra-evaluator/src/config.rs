@@ -1,8 +1,7 @@
 //! What the evaluator is configured with.
 //!
-//! Its own file, as the queue runner and the builder have theirs. The
-//! settings here used to be read from `hydra.conf` by `hydra-eval-jobset`;
-//! nothing else reads them, and `Hydra::Config` warns about any left there.
+//! Its own file, as the queue runner and the builder have theirs.
+//! `Hydra::Config` warns about any of these settings left in `hydra.conf`.
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ConfigError {

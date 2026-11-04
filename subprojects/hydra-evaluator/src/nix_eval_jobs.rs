@@ -29,26 +29,21 @@ pub(crate) struct Expression<'a> {
 ///
 /// Deliberately loose: the shape of this is `nix-eval-jobs`' to define, and
 /// a field we do not know about is not our business to reject.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub(crate) struct Job {
     #[serde(default)]
     pub attr: String,
     /// The derivation's name, which is not in `meta`.
-    #[serde(default)]
     pub name: Option<String>,
-    #[serde(default)]
     pub error: Option<String>,
-    #[serde(default, rename = "drvPath")]
+    #[serde(rename = "drvPath")]
     pub drv_path: Option<String>,
     /// Output name to path; a content-addressed output has no path until it
     /// is built.
     #[serde(default)]
     pub outputs: BTreeMap<String, Option<String>>,
-    #[serde(default)]
     pub system: Option<String>,
-    #[serde(default)]
     pub constituents: Option<Vec<String>>,
-    #[serde(default)]
     pub meta: Option<serde_json::Value>,
 }
 
@@ -165,9 +160,8 @@ fn inputs_to_args(store_dir: &StoreDir, inputs: &InputInfo) -> eyre::Result<Vec<
                 alt.value.clone().unwrap_or_default(),
             ]),
             "eval" => {
-                let jobs = alt.jobs.clone().unwrap_or_default();
                 let mut s = String::from("{ ");
-                for (job, path) in &jobs {
+                for (job, path) in alt.jobs.iter().flatten() {
                     let _ = write!(s, "{job} = builtins.storePath {}; ", full(store_dir, path));
                 }
                 s.push('}');
@@ -230,7 +224,7 @@ pub(crate) fn full(store_dir: &StoreDir, path: &str) -> String {
     if path.starts_with('/') {
         path.to_owned()
     } else {
-        format!("{}/{path}", store_dir.to_path().display())
+        format!("{store_dir}/{path}")
     }
 }
 
