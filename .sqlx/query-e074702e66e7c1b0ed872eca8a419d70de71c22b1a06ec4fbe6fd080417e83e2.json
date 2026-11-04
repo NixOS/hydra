@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT DISTINCT ON (b.system)\n               b.id, b.releasename, b.nixname,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.system, b.id DESC",
+  "query": "\n        SELECT DISTINCT ON (b.system)\n               b.id, b.releasename, b.nixname, b.drvpath,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN LATERAL (\n          SELECT path, name FROM buildoutputs WHERE build = b.id\n          ORDER BY name <> 'out', name LIMIT 1) o ON true\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.system, b.id DESC",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "drvpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "drvpath"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "out_path?",
         "type_info": "Text",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "out_name?",
         "type_info": "Text",
         "origin": {
@@ -70,9 +81,10 @@
       false,
       true,
       true,
+      false,
       true,
       false
     ]
   },
-  "hash": "01ccc328c9f46e1ab4a467f982a12a5198d62237c67654f45c2c5ee552e47a24"
+  "hash": "e074702e66e7c1b0ed872eca8a419d70de71c22b1a06ec4fbe6fd080417e83e2"
 }

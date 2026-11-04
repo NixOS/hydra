@@ -1,8 +1,7 @@
-//! Compile-time-checked queries over the jobset-scheduling slice of the
-//! schema, as an extension trait on [`db::Connection`]. These live here
-//! rather than in the shared `db` crate because this part of the schema
-//! is only relevant to the evaluator; the `db` crate provides the pooled
-//! connection (with its acquire-retry) via [`db::Database::get`].
+//! Compile-time-checked queries over the parts of the schema that only the
+//! evaluator uses, which is why they live here and not in the shared `db`
+//! crate. The `db` crate provides the pooled connection, with its
+//! acquire-retry, via [`db::Database::get`].
 
 use sqlx::Acquire as _;
 
@@ -35,6 +34,9 @@ pub(crate) struct InputBuild {
     pub id: i32,
     pub releasename: Option<String>,
     pub nixname: Option<String>,
+    pub drvpath: String,
+    /// The main output, which is `out` or else the first output by name, as
+    /// the Perl's `getMainOutput` chose.
     pub out_path: Option<String>,
     pub out_name: Option<String>,
 }
@@ -124,10 +126,12 @@ pub(crate) async fn get_build_for_input_by_id(
     sqlx::query_as!(
         InputBuild,
         r#"
-        SELECT b.id, b.releasename, b.nixname,
+        SELECT b.id, b.releasename, b.nixname, b.drvpath,
                o.path as "out_path?", o.name as "out_name?"
         FROM builds b
-        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'
+        LEFT JOIN LATERAL (
+          SELECT path, name FROM buildoutputs WHERE build = b.id
+          ORDER BY name <> 'out', name LIMIT 1) o ON true
         WHERE b.id = $1"#,
         id,
     )
@@ -146,11 +150,13 @@ pub(crate) async fn get_latest_succeeded_build(
     sqlx::query_as!(
         InputBuild,
         r#"
-        SELECT b.id, b.releasename, b.nixname,
+        SELECT b.id, b.releasename, b.nixname, b.drvpath,
                o.path as "out_path?", o.name as "out_name?"
         FROM builds b
         JOIN jobsets j ON b.jobset_id = j.id
-        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'
+        LEFT JOIN LATERAL (
+          SELECT path, name FROM buildoutputs WHERE build = b.id
+          ORDER BY name <> 'out', name LIMIT 1) o ON true
         WHERE j.project = $1 AND j.name = $2 AND b.job = $3
           AND b.finished = 1 AND b.buildstatus = 0
         ORDER BY b.id DESC
@@ -177,11 +183,13 @@ pub(crate) async fn get_latest_succeeded_build_per_system(
         InputBuild,
         r#"
         SELECT DISTINCT ON (b.system)
-               b.id, b.releasename, b.nixname,
+               b.id, b.releasename, b.nixname, b.drvpath,
                o.path as "out_path?", o.name as "out_name?"
         FROM builds b
         JOIN jobsets j ON b.jobset_id = j.id
-        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'
+        LEFT JOIN LATERAL (
+          SELECT path, name FROM buildoutputs WHERE build = b.id
+          ORDER BY name <> 'out', name LIMIT 1) o ON true
         WHERE j.project = $1 AND j.name = $2 AND b.job = $3
           AND b.finished = 1 AND b.buildstatus = 0
         ORDER BY b.system, b.id DESC"#,
@@ -379,20 +387,26 @@ pub(crate) async fn get_jobset_for_eval(
     .await
 }
 
-/// The jobset's most recent evaluation, whose hash says whether these
-/// inputs have been evaluated before.
+/// The jobset's most recent evaluation, optionally only among those that had
+/// new builds.
+///
+/// Any evaluation's hash says whether these inputs were evaluated before, but
+/// only one with new builds has members to compare jobs against. An
+/// evaluation without new builds records none.
 pub(crate) async fn get_previous_eval(
     conn: &mut db::Connection,
     jobset_id: i32,
+    with_new_builds: bool,
 ) -> Result<Option<PreviousEval>, sqlx::Error> {
     sqlx::query_as!(
         PreviousEval,
         r#"
         SELECT id, hash, flake FROM jobsetevals
-        WHERE jobset_id = $1
+        WHERE jobset_id = $1 AND (NOT $2 OR hasnewbuilds = 1)
         ORDER BY id DESC
         LIMIT 1"#,
         jobset_id,
+        with_new_builds,
     )
     .fetch_optional(conn.raw())
     .await
@@ -437,8 +451,8 @@ pub(crate) async fn unlock_all_jobsets(conn: &mut db::Connection) -> Result<(), 
     Ok(())
 }
 
-/// Record the outcome of an evaluation attempt: clear `triggerTime`
-/// and `startTime`, and record the error on failure.
+/// Mark an evaluation attempt as over by clearing `triggerTime` and
+/// `startTime`.
 ///
 /// Runs in a transaction so that a partial failure cannot clear
 /// `triggerTime` but leave `startTime` set, which would make the
@@ -446,7 +460,6 @@ pub(crate) async fn unlock_all_jobsets(conn: &mut db::Connection) -> Result<(), 
 pub(crate) async fn update_jobset_after_eval(
     conn: &mut db::Connection,
     jobset_id: i32,
-    error_msg: Option<&str>,
     now: db::Timestamp,
 ) -> Result<(), sqlx::Error> {
     let mut tx = conn.raw().begin().await?;
@@ -461,22 +474,59 @@ pub(crate) async fn update_jobset_after_eval(
     .execute(&mut *tx)
     .await?;
 
-    // `Some("")` is a success, and clears the error before it; `None` leaves
-    // the error alone, for an outcome that says nothing about it.
-    if let Some(error_msg) = error_msg {
-        sqlx::query!(
-            "UPDATE jobsets SET errorMsg = $1, fetchErrorMsg = null, \
-               errorTime = CASE WHEN $1 = '' THEN NULL ELSE $2::bigint END \
-             WHERE id = $3",
-            error_msg,
-            now,
-            jobset_id,
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-
     tx.commit().await?;
+    Ok(())
+}
+
+/// Set the jobset's evaluation error, empty for none. Like the Perl's
+/// `setJobsetError`, this also clears the fetch error.
+pub(crate) async fn set_jobset_error(
+    conn: &mut sqlx::PgConnection,
+    jobset_id: i32,
+    error_msg: &str,
+    now: db::Timestamp,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsets SET errorMsg = $2, errorTime = $3, fetchErrorMsg = null WHERE id = $1",
+        jobset_id,
+        error_msg,
+        now,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Set or clear the jobset's fetch error, leaving its evaluation error alone.
+pub(crate) async fn set_fetch_error(
+    conn: &mut sqlx::PgConnection,
+    jobset_id: i32,
+    error_msg: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsets SET fetchErrorMsg = $2 WHERE id = $1",
+        jobset_id,
+        error_msg,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// Clear `forceEval` and disable a one-shot jobset, after an evaluation that
+/// actually ran.
+pub(crate) async fn finish_jobset_eval(
+    conn: &mut sqlx::PgConnection,
+    jobset_id: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE jobsets SET forceEval = null, \
+           enabled = CASE WHEN enabled = 2 THEN 0 ELSE enabled END \
+         WHERE id = $1",
+        jobset_id,
+    )
+    .execute(conn)
+    .await?;
     Ok(())
 }
 
@@ -596,7 +646,7 @@ pub(crate) struct NewBuild<'a> {
 
 /// The evaluation row, as it is first written: what was evaluated and with
 /// what, before anything is known about the result.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct NewEval<'a> {
     pub jobset_id: i32,
     pub checkout_time: i32,
@@ -608,19 +658,12 @@ pub(crate) struct NewEval<'a> {
     pub evaluation_error_id: Option<i32>,
 }
 
-/// The writes an evaluation makes, which happen inside its transaction.
-///
-/// Separate from [`JobsetQueries`] because these are transactional: an
-/// evaluation's builds and the notifications announcing them must appear
-/// together or not at all, and `NOTIFY` is delivered on commit.
 /// Record the evaluation itself, returning its id.
 pub(crate) async fn insert_eval(
     tx: &mut db::Transaction<'_>,
     eval: &NewEval<'_>,
 ) -> Result<i32, sqlx::Error> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+    let now = jiff::Timestamp::now().as_second();
 
     Ok(sqlx::query!(
         r#"
@@ -822,9 +865,7 @@ pub(crate) async fn insert_build(
     tx: &mut db::Transaction<'_>,
     build: &NewBuild<'_>,
 ) -> Result<i32, sqlx::Error> {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+    let now = jiff::Timestamp::now().as_second();
 
     Ok(sqlx::query!(
         r#"
