@@ -106,3 +106,62 @@ async fn run_with_timeout(cmd: &mut tokio::process::Command) -> eyre::Result<std
         .map_err(|_| eyre::eyre!("timed out after {}s", HELPER_TIMEOUT.as_secs()))?
         .map_err(Into::into)
 }
+
+/// How many lines of a helper's stderr [`forward_stderr`] keeps.
+const STDERR_TAIL_LINES: usize = 50;
+
+/// Log the piped stderr of `child` at debug, in the current span, as it
+/// arrives. The task yields the last [`STDERR_TAIL_LINES`] lines once stderr
+/// closes.
+fn forward_stderr(
+    name: &'static str,
+    child: &mut tokio::process::Child,
+) -> eyre::Result<tokio::task::JoinHandle<String>> {
+    use tokio::io::AsyncBufReadExt as _;
+    use tracing::Instrument as _;
+
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| eyre::eyre!("{name} has no stderr"))?;
+    let task = async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut tail = std::collections::VecDeque::with_capacity(STDERR_TAIL_LINES);
+        let mut buf = Vec::new();
+        // Raw bytes rather than `lines()`: a non-UTF-8 line must not stop us
+        // draining the pipe, or the helper blocks once it fills.
+        while reader
+            .read_until(b'\n', &mut buf)
+            .await
+            .is_ok_and(|n| n > 0)
+        {
+            let line = String::from_utf8(std::mem::take(&mut buf)).map_or_else(
+                |_| "<non-UTF-8 line>".to_owned(),
+                |l| l.trim_end().to_owned(),
+            );
+            tracing::debug!("{name}: {line}");
+            if tail.len() == STDERR_TAIL_LINES {
+                tail.pop_front();
+            }
+            tail.push_back(line);
+        }
+        Vec::from(tail).join("\n")
+    };
+    Ok(tokio::spawn(task.in_current_span()))
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn forward_stderr_keeps_the_tail() {
+        let mut child = tokio::process::Command::new("sh")
+            .args(["-c", "for i in $(seq 100); do echo $i >&2; done"])
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let tail = super::forward_stderr("sh", &mut child).unwrap();
+        child.wait().await.unwrap();
+        let expected: Vec<String> = (51..=100).map(|i| i.to_string()).collect();
+        assert_eq!(tail.await.unwrap(), expected.join("\n"));
+    }
+}

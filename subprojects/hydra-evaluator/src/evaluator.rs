@@ -5,6 +5,7 @@ use std::time::Duration;
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::{FutureExt as _, StreamExt as _};
 use tokio::sync::{Mutex, Notify};
+use tracing::Instrument as _;
 
 use crate::config::HydraConfig;
 use crate::queries;
@@ -462,31 +463,36 @@ impl Evaluator {
         let roots_dir = Arc::clone(&self.roots_dir);
         let trace = format!("{now}.{jobset_id}");
 
-        tokio::spawn(async move {
-            let evaluation = crate::evaluate::evaluate(
-                &db,
-                &config,
-                &available,
-                &roots_dir,
-                &project,
-                &jobset_name,
-                &trace,
-            );
+        // Everything logged during the evaluation names its jobset.
+        let span =
+            tracing::info_span!("eval", project = %project, jobset = %jobset_name, id = jobset_id);
+        tokio::spawn(
+            async move {
+                let evaluation = crate::evaluate::evaluate(
+                    &db,
+                    &config,
+                    &available,
+                    &roots_dir,
+                    &project,
+                    &jobset_name,
+                    &trace,
+                );
 
-            reap_eval(
-                evaluation,
-                kill_rx,
-                jobset_id,
-                &trace,
-                jobset_display,
-                now,
-                eval_one,
-                &db,
-                state_arc,
-                notify_work,
-            )
-            .await;
-        });
+                reap_eval(
+                    evaluation,
+                    kill_rx,
+                    jobset_id,
+                    &trace,
+                    now,
+                    eval_one,
+                    &db,
+                    state_arc,
+                    notify_work,
+                )
+                .await;
+            }
+            .instrument(span),
+        );
 
         Ok(())
     }
@@ -505,7 +511,6 @@ async fn reap_eval(
     mut kill_rx: tokio::sync::oneshot::Receiver<()>,
     jobset_id: i32,
     trace: &str,
-    jobset_display: String,
     start_time: db::Timestamp,
     eval_one: bool,
     db: &db::Database,
@@ -517,7 +522,7 @@ async fn reap_eval(
     let outcome = tokio::select! {
         result = evaluation => Some(result),
         _ = &mut kill_rx => {
-            tracing::info!("abandoning evaluation of jobset '{jobset_display}'");
+            tracing::info!("abandoning evaluation");
             None
         }
         () = tokio::time::sleep(EVAL_TIMEOUT) => Some(Err(eyre::eyre!(
@@ -531,8 +536,14 @@ async fn reap_eval(
         Some(Err(e)) => (format!("{e:#}"), false),
         None => ("abandoned".to_owned(), true),
     };
-    tracing::info!("evaluation of jobset '{jobset_display}' {status}");
     let failed = matches!(outcome, Some(Err(_)));
+    // A failure's full chain is saved on the jobset, so the log only notes it.
+    if failed {
+        tracing::info!("evaluation failed");
+        tracing::debug!("evaluation failed: {status}");
+    } else {
+        tracing::info!("evaluation {status}");
+    }
 
     let now = jiff::Timestamp::now().as_second();
 
