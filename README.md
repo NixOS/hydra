@@ -78,6 +78,21 @@ Clicking "_Evaluations_" should list the first evaluation of the newly created j
 
 ## Building And Developing
 
+### Worker status identities
+
+The Rust queue runner's `GET /status/machines` and `GET /status` return `machines`
+keyed by worker `registrationId`, with the display name in each value's
+`hostname` field. Native and Linux workers on the same host are separate entries;
+their capabilities, slots and capacity must not be combined. `machinesCount`
+counts registrations. The web machine view displays hostnames and associates a
+busy step with the registration's own active derivation list. A hostname alone
+does not identify a worker registration.
+If a busy database step is newer than the worker snapshot, the view reports
+that its registration ownership is unavailable instead of displaying idle.
+
+The web adapter also accepts older hostname-keyed responses during upgrades.
+The legacy SSH builder configuration continues to use its existing machine keys.
+
 ### Building Hydra
 
 You can build Hydra via `nix-build` using the provided [default.nix](./default.nix):
