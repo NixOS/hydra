@@ -1,7 +1,7 @@
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use super::{Handle, parse_row_path};
+use super::{Handle, check_store_dir};
 
 impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     /// Resolve output paths for derivation chains via `buildstepoutputs`.
@@ -11,13 +11,6 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
     /// look up `root.drv`'s `out1` output to get an intermediate drv path,
     /// then look up that drv's `out2`, etc. Returns the final resolved path
     /// for each chain (or `None` if any step fails).
-    ///
-    /// This matches drv paths in their converted (basename) form only, so
-    /// while `hydra-backfill-store-dirs` is running it simply will not
-    /// find steps that are still stored as full paths, and reports them
-    /// as unresolved. Content-addressed builds are expected to be
-    /// degraded for the duration rather than have this query carry a
-    /// second matching form through its recursion.
     ///
     /// # Panics
     ///
@@ -99,9 +92,12 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         let mut results = vec![None; chains.len()];
         for row in rows {
             let i = usize::try_from(row.idx - 1)?;
+            if let Some(found) = &row.drv_storedir {
+                check_store_dir(store_dir, found)?;
+            }
             results[i] = row
                 .drv_path
-                .map(|p| parse_row_path(store_dir, &p, row.drv_storedir.as_deref()))
+                .map(|p| StorePath::from_base_path(&p))
                 .transpose()?;
         }
         Ok(results)
@@ -118,7 +114,7 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         let drv_display = drv_path.to_string();
         let output_name_str: &str = output_name.as_ref();
         let row = sqlx::query!(
-            r#"SELECT o.path AS "path!", o.storedir
+            r#"SELECT o.path AS "path!", o.storedir AS "storedir!"
               FROM buildsteps s
               JOIN buildstepoutputs o
                   ON s.build = o.build AND s.stepnr = o.stepnr
@@ -135,14 +131,16 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         .fetch_optional(&mut *self.conn)
         .await?;
 
-        row.map(|r| parse_row_path(store_dir, &r.path, r.storedir.as_deref()))
-            .transpose()
+        row.map(|r| {
+            check_store_dir(store_dir, &r.storedir)?;
+            Ok(StorePath::from_base_path(&r.path)?)
+        })
+        .transpose()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Connection;
     use crate::connection::test_helpers::{
         insert_output, insert_step, insert_step_with_status, on, setup, sp, test_store_dir,
     };
@@ -159,56 +157,6 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(results, vec![Some(sp("result"))]);
-    }
-
-    /// Rows written before schema version 89 hold a full path and a null
-    /// storeDir. Until `hydra-backfill-store-dirs` converts them, lookups
-    /// have to find them and reads have to parse them.
-    #[tokio::test]
-    async fn finds_and_parses_unconverted_rows() {
-        async fn insert_unconverted(conn: &mut Connection, build: i32, drv: &str, out: &str) {
-            let sd = test_store_dir();
-            sqlx::query(
-                "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, storeDir, status) \
-                 VALUES ($1, 1, 0, 0, $2, NULL, 0)",
-            )
-            .bind(build)
-            .bind(sd.display(&sp(drv)).to_string())
-            .execute(&mut *conn.conn)
-            .await
-            .unwrap();
-            sqlx::query(
-                "INSERT INTO BuildStepOutputs (build, stepnr, name, path, storeDir) \
-                 VALUES ($1, 1, 'out', $2, NULL)",
-            )
-            .bind(build)
-            .bind(sd.display(&sp(out)).to_string())
-            .execute(&mut *conn.conn)
-            .await
-            .unwrap();
-        }
-
-        let (_pg, mut conn) = setup().await;
-        insert_unconverted(&mut conn, 1, "legacy.drv", "legacy-out").await;
-        // A converted row alongside it, to prove both are visible at once.
-        insert_step(&mut conn, 2, 1, &sp("converted.drv")).await;
-        insert_output(&mut conn, 2, 1, "out", &sp("converted-out")).await;
-
-        let mut tx = conn.begin_transaction().await.unwrap();
-        for (drv, out) in [
-            ("legacy.drv", "legacy-out"),
-            ("converted.drv", "converted-out"),
-        ] {
-            let outputs = tx
-                .find_build_step_outputs(&test_store_dir(), &sp(drv))
-                .await
-                .unwrap();
-            assert_eq!(
-                outputs.get(&on("out")),
-                Some(&sp(out)),
-                "{drv} should resolve to {out} regardless of stored format"
-            );
-        }
     }
 
     #[tokio::test]

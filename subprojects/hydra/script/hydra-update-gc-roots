@@ -51,8 +51,8 @@ sub keepBuild {
         $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
     {
         # `outpaths` is aggregated by raw SQL, so it goes around inflation and
-        # arrives in whichever format each row holds.
-        foreach my $path (map { parseRowStorePath($storeDir, $_) }
+        # arrives as the bare store paths the column holds.
+        foreach my $path (map { Nix::StorePath->new($_) }
                           split / /, $build->get_column('outpaths')) {
             if (machineLocalStore()->isValidPath($path)) {
                 addRoot $path;

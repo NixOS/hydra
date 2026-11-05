@@ -10,20 +10,15 @@ use Hydra::StorePath;
 # deals in `Nix::StorePath`, and this component is the boundary: it is where a
 # column becomes one, and where `storeDir` gets filled in on the way back.
 #
-# Rows written before `hydra-backfill-store-dirs` reached them still hold a
-# full path and a null `storeDir`. Reading has to cope with both for as long as
-# the backfill takes. Telling them apart needs no second column, because a full
-# path always contains a slash and a basename never does -- which is why a
-# `columns => [...]` fetch naming only the path column still works, and why
-# nothing here has to care whether `storeDir` was even selected.
+# Nothing here reads `storeDir`: the column value is the store path, whole. So
+# a `columns => [...]` fetch naming only the path column is enough, and none of
+# these accessors depend on `storeDir` having been selected.
 sub _inflate {
-    my ($value, $result) = @_;
-    return parseRowStorePath($result->result_source->schema->storeDir, $value);
+    return Nix::StorePath->new($_[0]);
 }
 
-# Writes are always in the new format, so the set of unconverted rows only ever
-# shrinks. The store directory is a property of the whole row rather than of
-# any one column, so it is filled in here instead of by every caller.
+# The store directory is a property of the whole row rather than of any one
+# column, so it is filled in here instead of by every caller.
 sub insert {
     my $self = shift;
     $self->set_column(storedir => $self->result_source->schema->storeDir)
@@ -76,27 +71,14 @@ sub inflate_optional_store_paths {
 #         "path", "subpath", "storePath", "subPath");
 #
 # `BuildProducts.path` is the only one. It takes two columns where every other
-# store-path column takes one because it names two things, and this is the
-# migration that gives it the second: before it, the store path and the
-# sub-path below it were a single string that callers had to take apart.
-#
-# An unconverted row is still that single string, with nothing in the sub-path
-# column, so until the backfill has been through these have to put it back
-# together themselves. The discriminator is the same as everywhere else: the
-# store path in a converted row has no slash in it.
+# store-path column takes one because it names two things: a store path, and
+# the sub-path below it.
 sub inflate_relative_store_path {
     my ($class, $pathColumn, $subPathColumn, $storePathAccessor, $subPathAccessor) = @_;
-    my $split = sub {
-        my ($self) = @_;
-        my $path = $self->get_column($pathColumn);
-        return () unless defined $path;
-        my $subPath = $self->get_column($subPathColumn);
-        return (Nix::StorePath->new($path), $subPath) if defined $subPath;
-        return parseRelativeStorePath($self->result_source->schema->storeDir, $path);
-    };
+    $class->inflate_store_paths($pathColumn);
     no strict 'refs';
-    *{"${class}::${storePathAccessor}"} = sub { ($split->($_[0]))[0] };
-    *{"${class}::${subPathAccessor}"}   = sub { ($split->($_[0]))[1] };
+    *{"${class}::${storePathAccessor}"} = sub { $_[0]->$pathColumn };
+    *{"${class}::${subPathAccessor}"}   = sub { $_[0]->$subPathColumn };
 }
 
 1;

@@ -26,11 +26,9 @@ sub TO_JSON {
     }
 
     # Store-path columns, which this API has always spelled as full paths and
-    # has to go on spelling that way. The raw value will not do for them: it
-    # is the basename, or -- until `hydra-backfill-store-dirs` has been all
-    # the way through -- whichever of the two formats the row happens to
-    # hold. Going through the inflated accessor is what makes the answer the
-    # same either way.
+    # has to go on spelling that way. The raw value will not do for them, the
+    # database holding only the basename, so the store directory goes back on
+    # here.
     my $storeDir = $self->result_source->schema->storeDir;
     foreach my $column (@{$hint->{store_path_columns}}) {
         my $storePath = $self->$column;

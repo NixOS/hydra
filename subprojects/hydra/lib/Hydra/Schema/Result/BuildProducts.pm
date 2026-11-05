@@ -79,6 +79,7 @@ __PACKAGE__->table("buildproducts");
 =head2 storedir
 
   data_type: 'text'
+  is_foreign_key: 1
   is_nullable: 1
 
 =head2 name
@@ -111,7 +112,7 @@ __PACKAGE__->add_columns(
   "subpath",
   { data_type => "text", is_nullable => 1 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 1 },
   "name",
   { data_type => "text", is_nullable => 0 },
   "defaultpath",
@@ -149,9 +150,29 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
+=head2 build_storedir_build
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 13:14:01
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rfMMRanIL91rtB1JSIFJ+w
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Result::Builds>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "build_storedir_build",
+  "Hydra::Schema::Result::Builds",
+  { id => "build", storedir => "storedir" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 15:04:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:10TDcTmBN8f5ahQTbbQXIA
 
 my %hint = (
     # Served as one full path, though it is stored as a store path and the

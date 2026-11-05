@@ -43,7 +43,7 @@ __PACKAGE__->table("failedpaths");
 =head2 storedir
 
   data_type: 'text'
-  is_nullable: 1
+  is_nullable: 0
 
 =cut
 
@@ -51,7 +51,7 @@ __PACKAGE__->add_columns(
   "path",
   { data_type => "text", is_nullable => 0 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_nullable => 0 },
 );
 
 =head1 PRIMARY KEY
@@ -66,9 +66,25 @@ __PACKAGE__->add_columns(
 
 __PACKAGE__->set_primary_key("path");
 
+=head1 UNIQUE CONSTRAINTS
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wbG/BmnKWuIDQBKpljn6Tg
+=head2 C<failedpaths_storedir_path_key>
+
+=over 4
+
+=item * L</storedir>
+
+=item * L</path>
+
+=back
+
+=cut
+
+__PACKAGE__->add_unique_constraint("failedpaths_storedir_path_key", ["storedir", "path"]);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:45:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:jaI0D8kOdwNw52eGcNz6HA
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

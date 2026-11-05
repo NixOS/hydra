@@ -54,6 +54,7 @@ __PACKAGE__->table("buildoutputs");
 =head2 storedir
 
   data_type: 'text'
+  is_foreign_key: 1
   is_nullable: 1
 
 =cut
@@ -66,7 +67,7 @@ __PACKAGE__->add_columns(
   "path",
   { data_type => "text", is_nullable => 1 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -100,9 +101,29 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
+=head2 build_storedir_build
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:N83ZCi7SpulIQhPzpdtCUw
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Result::Builds>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "build_storedir_build",
+  "Hydra::Schema::Result::Builds",
+  { id => "build", storedir => "storedir" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:45:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:K3bkSgbdPtQifU5tMnbc8g
 
 my %hint = (
     store_path_columns => ["path"],

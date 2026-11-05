@@ -60,6 +60,7 @@ __PACKAGE__->table("buildstepoutputs");
 =head2 storedir
 
   data_type: 'text'
+  is_foreign_key: 1
   is_nullable: 1
 
 =cut
@@ -74,7 +75,7 @@ __PACKAGE__->add_columns(
   "path",
   { data_type => "text", is_nullable => 1 },
   "storedir",
-  { data_type => "text", is_nullable => 1 },
+  { data_type => "text", is_foreign_key => 1, is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -125,9 +126,29 @@ __PACKAGE__->belongs_to(
   { is_deferrable => 0, on_delete => "CASCADE", on_update => "NO ACTION" },
 );
 
+=head2 buildstep_storedir_build_stepnr
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:PZAMK4o1g3YmMRc9IdtaOw
+Type: belongs_to
+
+Related object: L<Hydra::Schema::Result::BuildSteps>
+
+=cut
+
+__PACKAGE__->belongs_to(
+  "buildstep_storedir_build_stepnr",
+  "Hydra::Schema::Result::BuildSteps",
+  { build => "build", stepnr => "stepnr", storedir => "storedir" },
+  {
+    is_deferrable => 0,
+    join_type     => "LEFT",
+    on_delete     => "CASCADE",
+    on_update     => "NO ACTION",
+  },
+);
+
+
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:45:43
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:HwI2/eZ6L4Yjm+2Cv3zBqQ
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
