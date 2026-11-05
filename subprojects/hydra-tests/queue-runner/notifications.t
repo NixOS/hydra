@@ -90,6 +90,24 @@ my $builds = $ctx->makeAndEvaluateJobset(
     build => 1
 );
 
+# The next notification about $build, skipping any that are not.
+#
+# Evaluation is itself a build, so the queue runner now reports on it too --
+# its own start, step and finish -- and those are interleaved with the ones
+# this test is about. Every channel here leads its payload with the build id,
+# so they can be told apart without knowing which channel is coming.
+sub nextNotificationFor {
+    my ($dbh, $build) = @_;
+
+    while (my $notify = $dbh->func("pg_notifies")) {
+        my ($channelName, $pid, $payload) = @$notify;
+        my ($buildId) = split /\t/, $payload;
+        return ($channelName, $pid, $payload) if $buildId == $build->id;
+    }
+
+    return (undef, undef, undef);
+}
+
 subtest "Build: substitutable, canbesubstituted" => sub {
     my $build = $builds->{"canbesubstituted"};
 
@@ -101,7 +119,7 @@ subtest "Build: substitutable, canbesubstituted" => sub {
     isnt($build->notificationpendingsince, undef, "The build has a pending notification");
 
     subtest "First notification: build_finished" => sub {
-        my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
+        my ($channelName, $pid, $payload) = nextNotificationFor($dbh, $build);
         is($channelName, "build_finished", "The event is for the build finishing");
         is($payload, $build->id, "The payload is the build's ID");
     };
@@ -117,13 +135,13 @@ subtest "Build: not substitutable, unsubstitutable" => sub {
     isnt($build->notificationpendingsince, undef, "The build has a pending notification");
 
     subtest "First notification: build_started" => sub {
-        my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
+        my ($channelName, $pid, $payload) = nextNotificationFor($dbh, $build);
         is($channelName, "build_started", "The event is for the build starting");
         is($payload, $build->id, "The payload is the build's ID");
     };
 
     subtest "Second notification: step_finished" => sub {
-        my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
+        my ($channelName, $pid, $payload) = nextNotificationFor($dbh, $build);
         is($channelName, "step_finished", "The event is for the step finishing");
         my ($buildId, $stepNr, $logFile) = split /\t/, $payload;
         is($buildId, $build->id, "The payload is the build's ID");
@@ -132,7 +150,7 @@ subtest "Build: not substitutable, unsubstitutable" => sub {
     };
 
     subtest "Third notification: build_finished" => sub {
-        my ($channelName, $pid, $payload) = @{$dbh->func("pg_notifies")};
+        my ($channelName, $pid, $payload) = nextNotificationFor($dbh, $build);
         is($channelName, "build_finished", "The event is for the build finishing");
         is($payload, $build->id, "The payload is the build's ID");
     };

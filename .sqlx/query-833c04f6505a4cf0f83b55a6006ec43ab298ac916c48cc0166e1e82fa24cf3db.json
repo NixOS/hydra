@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO buildoutputs (build, name, path) VALUES ($1, 'out', null)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "833c04f6505a4cf0f83b55a6006ec43ab298ac916c48cc0166e1e82fa24cf3db"
+}

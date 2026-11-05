@@ -50,7 +50,7 @@
 
   - Create a project, jobset etc.
 
-  - Start hydra_evaluator and hydra_queue_runner
+  - Start hydra_submit_evaluation, hydra_process_evaluation and hydra_queue_runner
 
 
 * Job selection:

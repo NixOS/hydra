@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT e.jobset_id, j.name as jobset_name, p.declfile, j.errormsg,\n               e.evaluationerror_id, e.trace_id,\n               b.buildstatus as build_status, o.path as out_path\n        FROM jobsetevals e\n        JOIN jobsets j ON j.id = e.jobset_id\n        JOIN projects p ON p.name = j.project\n        JOIN builds b ON b.id = e.eval_build\n        LEFT JOIN buildoutputs o ON o.build = b.id AND o.name = 'out'\n        WHERE e.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "jobset_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsetevals",
+            "name": "jobset_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "jobset_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "declfile",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "declfile"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "errormsg",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "errormsg"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "evaluationerror_id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsetevals",
+            "name": "evaluationerror_id"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "trace_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsetevals",
+            "name": "trace_id"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "build_status",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "buildstatus"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "out_path",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "path"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d28b0f493ccb081646a06b9f55dde71f377cdad12235ce664205ac97e6429a7f"
+}

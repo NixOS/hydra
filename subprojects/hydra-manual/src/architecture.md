@@ -24,12 +24,19 @@ These components all share a single Nix store and PostgreSQL database on the mas
     - WebSocket service for streaming live build logs
     - reads build metadata from PostgreSQL and tails log files from the coordinator's store
     - listens for PostgreSQL build-completion notifications and forwards events to clients
-- **`hydra-evaluator`** (Rust)
-    - periodically evaluates jobsets by invoking the Nix evaluator
-    - writes `.drv` files into the coordinator's Nix store
-    - adds new builds to the queue when evaluation results change
-- **`hydra-eval-jobset`** (Perl)
-    - called by the evaluator to orchestrate fetching inputs and running the Nix evaluation
+- **`hydra-submit-evaluation`** and **`hydra-process-evaluation`** (Rust)
+    - decides *when* a jobset is due to be evaluated, and schedules it
+    - fetches the jobset's inputs, hashes them, and instantiates a derivation
+      that will run `nix-eval-jobs`, queued as an ordinary build in a hidden
+      `hydra:evaluations` jobset
+    - does not run `nix-eval-jobs` itself: evaluation happens inside that
+      build, so it is sandboxed, distributed and retried like any other work
+    - reads the jobs back out of a finished evaluation build and turns them
+      into builds of the jobset that was evaluated
+- **`hydra-fetch-input`** (Perl)
+    - fetches one jobset input of a plugin-provided type, on the evaluator's behalf
+    - the only Perl left in the evaluation path, because input types are a
+      plugin interface; it touches nothing but the plugins' own cache tables
 - **`hydra-queue-runner`** (Rust)
     - reads `.drv` files from the coordinator's Nix store
     - schedules build steps across builders
@@ -79,9 +86,11 @@ graph BT
     hydra-ad-hoc --> build-logs
     hydra-ad-hoc --> db
     hydra-ad-hoc --> hydra-tracing
-    hydra-evaluator --> db
-    hydra-evaluator --> hydra-tracing
     hydra-ws --> build-logs
+    hydra-submit-evaluation --> db
+    hydra-submit-evaluation --> hydra-tracing
+    hydra-process-evaluation --> db
+    hydra-process-evaluation --> hydra-tracing
     hydra-ws --> db
     hydra-ws --> hydra-tracing
     store-transfer --> daemon-client-utils

@@ -28,7 +28,7 @@ else
 fi
 HYDRA_CARGO_TARGET_DIR=$(pwd)/target/$cargo_profile
 
-export PATH=$HYDRA_HOME/script:$HYDRA_CARGO_TARGET_DIR:$(pwd)/build/subprojects/hydra/hydra-evaluator:$PATH
+export PATH=$HYDRA_HOME/script:$HYDRA_CARGO_TARGET_DIR:$(pwd)/build/subprojects/hydra/hydra-submit-evaluation:$PATH
 export PERL5LIB=$(pwd)/subprojects/hydra/lib:$PERL5LIB
 
 wait_for_postgres() {
