@@ -24,6 +24,9 @@ pub struct PresignedUpload {
     pub compression_level: async_compression::Level,
     /// Set on NAR uploads, whose `url` is empty.
     pub multipart: Option<PresignedMultipart>,
+    /// If set, write a zstd NAR in the seekable format with this minimum
+    /// frame size, see [`crate::seekable`].
+    pub seekable_min_frame_size: Option<u64>,
 }
 
 impl PresignedUpload {
@@ -45,12 +48,19 @@ impl PresignedUpload {
                 _ => async_compression::Level::Default,
             },
             multipart: None,
+            seekable_min_frame_size: None,
         }
     }
 
     #[must_use]
     pub fn with_multipart(mut self, multipart: Option<PresignedMultipart>) -> Self {
         self.multipart = multipart;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_seekable_min_frame_size(mut self, min_frame_size: Option<u64>) -> Self {
+        self.seekable_min_frame_size = min_frame_size;
         self
     }
 
@@ -166,9 +176,11 @@ impl PresignedUploadClient {
         let start = std::time::Instant::now();
 
         let stream = read_nar_stream(store_dir, store_path);
-        let compressor = upload
-            .compression
-            .get_compression_fn(upload.compression_level, false);
+        let compressor = upload.compression.get_nar_compression_fn(
+            upload.compression_level,
+            false,
+            upload.seekable_min_frame_size,
+        );
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 

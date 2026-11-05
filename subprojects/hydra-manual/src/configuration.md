@@ -82,6 +82,66 @@ store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&wr
 
 This example uses [Zstandard](https://github.com/facebook/zstd) compression on derivations to reduce CPU usage on the server, but [Brotli](https://brotli.org/) compression for derivation listings and build logs because it has better browser support.
 
+### Seekable Zstandard NARs
+
+With `compression=zstd&seekable-compression=true`, Hydra writes each NAR in the [zstd seekable format](https://github.com/facebook/zstd/blob/dev/contrib/seekable_format/zstd_seekable_compression_format.md): a sequence of independent zstd frames, followed by a seek table in a skippable frame.
+Without `seekable-compression`, a zstd NAR is one zstd frame.
+A new frame starts at the first directory entry after the minimum frame size of NAR, and after at most 16 MiB of NAR.
+Thus a NAR that is smaller than the minimum frame size is one frame.
+With the `narOffset` values in the `.ls` listing (`write-nar-listing=1`), a client can use the seek table to find the frames that hold a file.
+The client can then get only those frames with an HTTP range request, instead of the full NAR.
+
+| Parameter | Default | Values |
+|---|---|---|
+| `seekable-compression` | `false` | `true` or `false`. Only `compression=zstd` uses it. |
+| `seekable-min-frame-size` | `8388608` (8 MiB) | 1 to `16777216` (16 MiB) bytes. Only `seekable-compression=true` uses it. |
+
+The maximum frame size is 16 MiB, the frame size that Nix uses for zstd.
+It is not a parameter.
+
+RFC 8878 makes concatenated frames valid zstd, and decoders skip skippable frames.
+Thus Nix and the `zstd` tool read these NARs without changes.
+Other readers must decode all frames, not only the first frame.
+
+The minimum frame size is a trade-off.
+Each frame starts with no compression history, so zstd cannot use matches in earlier frames.
+Smaller frames make the NAR larger, mostly when files near each other are similar, for example binaries that contain the same code.
+Larger frames make a client get more bytes for one file.
+
+The tables below show measurements on 105 NARs from the NixOS 26.05 KDE system closure on cache.nixos.org, at zstd level 3, weighted to the mix of NAR sizes in the closure.
+All values compare with one frame for each NAR (`seekable-compression=false`).
+The sample does not include paths smaller than 64 KiB (30% of the paths, 0.1% of the bytes), because they are always one frame.
+
+| `seekable-min-frame-size` | Cache size | Data for one file | Frames for each NAR |
+|---|---|---|---|
+| `16777216` (16 MiB) | +0.17% | 4351 KB | 1.20 |
+| `8388608` (8 MiB, default) | +0.30% | 2433 KB | 1.38 |
+| `4194304` (4 MiB) | +0.54% | 1300 KB | 1.75 |
+| `2097152` (2 MiB) | +1.05% | 670 KB | 2.37 |
+| `1048576` (1 MiB) | +2.59% | 354 KB | 3.45 |
+
+"Cache size" is the increase of the total compressed size.
+"Data for one file" is the mean compressed size of the frames that hold one file.
+With one frame, a client gets the full NAR, which is 21 MB on average for one file.
+Each time the minimum frame size is halved, the data for one file is approximately halved, and the cache size increase approximately doubles.
+
+The increase is not the same for all NARs.
+This table shows the largest increase of one NAR in the sample, for each NAR size:
+
+| `seekable-min-frame-size` | 1 to 4 MiB (16% of the paths) | 4 to 16 MiB (9%) | 16 to 64 MiB (4%) | More than 64 MiB (1%) |
+|---|---|---|---|---|
+| 16 MiB | 0.01% | <0.01% | 5.9% | 0.79% |
+| 8 MiB (default) | 0.01% | 2.2% | 6.5% | 2.5% |
+| 4 MiB | 0.01% | 19% | 11% | 2.2% |
+| 2 MiB | 2.6% | 39% | 18% | 3.3% |
+| 1 MiB | 59% | 80% | 34% | 6.5% |
+
+NARs smaller than 1 MiB (70% of the paths) are one frame with all of these values, and the seek table adds only 25 bytes to them.
+NARs that are only a few times larger than the minimum frame size increase most, because then each frame is a large part of the NAR.
+For example, `docbook-xsl-ns-1.79.2` (17.7 MiB of NAR) increased by 5.9% (125 KB) with 16 MiB, and by 6.5% (138 KB) with 8 MiB.
+In each NAR size, the median increase is at most 0.35% with 8 MiB, and at most 4.6% with 1 MiB.
+Thus enable `seekable-compression` only if clients use range requests.
+
 See [`nix help stores`](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html) for a description of the store URI format.
 
 Statsd Configuration
