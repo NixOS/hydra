@@ -40,9 +40,19 @@ __PACKAGE__->table("failedpaths");
   data_type: 'text'
   is_nullable: 0
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
-__PACKAGE__->add_columns("path", { data_type => "text", is_nullable => 0 });
+__PACKAGE__->add_columns(
+  "path",
+  { data_type => "text", is_nullable => 0 },
+  "storedir",
+  { data_type => "text", is_nullable => 1 },
+);
 
 =head1 PRIMARY KEY
 
@@ -57,8 +67,8 @@ __PACKAGE__->add_columns("path", { data_type => "text", is_nullable => 0 });
 __PACKAGE__->set_primary_key("path");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:V/Ce4LuWe5qRHFAU32xXlw
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:wbG/BmnKWuIDQBKpljn6Tg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration
@@ -66,3 +76,4 @@ __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/path/);
 
 1;
+

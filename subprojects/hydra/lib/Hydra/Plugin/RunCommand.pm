@@ -162,9 +162,10 @@ sub fanoutToCommands {
 
 sub makeJsonPayload {
     my ($event, $build) = @_;
-    # The payload goes to a command outside Hydra, which has always been
-    # given full paths; `get_column` below reads columns raw, i.e. already
-    # as full paths.
+    # The payload goes to a command outside Hydra, which has always been given
+    # full paths, so every store path here is printed with the store directory
+    # back on. `get_column` will not do for them: it reads the column raw,
+    # which is now the basename.
     my $storeDir = $build->result_source->schema->storeDir;
     my $json = {
         event => $event,
@@ -174,7 +175,7 @@ sub makeJsonPayload {
         project => $build->project->get_column('name'),
         jobset => $build->jobset->get_column('name'),
         job => $build->get_column('job'),
-        drvPath => $build->get_column('drvpath'),
+        drvPath => printStorePath($storeDir, $build->drvpath),
         startTime => $build->get_column('starttime'),
         stopTime => $build->get_column('stoptime'),
         buildStatus => $build->get_column('buildstatus'),
@@ -203,7 +204,7 @@ sub makeJsonPayload {
             subtype => $product->subtype,
             fileSize => $product->filesize,
             sha256hash => $product->sha256hash,
-            path => printRelativeStorePath($storeDir, $product->path),
+            path => printRelativeStorePath($storeDir, $product->storePath, $product->subPath),
             name => $product->name,
             defaultPath => $product->defaultpath,
         };

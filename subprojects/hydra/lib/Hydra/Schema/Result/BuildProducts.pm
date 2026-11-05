@@ -71,6 +71,16 @@ __PACKAGE__->table("buildproducts");
   data_type: 'text'
   is_nullable: 1
 
+=head2 subpath
+
+  data_type: 'text'
+  is_nullable: 1
+
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =head2 name
 
   data_type: 'text'
@@ -97,6 +107,10 @@ __PACKAGE__->add_columns(
   "sha256hash",
   { data_type => "text", is_nullable => 1 },
   "path",
+  { data_type => "text", is_nullable => 1 },
+  "subpath",
+  { data_type => "text", is_nullable => 1 },
+  "storedir",
   { data_type => "text", is_nullable => 1 },
   "name",
   { data_type => "text", is_nullable => 0 },
@@ -136,17 +150,19 @@ __PACKAGE__->belongs_to(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6vyZPg5I2zbgpw1a6JsVjw
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 13:14:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:rfMMRanIL91rtB1JSIFJ+w
 
 my %hint = (
+    # Served as one full path, though it is stored as a store path and the
+    # sub-path below it.
+    relative_store_path_columns => { path => ["storePath", "subPath"] },
     columns => [
         'type',
         'subtype',
         'name',
         'filesize',
         'sha256hash',
-        'path',
         'defaultpath'
     ],
 );
@@ -156,6 +172,7 @@ sub json_hint {
 }
 
 __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
-__PACKAGE__->inflate_relative_store_path("path", "storePath", "subPath");
+__PACKAGE__->inflate_relative_store_path("path", "subpath", "storePath", "subPath");
 
 1;
+
