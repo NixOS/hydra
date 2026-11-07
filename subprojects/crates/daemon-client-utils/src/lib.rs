@@ -300,7 +300,7 @@ impl DaemonConnPool {
 }
 
 /// A connection leased from a [`DaemonConnPool`], returned to the pool on drop
-/// unless it was marked broken by a failed query.
+/// unless it was marked broken by a failed or unfinished query.
 #[derive(Debug)]
 pub struct PooledConn {
     conn: Option<DaemonConn>,
@@ -312,6 +312,13 @@ pub struct PooledConn {
 impl PooledConn {
     /// Check path validity. A daemon error can leave the connection desynced,
     /// so on error it is dropped instead of returned to the pool.
+    ///
+    /// The connection is also desynced when this future is dropped between
+    /// sending the request and reading the reply (e.g. a `create_step` task
+    /// aborted because a sibling input hit a previous failure). The unread
+    /// reply would then be returned to the next user of the connection, and
+    /// every later query on it would get the answer to the previous one. So
+    /// the connection counts as broken until the reply has been read.
     #[expect(
         clippy::expect_used,
         clippy::missing_panics_doc,
@@ -319,13 +326,10 @@ impl PooledConn {
     )]
     pub async fn is_valid_path(&mut self, path: &StorePath) -> Result<bool, DaemonError> {
         let conn = self.conn.as_mut().expect("leased connection already taken");
-        match conn.is_valid_path(path).await {
-            Ok(valid) => Ok(valid),
-            Err(e) => {
-                self.broken = true;
-                Err(e)
-            }
-        }
+        self.broken = true;
+        let valid = conn.is_valid_path(path).await?;
+        self.broken = false;
+        Ok(valid)
     }
 }
 
@@ -551,5 +555,42 @@ mod tests {
         let uri = c.to_uri();
         assert!(uri.contains("store=/custom/store"));
         assert!(uri.contains("root=/chroot"));
+    }
+
+    /// A query cancelled after its request was sent must not return the
+    /// connection to the pool, or the next query on it reads the stale reply.
+    ///
+    /// Needs a running nix-daemon and a valid store path to query:
+    /// `HYDRA_TEST_VALID_PATH=$(readlink -f /run/current-system) cargo test
+    /// -p daemon-client-utils -- --ignored`
+    #[tokio::test]
+    #[ignore = "needs a running nix-daemon"]
+    async fn cancelled_query_does_not_poison_pool() {
+        use std::future::Future as _;
+        use std::task::{Context, Poll, Waker};
+
+        let cfg = parse_nix_remote().unwrap();
+        let present_path =
+            std::env::var("HYDRA_TEST_VALID_PATH").expect("HYDRA_TEST_VALID_PATH env. var.");
+        let present: StorePath = cfg.store_dir.parse(&present_path).unwrap();
+        let absent: StorePath = cfg
+            .store_dir
+            .parse("/nix/store/00000000000000000000000000000000-hydra-test-invalid")
+            .unwrap();
+
+        let connector = DaemonConnector::new(cfg.socket.clone(), cfg.store_dir.clone());
+        let pool = DaemonConnPool::new(DaemonStoreReader::new(connector), 1);
+
+        // Send a query and drop it before reading the reply.
+        {
+            let mut conn = pool.acquire().await.unwrap();
+            let mut fut = std::pin::pin!(conn.is_valid_path(&present));
+            let first_poll = fut.as_mut().poll(&mut Context::from_waker(Waker::noop()));
+            assert!(matches!(first_poll, Poll::Pending));
+        }
+
+        let mut conn = pool.acquire().await.unwrap();
+        assert!(!conn.is_valid_path(&absent).await.unwrap());
+        assert!(conn.is_valid_path(&present).await.unwrap());
     }
 }
