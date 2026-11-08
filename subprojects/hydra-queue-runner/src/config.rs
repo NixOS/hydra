@@ -17,6 +17,12 @@ pub enum ConfigError {
     #[error("reading configuration file")]
     Io(#[from] std::io::Error),
 
+    #[error("reading token file")]
+    TokenFile(#[source] std::io::Error),
+
+    #[error("token file `{0}` is empty")]
+    EmptyTokenFile(std::path::PathBuf),
+
     #[error("{context}")]
     Toml {
         context: String,
@@ -356,18 +362,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             overflow.validate()?;
         }
 
-        let token_list = val.token_paths.and_then(|l| {
-            l.iter()
-                .map(|p| {
-                    fs_err::read_to_string(p)
-                        .map(|s| s.trim().to_string())
-                        .inspect_err(|e| {
-                            tracing::warn!("Failed to load token file, skipping file. Err={e}");
-                        })
-                        .ok()
-                })
-                .collect()
-        });
+        let token_list = load_token_list(val.token_paths.as_deref())?;
 
         Ok(Self {
             hydra_data_dir: val.hydra_data_dir,
@@ -426,6 +421,39 @@ impl TryFrom<AppConfig> for PreparedApp {
             overflow_store: val.overflow_store,
         })
     }
+}
+
+/// Reads the configured gRPC auth tokens.
+///
+/// Fails closed: if token paths are configured, every file must be readable
+/// and non-empty. A broken token file must never silently disable authentication.
+fn load_token_list(
+    paths: Option<&[std::path::PathBuf]>,
+) -> Result<Option<Vec<String>>, ConfigError> {
+    let Some(paths) = paths else {
+        return Ok(None);
+    };
+    paths
+        .iter()
+        .map(|p| {
+            let token = fs_err::read_to_string(p)
+                .map_err(ConfigError::TokenFile)?
+                .trim()
+                .to_owned();
+            if token.is_empty() {
+                return Err(ConfigError::EmptyTokenFile(p.clone()));
+            }
+            Ok(token)
+        })
+        .collect::<Result<_, _>>()
+        .map(Some)
+}
+
+fn error_chain(e: &dyn std::error::Error) -> String {
+    std::iter::successors(Some(e), |e| e.source())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(": ")
 }
 
 /// Loads the config from specified path
@@ -643,7 +671,7 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
     let new_config = match load_config(filepath) {
         Ok(c) => c,
         Err(e) => {
-            tracing::warn!("Failed to load new config: {e}");
+            tracing::warn!("Failed to load new config: {}", error_chain(&e));
             let _notify = sd_notify::notify(&[
                 sd_notify::NotifyState::Status("Reload failed"),
                 sd_notify::NotifyState::Errno(1),
@@ -667,4 +695,78 @@ pub async fn reload(current_config: &App, filepath: &str, state: &Arc<crate::sta
         sd_notify::NotifyState::Status("Configuration reloaded - Running"),
         sd_notify::NotifyState::Ready,
     ]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ConfigError, error_chain, load_token_list};
+
+    fn write_token(dir: &tempfile::TempDir, name: &str, content: &str) -> std::path::PathBuf {
+        let path = dir.path().join(name);
+        fs_err::write(&path, content).unwrap();
+        path
+    }
+
+    #[test]
+    fn no_token_paths_disables_auth() {
+        assert!(load_token_list(None).unwrap().is_none());
+    }
+
+    #[test]
+    fn empty_token_paths_rejects_everything() {
+        assert_eq!(load_token_list(Some(&[])).unwrap(), Some(vec![]));
+    }
+
+    #[test]
+    fn reads_and_trims_all_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = [
+            write_token(&dir, "a", "token-a\n"),
+            write_token(&dir, "b", "  token-b  "),
+        ];
+        assert_eq!(
+            load_token_list(Some(&paths)).unwrap(),
+            Some(vec!["token-a".to_owned(), "token-b".to_owned()])
+        );
+    }
+
+    #[test]
+    fn missing_token_file_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = [
+            write_token(&dir, "a", "token-a"),
+            dir.path().join("does-not-exist"),
+            write_token(&dir, "c", "token-c"),
+        ];
+        assert!(matches!(
+            load_token_list(Some(&paths)),
+            Err(ConfigError::TokenFile(_))
+        ));
+    }
+
+    #[test]
+    fn error_chain_names_the_token_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("does-not-exist");
+        let err = ConfigError::Prepare(Box::new(
+            load_token_list(Some(std::slice::from_ref(&missing))).unwrap_err(),
+        ));
+        let msg = error_chain(&err);
+        assert!(
+            msg.starts_with("preparing configuration: reading token file: "),
+            "{msg}"
+        );
+        assert!(msg.contains(&missing.display().to_string()), "{msg}");
+    }
+
+    #[test]
+    fn empty_token_file_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let empty = write_token(&dir, "empty", " \n\t\n");
+        let paths = [write_token(&dir, "a", "token-a"), empty.clone()];
+        assert!(matches!(
+            load_token_list(Some(&paths)),
+            Err(ConfigError::EmptyTokenFile(p)) if p == empty
+        ));
+    }
 }
