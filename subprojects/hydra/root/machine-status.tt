@@ -1,6 +1,12 @@
 [% WRAPPER layout.tt title="Machine status" %]
 [% PROCESS common.tt %]
 [% USE format %]
+[% MACRO render_limit_number(unit, n) BLOCK;
+    IF unit == 'percent'; pretty_percent(n); '%';
+    ELSIF unit == 'count'; f = format('%d'); f(n);
+    ELSE; pretty_load(n) | html;
+    END;
+END %]
 
 <table class="table table-condensed table-striped">
   <thead>
@@ -28,7 +34,16 @@
                 <li><b>System types:&nbsp;</b>[% comma=0; FOREACH system IN m.value.systemTypes %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% system | html%]</tt>[% END %]</li>
                 <li><b>Supported Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.supportedFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat| html %]</tt>[% END %]</li>
                 <li><b>Mandatory Features:&nbsp;</b>[% comma=0; FOREACH feat IN m.value.mandatoryFeatures %][% IF comma; %], [% ELSE; comma = 1; END %]<tt>[% feat| html %]</tt>[% END %]</li>
-                <li><b>Capacity:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasCapacity %]&nbsp;<b>Static:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasStaticCapacity %]&nbsp;<b>Dynamic:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasDynamicCapacity %]</li>
+                <li><b>Capacity:&nbsp;</b>[% INCLUDE renderYesNo value=m.value.hasCapacity %]</li>
+                [% IF m.value.capacityLimits.size %]
+                    <li><b>Blocked by:&nbsp;</b>
+                        <table class="pressureTable">
+                            [% FOREACH l IN m.value.capacityLimits %]
+                                <tr><td><b>[% l.label | html %]:</b></td><td><tt>[% render_limit_number(l.unit, l.value) %]</tt></td><td>[% l.op | html %]</td><td><tt>[% render_limit_number(l.unit, l.threshold) %]</tt></td></tr>
+                            [% END %]
+                        </table>
+                    </li>
+                [% END %]
                 <li><b>Scheduling Score:&nbsp;</b>[% HTML.escape(m.value.score) %]</li>
                 <li><b>Load:&nbsp;</b><tt>[% pretty_load(m.value.stats.load1) | html %]</tt>&nbsp;&nbsp;&nbsp;<tt>[% pretty_load(m.value.stats.load5) | html %]</tt>&nbsp;&nbsp;&nbsp;<tt>[% pretty_load(m.value.stats.load15) | html %]</tt></li>
                 <li><b>Memory:&nbsp;</b><tt>[% human_bytes(m.value.stats.memUsage) | html %]</tt> of <tt>[% human_bytes(m.value.memTotal) | html %]</tt> used (<tt>[% human_bytes(m.value.memTotal - m.value.stats.memUsage) | html %]</tt> free)</li>

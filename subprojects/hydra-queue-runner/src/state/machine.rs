@@ -561,6 +561,153 @@ impl Message {
     }
 }
 
+/// A reason the scheduler treats a machine as full and gives it no new jobs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapacityLimit {
+    BuildDirSpace,
+    StoreSpace,
+    CpuPressure,
+    MemPressure,
+    IoPressure,
+    Load1,
+    MaxJobs,
+}
+
+impl CapacityLimit {
+    pub const ALL: [Self; 7] = [
+        Self::BuildDirSpace,
+        Self::StoreSpace,
+        Self::CpuPressure,
+        Self::MemPressure,
+        Self::IoPressure,
+        Self::Load1,
+        Self::MaxJobs,
+    ];
+
+    // Stops compiling when a variant is added, as a reminder to list it in ALL.
+    const _EXHAUSTIVE: () = match Self::BuildDirSpace {
+        Self::BuildDirSpace
+        | Self::StoreSpace
+        | Self::CpuPressure
+        | Self::MemPressure
+        | Self::IoPressure
+        | Self::Load1
+        | Self::MaxJobs => (),
+    };
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::BuildDirSpace => "build_dir_space",
+            Self::StoreSpace => "store_space",
+            Self::CpuPressure => "cpu_pressure",
+            Self::MemPressure => "mem_pressure",
+            Self::IoPressure => "io_pressure",
+            Self::Load1 => "load1",
+            Self::MaxJobs => "max_jobs",
+        }
+    }
+
+    /// Human readable name, shown on the machine status page.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::BuildDirSpace => "Build dir free space",
+            Self::StoreSpace => "Store free space",
+            Self::CpuPressure => "Some CPU pressure",
+            Self::MemPressure => "Full memory pressure",
+            Self::IoPressure => "Full IO pressure",
+            Self::Load1 => "Load (1m)",
+            Self::MaxJobs => "Running jobs",
+        }
+    }
+
+    /// Unit of value and threshold, used by the status page to format them.
+    #[must_use]
+    pub const fn unit(self) -> &'static str {
+        match self {
+            Self::BuildDirSpace
+            | Self::StoreSpace
+            | Self::CpuPressure
+            | Self::MemPressure
+            | Self::IoPressure => "percent",
+            Self::Load1 => "load",
+            Self::MaxJobs => "count",
+        }
+    }
+
+    /// How value compares to threshold when the limit is reached.
+    #[must_use]
+    pub const fn op(self) -> LimitOp {
+        match self {
+            Self::BuildDirSpace | Self::StoreSpace => LimitOp::Lt,
+            Self::MaxJobs => LimitOp::Ge,
+            Self::CpuPressure | Self::MemPressure | Self::IoPressure | Self::Load1 => LimitOp::Gt,
+        }
+    }
+
+    /// Whether the scheduler checks this limit. Dynamic free functions check the
+    /// PSI limits if the builder reports CPU PSI, else load1.
+    #[must_use]
+    fn is_checked(self, free_fn: MachineFreeFn, has_cpu_psi: bool) -> bool {
+        let dynamic = free_fn != MachineFreeFn::Static;
+        match self {
+            Self::BuildDirSpace | Self::StoreSpace => true,
+            Self::CpuPressure | Self::MemPressure | Self::IoPressure => dynamic && has_cpu_psi,
+            Self::Load1 => dynamic && !has_cpu_psi,
+            Self::MaxJobs => free_fn != MachineFreeFn::Dynamic,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LimitOp {
+    Lt,
+    Gt,
+    Ge,
+}
+
+impl LimitOp {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Lt => "<",
+            Self::Gt => ">",
+            Self::Ge => ">=",
+        }
+    }
+
+    #[must_use]
+    pub fn holds(self, value: f64, threshold: f64) -> bool {
+        match self {
+            Self::Lt => value < threshold,
+            Self::Gt => value > threshold,
+            Self::Ge => value >= threshold,
+        }
+    }
+}
+
+fn has_cpu_psi(pressure: Option<&PressureState>) -> bool {
+    pressure.is_some_and(|p| p.cpu_some.is_some())
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct LimitReading {
+    pub limit: CapacityLimit,
+    pub value: f64,
+    pub threshold: f64,
+    /// Whether the scheduler checks this limit, see [`CapacityLimit::is_checked`]
+    pub checked: bool,
+}
+
+impl LimitReading {
+    /// True if the scheduler checks the limit and the value is past the threshold.
+    #[must_use]
+    pub fn is_reached(&self) -> bool {
+        self.checked && self.limit.op().holds(self.value, self.threshold)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Machine {
     pub id: uuid::Uuid,
@@ -729,54 +876,73 @@ impl Machine {
         Ok(())
     }
 
-    #[must_use]
-    pub fn has_dynamic_capacity(&self) -> bool {
+    /// Readings of all limits, including ones `free_fn` doesn't check. Skips
+    /// limits without data or threshold.
+    pub fn limit_readings(&self, free_fn: MachineFreeFn) -> impl Iterator<Item = LimitReading> {
         let pressure = self.stats.pressure.load();
-
-        if let Some(cpu_some) = pressure.as_ref().and_then(|v| v.cpu_some) {
-            if cpu_some.avg10 > self.cpu_psi_threshold {
-                return false;
-            }
-            if let Some(mem_full) = pressure.as_ref().and_then(|v| v.mem_full)
-                && mem_full.avg10 > self.mem_psi_threshold
-            {
-                return false;
-            }
-            if let Some(threshold) = self.io_psi_threshold
-                && let Some(io_full) = pressure.as_ref().and_then(|v| v.io_full)
-                && io_full.avg10 > threshold
-            {
-                return false;
-            }
-        } else if self.stats.get_load1() > self.load1_threshold {
-            return false;
-        }
-
-        true
+        let has_cpu_psi = has_cpu_psi(pressure.as_deref());
+        CapacityLimit::ALL.into_iter().filter_map(move |limit| {
+            let (value, threshold) = self.limit_value(limit, pressure.as_deref())?;
+            Some(LimitReading {
+                limit,
+                value,
+                threshold,
+                checked: limit.is_checked(free_fn, has_cpu_psi),
+            })
+        })
     }
 
-    #[must_use]
-    pub fn has_static_capacity(&self) -> bool {
-        self.stats.get_current_jobs() < u64::from(self.max_jobs)
+    /// Limits that currently block new jobs under `free_fn`.
+    pub fn reached_limits(&self, free_fn: MachineFreeFn) -> impl Iterator<Item = LimitReading> {
+        self.limit_readings(free_fn)
+            .filter(LimitReading::is_reached)
     }
 
+    /// Same answer as `reached_limits`, but cheaper: the scheduler calls this
+    /// for every machine, so it skips unchecked limits and stops at the first hit.
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
-        if self.stats.get_build_dir_free_percent() < self.build_dir_avail_threshold {
-            return false;
-        }
+        let pressure = self.stats.pressure.load();
+        let has_cpu_psi = has_cpu_psi(pressure.as_deref());
+        !CapacityLimit::ALL.into_iter().any(|limit| {
+            limit.is_checked(free_fn, has_cpu_psi)
+                && self
+                    .limit_value(limit, pressure.as_deref())
+                    .is_some_and(|(value, threshold)| limit.op().holds(value, threshold))
+        })
+    }
 
-        if self.stats.get_store_free_percent() < self.store_avail_threshold {
-            return false;
-        }
-
-        match free_fn {
-            MachineFreeFn::Dynamic => self.has_dynamic_capacity(),
-            MachineFreeFn::DynamicWithMaxJobLimit => {
-                self.has_dynamic_capacity() && self.has_static_capacity()
-            }
-            MachineFreeFn::Static => self.has_static_capacity(),
-        }
+    /// Current value and threshold of `limit`.
+    fn limit_value(
+        &self,
+        limit: CapacityLimit,
+        pressure: Option<&PressureState>,
+    ) -> Option<(f64, f64)> {
+        Some(match limit {
+            CapacityLimit::BuildDirSpace => (
+                self.stats.get_build_dir_free_percent(),
+                self.build_dir_avail_threshold,
+            ),
+            CapacityLimit::StoreSpace => (
+                self.stats.get_store_free_percent(),
+                self.store_avail_threshold,
+            ),
+            CapacityLimit::CpuPressure => (
+                pressure?.cpu_some?.avg10.into(),
+                self.cpu_psi_threshold.into(),
+            ),
+            CapacityLimit::MemPressure => (
+                pressure?.mem_full?.avg10.into(),
+                self.mem_psi_threshold.into(),
+            ),
+            CapacityLimit::IoPressure => (
+                pressure?.io_full?.avg10.into(),
+                self.io_psi_threshold?.into(),
+            ),
+            CapacityLimit::Load1 => (self.stats.get_load1().into(), self.load1_threshold.into()),
+            #[allow(clippy::cast_precision_loss)]
+            CapacityLimit::MaxJobs => (self.stats.get_current_jobs() as f64, self.max_jobs.into()),
+        })
     }
 
     #[must_use]
@@ -930,6 +1096,94 @@ mod tests {
         // small runs 2 of 4 jobs (50%), big runs 3 of 8 (37.5%)
         let machines = [machine("small", 4, 2), machine("big", 8, 3)];
         assert_eq!(pick(&machines), "big");
+    }
+
+    fn reached(m: &Machine, free_fn: MachineFreeFn) -> Vec<CapacityLimit> {
+        m.reached_limits(free_fn).map(|r| r.limit).collect()
+    }
+
+    #[test]
+    fn test_max_jobs_not_checked_for_dynamic() {
+        let m = machine("full", 2, 2);
+        assert_eq!(reached(&m, MachineFreeFn::Static), [CapacityLimit::MaxJobs]);
+        assert_eq!(
+            reached(&m, MachineFreeFn::DynamicWithMaxJobLimit),
+            [CapacityLimit::MaxJobs]
+        );
+        assert!(m.has_capacity(MachineFreeFn::Dynamic));
+    }
+
+    #[test]
+    fn test_load1_is_fallback_when_no_psi() {
+        let m = machine("loaded", 8, 0);
+        m.stats.load1.store(5.0, Ordering::Relaxed);
+        assert_eq!(reached(&m, MachineFreeFn::Dynamic), [CapacityLimit::Load1]);
+
+        m.stats.pressure.store(Some(Arc::new(PressureState {
+            cpu_some: Some(Pressure::default()),
+            ..Default::default()
+        })));
+        assert!(m.has_capacity(MachineFreeFn::Dynamic));
+    }
+
+    #[test]
+    fn test_space_limit_reached_only_below_threshold() {
+        let m = Machine {
+            build_dir_avail_threshold: 10.0,
+            ..Arc::unwrap_or_clone(machine("disk", 8, 0))
+        };
+        m.stats
+            .build_dir_free_percent
+            .store(10.0, Ordering::Relaxed);
+        assert!(m.has_capacity(MachineFreeFn::Static));
+
+        m.stats.build_dir_free_percent.store(9.9, Ordering::Relaxed);
+        assert_eq!(
+            reached(&m, MachineFreeFn::Static),
+            [CapacityLimit::BuildDirSpace]
+        );
+    }
+
+    #[test]
+    fn test_mem_and_io_pressure_need_cpu_psi() {
+        let m = Machine {
+            io_psi_threshold: Some(0.0),
+            ..Arc::unwrap_or_clone(machine("psi", 8, 0))
+        };
+        let high = Some(Pressure {
+            avg10: 1.0,
+            ..Default::default()
+        });
+        let psi = |cpu_some| {
+            Some(Arc::new(PressureState {
+                cpu_some,
+                mem_full: high,
+                io_full: high,
+                ..Default::default()
+            }))
+        };
+
+        m.stats.pressure.store(psi(None));
+        assert!(m.has_capacity(MachineFreeFn::Dynamic));
+
+        m.stats.pressure.store(psi(Some(Pressure::default())));
+        assert_eq!(
+            reached(&m, MachineFreeFn::Dynamic),
+            [CapacityLimit::MemPressure, CapacityLimit::IoPressure]
+        );
+    }
+
+    #[test]
+    fn test_unchecked_limits_have_readings_but_never_block() {
+        let m = machine("busy", 2, 2);
+        m.stats.load1.store(5.0, Ordering::Relaxed);
+        let readings: Vec<_> = m.limit_readings(MachineFreeFn::Dynamic).collect();
+        let max_jobs = readings
+            .iter()
+            .find(|r| r.limit == CapacityLimit::MaxJobs)
+            .unwrap();
+        assert!(!max_jobs.checked);
+        assert_eq!(reached(&m, MachineFreeFn::Dynamic), [CapacityLimit::Load1]);
     }
 
     #[test]

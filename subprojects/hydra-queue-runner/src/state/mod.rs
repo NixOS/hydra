@@ -115,7 +115,9 @@ pub use build::{Build, BuildOutput, BuildResultState, BuildTimings, Builds, Remo
 use harmonia_store_derivation::derivation::Derivation;
 use harmonia_store_path::StorePath;
 pub use jobset::{Jobset, JobsetID, Jobsets};
-pub use machine::{Machine, Message as MachineMessage, Pressure, Stats as MachineStats};
+pub use machine::{
+    LimitReading, Machine, Message as MachineMessage, Pressure, Stats as MachineStats,
+};
 pub use queue::{BuildQueueStats, Queues};
 pub use step::{Step, Steps};
 pub use step_info::StepInfo;

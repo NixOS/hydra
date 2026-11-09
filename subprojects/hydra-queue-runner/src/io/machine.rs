@@ -141,7 +141,6 @@ impl MachineStats {
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(clippy::struct_excessive_bools)]
 pub struct Machine {
     systems: SmallVec<[crate::state::System; 4]>,
     hostname: String,
@@ -168,8 +167,32 @@ pub struct Machine {
     jobs: Vec<StorePath>,
 
     has_capacity: bool,
-    has_dynamic_capacity: bool,
-    has_static_capacity: bool,
+    /// Limits that currently block new jobs, considering `machine_free_fn`
+    capacity_limits: Vec<LimitReading>,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LimitReading {
+    limit: &'static str,
+    label: &'static str,
+    unit: &'static str,
+    op: &'static str,
+    value: f64,
+    threshold: f64,
+}
+
+impl From<crate::state::LimitReading> for LimitReading {
+    fn from(r: crate::state::LimitReading) -> Self {
+        Self {
+            limit: r.limit.as_str(),
+            label: r.limit.label(),
+            unit: r.limit.unit(),
+            op: r.limit.op().as_str(),
+            value: r.value,
+            threshold: r.threshold,
+        }
+    }
 }
 
 impl Machine {
@@ -180,6 +203,8 @@ impl Machine {
         free_fn: crate::config::MachineFreeFn,
     ) -> Self {
         let jobs = { item.jobs.read().iter().map(|j| j.path.clone()).collect() };
+        let capacity_limits: Vec<LimitReading> =
+            item.reached_limits(free_fn).map(Into::into).collect();
         let time = jiff::Timestamp::now();
         Self {
             systems: item.systems.clone(),
@@ -208,9 +233,8 @@ impl Machine {
 
             stats: MachineStats::from(&item.stats, time.as_second()),
             jobs,
-            has_capacity: item.has_capacity(free_fn),
-            has_dynamic_capacity: item.has_dynamic_capacity(),
-            has_static_capacity: item.has_static_capacity(),
+            has_capacity: capacity_limits.is_empty(),
+            capacity_limits,
         }
     }
 }
