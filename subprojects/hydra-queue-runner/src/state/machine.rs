@@ -19,6 +19,9 @@ pub enum MachineError {
     #[error("failed to send message to machine: channel closed")]
     Channel(#[from] mpsc::error::SendError<Message>),
 
+    #[error("machine was removed")]
+    Closed,
+
     #[error("parsing machine UUID")]
     Uuid(#[from] uuid::Error),
 }
@@ -589,7 +592,23 @@ pub struct Machine {
 
     msg_queue: mpsc::Sender<Message>,
     pub stats: Arc<Stats>,
-    pub jobs: Arc<parking_lot::RwLock<Vec<Job>>>,
+    pub jobs: Arc<parking_lot::RwLock<Jobs>>,
+}
+
+/// A machine's jobs. `closed` shares the list's lock, so `insert_job` and
+/// `Machine::close` can't interleave.
+#[derive(Debug, Default)]
+pub struct Jobs {
+    list: Vec<Job>,
+    closed: bool,
+}
+
+impl std::ops::Deref for Jobs {
+    type Target = [Job];
+
+    fn deref(&self) -> &[Job] {
+        &self.list
+    }
 }
 
 impl std::fmt::Display for Machine {
@@ -661,7 +680,7 @@ impl Machine {
             msg_queue: tx,
             joined_at: jiff::Timestamp::now(),
             stats: Arc::new(Stats::new()),
-            jobs: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            jobs: Arc::new(parking_lot::RwLock::new(Jobs::default())),
         })
     }
 
@@ -686,9 +705,16 @@ impl Machine {
         resolved_drv: hydra_proto::nix::store::derivation::v1::Basic,
     ) -> Result<(), MachineError> {
         let drv = effective_drv;
-        self.msg_queue
+        // Attach the job before sending, so a builder report always finds it.
+        let path = job.path.clone();
+        let build_id = job.internal_build_id;
+        self.insert_job(job)?;
+        // On Err the job is detached and the caller cleans up. On Ok a
+        // builder report or `remove_machine` finalizes it.
+        if let Err(e) = self
+            .msg_queue
             .send(Message::BuildMessage {
-                build_id: job.internal_build_id,
+                build_id,
                 drv,
                 max_log_size,
                 max_output_size,
@@ -697,7 +723,11 @@ impl Machine {
                 presigned_url_opts,
                 resolved_drv: Box::new(resolved_drv),
             })
-            .await?;
+            .await
+            && self.detach_unsent_job(&path)
+        {
+            return Err(e.into());
+        }
 
         if self.stats.jobs_in_last_30s_count.load(Ordering::Relaxed) == 0 {
             self.stats
@@ -705,7 +735,6 @@ impl Machine {
                 .store(jiff::Timestamp::now().as_second(), Ordering::Relaxed);
         }
 
-        self.insert_job(job);
         self.stats
             .jobs_in_last_30s_count
             .fetch_add(1, Ordering::Relaxed);
@@ -762,6 +791,11 @@ impl Machine {
 
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
+        // The gRPC task closes the queue on disconnect, before `remove_machine`.
+        if self.msg_queue.is_closed() {
+            return false;
+        }
+
         if self.stats.get_build_dir_free_percent() < self.build_dir_avail_threshold {
             return false;
         }
@@ -844,10 +878,39 @@ impl Machine {
     }
 
     #[tracing::instrument(skip(self, job))]
-    fn insert_job(&self, job: Job) {
+    fn insert_job(&self, job: Job) -> Result<(), MachineError> {
         let mut jobs = self.jobs.write();
-        jobs.push(job);
+        if jobs.closed {
+            return Err(MachineError::Closed);
+        }
+        jobs.list.push(job);
         self.stats.store_current_jobs(jobs.len() as u64);
+        Ok(())
+    }
+
+    /// Removes a job the builder never received. If `close` already returned
+    /// the job, keeps it for `remove_machine` to finalize and returns false.
+    /// Removes only the newest job for `drv`, so `reconcile_stale_reporter`
+    /// still finds an older stale one.
+    fn detach_unsent_job(&self, drv: &StorePath) -> bool {
+        let mut jobs = self.jobs.write();
+        if jobs.closed {
+            return false;
+        }
+        if let Some(i) = jobs.list.iter().rposition(|j| &j.path == drv) {
+            jobs.list.remove(i);
+        }
+        self.stats.store_current_jobs(jobs.len() as u64);
+        true
+    }
+
+    /// Mark the machine as removed and return its jobs. `insert_job` fails
+    /// from now on.
+    #[must_use]
+    pub fn close(&self) -> Vec<Job> {
+        let mut jobs = self.jobs.write();
+        jobs.closed = true;
+        jobs.list.clone()
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
@@ -855,7 +918,7 @@ impl Machine {
         let job = {
             let mut jobs = self.jobs.write();
             let job = jobs.iter().find(|j| &j.path == drv).cloned();
-            jobs.retain(|j| &j.path != drv);
+            jobs.list.retain(|j| &j.path != drv);
             self.stats.incr_nr_steps_done();
             self.stats.store_current_jobs(jobs.len() as u64);
             job
@@ -883,6 +946,15 @@ mod tests {
 
     fn machine(hostname: &str, max_jobs: u32, current_jobs: u64) -> Arc<Machine> {
         let (tx, _rx) = mpsc::channel(1);
+        machine_with_tx(hostname, max_jobs, current_jobs, tx)
+    }
+
+    fn machine_with_tx(
+        hostname: &str,
+        max_jobs: u32,
+        current_jobs: u64,
+        tx: mpsc::Sender<Message>,
+    ) -> Arc<Machine> {
         let stats = Stats::new();
         stats.store_current_jobs(current_jobs);
         Arc::new(Machine {
@@ -909,7 +981,7 @@ mod tests {
             joined_at: jiff::Timestamp::now(),
             msg_queue: tx,
             stats: Arc::new(stats),
-            jobs: Arc::new(parking_lot::RwLock::new(Vec::new())),
+            jobs: Arc::new(parking_lot::RwLock::new(Jobs::default())),
         })
     }
 
@@ -930,6 +1002,92 @@ mod tests {
         // small runs 2 of 4 jobs (50%), big runs 3 of 8 (37.5%)
         let machines = [machine("small", 4, 2), machine("big", 8, 3)];
         assert_eq!(pick(&machines), "big");
+    }
+
+    fn drv(name: &str) -> StorePath {
+        StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
+    }
+
+    async fn dispatch(m: &Machine, drv: StorePath) -> Result<(), MachineError> {
+        m.build_drv(
+            Job::new(1, drv.clone()),
+            drv,
+            0,
+            0,
+            0,
+            0,
+            None,
+            hydra_proto::nix::store::derivation::v1::Basic::default(),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_build_drv_refused_after_close() {
+        let m = machine("m", 8, 0);
+        let _ = m.close();
+        assert!(matches!(
+            dispatch(&m, drv("test")).await,
+            Err(MachineError::Closed)
+        ));
+        assert!(m.jobs.read().is_empty());
+    }
+
+    /// Regression test for #1815. A dispatch that was still sending when
+    /// `remove_machine` ran attached its job after the job list was copied.
+    /// Nothing finalized the step, and it stayed "Connecting" until a restart.
+    #[tokio::test]
+    async fn test_dispatch_in_flight_during_close_is_not_orphaned() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let m = machine_with_tx("m", 8, 0, tx);
+        // Fill the channel so the next dispatch blocks in its send.
+        dispatch(&m, drv("first")).await.unwrap();
+        let mut in_flight = std::pin::pin!(dispatch(&m, drv("second")));
+        assert!(futures::poll!(in_flight.as_mut()).is_pending());
+
+        // `close` runs first, so its list has the job and `remove_machine`
+        // finalizes it. Closing the queue, as the gRPC task does, fails the send.
+        let closed = m.close();
+        rx.close();
+        in_flight.await.unwrap();
+
+        let paths = |jobs: &[Job]| jobs.iter().map(|j| j.path.clone()).collect::<Vec<_>>();
+        assert_eq!(paths(&m.jobs.read()), paths(&closed));
+    }
+
+    /// `close` runs between `insert_job` and the failed send. The job stays,
+    /// because `remove_machine` finalizes the list `close` returned.
+    #[test]
+    fn test_detach_after_close_keeps_job() {
+        let m = machine("m", 8, 0);
+        m.insert_job(Job::new(1, drv("test"))).unwrap();
+        let closed = m.close();
+        assert!(!m.detach_unsent_job(&drv("test")));
+        assert_eq!(m.jobs.read().len(), 1);
+        assert_eq!(closed.len(), 1);
+    }
+
+    #[test]
+    fn test_detach_keeps_stale_job_for_same_drv() {
+        let m = machine("m", 8, 0);
+        let mut stale = Job::new(1, drv("test"));
+        stale.step_nr = 1;
+        m.insert_job(stale).unwrap();
+        m.insert_job(Job::new(1, drv("test"))).unwrap();
+        assert!(m.detach_unsent_job(&drv("test")));
+        let step_nrs: Vec<_> = m.jobs.read().iter().map(|j| j.step_nr).collect();
+        assert_eq!(step_nrs, [1]);
+    }
+
+    #[tokio::test]
+    async fn test_build_drv_send_failure_detaches_job() {
+        // The helper drops the receiver, so the send fails.
+        let m = machine("m", 8, 0);
+        assert!(matches!(
+            dispatch(&m, drv("test")).await,
+            Err(MachineError::Channel(_))
+        ));
+        assert!(m.jobs.read().is_empty());
     }
 
     #[test]

@@ -276,7 +276,8 @@ enum RealiseStepResult {
     None,
     /// Created a new resolved `BuildStep`
     Resolved,
-    Valid(Arc<Machine>),
+    /// The step was sent to a machine and is scheduled on it.
+    Valid,
     MaybeCancelled,
     CachedFailure,
 }
@@ -585,10 +586,7 @@ impl State {
     #[tracing::instrument(skip(self))]
     pub async fn remove_machine(&self, machine_id: uuid::Uuid) {
         if let Some(m) = self.machines.remove_machine(machine_id) {
-            let jobs = {
-                let jobs = m.jobs.read();
-                jobs.clone()
-            };
+            let jobs = m.close();
             for job in &jobs {
                 if let Err(e) = self
                     .fail_step(
@@ -817,6 +815,7 @@ impl State {
     ) -> Result<RealiseStepResult, StateError> {
         let free_fn = self.config.get_machine_free_fn();
 
+        let queue = constraint.queue.clone();
         let Some((machine, step_info)) = constraint.resolve(&self.machines, free_fn) else {
             return Ok(RealiseStepResult::None);
         };
@@ -1114,6 +1113,12 @@ impl State {
         };
         job.step_nr = step_nr;
 
+        // Schedule the step before the builder sees it, so builder reports and
+        // a concurrent remove_machine find it. Nothing can fail between here
+        // and `dispatch_result`, so only its error path has to remove the entry.
+        self.queues
+            .add_job_to_scheduled(&step_info, &queue, machine.clone())
+            .await;
         // Finalize the Busy row if dispatch fails below; otherwise it lingers
         // busy until restart while the step is re-dispatched under a new stepnr.
         let dispatch_result: Result<(), StateError> = async {
@@ -1160,6 +1165,7 @@ impl State {
         }
         .await;
         if let Err(e) = dispatch_result {
+            self.queues.remove_job_from_scheduled(drv).await;
             if let Err(e2) = self.abort_orphaned_build_step(build_id, step_nr).await {
                 tracing::error!(
                     "Failed to clear busy step after dispatch failure build_id={build_id} step_nr={step_nr} e={e2}"
@@ -1169,7 +1175,7 @@ impl State {
         }
         self.metrics.nr_steps_started.inc();
         self.metrics.nr_steps_building.add(1);
-        Ok(RealiseStepResult::Valid(machine))
+        Ok(RealiseStepResult::Valid)
     }
 
     #[tracing::instrument(skip(self), fields(%drv))]
