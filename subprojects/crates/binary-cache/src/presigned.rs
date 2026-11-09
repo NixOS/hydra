@@ -39,10 +39,8 @@ impl PresignedUpload {
             url,
             compression,
             compression_level: match compression_level {
-                1 => async_compression::Level::Fastest,
-                l if (2..=8).contains(&l) => async_compression::Level::Precise(l),
-                9 => async_compression::Level::Best,
-                _ => async_compression::Level::Default,
+                0 => async_compression::Level::Default,
+                l => async_compression::Level::Precise(l),
             },
             multipart: None,
         }
