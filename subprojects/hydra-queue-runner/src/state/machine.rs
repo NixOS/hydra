@@ -19,6 +19,9 @@ pub enum MachineError {
     #[error("failed to send message to machine: channel closed")]
     Channel(#[from] mpsc::error::SendError<Message>),
 
+    #[error("failed to send message to machine: {0}")]
+    TrySend(#[from] mpsc::error::TrySendError<Message>),
+
     #[error("machine was removed")]
     Closed,
 
@@ -693,7 +696,7 @@ impl Machine {
         clippy::too_many_arguments,
         reason = "params mirror the fields dispatched in `Message::BuildMessage`"
     )]
-    pub async fn build_drv(
+    pub fn build_drv(
         &self,
         job: Job,
         effective_drv: StorePath,
@@ -709,22 +712,20 @@ impl Machine {
         let path = job.path.clone();
         let build_id = job.internal_build_id;
         self.insert_job(job)?;
-        // On Err the job is detached and the caller cleans up. On Ok a
-        // builder report or `remove_machine` finalizes it.
-        if let Err(e) = self
-            .msg_queue
-            .send(Message::BuildMessage {
-                build_id,
-                drv,
-                max_log_size,
-                max_output_size,
-                max_silent_time,
-                build_timeout,
-                presigned_url_opts,
-                resolved_drv: Box::new(resolved_drv),
-            })
-            .await
-            && self.detach_unsent_job(&path)
+        // Use `try_send`, so a builder that stops reading can't stall the serial
+        // dispatch loop. If the send fails, `detach_unsent_job` removes the job
+        // and the caller cleans up. Otherwise a builder report or
+        // `remove_machine` finalizes it.
+        if let Err(e) = self.msg_queue.try_send(Message::BuildMessage {
+            build_id,
+            drv,
+            max_log_size,
+            max_output_size,
+            max_silent_time,
+            build_timeout,
+            presigned_url_opts,
+            resolved_drv: Box::new(resolved_drv),
+        }) && self.detach_unsent_job(&path)
         {
             return Err(e.into());
         }
@@ -792,7 +793,8 @@ impl Machine {
     #[must_use]
     pub fn has_capacity(&self, free_fn: MachineFreeFn) -> bool {
         // The gRPC task closes the queue on disconnect, before `remove_machine`.
-        if self.msg_queue.is_closed() {
+        // A full queue means the builder stopped reading, so `build_drv` would fail.
+        if self.msg_queue.is_closed() || self.msg_queue.capacity() == 0 {
             return false;
         }
 
@@ -1008,7 +1010,7 @@ mod tests {
         StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
     }
 
-    async fn dispatch(m: &Machine, drv: StorePath) -> Result<(), MachineError> {
+    fn dispatch(m: &Machine, drv: StorePath) -> Result<(), MachineError> {
         m.build_drv(
             Job::new(1, drv.clone()),
             drv,
@@ -1019,40 +1021,33 @@ mod tests {
             None,
             hydra_proto::nix::store::derivation::v1::Basic::default(),
         )
-        .await
     }
 
-    #[tokio::test]
-    async fn test_build_drv_refused_after_close() {
+    /// Regression test for #1815.
+    #[test]
+    fn test_build_drv_refused_after_close() {
         let m = machine("m", 8, 0);
         let _ = m.close();
         assert!(matches!(
-            dispatch(&m, drv("test")).await,
+            dispatch(&m, drv("test")),
             Err(MachineError::Closed)
         ));
         assert!(m.jobs.read().is_empty());
     }
 
-    /// Regression test for #1815. A dispatch that was still sending when
-    /// `remove_machine` ran attached its job after the job list was copied.
-    /// Nothing finalized the step, and it stayed "Connecting" until a restart.
-    #[tokio::test]
-    async fn test_dispatch_in_flight_during_close_is_not_orphaned() {
-        let (tx, mut rx) = mpsc::channel(1);
+    #[test]
+    fn test_full_queue_has_no_capacity_and_detaches_job() {
+        let (tx, _rx) = mpsc::channel(1);
         let m = machine_with_tx("m", 8, 0, tx);
-        // Fill the channel so the next dispatch blocks in its send.
-        dispatch(&m, drv("first")).await.unwrap();
-        let mut in_flight = std::pin::pin!(dispatch(&m, drv("second")));
-        assert!(futures::poll!(in_flight.as_mut()).is_pending());
+        dispatch(&m, drv("first")).unwrap();
+        assert!(!m.has_capacity(MachineFreeFn::Static));
 
-        // `close` runs first, so its list has the job and `remove_machine`
-        // finalizes it. Closing the queue, as the gRPC task does, fails the send.
-        let closed = m.close();
-        rx.close();
-        in_flight.await.unwrap();
-
-        let paths = |jobs: &[Job]| jobs.iter().map(|j| j.path.clone()).collect::<Vec<_>>();
-        assert_eq!(paths(&m.jobs.read()), paths(&closed));
+        assert!(matches!(
+            dispatch(&m, drv("second")),
+            Err(MachineError::TrySend(mpsc::error::TrySendError::Full(_)))
+        ));
+        let paths: Vec<_> = m.jobs.read().iter().map(|j| j.path.clone()).collect();
+        assert_eq!(paths, [drv("first")]);
     }
 
     /// `close` runs between `insert_job` and the failed send. The job stays,
@@ -1079,13 +1074,13 @@ mod tests {
         assert_eq!(step_nrs, [1]);
     }
 
-    #[tokio::test]
-    async fn test_build_drv_send_failure_detaches_job() {
+    #[test]
+    fn test_build_drv_send_failure_detaches_job() {
         // The helper drops the receiver, so the send fails.
         let m = machine("m", 8, 0);
         assert!(matches!(
-            dispatch(&m, drv("test")).await,
-            Err(MachineError::Channel(_))
+            dispatch(&m, drv("test")),
+            Err(MachineError::TrySend(mpsc::error::TrySendError::Closed(_)))
         ));
         assert!(m.jobs.read().is_empty());
     }

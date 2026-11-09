@@ -1159,8 +1159,7 @@ impl State {
                     None
                 },
                 resolved_drv,
-            )
-            .await?;
+            )?;
         Ok(())
         }
         .await;

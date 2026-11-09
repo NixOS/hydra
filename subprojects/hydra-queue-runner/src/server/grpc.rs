@@ -376,8 +376,8 @@ impl RunnerService for Server {
                     }
                 }
             }
-            // Close the queue first. Pending and future sends then fail, so a
-            // dispatch blocked on a full queue doesn't wait for remove_machine.
+            // Close the queue before `remove_machine`. `has_capacity` then
+            // skips this machine, and further sends fail.
             input_rx.close();
             state.remove_machine(machine_id).await;
         });
