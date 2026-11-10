@@ -1,0 +1,107 @@
+//! Making sure a build's output is there before an evaluation is told about it.
+//!
+//! A `build` or `sysbuild` input names a previous build, and the expression is
+//! handed its output as `builtins.storePath`. That only works if the path is
+//! actually in the store: it may have been garbage collected, or -- where the
+//! evaluator does not share a store with whatever built it -- never have been
+//! here at all.
+//!
+//! So the path is checked, fetched from `eval_substituter` if one is
+//! configured, and checked again. An input whose build is unavailable
+//! contributes nothing.
+//!
+//! Both are asked of the `nix` command rather than the daemon: the command
+//! talks to whatever store `NIX_REMOTE` names, daemon or not, so this works
+//! wherever `nix copy` does.
+//!
+//! TODO: ask the nix-daemon for validity, as the queue runner does. That needs
+//! the evaluator to always have a daemon, including in the tests, which run it
+//! against a `local?root=` store.
+
+use db::StoreDir;
+
+/// Whether a build's output can be given to an evaluation.
+#[derive(Debug)]
+pub(crate) struct Availability {
+    store_dir: StoreDir,
+    substituter: Option<String>,
+}
+
+impl Availability {
+    pub(crate) fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
+        Self {
+            store_dir,
+            substituter,
+        }
+    }
+
+    pub(crate) fn store_dir(&self) -> &StoreDir {
+        &self.store_dir
+    }
+
+    /// Whether `path` is in the store, fetching it first if it is not and a
+    /// substituter is configured.
+    ///
+    /// A fetch that fails is "not available": this decides whether an input
+    /// has something to contribute, and a failed fetch does not mean it does.
+    /// Logged rather than raised, because a jobset with one stale `build`
+    /// input should still evaluate.
+    pub(crate) async fn is_available(&self, path: &str) -> bool {
+        // Anything malformed fails the check.
+        let full = crate::nix_eval_jobs::full(&self.store_dir, path);
+
+        if is_valid(&full).await {
+            return true;
+        }
+        let Some(substituter) = &self.substituter else {
+            return false;
+        };
+
+        tracing::info!("fetching `{full}' from {substituter}");
+        let fetched = tokio::process::Command::new("nix")
+            .args([
+                "--extra-experimental-features",
+                "nix-command",
+                "copy",
+                "--from",
+            ])
+            .arg(substituter)
+            .arg("--")
+            .arg(&full)
+            .kill_on_drop(true)
+            .output()
+            .await;
+        match fetched {
+            Ok(out) if out.status.success() => {}
+            Ok(out) => {
+                tracing::warn!(
+                    "could not fetch `{full}' from {substituter}: {}",
+                    out.status
+                );
+                tracing::debug!(
+                    "nix copy: {}",
+                    std::str::from_utf8(&out.stderr)
+                        .unwrap_or("<non-UTF-8>")
+                        .trim_end()
+                );
+            }
+            Err(e) => tracing::warn!("could not run nix copy: {e}"),
+        }
+
+        is_valid(&full).await
+    }
+
+    /// Whether `path` is in the store already, without fetching it.
+    pub(crate) async fn is_valid(&self, path: &str) -> bool {
+        is_valid(&crate::nix_eval_jobs::full(&self.store_dir, path)).await
+    }
+}
+
+async fn is_valid(full: &str) -> bool {
+    tokio::process::Command::new("nix-store")
+        .args(["--check-validity", "--", full])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await
+        .is_ok_and(|s| s.success())
+}

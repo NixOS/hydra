@@ -1,0 +1,90 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT ON (b.system)\n               b.id, b.releasename, b.nixname, b.drvpath,\n               o.path as \"out_path?\", o.name as \"out_name?\"\n        FROM builds b\n        JOIN jobsets j ON b.jobset_id = j.id\n        LEFT JOIN LATERAL (\n          SELECT path, name FROM buildoutputs WHERE build = b.id\n          ORDER BY name <> 'out', name LIMIT 1) o ON true\n        WHERE j.project = $1 AND j.name = $2 AND b.job = $3\n          AND b.finished = 1 AND b.buildstatus = 0\n        ORDER BY b.system, b.id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "releasename",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "releasename"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "nixname",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "nixname"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "drvpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "drvpath"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "out_path?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "out_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "buildoutputs",
+            "name": "name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "e074702e66e7c1b0ed872eca8a419d70de71c22b1a06ec4fbe6fd080417e83e2"
+}

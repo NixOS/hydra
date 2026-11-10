@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO jobsetevalmembers (eval, build, isnew)\n        SELECT $1, * FROM UNNEST($2::int[], $3::int[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "197a4826ef33918757246ee111ffea83b0b6ea9a9b5465d9c5fe1668db839b87"
+}

@@ -7,12 +7,18 @@ pub trait RetryableError {
     fn is_retryable_serialization_failure(&self) -> bool;
 }
 
-impl RetryableError for Error {
+impl RetryableError for sqlx::Error {
     fn is_retryable_serialization_failure(&self) -> bool {
         // 40001 = serialization_failure, 40P01 = deadlock_detected. The server
         // rolled the transaction back, so retrying from the top is safe.
-        matches!(self, Self::Sql(sqlx::Error::Database(db))
+        matches!(self, Self::Database(db)
             if matches!(db.code().as_deref(), Some("40001" | "40P01")))
+    }
+}
+
+impl RetryableError for Error {
+    fn is_retryable_serialization_failure(&self) -> bool {
+        matches!(self, Self::Sql(e) if e.is_retryable_serialization_failure())
     }
 }
 
