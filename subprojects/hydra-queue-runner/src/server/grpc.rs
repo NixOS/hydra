@@ -340,7 +340,6 @@ impl RunnerService for Server {
                         };
                         if let Err(e) = output_tx.send(Ok(msg)).await {
                             tracing::error!("Failed to send message to machine={machine_id} e={e}");
-                            state.remove_machine(machine_id).await;
                             break
                         }
                     },
@@ -348,11 +347,9 @@ impl RunnerService for Server {
                         if let Some(msg) = msg {
                             if let Err(e) = output_tx.send(Ok(msg.into_request())).await {
                                 tracing::error!("Failed to send message to machine={machine_id} e={e}");
-                                state.remove_machine(machine_id).await;
                                 break
                             }
                         } else {
-                            state.remove_machine(machine_id).await;
                             break
                         }
                     },
@@ -363,25 +360,26 @@ impl RunnerService for Server {
                             if let Some(io_err) = match_for_io_error(&err)
                                 && io_err.kind() == std::io::ErrorKind::BrokenPipe {
                                     tracing::error!("client disconnected: broken pipe: machine={machine_id} hostname={}", machine.hostname);
-                                    state.remove_machine(machine_id).await;
                                     break;
                                 }
 
                             match output_tx.send(Err(err)).await {
                                 Ok(()) => (),
                                 Err(_err) => {
-                                    state.remove_machine(machine_id).await;
                                     break
                                 }
                             }
                         },
                         None => {
-                            state.remove_machine(machine_id).await;
                             break
                         }
                     }
                 }
             }
+            // Close the queue before `remove_machine`. `has_capacity` then
+            // skips this machine, and further sends fail.
+            input_rx.close();
+            state.remove_machine(machine_id).await;
         });
 
         Ok(tonic::Response::new(
