@@ -794,16 +794,26 @@ fn format_failure(e: &JobFailure) -> String {
 }
 
 /// The daemon's `error_msg` embeds the last N build-log lines, which Hydra
-/// already stores and links separately. Synthesize a one-liner from the status
-/// to keep the step's errormsg short.
+/// already stores and links separately, so only its first line is kept. That
+/// line is the only record of failures Nix detects after the builder exits,
+/// such as an output check rejecting a reference.
 fn build_failure_message(
     drv: &StorePath,
     f: &harmonia_protocol::daemon_wire::types2::BuildResultFailure,
 ) -> String {
-    format!(
-        "Build of '{drv}' failed: {} (see log)",
-        failure_reason(f.status)
-    )
+    let reason = failure_reason(f.status);
+    match first_error_line(&f.error_msg) {
+        Some(line) => format!("Build of '{drv}' failed: {reason}: {line}"),
+        None => format!("Build of '{drv}' failed: {reason} (see log)"),
+    }
+}
+
+fn first_error_line(error_msg: &[u8]) -> Option<String> {
+    strip_ansi(&String::from_utf8_lossy(error_msg))
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(str::to_owned)
 }
 
 fn failure_reason(status: FailureStatus) -> &'static str {
@@ -1463,7 +1473,21 @@ fn build_client_options(
 
 #[cfg(test)]
 mod tests {
-    use super::strip_ansi;
+    use super::{first_error_line, strip_ansi};
+
+    #[test]
+    fn first_error_line_keeps_the_reason_and_drops_the_log_tail() {
+        let msg = b"\n\x1b[31;1moutput '/nix/store/x-libv8' is not allowed to refer to the following paths:\x1b[0m\n  /nix/store/x\n";
+        assert_eq!(
+            first_error_line(msg).as_deref(),
+            Some("output '/nix/store/x-libv8' is not allowed to refer to the following paths:")
+        );
+    }
+
+    #[test]
+    fn first_error_line_is_none_for_an_empty_message() {
+        assert_eq!(first_error_line(b" \n\n"), None);
+    }
 
     #[test]
     fn strip_ansi_removes_csi_sequences() {
