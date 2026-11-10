@@ -79,6 +79,15 @@ pub struct PromMetrics {
     pub machine_consecutive_failures: prometheus::IntGaugeVec, // hydraqueuerunner_machine_consecutive_failures
     pub machine_last_ping_timestamp: prometheus::IntGaugeVec, // hydraqueuerunner_machine_last_ping_timestamp
     pub machine_idle_since_timestamp: prometheus::IntGaugeVec, // hydraqueuerunner_machine_idle_since_timestamp
+    pub machine_capacity_limit_reached: prometheus::IntGaugeVec, // hydraqueuerunner_machine_capacity_limit_reached
+    pub machine_capacity_limit_value: prometheus::GaugeVec, // hydraqueuerunner_machine_capacity_limit_value
+    pub machine_capacity_limit_threshold: prometheus::GaugeVec, // hydraqueuerunner_machine_capacity_limit_threshold
+    pub machine_cpu_count: prometheus::IntGaugeVec, // hydraqueuerunner_machine_cpu_count
+    pub machine_memory_used_bytes: prometheus::IntGaugeVec, // hydraqueuerunner_machine_memory_used_bytes
+    pub machine_memory_total_bytes: prometheus::IntGaugeVec, // hydraqueuerunner_machine_memory_total_bytes
+    pub machine_pressure_stall_microseconds: prometheus::IntGaugeVec, // hydraqueuerunner_machine_pressure_stall_microseconds
+    pub machine_uploading_paths: prometheus::IntGaugeVec, // hydraqueuerunner_machine_uploading_paths
+    pub machine_downloading_paths: prometheus::IntGaugeVec, // hydraqueuerunner_machine_downloading_paths
 
     // Store metrics (single store)
     pub store_nar_info_read: prometheus::IntGauge, // hydraqueuerunner_store_nar_info_read
@@ -445,6 +454,69 @@ impl PromMetrics {
             ),
             &["hostname"],
         )?;
+        let machine_capacity_limit_reached = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_capacity_limit_reached",
+                "1 if the capacity limit blocks new jobs on the machine, else 0. Always 0 for limits the scheduler doesn't check. machine_free_fn picks the checked limits, and the dynamic free functions check PSI if the builder reports CPU PSI, else load1",
+            ),
+            &["hostname", "limit"],
+        )?;
+        let machine_capacity_limit_value = prometheus::GaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_capacity_limit_value",
+                "Current value of each capacity limit (free %, PSI avg10 %, load1 or running jobs), also for limits the scheduler doesn't check. Missing if the builder reports no data",
+            ),
+            &["hostname", "limit"],
+        )?;
+        let machine_capacity_limit_threshold = prometheus::GaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_capacity_limit_threshold",
+                "Configured threshold of each capacity limit",
+            ),
+            &["hostname", "limit"],
+        )?;
+        let machine_cpu_count = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_cpu_count",
+                "Number of CPUs of each machine",
+            ),
+            &["hostname"],
+        )?;
+        let machine_memory_used_bytes = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_memory_used_bytes",
+                "Memory used on each machine in bytes",
+            ),
+            &["hostname"],
+        )?;
+        let machine_memory_total_bytes = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_memory_total_bytes",
+                "Total memory of each machine in bytes",
+            ),
+            &["hostname"],
+        )?;
+        let machine_pressure_stall_microseconds = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_pressure_stall_microseconds",
+                "Total PSI stall time of each machine in microseconds since boot",
+            ),
+            &["hostname", "resource", "kind"],
+        )?;
+        let machine_uploading_paths = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_uploading_paths",
+                "Number of paths each machine is currently uploading",
+            ),
+            &["hostname"],
+        )?;
+        let machine_downloading_paths = prometheus::IntGaugeVec::new(
+            prometheus::Opts::new(
+                "hydraqueuerunner_machine_downloading_paths",
+                "Number of paths each machine is currently downloading",
+            ),
+            &["hostname"],
+        )?;
 
         // Store metrics (single store)
         let store_nar_info_read = prometheus::IntGauge::with_opts(prometheus::Opts::new(
@@ -730,6 +802,15 @@ impl PromMetrics {
         r.register(Box::new(machine_consecutive_failures.clone()))?;
         r.register(Box::new(machine_last_ping_timestamp.clone()))?;
         r.register(Box::new(machine_idle_since_timestamp.clone()))?;
+        r.register(Box::new(machine_capacity_limit_reached.clone()))?;
+        r.register(Box::new(machine_capacity_limit_value.clone()))?;
+        r.register(Box::new(machine_capacity_limit_threshold.clone()))?;
+        r.register(Box::new(machine_cpu_count.clone()))?;
+        r.register(Box::new(machine_memory_used_bytes.clone()))?;
+        r.register(Box::new(machine_memory_total_bytes.clone()))?;
+        r.register(Box::new(machine_pressure_stall_microseconds.clone()))?;
+        r.register(Box::new(machine_uploading_paths.clone()))?;
+        r.register(Box::new(machine_downloading_paths.clone()))?;
 
         // Store metrics
         r.register(Box::new(store_nar_info_read.clone()))?;
@@ -846,6 +927,15 @@ impl PromMetrics {
             machine_consecutive_failures,
             machine_last_ping_timestamp,
             machine_idle_since_timestamp,
+            machine_capacity_limit_reached,
+            machine_capacity_limit_value,
+            machine_capacity_limit_threshold,
+            machine_cpu_count,
+            machine_memory_used_bytes,
+            machine_memory_total_bytes,
+            machine_pressure_stall_microseconds,
+            machine_uploading_paths,
+            machine_downloading_paths,
 
             // Store metrics
             store_nar_info_read,
@@ -1014,7 +1104,17 @@ impl PromMetrics {
         self.machine_consecutive_failures.reset();
         self.machine_last_ping_timestamp.reset();
         self.machine_idle_since_timestamp.reset();
+        self.machine_capacity_limit_reached.reset();
+        self.machine_capacity_limit_value.reset();
+        self.machine_capacity_limit_threshold.reset();
+        self.machine_cpu_count.reset();
+        self.machine_memory_used_bytes.reset();
+        self.machine_memory_total_bytes.reset();
+        self.machine_pressure_stall_microseconds.reset();
+        self.machine_uploading_paths.reset();
+        self.machine_downloading_paths.reset();
 
+        let free_fn = state.config.get_machine_free_fn();
         for machine in state.machines.get_all_machines() {
             let hostname = &machine.hostname;
 
@@ -1059,6 +1159,70 @@ impl PromMetrics {
             self.machine_idle_since_timestamp
                 .with_label_values(labels)
                 .set(machine.stats.get_idle_since());
+
+            self.refresh_machine_resource_metrics(hostname, &machine);
+
+            // Every limit gets a reached series, so absent() only fires for gone machines
+            for limit in super::machine::CapacityLimit::ALL {
+                self.machine_capacity_limit_reached
+                    .with_label_values(&[hostname, limit.as_str()])
+                    .set(0);
+            }
+            for reading in machine.limit_readings(free_fn) {
+                let labels = &[hostname, reading.limit.as_str()];
+                self.machine_capacity_limit_reached
+                    .with_label_values(labels)
+                    .set(i64::from(reading.is_reached()));
+                self.machine_capacity_limit_value
+                    .with_label_values(labels)
+                    .set(reading.value);
+                self.machine_capacity_limit_threshold
+                    .with_label_values(labels)
+                    .set(reading.threshold);
+            }
+        }
+    }
+
+    /// CPUs, memory, transfers and PSI stall totals that the builder reports
+    fn refresh_machine_resource_metrics(&self, hostname: &str, machine: &super::Machine) {
+        let labels = &[hostname];
+        let set = |gauge: &prometheus::IntGaugeVec, v: u64| {
+            if let Ok(v) = i64::try_from(v) {
+                gauge.with_label_values(labels).set(v);
+            }
+        };
+        set(&self.machine_cpu_count, machine.cpu_count.into());
+        set(
+            &self.machine_memory_used_bytes,
+            machine.stats.get_mem_usage(),
+        );
+        set(&self.machine_memory_total_bytes, machine.total_mem);
+        set(
+            &self.machine_uploading_paths,
+            machine.stats.get_current_uploading_path_count(),
+        );
+        set(
+            &self.machine_downloading_paths,
+            machine.stats.get_current_downloading_count(),
+        );
+
+        let guard = machine.stats.pressure.load();
+        let Some(state) = guard.as_deref() else {
+            return;
+        };
+        for (resource, kind, psi) in [
+            ("cpu", "some", state.cpu_some),
+            ("memory", "some", state.mem_some),
+            ("memory", "full", state.mem_full),
+            ("io", "some", state.io_some),
+            ("io", "full", state.io_full),
+            ("irq", "full", state.irq_full),
+        ] {
+            if let Some(total) = psi.and_then(|psi| i64::try_from(psi.total).ok()) {
+                self.machine_pressure_stall_microseconds
+                    .with_label_values(&[hostname, resource, kind])
+                    .set(total);
+            }
         }
     }
 

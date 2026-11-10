@@ -397,8 +397,7 @@ sub getMachines {
             # New fields for the machine status
             , primarySystemType => $machine->{systems}[0]
             , hasCapacity => $machine->{hasCapacity}
-            , hasDynamicCapacity => $machine->{hasDynamicCapacity}
-            , hasStaticCapacity => $machine->{hasStaticCapacity}
+            , capacityLimits => $machine->{capacityLimits}
             , score => $machine->{score}
             , stats => $machine->{stats}
             , memTotal => $machine->{totalMem}
