@@ -4,7 +4,7 @@ use db::models::BuildID;
 use harmonia_store_derivation::derived_path::OutputName;
 use harmonia_store_path::{StoreDir, StorePath};
 
-use crate::state::{RemoteBuild, StateError};
+use crate::state::{BuildTimings, RemoteBuild, StateError};
 
 /// [`db::retry_serialization_failures`] pinned to [`StateError`] so callers get
 /// error-type inference for the closure body.
@@ -20,7 +20,8 @@ where
     db::retry_serialization_failures(what, f).await
 }
 
-#[tracing::instrument(skip(db, store_dir, res), err)]
+#[allow(clippy::too_many_arguments)]
+#[tracing::instrument(skip(db, store_dir, res, timings), err)]
 pub async fn finish_build_step(
     db: &db::Database,
     store_dir: &StoreDir,
@@ -29,6 +30,7 @@ pub async fn finish_build_step(
     res: &RemoteBuild,
     machine: Option<&str>,
     output_paths: Option<&BTreeMap<OutputName, StorePath>>,
+    timings: BuildTimings,
 ) -> Result<(), StateError> {
     debug_assert!(res.has_start_time());
     debug_assert!(res.has_stop_time());
@@ -58,6 +60,9 @@ pub async fn finish_build_step(
             stop_time,
             machine,
             overhead: res.get_overhead(),
+            import_time_ms: i32::try_from(timings.import_elapsed.as_millis()).ok(),
+            build_time_ms: i32::try_from(timings.build_elapsed.as_millis()).ok(),
+            upload_time_ms: i32::try_from(timings.upload_elapsed.as_millis()).ok(),
             times_built: res.get_times_built(),
             is_non_deterministic: res.get_is_non_deterministic(),
         })
