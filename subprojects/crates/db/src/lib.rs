@@ -5,7 +5,7 @@ mod retry;
 
 use std::str::FromStr as _;
 
-pub use connection::{Connection, Handle, Transaction};
+pub use connection::{Connection, Handle, Transaction, parse_row_path};
 pub use error::{DataError, Error, Result};
 pub use retry::{RetryableError, retry_serialization_failures};
 

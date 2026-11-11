@@ -50,8 +50,9 @@ sub keepBuild {
     if (isLocalStore &&
         $build->finished && ($build->buildstatus == 0 || $build->buildstatus == 6))
     {
-        # `outpaths` is aggregated by raw SQL, so it is a list of full paths.
-        foreach my $path (map { parseStorePath($storeDir, $_) }
+        # `outpaths` is aggregated by raw SQL, so it goes around inflation and
+        # arrives in whichever format each row holds.
+        foreach my $path (map { parseRowStorePath($storeDir, $_) }
                           split / /, $build->get_column('outpaths')) {
             if (machineLocalStore()->isValidPath($path)) {
                 addRoot $path;

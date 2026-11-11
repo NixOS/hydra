@@ -43,10 +43,11 @@ pub(super) async fn insert_step_with_status(
 ) {
     let sd = test_store_dir();
     sqlx::query!(
-        "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5)",
+        "INSERT INTO BuildSteps (build, stepnr, type, busy, drvPath, storeDir, status, resolvedDrvPath) VALUES ($1, $2, 0, 0, $3, $4, $5, $6)",
         build,
         stepnr,
-        sd.display(drv_path).to_string(),
+        drv_path.to_string(),
+        sd.to_str(),
         status as i32,
         resolved_drv_path.map(ToString::to_string),
     )
@@ -62,12 +63,14 @@ pub(super) async fn insert_output(
     name: &str,
     path: &StorePath,
 ) {
+    let sd = test_store_dir();
     sqlx::query!(
-        "INSERT INTO BuildStepOutputs (build, stepnr, name, path) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO BuildStepOutputs (build, stepnr, name, path, storeDir) VALUES ($1, $2, $3, $4, $5)",
         build,
         stepnr,
         name,
-        test_store_dir().display(path).to_string(),
+        path.to_string(),
+        sd.to_str(),
     )
     .execute(&mut *conn.conn)
     .await
