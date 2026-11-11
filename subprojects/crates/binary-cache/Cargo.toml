@@ -40,6 +40,7 @@ sqlx = { workspace = true, features = [ "runtime-tokio", "sqlite", "sqlx-toml" ]
 tokio = { workspace = true, features = [ "full" ] }
 tokio-stream = { workspace = true, features = [ "io-util" ] }
 tokio-util = { workspace = true, features = [ "io", "io-util" ] }
+zstd-safe.workspace = true
 
 daemon-client-utils.workspace       = true
 harmonia-file-core.workspace        = true

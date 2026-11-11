@@ -1271,7 +1271,10 @@ fn presigned_request_from_response(
             nar_upload.compression.parse().unwrap_or(Compression::None),
             nar_upload.compression_level,
         )
-        .with_multipart(multipart),
+        .with_multipart(multipart)
+        .with_seekable_min_frame_size(
+            (nar_upload.seekable_min_frame_size != 0).then_some(nar_upload.seekable_min_frame_size),
+        ),
         ls_upload: presigned_response.ls_upload.as_ref().map(|ls| {
             PresignedUpload::new(
                 ls.path.clone(),
