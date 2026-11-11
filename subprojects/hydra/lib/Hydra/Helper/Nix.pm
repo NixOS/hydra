@@ -7,6 +7,7 @@ use File::Path;
 use File::Basename;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::MachineStatus qw(machinesFromQueueRunner);
 use Hydra::Model::DB;
 use Hydra::StorePath;
 use Nix::Store;
@@ -384,28 +385,7 @@ sub getMachines {
     }
 
     my $data = decode_json($resp->decoded_content) or return \%machines;
-    my $machinesData = $data->{machines};
-
-    foreach my $machineName (keys %$machinesData) {
-        my $machine = %$machinesData{$machineName};
-        $machines{$machineName} =
-            { systemTypes => $machine->{systems}
-            , maxJobs => $machine->{maxJobs}
-            , speedFactor => $machine->{speedFactor}
-            , supportedFeatures => [ @{$machine->{supportedFeatures}}, @{$machine->{mandatoryFeatures}} ]
-            , mandatoryFeatures => [ @{$machine->{mandatoryFeatures}} ]
-            # New fields for the machine status
-            , primarySystemType => $machine->{systems}[0]
-            , hasCapacity => $machine->{hasCapacity}
-            , hasDynamicCapacity => $machine->{hasDynamicCapacity}
-            , hasStaticCapacity => $machine->{hasStaticCapacity}
-            , score => $machine->{score}
-            , stats => $machine->{stats}
-            , memTotal => $machine->{totalMem}
-            };
-    }
-
-    return \%machines;
+    return machinesFromQueueRunner($data);
 }
 
 

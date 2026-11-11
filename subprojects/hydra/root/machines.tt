@@ -13,9 +13,10 @@
     </thead>
     <tbody>
         [% FOREACH m IN machines %]
+        [% displayName = m.value.hostname || m.key %]
         <tr>
             <td><input type="checkbox" name="enabled" [% IF m.value.maxJobs > 0  %]CHECKED[% END %] disabled="true" /></td>
-            <td>[% HTML.escape(m.key) %]</a></td>
+            <td>[% HTML.escape(displayName) %]</td>
             <td>[% HTML.escape(m.value.maxJobs) %]</td>
             <td>[% HTML.escape(m.value.speedFactor) %]</td>
             <td>
