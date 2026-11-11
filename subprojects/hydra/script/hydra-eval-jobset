@@ -578,12 +578,10 @@ sub checkBuild {
         # new build to be scheduled if the meta.maintainers field is
         # changed?
         if (defined $prevEval) {
-            # Rows `hydra-backfill-store-dirs` has not reached yet still hold
-            # a full path, so match either spelling.
-            my $storeDir = machineLocalStore()->storeDir;
+            # `search` does not deflate, so the basename goes in by hand.
             my $pathOrDrvConstraint = defined $firstOutputPath
-                ? { path => { -in => storePathForms($storeDir, $firstOutputPath) } }
-                : { drvPath => { -in => storePathForms($storeDir, $drvPath) } };
+                ? { path => $firstOutputPath->to_string }
+                : { drvPath => $drvPath->to_string };
 
             my ($prevBuild) = $prevEval->builds->search(
                 # The "project" and "jobset" constraints are
@@ -775,13 +773,10 @@ sub applyDrvPathRepoints {
             $db->txn_do(sub {
                 for my $id (@ids) {
                     # `update` on a resultset does not deflate, so write the
-                    # basename and the store dir ourselves. `storedir` too,
-                    # not just `drvpath`: an unconverted row would otherwise
-                    # be left holding a basename with no store dir beside it,
-                    # which is neither format.
+                    # basename ourselves. No `storedir`: a repoint stays
+                    # within the store the row already names.
                     $builds->search({ id => $id })->update(
                         { drvpath => $buildMap->{$id}->{drvPath}->to_string
-                        , storedir => machineLocalStore()->storeDir
                         , finished => 0, buildstatus => undef });
                 }
             });

@@ -28,7 +28,7 @@ pub type Transaction<'a> = Handle<sqlx::PgTransaction<'a>>;
 /// Reads that return store-path data also read the row's storeDir and
 /// assert it matches the configured store dir, rather than silently
 /// trusting that the whole DB belongs to this store.
-fn check_store_dir(store_dir: &StoreDir, found: &str) -> crate::Result<()> {
+pub fn check_store_dir(store_dir: &StoreDir, found: &str) -> crate::Result<()> {
     if store_dir.to_str() == found {
         Ok(())
     } else {
@@ -38,31 +38,6 @@ fn check_store_dir(store_dir: &StoreDir, found: &str) -> crate::Result<()> {
         }
         .into())
     }
-}
-
-/// Parse a store path out of a row, in whichever of the two formats it
-/// is stored in: a converted row holds the basename and records its
-/// store in storeDir, while one that `hydra-backfill-store-dirs` has not
-/// reached yet holds the full path and a null storeDir.
-pub fn parse_row_path(
-    store_dir: &StoreDir,
-    path: &str,
-    row_store_dir: Option<&str>,
-) -> crate::Result<StorePath> {
-    match row_store_dir {
-        Some(found) => {
-            check_store_dir(store_dir, found)?;
-            Ok(StorePath::from_base_path(path)?)
-        }
-        None => Ok(store_dir.parse(path)?),
-    }
-}
-
-/// Both stored forms of a path, for lookups that have to find a row
-/// whether or not it has been converted yet. Bound against `= ANY(...)`,
-/// so the existing indexes on these columns still serve the lookup.
-fn path_forms(store_dir: &StoreDir, path: &StorePath) -> Vec<String> {
-    vec![path.to_string(), store_dir.display(path).to_string()]
 }
 
 impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {

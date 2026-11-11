@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, path, storeDir FROM buildoutputs WHERE build = $1 AND path IS NOT NULL",
+  "query": "SELECT DISTINCT ON (o.name) o.name, o.path AS \"path!\", o.storeDir AS \"storedir!\"\n              FROM buildstepoutputs o\n              JOIN buildsteps s ON s.build = o.build AND s.stepnr = o.stepnr\n              WHERE s.drvpath = $1 AND o.path IS NOT NULL\n              ORDER BY o.name, s.build DESC, s.stepnr DESC",
   "describe": {
     "columns": [
       {
@@ -9,29 +9,29 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "buildoutputs",
+            "table": "buildstepoutputs",
             "name": "name"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "path",
+        "name": "path!",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "buildoutputs",
+            "table": "buildstepoutputs",
             "name": "path"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "storedir",
+        "name": "storedir!",
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "buildoutputs",
+            "table": "buildstepoutputs",
             "name": "storedir"
           }
         }
@@ -39,7 +39,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Text"
       ]
     },
     "nullable": [
@@ -48,5 +48,5 @@
       true
     ]
   },
-  "hash": "1efe8fb58498dc9e5222d39e63cb37ab7947c1d12b7a40dbc71f5e2e95f0b735"
+  "hash": "6f8cd75e794c20d9243ded41329ce4fb7c64205c918a2430041d2526dd4fde85"
 }
