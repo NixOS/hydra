@@ -139,11 +139,6 @@ __PACKAGE__->table("jobsets");
   data_type: 'boolean'
   is_nullable: 1
 
-=head2 starttime
-
-  data_type: 'bigint'
-  is_nullable: 1
-
 =head2 type
 
   data_type: 'integer'
@@ -207,8 +202,6 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 1 },
   "forceeval",
   { data_type => "boolean", is_nullable => 1 },
-  "starttime",
-  { data_type => "bigint", is_nullable => 1 },
   "type",
   { data_type => "integer", default_value => 0, is_nullable => 0 },
   "flake",
@@ -362,8 +355,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:GUkeslZbzaUbhsMtLXmxXg
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-09-04 21:05:30
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:EJ5KdtjNqt73wXyL3qmrWA
 
 use JSON::MaybeXS;
 
@@ -407,7 +400,6 @@ sub as_json {
         "keepnr" => $self->get_column("keepnr"),
         "checkinterval" => $self->get_column("checkinterval"),
         "schedulingshares" => $self->get_column("schedulingshares"),
-        "starttime" => $self->get_column("starttime"),
 
         # string_columns
         "name" => $self->get_column("name") // "",

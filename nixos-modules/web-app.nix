@@ -11,12 +11,17 @@ let
 
   cfg = config.services.hydra-dev;
 
-  inherit (import ./web-app-env.nix { inherit lib cfg; })
-    baseDir
-    hydraEnv
-    dbUrlWithAppName
-    env
-    ;
+  sharedEnv = import ./web-app-env.nix { inherit lib cfg; };
+
+  inherit (sharedEnv) baseDir hydraEnv dbUrlWithAppName;
+
+  # Only the web app's own services send email.
+  env =
+    optionalAttrs (cfg.smtpHost != null) {
+      EMAIL_SENDER_TRANSPORT = "SMTP";
+      EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
+    }
+    // sharedEnv.env;
 
   hydraConf = pkgs.writeScript "hydra.conf" cfg.extraConfig;
 
@@ -68,7 +73,7 @@ in
           internally).
 
           NOTE: an `application_name` query parameter is appended per
-          service (e.g. `hydra-evaluator`) to more easily distinguish
+          service (e.g. `hydra-submit-evaluation`) to more easily distinguish
           where queries are coming from, so do not set one here.
         '';
       };

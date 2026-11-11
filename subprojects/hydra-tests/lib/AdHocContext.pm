@@ -108,8 +108,7 @@ sub _spawn_ad_hoc {
     print $fh "storeDir = \"$ctx->{central}{nix_store_dir}\"\n";
     # Same data dir as start_queue_runner, so the daemon finds the
     # queue runner's build-logs and can stream them to the client.
-    my $config_dir = $ENV{T2_HARNESS_TEMP_DIR} // $ctx->{central}{hydra_data};
-    print $fh "hydraDataDir = \"$config_dir/data\"\n";
+    print $fh "hydraDataDir = \"$ctx->{central}{hydra_data}\"\n";
     print $fh "maxDbConnections = $self->{opts}{max_db_connections}\n"
         if defined $self->{opts}{max_db_connections};
     close $fh;

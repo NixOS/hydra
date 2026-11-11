@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT errormsg FROM jobsets WHERE id = $1 FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "errormsg",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "errormsg"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "87395fa393a222d964fbce6c68b6c4ee12b7013f671f2c5316d170c0962af9f3"
+}

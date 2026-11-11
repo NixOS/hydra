@@ -89,19 +89,20 @@
         <th>Last evaluation:</th>
         <td>
           [% IF latestEval %]
+            [%# No duration: evaluating is a build, and how long it took is
+                what that build says. The evaluation's own page links to it. %]
             [% INCLUDE renderDateTime timestamp = latestEval.timestamp %]
-            (took [% relativeDuration (latestEval.checkouttime + latestEval.evaltime) %])
           [% ELSE %]
             <em>never</em>
           [% END %]
         </td>
       </tr>
-      [% IF jobset.starttime %]
-      <tr>
-        <th>Evaluation running since:</th>
-        <td>[% INCLUDE renderRelativeDate timestamp = jobset.starttime %]</td>
-      </tr>
-      [% ELSIF jobset.triggertime %]
+      [%# No "evaluation running since" row: an evaluation is a build, and a
+          build already says whether it is queued, running or finished, and
+          for how long. Saying it again here means saying it differently --
+          this row reported an evaluation as running while its build sat in
+          the queue, unstarted. %]
+      [% IF jobset.triggertime %]
       <tr>
         <th>Evaluation pending since:</th>
         <td>[% INCLUDE renderRelativeDate timestamp = jobset.triggertime %]</td>

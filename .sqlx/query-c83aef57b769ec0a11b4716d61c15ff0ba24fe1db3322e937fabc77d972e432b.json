@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE builds SET iscurrent = 0 WHERE id IN (\n              SELECT b.id FROM builds b\n              WHERE b.jobset_id = $1 AND b.iscurrent = 1\n                AND NOT EXISTS (\n                  SELECT 1 FROM jobsetevalmembers m\n                  WHERE m.eval = $2 AND m.build = b.id)\n              ORDER BY b.id LIMIT $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c83aef57b769ec0a11b4716d61c15ff0ba24fe1db3322e937fabc77d972e432b"
+}

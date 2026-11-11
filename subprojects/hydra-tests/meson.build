@@ -32,7 +32,8 @@ if meson.is_subproject()
 else
   hydra_queue_runner = find_program('hydra-queue-runner')
   hydra_builder = find_program('hydra-builder')
-  hydra_evaluator = find_program('hydra-evaluator')
+  hydra_submit_evaluation = find_program('hydra-submit-evaluation')
+  hydra_process_evaluation = find_program('hydra-process-evaluation')
   hydra_init = find_program('hydra-init')
   hydra_notify = find_program('hydra-notify')
 
@@ -41,7 +42,8 @@ else
 
   exe_path += fs.parent(hydra_queue_runner.full_path())
   exe_path += fs.parent(hydra_builder.full_path())
-  exe_path += fs.parent(hydra_evaluator.full_path())
+  exe_path += fs.parent(hydra_submit_evaluation.full_path())
+  exe_path += fs.parent(hydra_process_evaluation.full_path())
   exe_path += fs.parent(hydra_init.full_path())
   exe_path += fs.parent(hydra_notify.full_path())
 endif
