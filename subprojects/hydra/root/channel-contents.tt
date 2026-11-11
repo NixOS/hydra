@@ -53,7 +53,7 @@ installed, you can subscribe to this channel by once executing</p>
         <td><tt>[% b.get_column('releasename') || b.nixname | html %]</tt></td>
         <td><tt>[% b.system | html %]</tt></td>
         <td>
-          [% INCLUDE maybeLink uri=safeExternalURL(b.homepage) content=b.description %]
+          [% INCLUDE externalLink link=b.homepage content=b.description %]
         </td>
       </tr>
 

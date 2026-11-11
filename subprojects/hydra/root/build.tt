@@ -310,7 +310,7 @@ END;
       </tr>
       <tr>
         <th>Homepage:</th>
-        <td>[% IF build.homepage %][% INCLUDE maybeLink uri=safeExternalURL(build.homepage) content=build.homepage %][% ELSE %]<em>not given</em>[% END %]</td>
+        <td>[% IF build.homepage %][% INCLUDE externalLink link=build.homepage %][% ELSE %]<em>not given</em>[% END %]</td>
       </tr>
       <tr>
         <th>Maintainer(s):</th>

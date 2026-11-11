@@ -56,7 +56,7 @@
     <tr class="project [% IF !p.enabled %]disabled-project[% END %]">
       <td><span class="[% IF !p.enabled %]disabled-project[% END %] [%+ IF p.hidden %]hidden-project[% END %]">[% INCLUDE renderProjectName project=p.name inRow=1 %]</span></td>
       <td>[% HTML.escape(p.displayname) %]</td>
-      <td>[% INCLUDE maybeLink uri=safeExternalURL(p.homepage) content=p.description %]</td>
+      <td>[% INCLUDE externalLink link=p.homepage content=p.description %]</td>
     </tr>
     [% END %]
   </tbody>
