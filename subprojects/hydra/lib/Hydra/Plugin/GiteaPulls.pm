@@ -16,6 +16,8 @@ use HTTP::Request;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Nix;
+use Hydra::StorePath;
 use File::Temp;
 use POSIX qw(strftime);
 
@@ -74,9 +76,7 @@ sub fetchInput {
     print $fh encode_json \%pulls;
     close $fh;
 
-    my $storePath = trim(`nix-store --add "$filename"`
-        or die "cannot copy path $filename to the Nix store.\n");
-    chomp $storePath;
+    my $storePath = addToStore($filename);
     my $timestamp = time;
     return { storePath => $storePath, revision => strftime "%Y%m%d%H%M%S", gmtime($timestamp) };
 }
