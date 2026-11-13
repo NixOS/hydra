@@ -110,6 +110,48 @@ impl StepState {
     }
 }
 
+/// How the creation of a step in `State::create_step` ended.
+///
+/// A step is registered in [`Steps`] before its inputs are examined, so other
+/// builds can find it while its creation is still in progress. They must wait
+/// for this outcome instead of using the step right away: a step that is
+/// never attached to the graph never becomes runnable, and a build depending
+/// on it would stay queued forever.
+#[derive(Debug, Clone)]
+pub enum CreationOutcome {
+    /// The step is attached to the step graph (it may already be finished).
+    Attached,
+    /// The step cannot be built because of a cached failure. Holds the failed
+    /// input step, or `None` when the step itself failed previously.
+    PreviousFailure(Option<Arc<Step>>),
+    /// Creation stopped before the step was attached, for example because the
+    /// creating task was cancelled or the derivation could not be read. The
+    /// step is dead; callers have to create a fresh one.
+    Abandoned,
+}
+
+/// Settles a step's [`CreationOutcome`] as [`CreationOutcome::Abandoned`]
+/// when dropped, unless [`CreationGuard::settle`] was called first. This
+/// covers every early return and the cancellation of the creating task.
+pub(crate) struct CreationGuard(Arc<Step>);
+
+impl CreationGuard {
+    #[must_use]
+    pub(crate) const fn new(step: Arc<Step>) -> Self {
+        Self(step)
+    }
+
+    pub(crate) fn settle(self, outcome: CreationOutcome) {
+        self.0.settle_creation(outcome);
+    }
+}
+
+impl Drop for CreationGuard {
+    fn drop(&mut self) {
+        self.0.settle_creation(CreationOutcome::Abandoned);
+    }
+}
+
 /// Steps that became runnable since the dispatcher last drained them.
 pub(super) type PendingRunnable = Arc<parking_lot::Mutex<Vec<Weak<Step>>>>;
 
@@ -197,6 +239,8 @@ pub struct Step {
     /// scheduled. Guards against re-scheduling on every queue run while the
     /// upload is still in flight.
     upload_scheduled: AtomicBool,
+    /// Outcome of the step's creation, `None` while it is in progress.
+    creation: tokio::sync::watch::Sender<Option<CreationOutcome>>,
     pub atomic_state: StepAtomicState,
     state: parking_lot::RwLock<StepState>,
 }
@@ -256,6 +300,7 @@ impl Step {
             finished: false.into(),
             previous_failure: false.into(),
             upload_scheduled: false.into(),
+            creation: tokio::sync::watch::channel(None).0,
             atomic_state: StepAtomicState::new(
                 jiff::Timestamp::UNIX_EPOCH,
                 jiff::Timestamp::UNIX_EPOCH,
@@ -287,6 +332,35 @@ impl Step {
     #[inline]
     pub fn set_previous_failure(&self, v: bool) {
         self.previous_failure.store(v, Ordering::SeqCst);
+    }
+
+    /// Record how the step's creation ended. Only the first call has an
+    /// effect.
+    pub fn settle_creation(&self, outcome: CreationOutcome) {
+        self.creation.send_if_modified(|state| {
+            if state.is_some() {
+                return false;
+            }
+            *state = Some(outcome);
+            true
+        });
+    }
+
+    /// The outcome of the step's creation, `None` while it is in progress.
+    #[must_use]
+    pub fn get_creation_outcome(&self) -> Option<CreationOutcome> {
+        self.creation.borrow().clone()
+    }
+
+    /// Wait until the step's creation has ended and return its outcome.
+    pub async fn wait_creation(&self) -> CreationOutcome {
+        let mut rx = self.creation.subscribe();
+        // The sender lives in `self`, so it cannot be dropped while we wait.
+        rx.wait_for(Option::is_some)
+            .await
+            .ok()
+            .and_then(|state| state.clone())
+            .unwrap_or(CreationOutcome::Abandoned)
     }
 
     #[inline]
@@ -857,6 +931,17 @@ impl Steps {
     pub fn remove(&self, drv_path: &StorePath) {
         let mut steps = self.inner.write();
         steps.remove(drv_path);
+    }
+
+    /// Remove `step` from the map, unless another step has replaced it.
+    pub fn remove_if_same(&self, step: &Arc<Step>) {
+        let mut steps = self.inner.write();
+        if steps
+            .get(step.get_drv_path())
+            .is_some_and(|s| std::ptr::eq(s.as_ptr(), Arc::as_ptr(step)))
+        {
+            steps.remove(step.get_drv_path());
+        }
     }
 }
 

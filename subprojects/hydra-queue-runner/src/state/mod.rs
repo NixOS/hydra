@@ -272,6 +272,52 @@ fn attach_step(
     }
 }
 
+/// The step for a derivation, as found by [`claim_step`].
+enum ClaimedStep {
+    /// The step is new; the caller has to create it.
+    New(Arc<Step>),
+    /// Another task created the step and attached it to the graph.
+    Attached(Arc<Step>),
+    /// The step cannot be built because of this previously failed step,
+    /// which is either the step itself or one of its inputs.
+    PreviousFailure(Arc<Step>),
+}
+
+/// Get the step for `drv_path`, registering a new one if there is none.
+///
+/// If another task is creating the step, wait until it is done: its
+/// creation can end without attaching the step to the graph (a previously
+/// failed input, cancellation), and such a step never becomes runnable. A
+/// build depending on it would then stay queued forever. An abandoned step
+/// is replaced by a new one.
+async fn claim_step(
+    steps: &Steps,
+    drv_path: &StorePath,
+    referring_build: Option<&Arc<Build>>,
+    referring_step: Option<&(Arc<Step>, drv::OutputNameChain)>,
+) -> ClaimedStep {
+    loop {
+        let (step, is_new) = steps.create(
+            drv_path,
+            referring_build,
+            referring_step.map(|(step, relation)| (step, relation.clone())),
+        );
+        if is_new {
+            return ClaimedStep::New(step);
+        }
+        match step.wait_creation().await {
+            step::CreationOutcome::Attached => return ClaimedStep::Attached(step),
+            step::CreationOutcome::PreviousFailure(failed) => {
+                return ClaimedStep::PreviousFailure(failed.unwrap_or(step));
+            }
+            step::CreationOutcome::Abandoned => {
+                tracing::debug!("step '{drv_path}' was abandoned, creating it again");
+                steps.remove_if_same(&step);
+            }
+        }
+    }
+}
+
 enum RealiseStepResult {
     None,
     /// Created a new resolved `BuildStep`
@@ -2781,16 +2827,25 @@ impl State {
             }
         }
 
-        let (step, is_new) = self.steps.create(
+        let step = match claim_step(
+            &self.steps,
             &drv_path,
             referring_build.as_ref(),
-            referring_step
-                .as_ref()
-                .map(|(step, relation)| (step, relation.clone())),
-        );
-        if !is_new {
-            return self.recheck_existing_step(step, &drv_path, &ctx).await;
-        }
+            referring_step.as_ref(),
+        )
+        .await
+        {
+            ClaimedStep::New(step) => step,
+            ClaimedStep::Attached(step) => {
+                return self.recheck_existing_step(step, &drv_path, &ctx).await;
+            }
+            ClaimedStep::PreviousFailure(failed) => {
+                return CreateStepResult::PreviousFailure(failed);
+            }
+        };
+        // Settles the creation outcome as abandoned on every early return,
+        // and when this task is cancelled.
+        let creation = step::CreationGuard::new(step.clone());
         self.metrics.queue_steps_created.inc();
         tracing::debug!("considering derivation '{drv_path}'");
 
@@ -2839,8 +2894,10 @@ impl State {
                 match result {
                     CreateStepResult::None => (),
                     CreateStepResult::Valid(dep) => deps.push(dep),
-                    CreateStepResult::PreviousFailure(step) => {
-                        return CreateStepResult::PreviousFailure(step);
+                    CreateStepResult::PreviousFailure(failed) => {
+                        creation
+                            .settle(step::CreationOutcome::PreviousFailure(Some(failed.clone())));
+                        return CreateStepResult::PreviousFailure(failed);
                     }
                 }
             }
@@ -2856,6 +2913,11 @@ impl State {
                 &mut new_runnable,
             )
         };
+        creation.settle(if matches!(outcome, AttachOutcome::PreviousFailure) {
+            step::CreationOutcome::PreviousFailure(None)
+        } else {
+            step::CreationOutcome::Attached
+        });
         match outcome {
             AttachOutcome::PreviousFailure => CreateStepResult::PreviousFailure(step),
             AttachOutcome::Finished => {
@@ -3684,6 +3746,99 @@ mod tests {
         assert!(matches!(outcome, AttachOutcome::Attached));
         assert_eq!(parent.get_deps_size(), 0);
         assert!(new_runnable.contains(&parent));
+    }
+
+    /// Regression test for builds stuck in the queue forever. Build 1 creates
+    /// `parent` and finds a previously failed input, so `parent` is never
+    /// attached to the graph. Build 2 reaches `parent` concurrently. It used
+    /// to get the half-created step as a valid dependency, which never became
+    /// runnable, so build 2 was never marked as failed.
+    #[tokio::test]
+    async fn claim_waits_for_creation_and_inherits_failure() {
+        let steps = Arc::new(Steps::new());
+        let ClaimedStep::New(parent) = claim_step(&steps, &drv_path("parent"), None, None).await
+        else {
+            panic!("first claim must create the step");
+        };
+        let creation = step::CreationGuard::new(parent.clone());
+        let (child, _) = steps.create(
+            &drv_path("child"),
+            None,
+            Some((&parent, drv::OutputNameChain::default())),
+        );
+
+        let waiter = tokio::spawn({
+            let steps = steps.clone();
+            async move { claim_step(&steps, &drv_path("parent"), None, None).await }
+        });
+        tokio::task::yield_now().await;
+        assert!(
+            !waiter.is_finished(),
+            "a step still being created must not be handed out"
+        );
+
+        creation.settle(step::CreationOutcome::PreviousFailure(Some(child.clone())));
+        match waiter.await.unwrap() {
+            ClaimedStep::PreviousFailure(failed) => assert!(Arc::ptr_eq(&failed, &child)),
+            _ => panic!("the waiter must see the failed input"),
+        }
+
+        // A step whose own derivation failed reports itself.
+        let (own, _) = steps.create(&drv_path("own"), None, None);
+        own.settle_creation(step::CreationOutcome::PreviousFailure(None));
+        match claim_step(&steps, &drv_path("own"), None, None).await {
+            ClaimedStep::PreviousFailure(failed) => assert!(Arc::ptr_eq(&failed, &own)),
+            _ => panic!("expected a previous failure"),
+        }
+    }
+
+    /// A step whose creating task is cancelled (e.g. because a sibling input
+    /// failed) must be replaced, not used.
+    #[tokio::test]
+    async fn claim_replaces_step_of_cancelled_creator() {
+        let steps = Arc::new(Steps::new());
+        let (claimed_tx, claimed_rx) = tokio::sync::oneshot::channel();
+        let creator = tokio::spawn({
+            let steps = steps.clone();
+            async move {
+                let ClaimedStep::New(step) =
+                    claim_step(&steps, &drv_path("parent"), None, None).await
+                else {
+                    panic!("first claim must create the step");
+                };
+                let _creation = step::CreationGuard::new(step.clone());
+                claimed_tx.send(step).unwrap();
+                std::future::pending::<()>().await;
+            }
+        });
+        let abandoned = claimed_rx.await.unwrap();
+
+        let waiter = tokio::spawn({
+            let steps = steps.clone();
+            async move { claim_step(&steps, &drv_path("parent"), None, None).await }
+        });
+        tokio::task::yield_now().await;
+        assert!(!waiter.is_finished());
+
+        creator.abort();
+        let _ = creator.await;
+        match waiter.await.unwrap() {
+            ClaimedStep::New(step) => assert!(!Arc::ptr_eq(&step, &abandoned)),
+            _ => panic!("the abandoned step must be replaced by a new one"),
+        }
+    }
+
+    #[tokio::test]
+    async fn claim_returns_attached_step() {
+        let steps = Steps::new();
+        let ClaimedStep::New(step) = claim_step(&steps, &drv_path("a"), None, None).await else {
+            panic!("first claim must create the step");
+        };
+        step::CreationGuard::new(step.clone()).settle(step::CreationOutcome::Attached);
+        match claim_step(&steps, &drv_path("a"), None, None).await {
+            ClaimedStep::Attached(again) => assert!(Arc::ptr_eq(&again, &step)),
+            _ => panic!("expected the attached step"),
+        }
     }
 
     #[test]
