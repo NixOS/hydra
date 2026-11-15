@@ -35,6 +35,7 @@ sub login_POST {
     my $username = $c->stash->{params}->{username} // "";
     my $password = $c->stash->{params}->{password} // "";
 
+    badRequest($c, "The user name and password must be strings.") if ref $username || ref $password;
     badRequest($c, "You must specify a user name.") if $username eq "";
     badRequest($c, "You must specify a password.") if $password eq "";
 

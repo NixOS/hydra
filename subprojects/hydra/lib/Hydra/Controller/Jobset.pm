@@ -262,7 +262,7 @@ sub updateJobset {
 
     my $checkinterval = int(trim($c->stash->{params}->{checkinterval}));
 
-    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    my $enable_dynamic_run_command = $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
     if ($enable_dynamic_run_command
         && !($c->config->{dynamicruncommand}->{enable}
             && $jobset->project->enable_dynamic_run_command))
@@ -276,10 +276,10 @@ sub updateJobset {
         , nixexprpath => $nixExprPath
         , nixexprinput => $nixExprInput
         , enabled => $enabled
-        , enableemail => defined $c->stash->{params}->{enableemail} ? 1 : 0
+        , enableemail => $c->stash->{params}->{enableemail} ? 1 : 0
         , enable_dynamic_run_command => $enable_dynamic_run_command
         , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
-        , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
+        , hidden => $c->stash->{params}->{visible} ? 0 : 1
         , keepnr => int(trim($c->stash->{params}->{keepnr} // "0"))
         , checkinterval => $checkinterval
         , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
@@ -300,7 +300,7 @@ sub updateJobset {
             my $inputData = $c->stash->{params}->{inputs}->{$name};
             my $type = $inputData->{type};
             my $value = $inputData->{value};
-            my $emailresponsible = defined $inputData->{emailresponsible} ? 1 : 0;
+            my $emailresponsible = $inputData->{emailresponsible} ? 1 : 0;
             my $types = knownInputTypes($c);
 
             badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
