@@ -347,6 +347,7 @@ impl InnerQueues {
 
 pub(super) struct JobConstraint {
     job: Arc<StepInfo>,
+    pub(super) queue: Arc<BuildQueue>,
     system: System,
     queue_features: SmallVec<[String; 4]>,
 }
@@ -354,11 +355,13 @@ pub(super) struct JobConstraint {
 impl JobConstraint {
     pub(super) const fn new(
         job: Arc<StepInfo>,
+        queue: Arc<BuildQueue>,
         system: System,
         queue_features: SmallVec<[String; 4]>,
     ) -> Self {
         Self {
             job,
+            queue,
             system,
             queue_features,
         }
@@ -496,13 +499,12 @@ impl Queues {
                     );
                     continue;
                 }
-                let constraint = JobConstraint::new(job.clone(), system.clone(), SmallVec::new());
+                let constraint =
+                    JobConstraint::new(job.clone(), queue.clone(), system.clone(), SmallVec::new());
                 match processor(constraint).await {
-                    Ok(crate::state::RealiseStepResult::Valid(m)) => {
+                    Ok(crate::state::RealiseStepResult::Valid) => {
                         let wait_seconds = now.duration_since(job.runnable_since).as_secs_f64();
                         metrics.observe_job_wait_time(wait_seconds, &system);
-
-                        self.add_job_to_scheduled(&job, &queue, m).await;
                     }
                     Ok(crate::state::RealiseStepResult::None) => {
                         tracing::debug!(
