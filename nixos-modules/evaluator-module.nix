@@ -115,6 +115,11 @@ in
               default = 4;
               description = "How many jobsets to evaluate at once.";
             };
+            eval_timeout = mkOption {
+              type = types.ints.positive;
+              default = 3600;
+              description = "How many seconds an evaluation may run before the evaluator kills it and marks the jobset failed.";
+            };
             roots_dir = mkOption {
               type = types.path;
               default = webCfg.gcRootsDir;

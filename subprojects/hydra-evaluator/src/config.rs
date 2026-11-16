@@ -49,6 +49,11 @@ pub(crate) struct HydraConfig {
     #[serde(default = "default_max_concurrent_evals")]
     max_concurrent_evals: u64,
 
+    /// How many seconds an evaluation may run before the evaluator kills it
+    /// and marks the jobset failed.
+    #[serde(default = "default_eval_timeout")]
+    eval_timeout: u64,
+
     /// Where to fetch a build's output from when a `build` or `sysbuild`
     /// input names one this machine does not have. Unset means the store is
     /// expected to have everything already.
@@ -77,6 +82,10 @@ fn default_max_jobs() -> u64 {
 
 fn default_max_concurrent_evals() -> u64 {
     4
+}
+
+fn default_eval_timeout() -> u64 {
+    3600
 }
 
 impl HydraConfig {
@@ -133,6 +142,10 @@ impl HydraConfig {
 
     pub(crate) fn roots_dir(&self) -> Option<&std::path::Path> {
         self.roots_dir.as_deref()
+    }
+
+    pub(crate) fn eval_timeout(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.eval_timeout)
     }
 
     /// At least one, because zero would never evaluate anything.

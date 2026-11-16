@@ -10,10 +10,6 @@ use tracing::Instrument as _;
 use crate::config::HydraConfig;
 use crate::queries;
 
-/// How long an evaluation may run before the reaper abandons it and records
-/// it as failed. The Perl's `alarm` used the same limit.
-const EVAL_TIMEOUT: Duration = Duration::from_hours(1);
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i32)]
 enum EvaluationStyle {
@@ -459,6 +455,7 @@ impl Evaluator {
         let notify_work = Arc::clone(&self.notify_work);
 
         let config = Arc::clone(&self.config);
+        let timeout = config.eval_timeout();
         let available = Arc::clone(&self.available);
         let roots_dir = Arc::clone(&self.roots_dir);
         let trace = format!("{now}.{jobset_id}");
@@ -488,6 +485,7 @@ impl Evaluator {
                     &db,
                     state_arc,
                     notify_work,
+                    timeout,
                 )
                 .await;
             }
@@ -516,6 +514,7 @@ async fn reap_eval(
     db: &db::Database,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    timeout: Duration,
 ) {
     // Dropping the future cancels the evaluation and kills its child
     // processes. Anything it already committed stays committed.
@@ -525,9 +524,9 @@ async fn reap_eval(
             tracing::info!("abandoning evaluation");
             None
         }
-        () = tokio::time::sleep(EVAL_TIMEOUT) => Some(Err(eyre::eyre!(
+        () = tokio::time::sleep(timeout) => Some(Err(eyre::eyre!(
             "evaluation timed out after {}s",
-            EVAL_TIMEOUT.as_secs()
+            timeout.as_secs()
         ))),
     };
 
