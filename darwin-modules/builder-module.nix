@@ -21,7 +21,12 @@ in
       };
 
       settings = lib.mkOption {
-        description = "Builder settings written to the TOML config file";
+        description = ''
+          Settings for the builder, written to `/etc/hydra/builder.toml`.
+
+          Every service in Rust in hydra has its own separate TOML configuration file,
+          with just the settings it needs.
+        '';
         type = lib.types.submodule {
           options = {
             pingInterval = lib.mkOption {
@@ -43,6 +48,13 @@ in
               description = "Maximum allowed of jobs. This only is used if the queue runner uses this metrics for determining free machines.";
               type = lib.types.ints.positive;
               default = 4;
+            };
+
+            buildCores = lib.mkOption {
+              description = "Cores made available to each build (NIX_BUILD_CORES). 0 means use all available cores.";
+              type = lib.types.ints.unsigned;
+              default = config.nix.settings.cores;
+              defaultText = lib.literalExpression "config.nix.settings.cores";
             };
 
             buildDirAvailThreshold = lib.mkOption {
