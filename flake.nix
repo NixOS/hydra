@@ -49,6 +49,13 @@
       ];
       forEachSystem = nixpkgs.lib.genAttrs (linuxSystems ++ darwinSystems);
 
+      # Platforms we cross-compile `hydra-builder` for, as nixpkgs `config`
+      # strings. Only built from x86_64-linux.
+      crossSystems = [
+        "x86_64-unknown-freebsd"
+      ];
+      forEachCrossSystem = nixpkgs.lib.genAttrs crossSystems;
+
       version = nixpkgs.lib.strings.trim (builtins.readFile ./version.txt);
 
       releaseVersion = "${version}.${
@@ -78,6 +85,23 @@
         ;
 
       packageSetsForSystem = forEachSystem (system: packageSetsFor nixpkgs.legacyPackages.${system});
+
+      packageSetsForCross = forEachLinuxSystem (
+        system:
+        forEachCrossSystem (
+          crossSystem:
+          packageSetsFor (
+            import nixpkgs {
+              localSystem = {
+                inherit system;
+              };
+              crossSystem = {
+                config = crossSystem;
+              };
+            }
+          )
+        )
+      );
 
       treefmtConfig =
         { ... }:
@@ -130,6 +154,11 @@
         queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
         builder = forEachSystem (system: packages.${system}.hydra-builder);
+
+        builderCross = forEachCrossSystem (crossSystem: {
+          x86_64-linux = packages.x86_64-linux."hydra-builder-${crossSystem}";
+        });
+
         adHoc = forEachSystem (system: packages.${system}.hydra-ad-hoc);
 
         nixosTests = import ./nixos-tests {
@@ -189,11 +218,12 @@
         // {
           default = hydraComponents.hydra-tests;
         }
-        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          freebsd-hydra-builder =
-            (packageSetsFor nixpkgs.legacyPackages.${system}.pkgsCross.x86_64-freebsd)
-            .hydraComponents.hydra-builder;
-        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") (
+          nixpkgs.lib.mapAttrs' (
+            crossSystem: packageSets:
+            nixpkgs.lib.nameValuePair "hydra-builder-${crossSystem}" packageSets.hydraComponents.hydra-builder
+          ) packageSetsForCross.${system}
+        )
       );
 
       devShells = forEachSystem (
