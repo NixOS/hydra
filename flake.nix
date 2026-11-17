@@ -66,67 +66,18 @@
         "rustWorkspace"
       ];
 
-      mkNixDependencies =
-        pkgs:
-        pkgs.lib.makeScope pkgs.newScope (
-          scope:
-          let
-            super = import (nix + "/packaging/dependencies.nix") {
-              inherit pkgs;
-              inherit (pkgs) stdenv;
-              inputs = { };
-            } scope;
-          in
-          super
-          // {
-            # `dependencies.nix` patches boost for
-            # https://github.com/NixOS/nix/issues/16174, but the nixpkgs we
-            # track already backports that commit (boostorg/context@5883212),
-            # so cut the extra patches.
-            #
-            # FIXME avoid messing up in Nix itself instead.
-            boost = super.boost.overrideAttrs (_: {
-              patches = pkgs.boost.patches;
-            });
-          }
-        );
+      inherit
+        (import ./packaging/scopes.nix {
+          inherit (nixpkgs) lib;
+          inherit version releaseVersion crane;
+          nix-src = nix;
+          nix-eval-jobs-src = nix-eval-jobs;
+          rawSrc = self;
+        })
+        packageSetsFor
+        ;
 
-      mkNixComponents =
-        {
-          lib,
-          pkgs,
-          # From a scope with dependencies for Nix
-          newScope,
-        }:
-        lib.makeScope newScope (
-          import (nix + "/packaging/components.nix") {
-            officialRelease = true;
-            inherit lib pkgs;
-            src = nix;
-            maintainers = [ ];
-          }
-        );
-
-      mkHydraComponents =
-        {
-          lib,
-          # From a scope with dependencies for Nix
-          newScope,
-          craneLib,
-          nixComponents,
-        }:
-        lib.makeScope newScope (
-          import ./packaging/components.nix {
-            inherit
-              version
-              releaseVersion
-              craneLib
-              nixComponents
-              ;
-            nix-eval-jobs-src = nix-eval-jobs;
-            rawSrc = self;
-          }
-        );
+      packageSetsForSystem = forEachSystem (system: packageSetsFor nixpkgs.legacyPackages.${system});
 
       treefmtConfig =
         { ... }:
@@ -145,32 +96,27 @@
     in
     rec {
 
-      overlays.default = final: prev: {
-        craneLib = crane.mkLib final;
-        nixDependenciesForHydra = mkNixDependencies final;
-        nixComponentsForHydra = mkNixComponents {
-          inherit (final) lib;
-          pkgs = final;
-          inherit (final.nixDependenciesForHydra) newScope;
+      overlays.default =
+        final: prev:
+        let
+          packageSets = packageSetsFor final;
+        in
+        {
+          craneLib = crane.mkLib final;
+          nixDependenciesForHydra = packageSets.nixDependencies;
+          nixComponentsForHydra = packageSets.nixComponents;
+          inherit (packageSets) hydraComponents;
+          inherit (final.hydraComponents)
+            hydra
+            hydra-tests
+            hydra-manual
+            hydra-linters
+            hydra-queue-runner
+            hydra-builder
+            hydra-ad-hoc
+            hydra-evaluator
+            ;
         };
-        hydraComponents = mkHydraComponents {
-          inherit (final) lib craneLib;
-          # Base package set should still use Nix's deps, so things that
-          # link Nix agree on libraries.
-          inherit (final.nixDependenciesForHydra) newScope;
-          nixComponents = final.nixComponentsForHydra;
-        };
-        inherit (final.hydraComponents)
-          hydra
-          hydra-tests
-          hydra-manual
-          hydra-linters
-          hydra-queue-runner
-          hydra-builder
-          hydra-ad-hoc
-          hydra-evaluator
-          ;
-      };
 
       hydraJobs = {
         build = forEachSystem (system: packages.${system}.hydra);
@@ -184,7 +130,6 @@
         queueRunner = forEachSystem (system: packages.${system}.hydra-queue-runner);
 
         builder = forEachSystem (system: packages.${system}.hydra-builder);
-
         adHoc = forEachSystem (system: packages.${system}.hydra-ad-hoc);
 
         nixosTests = import ./nixos-tests {
@@ -238,39 +183,16 @@
       packages = forEachSystem (
         system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-          nixDependencies = mkNixDependencies pkgs;
-          nixComponents = mkNixComponents {
-            inherit (pkgs) lib;
-            inherit pkgs;
-            inherit (nixDependencies) newScope;
-          };
-          hydraComponents = mkHydraComponents {
-            inherit (pkgs) lib;
-            craneLib = crane.mkLib pkgs;
-            inherit (nixDependencies) newScope;
-            inherit nixComponents;
-          };
-          pkgsFreeBSD = nixpkgs.legacyPackages.${system}.pkgsCross.x86_64-freebsd;
-          nixDependenciesFreeBSD = mkNixDependencies pkgsFreeBSD;
-          nixComponentsFreeBSD = mkNixComponents {
-            lib = pkgsFreeBSD.lib;
-            pkgs = pkgsFreeBSD;
-            inherit (nixDependenciesFreeBSD) newScope;
-          };
-          hydraComponentsFreeBSD = mkHydraComponents {
-            lib = pkgsFreeBSD.lib;
-            craneLib = crane.mkLib pkgsFreeBSD;
-            inherit (nixDependenciesFreeBSD) newScope;
-            nixComponents = nixComponentsFreeBSD;
-          };
+          inherit (packageSetsForSystem.${system}) hydraComponents;
         in
         removeAttrs hydraComponents nonPackageAttrs
         // {
           default = hydraComponents.hydra-tests;
         }
-        // pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
-          freebsd-hydra-builder = hydraComponentsFreeBSD.hydra-builder;
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          freebsd-hydra-builder =
+            (packageSetsFor nixpkgs.legacyPackages.${system}.pkgsCross.x86_64-freebsd)
+            .hydraComponents.hydra-builder;
         }
       );
 
