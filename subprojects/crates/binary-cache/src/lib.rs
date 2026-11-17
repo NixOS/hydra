@@ -1064,6 +1064,7 @@ impl S3BinaryCacheClient {
                 path: s3_file_path,
                 compression: self.cfg.ls_compression,
                 compression_level: self.cfg.get_compression_level(),
+                parallel_compression: false,
                 multipart: None,
             })
         } else {
@@ -1093,6 +1094,7 @@ impl S3BinaryCacheClient {
                             path: s3_file_path,
                             compression: Compression::None,
                             compression_level: async_compression::Level::Default,
+                            parallel_compression: false,
                             multipart: None,
                         }))
                     }
@@ -1117,6 +1119,7 @@ impl S3BinaryCacheClient {
                 url: String::new(),
                 compression: self.cfg.compression,
                 compression_level: self.cfg.get_compression_level(),
+                parallel_compression: self.cfg.parallel_compression,
                 multipart: Some(multipart),
             },
             ls_upload,

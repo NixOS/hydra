@@ -26,6 +26,17 @@ use hydra_proto::{
     runner_service_server::{RunnerService, RunnerServiceServer},
 };
 
+fn presigned_upload_to_proto(p: binary_cache::PresignedUpload) -> hydra_proto::PresignedUpload {
+    hydra_proto::PresignedUpload {
+        compression_level: p.get_compression_level_as_i32(),
+        parallel_compression: p.parallel_compression,
+        url: p.url,
+        path: p.path,
+        compression: p.compression.as_str().to_owned(),
+        multipart: p.multipart.map(multipart_to_proto),
+    }
+}
+
 fn multipart_to_proto(mp: binary_cache::PresignedMultipart) -> hydra_proto::MultipartUpload {
     hydra_proto::MultipartUpload {
         upload_id: mp.upload_id,
@@ -734,39 +745,12 @@ impl RunnerService for Server {
                 bucket: bucket.clone(),
                 store_path: store_path.to_string(),
                 nar_url: presigned_response.nar_url,
-                nar_upload: Some(hydra_proto::PresignedUpload {
-                    compression_level: presigned_response.nar_upload.get_compression_level_as_i32(),
-                    url: presigned_response.nar_upload.url,
-                    path: presigned_response.nar_upload.path,
-                    compression: presigned_response
-                        .nar_upload
-                        .compression
-                        .as_str()
-                        .to_owned(),
-                    multipart: presigned_response
-                        .nar_upload
-                        .multipart
-                        .map(multipart_to_proto),
-                }),
-                ls_upload: presigned_response
-                    .ls_upload
-                    .map(|ls| hydra_proto::PresignedUpload {
-                        compression_level: ls.get_compression_level_as_i32(),
-                        url: ls.url,
-                        path: ls.path,
-                        compression: ls.compression.as_str().to_owned(),
-                        multipart: None,
-                    }),
+                nar_upload: Some(presigned_upload_to_proto(presigned_response.nar_upload)),
+                ls_upload: presigned_response.ls_upload.map(presigned_upload_to_proto),
                 debug_info_upload: presigned_response
                     .debug_info_upload
                     .into_iter()
-                    .map(|p| hydra_proto::PresignedUpload {
-                        compression_level: p.get_compression_level_as_i32(),
-                        url: p.url,
-                        path: p.path,
-                        compression: p.compression.as_str().to_owned(),
-                        multipart: None,
-                    })
+                    .map(presigned_upload_to_proto)
                     .collect(),
             });
         }

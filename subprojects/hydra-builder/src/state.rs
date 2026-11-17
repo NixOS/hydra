@@ -1271,6 +1271,7 @@ fn presigned_request_from_response(
             nar_upload.compression.parse().unwrap_or(Compression::None),
             nar_upload.compression_level,
         )
+        .with_parallel_compression(nar_upload.parallel_compression)
         .with_multipart(multipart),
         ls_upload: presigned_response.ls_upload.as_ref().map(|ls| {
             PresignedUpload::new(

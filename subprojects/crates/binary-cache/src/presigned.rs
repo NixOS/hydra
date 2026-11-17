@@ -22,6 +22,7 @@ pub struct PresignedUpload {
     pub url: String,
     pub compression: Compression,
     pub compression_level: async_compression::Level,
+    pub parallel_compression: bool,
     /// Set on NAR uploads, whose `url` is empty.
     pub multipart: Option<PresignedMultipart>,
 }
@@ -42,8 +43,15 @@ impl PresignedUpload {
                 0 => async_compression::Level::Default,
                 l => async_compression::Level::Precise(l),
             },
+            parallel_compression: false,
             multipart: None,
         }
+    }
+
+    #[must_use]
+    pub const fn with_parallel_compression(mut self, parallel_compression: bool) -> Self {
+        self.parallel_compression = parallel_compression;
+        self
     }
 
     #[must_use]
@@ -166,7 +174,7 @@ impl PresignedUploadClient {
         let stream = read_nar_stream(store_dir, store_path);
         let compressor = upload
             .compression
-            .get_compression_fn(upload.compression_level, false);
+            .get_compression_fn(upload.compression_level, upload.parallel_compression);
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
