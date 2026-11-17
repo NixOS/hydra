@@ -155,7 +155,7 @@ sub updateProject {
     badRequest($c, "The homepage must be an http:// or https:// URL.")
         if defined $homepage && !$homepage->isa('Hydra::ExternalLink::Accepted');
 
-    my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    my $enable_dynamic_run_command = $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
     if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
         badRequest($c, "Dynamic RunCommand is not enabled by the server.");
     }
@@ -165,8 +165,8 @@ sub updateProject {
         , displayname => $displayName
         , description => trim($c->stash->{params}->{description})
         , homepage => $homepage
-        , enabled => defined $c->stash->{params}->{enabled} ? 1 : 0
-        , hidden => defined $c->stash->{params}->{visible} ? 0 : 1
+        , enabled => $c->stash->{params}->{enabled} ? 1 : 0
+        , hidden => $c->stash->{params}->{visible} ? 0 : 1
         , owner => $owner
         , enable_dynamic_run_command => $enable_dynamic_run_command
         , declfile => trim($c->stash->{params}->{declarative}->{file})

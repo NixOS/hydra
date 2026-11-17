@@ -30,6 +30,8 @@ subtest "trim" => sub {
     my $uninitialized;
 
     is(trim($uninitialized), '', "Trimming an uninitialized value");
+
+    like(dies { trim({}) }, qr/expected a string/, "Trimming a reference dies");
 };
 
 subtest "showJobName" => sub {

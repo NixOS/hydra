@@ -63,6 +63,24 @@ sub noLoginNeeded {
 }
 
 
+# The request parameters that may hold objects, and how deeply nested, and
+# the ones that may be lists, for checkRequestParams in `begin`. Everything
+# else must be a plain value.
+my %nestedParams = (
+    declarative => 1,  # PUT /project/<name>: { file, type, value }
+    inputs => 2,       # PUT /jobset/<project>/<name>: { <input> => { type, value, ... } }
+);
+my %listParams = (
+    roles => 1,        # PUT /user/<name>: one checkbox per role
+);
+# A JSON body may also hold the lists that GET returns, so that a client can
+# send back what it read. No handler reads these.
+my %bodyListParams = (
+    %listParams,
+    jobsets => 1,      # GET /project/<name>
+    userroles => 1,    # GET /current-user
+);
+
 sub begin :Private {
     my ($self, $c, @args) = @_;
 
@@ -114,8 +132,10 @@ sub begin :Private {
     };
     $_->supportedInputTypes($c->stash->{inputTypes}) foreach @{$c->hydra_plugins};
 
+    my $isWebhook = $c->req->path eq "api/push-github" || $c->req->path eq "api/push-gitea";
+
     # XSRF protection: require POST requests to have the same origin.
-    if ($c->req->method eq "POST" && $c->req->path ne "api/push-github" && $c->req->path ne "api/push-gitea") {
+    if ($c->req->method eq "POST" && !$isWebhook) {
         my $referer = $c->req->header('Referer');
         $referer //= $c->req->header('Origin');
         my $base = $c->req->base;
@@ -127,10 +147,18 @@ sub begin :Private {
 
     $c->forward('deserialize');
 
-    $c->stash->{params} = $c->request->data or $c->request->params;
-    unless (defined $c->stash->{params} and %{$c->stash->{params}}) {
-        $c->stash->{params} = $c->request->params;
-    }
+    my $data = $isWebhook ? undef : $c->request->data;
+    badRequest($c, "The request body must be a JSON object.") if defined $data && ref $data ne 'HASH';
+    my $fromBody = $data && %$data;
+    $c->stash->{params} = $fromBody ? $data : $c->request->params;
+
+    # Refuse anything but plain values before a handler can pass them to a
+    # query or to trim(), except where the tables above allow more. Handlers
+    # also read $c->request->params directly, so when a JSON body took its
+    # place in the stash, the query string and form fields are checked too.
+    my $err = checkRequestParams($c->stash->{params}, \%nestedParams, $fromBody ? \%bodyListParams : \%listParams);
+    $err //= checkRequestParams($c->request->params, \%nestedParams, \%listParams) if $fromBody;
+    badRequest($c, $err) if defined $err;
 
     # Set the Vary header to "Accept" to ensure that browsers don't
     # mix up HTML and JSON responses.
