@@ -152,6 +152,8 @@ pub enum CacheError {
     PathNotFound { path: String },
     #[error("Configuration error: {message}")]
     ConfigurationError { message: String },
+    #[error("task failed: {0}")]
+    Join(#[from] tokio::task::JoinError),
     #[error("{0}")]
     Other(String),
 }
