@@ -248,7 +248,7 @@
           hydraComponents = mkHydraComponents {
             inherit (pkgs) lib;
             craneLib = crane.mkLib pkgs;
-            inherit (pkgs) newScope;
+            inherit (nixDependencies) newScope;
             inherit nixComponents;
           };
           pkgsFreeBSD = nixpkgs.legacyPackages.${system}.pkgsCross.x86_64-freebsd;
@@ -261,7 +261,7 @@
           hydraComponentsFreeBSD = mkHydraComponents {
             lib = pkgsFreeBSD.lib;
             craneLib = crane.mkLib pkgsFreeBSD;
-            inherit (pkgsFreeBSD) newScope;
+            inherit (nixDependenciesFreeBSD) newScope;
             nixComponents = nixComponentsFreeBSD;
           };
         in
