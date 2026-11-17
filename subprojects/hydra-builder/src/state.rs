@@ -1155,32 +1155,39 @@ async fn upload_nars_presigned(
     }
 
     // Paths are independent and narinfo is written server-side per completion,
-    // so upload them concurrently.
-    let mut uploads = tokio_stream::iter(presigned_responses)
-        .map(|presigned_response| {
-            let client = client.clone();
-            let upload_client = upload_client.clone();
-            let upload_semaphore = upload_semaphore.clone();
-            async move {
-                let _permit = upload_semaphore.acquire().await?;
-                let store_path = StorePath::from_base_path(&presigned_response.store_path)
-                    .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?;
-                upload_single_nar_presigned(
-                    store,
-                    &store_path,
-                    build_id,
-                    machine_id,
-                    &presigned_response,
-                    &client,
-                    &upload_client,
-                )
-                .await
-            }
-        })
-        .buffer_unordered(GLOBAL_NAR_UPLOAD_CONCURRENCY);
+    // so upload them concurrently. One task per NAR so compression runs on
+    // separate worker threads instead of interleaving on this one.
+    // Dropping the set on error aborts the remaining uploads.
+    let mut uploads = tokio::task::JoinSet::new();
+    for presigned_response in presigned_responses {
+        let permit = upload_semaphore.clone().acquire_owned().await?;
+        while let Some(res) = uploads.try_join_next() {
+            res??;
+        }
+        let store = store.clone();
+        let client = client.clone();
+        let upload_client = upload_client.clone();
+        let build_id = build_id.to_owned();
+        let machine_id = machine_id.to_owned();
+        uploads.spawn(async move {
+            let _permit = permit;
+            let store_path = StorePath::from_base_path(&presigned_response.store_path)
+                .map_err(|e| eyre::eyre!("invalid store path in presigned response: {e}"))?;
+            upload_single_nar_presigned(
+                &store,
+                &store_path,
+                &build_id,
+                &machine_id,
+                &presigned_response,
+                &client,
+                &upload_client,
+            )
+            .await
+        });
+    }
 
-    while let Some(res) = uploads.next().await {
-        res?;
+    while let Some(res) = uploads.join_next().await {
+        res??;
     }
 
     tracing::info!(
