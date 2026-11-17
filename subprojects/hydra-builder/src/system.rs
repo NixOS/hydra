@@ -31,7 +31,7 @@ impl BaseSystemInfo {
         })
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
     #[tracing::instrument(err)]
     pub fn new() -> eyre::Result<Self> {
         let sys = sysinfo::System::new_with_specifics(
@@ -176,7 +176,7 @@ impl SystemLoad {
         })
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
     #[tracing::instrument(err)]
     pub fn new(build_dir: &str, store_dir: &str) -> eyre::Result<Self> {
         let sys = sysinfo::System::new_with_specifics(
