@@ -7,6 +7,7 @@ use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Config;
+use Hydra::ExternalLink;
 
 
 sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
@@ -150,8 +151,9 @@ sub updateProject {
     my $displayName = trim $c->stash->{params}->{displayname};
     error($c, "You must specify a display name.") if $displayName eq "";
 
-    my $homepage = normalizeExternalLink($c->stash->{params}->{homepage})
-        // badRequest($c, "The homepage must be an http:// or https:// URL.");
+    my $homepage = Hydra::ExternalLink->parse($c->stash->{params}->{homepage});
+    badRequest($c, "The homepage must be an http:// or https:// URL.")
+        if defined $homepage && !$homepage->isa('Hydra::ExternalLink::Accepted');
 
     my $enable_dynamic_run_command = defined $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
     if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
