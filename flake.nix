@@ -251,10 +251,26 @@
             inherit (pkgs) newScope;
             inherit nixComponents;
           };
+          pkgsFreeBSD = nixpkgs.legacyPackages.${system}.pkgsCross.x86_64-freebsd;
+          nixDependenciesFreeBSD = mkNixDependencies pkgsFreeBSD;
+          nixComponentsFreeBSD = mkNixComponents {
+            lib = pkgsFreeBSD.lib;
+            pkgs = pkgsFreeBSD;
+            inherit (nixDependenciesFreeBSD) newScope;
+          };
+          hydraComponentsFreeBSD = mkHydraComponents {
+            lib = pkgsFreeBSD.lib;
+            craneLib = crane.mkLib pkgsFreeBSD;
+            inherit (pkgsFreeBSD) newScope;
+            nixComponents = nixComponentsFreeBSD;
+          };
         in
         removeAttrs hydraComponents nonPackageAttrs
         // {
           default = hydraComponents.hydra-tests;
+        }
+        // pkgs.lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+          freebsd-hydra-builder = hydraComponentsFreeBSD.hydra-builder;
         }
       );
 

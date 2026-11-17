@@ -9,6 +9,11 @@
   pkg-config,
   rust-jemalloc-sys,
   postgresql_17,
+
+  stdenv,
+  freebsd,
+  xz,
+
   # Features are a property of the workspace, not of an individual crate: cargo
   # resolves them once for the whole `--workspace` build, so a per-crate knob
   # would just fork the build. Override this on the scope to move every crate
@@ -55,6 +60,10 @@ let
 
     buildInputs = [
       rust-jemalloc-sys
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isFreeBSD [
+      freebsd.libgeom
+      xz
     ];
   };
 
