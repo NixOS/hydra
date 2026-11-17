@@ -20,7 +20,8 @@ use LWP::UserAgent;
 use List::Util qw[min max];
 use List::SomeUtils qw{any};
 use Net::Prometheus;
-use Types::Standard qw/StrMatch/;
+use Types::Standard qw/StrMatch Str/;
+use Hydra::Helper::RequestParams qw(requestParams);
 use WWW::Form::UrlEncoded::PP qw();
 
 use constant NARINFO_REGEX => qr{^([a-z0-9]{32})\.narinfo$};
@@ -62,24 +63,6 @@ sub noLoginNeeded {
          $c->request->path =~ /^static\//;
 }
 
-
-# The request parameters that may hold objects, and how deeply nested, and
-# the ones that may be lists, for checkRequestParams in `begin`. Everything
-# else must be a plain value.
-my %nestedParams = (
-    declarative => 1,  # PUT /project/<name>: { file, type, value }
-    inputs => 2,       # PUT /jobset/<project>/<name>: { <input> => { type, value, ... } }
-);
-my %listParams = (
-    roles => 1,        # PUT /user/<name>: one checkbox per role
-);
-# A JSON body may also hold the lists that GET returns, so that a client can
-# send back what it read. No handler reads these.
-my %bodyListParams = (
-    %listParams,
-    jobsets => 1,      # GET /project/<name>
-    userroles => 1,    # GET /current-user
-);
 
 sub begin :Private {
     my ($self, $c, @args) = @_;
@@ -145,20 +128,8 @@ sub begin :Private {
             unless defined $referer && substr($referer, 0, length $base) eq $base;
     }
 
+    # Handlers read the result through `requestParams`, which checks it.
     $c->forward('deserialize');
-
-    my $data = $isWebhook ? undef : $c->request->data;
-    badRequest($c, "The request body must be a JSON object.") if defined $data && ref $data ne 'HASH';
-    my $fromBody = $data && %$data;
-    $c->stash->{params} = $fromBody ? $data : $c->request->params;
-
-    # Refuse anything but plain values before a handler can pass them to a
-    # query or to trim(), except where the tables above allow more. Handlers
-    # also read $c->request->params directly, so when a JSON body took its
-    # place in the stash, the query string and form fields are checked too.
-    my $err = checkRequestParams($c->stash->{params}, \%nestedParams, $fromBody ? \%bodyListParams : \%listParams);
-    $err //= checkRequestParams($c->request->params, \%nestedParams, \%listParams) if $fromBody;
-    badRequest($c, $err) if defined $err;
 
     # Set the Vary header to "Accept" to ensure that browsers don't
     # mix up HTML and JSON responses.
@@ -547,7 +518,7 @@ sub evals :Local Args(0) {
 
     $c->stash->{template} = 'evals.tt';
 
-    my $page = int($c->req->param('page') || "1") || 1;
+    my $page = int(requestParams($c, { page => Str }, from => $c->req->params)->{page} || "1") || 1;
 
     my $resultsPerPage = 20;
 
@@ -567,7 +538,7 @@ sub steps :Local Args(0) {
 
     $c->stash->{template} = 'steps.tt';
 
-    my $page = int($c->req->param('page') || "1") || 1;
+    my $page = int(requestParams($c, { page => Str }, from => $c->req->params)->{page} || "1") || 1;
 
     my $resultsPerPage = 20;
 
@@ -595,13 +566,17 @@ sub search :Local Args(0) {
 
     $c->stash->{template} = 'search.tt';
 
-    my $query = trim $c->request->params->{"query"};
+    my $p = requestParams($c, {
+        query => Str,
+        limit => Str,
+    }, from => $c->request->params);
+    my $query = trim $p->{query};
 
     error($c, "Query is empty.") if $query eq "";
     error($c, "Invalid character in query.")
         unless $query =~ /^[a-zA-Z0-9_\-\/.]+$/;
 
-    my $limit = int(trim ($c->request->params->{"limit"} || "10"));
+    my $limit = int(trim ($p->{limit} || "10"));
     $c->stash->{limit} = min(50, max(1, $limit));
 
     $c->model('DB')->schema->txn_do(sub {
@@ -669,7 +644,7 @@ sub log :Local :Args(1) {
     # store directory involved either way.
     $drvPath = eval { Nix::StorePath->new($drvPath) } // notFound($c, "Not a valid store path.");
 
-    my $tail = $c->request->params->{"tail"};
+    my $tail = requestParams($c, { tail => Str }, from => $c->request->params)->{tail};
 
     die if defined $tail && $tail !~ /^[0-9]+$/;
 
@@ -693,7 +668,7 @@ sub log :Local :Args(1) {
 sub runcommandlog :Local :Args(1) {
     my ($self, $c, $uuid) = @_;
 
-    my $tail = $c->request->params->{"tail"};
+    my $tail = requestParams($c, { tail => Str }, from => $c->request->params)->{tail};
 
     die if defined $tail && $tail !~ /^[0-9]+$/;
 

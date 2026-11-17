@@ -6,6 +6,8 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams);
+use Types::Standard qw(Str);
 use Hydra::Helper::BuildDiff;
 use List::SomeUtils qw(uniq);
 
@@ -31,10 +33,16 @@ sub view_GET {
 
     my $eval = $c->stash->{eval};
 
-    $c->stash->{filter} = $c->request->params->{filter} // "";
+    my $p = requestParams($c, {
+        filter => Str,
+        compare => Str,
+        full => Str,
+    }, from => $c->req->params);
+
+    $c->stash->{filter} = $p->{filter} // "";
     my $filter = $c->stash->{filter} eq "" ? {} : { job => { ilike => "%" . $c->stash->{filter} . "%" } };
 
-    my $compare = $c->req->params->{compare};
+    my $compare = $p->{compare};
     my $eval2;
 
     # Allow comparing this evaluation against the previous evaluation
@@ -80,7 +88,7 @@ sub view_GET {
     $c->stash->{totalFailed} = $diff->{totalFailed};
     $c->stash->{totalQueued} = $diff->{totalQueued};
 
-    $c->stash->{full} = ($c->req->params->{full} || "0") eq "1";
+    $c->stash->{full} = ($p->{full} || "0") eq "1";
 
     $self->status_ok(
         $c,

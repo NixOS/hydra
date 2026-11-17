@@ -6,6 +6,8 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams);
+use Types::Standard qw(Str);
 use JSON::MaybeXS;
 use Net::Prometheus;
 
@@ -237,7 +239,7 @@ sub star : Chained('job') PathPart('star') Args(0) {
         , jobset => $c->stash->{jobset}->name
         , job => $c->stash->{job}
         };
-    if ($c->request->params->{star} eq "1") {
+    if ((requestParams($c, { star => Str }, from => $c->request->params)->{star} // "") eq "1") {
         $c->user->starredjobs->update_or_create($args);
     } else {
         $c->user->starredjobs->find($args)->delete;

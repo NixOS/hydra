@@ -7,6 +7,8 @@ use base 'Hydra::Base::Controller::REST';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Exec;
+use Hydra::Helper::RequestParams qw(requestParams Integer matching oneOf record);
+use Types::Standard qw(Str);
 use Hydra::Controller::Project;
 use JSON::MaybeXS;
 use DateTime;
@@ -47,26 +49,39 @@ sub buildToHash {
 };
 
 
+# The filters `latestbuilds` and `nrbuilds` take.
+# Any non-empty string, rather than the name patterns, which only creation
+# enforces: these look up existing rows, whose names may predate them.
+my %buildFilterParams = (
+    project => matching(qr/.+/s, "The project filter must be a single name."),
+    jobset => matching(qr/.+/s, "The jobset filter must be a single name."),
+    job => matching(qr/.+/s, "The job filter must be a single name."),
+    system => matching(qr/.+/s, "The system filter must be a single name."),
+);
+
+# Applies the filters in `%buildFilterParams` that `$p` has.
+sub buildFilter {
+    my ($p) = @_;
+    my $filter = {finished => 1};
+    $filter->{"jobset.project"} = $p->{project} if defined $p->{project};
+    $filter->{"jobset.name"} = $p->{jobset} if defined $p->{jobset};
+    $filter->{job} = $p->{job} if defined $p->{job};
+    $filter->{system} = $p->{system} if defined $p->{system};
+    return $filter;
+}
+
 sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr};
-    error($c, "Parameter not defined!") if !defined $nr;
-
-    my $project = $c->request->params->{project};
-    my $jobset = $c->request->params->{jobset};
-    my $job = $c->request->params->{job};
-    my $system = $c->request->params->{system};
-
-    my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if defined $project && $project ne "";
-    $filter->{"jobset.name"} = $jobset if defined $jobset && $jobset ne "";
-    $filter->{job} = $job if defined $job && $job ne "";
-    $filter->{system} = $system if defined $system && $system ne "";
+    my $p = requestParams($c, {
+        %buildFilterParams,
+        nr => Integer,
+    }, from => $c->request->params);
+    error($c, "Parameter not defined!") if !defined $p->{nr};
 
     my @latest = $c->model('DB::Builds')->search(
-        $filter,
+        buildFilter($p),
         {
-            rows => $nr,
+            rows => $p->{nr},
             order_by => ["id DESC"],
             join => [ "jobset" ]
         });
@@ -104,7 +119,7 @@ sub jobsetToHash {
 sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
     my ($self, $c) = @_;
 
-    my $projectName = $c->request->params->{project};
+    my $projectName = requestParams($c, { project => Str }, from => $c->request->params)->{project};
     error($c, "Parameter 'project' not defined!") if !defined $projectName;
 
     my $project = $c->model('DB::Projects')->find($projectName)
@@ -125,10 +140,10 @@ sub jobsets : Chained('api') PathPart('jobsets') Args(0) {
 sub queue : Chained('api') PathPart('queue') Args(0) {
     my ($self, $c) = @_;
 
-    my $nr = $c->request->params->{nr};
+    my $nr = requestParams($c, { nr => Integer }, from => $c->request->params)->{nr};
     error($c, "Parameter not defined!") if !defined $nr;
 
-    my @builds = $c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
+    my @builds =$c->model('DB::Builds')->search({finished => 0}, {rows => $nr, order_by => ["priority DESC", "id"]});
 
     my @list;
     push @list, buildToHash($_) foreach @builds;
@@ -152,34 +167,23 @@ sub nrqueue : Chained('api') PathPart('nrqueue') Args(0) {
 
 sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr};
-    my $period = $c->request->params->{period};
+    my $p = requestParams($c, {
+        %buildFilterParams,
+        nr => Integer,
+        period => oneOf([qw(hour day)], sub { "Invalid period ‘$_’; valid periods: ‘hour’ and ‘day’." }),
+    }, from => $c->request->params);
 
-    error($c, "Parameter not defined!") if !defined $nr || !defined $period;
-    my $base;
-
-    my $project = $c->request->params->{project};
-    my $jobset = $c->request->params->{jobset};
-    my $job = $c->request->params->{job};
-    my $system = $c->request->params->{system};
-
-    my $filter = {finished => 1};
-    $filter->{"jobset.project"} = $project if defined $project && $project ne "";
-    $filter->{"jobset.name"} = $jobset if defined $jobset && $jobset ne "";
-    $filter->{job} = $job if defined $job && $job ne "";
-    $filter->{system} = $system if defined $system && $system ne "";
-
-    $base = 60*60 if($period eq "hour");
-    $base = 24*60*60 if($period eq "day");
+    error($c, "Parameter not defined!") if !defined $p->{nr} || !defined $p->{period};
+    my $base = $p->{period} eq "hour" ? 60*60 : 24*60*60;
 
     my @stats = $c->model('DB::Builds')->search(
-        $filter,
+        buildFilter($p),
         {
             select => [{ count => "*" }],
             as => ["nr"],
             group_by => ["timestamp - timestamp % $base"],
             order_by => "timestamp - timestamp % $base DESC",
-            rows => $nr,
+            rows => $p->{nr},
             join => [ "jobset" ]
         }
     );
@@ -197,10 +201,16 @@ sub nrbuilds : Chained('api') PathPart('nrbuilds') Args(0) {
 sub scmdiff : Path('/api/scmdiff') Args(0) {
     my ($self, $c) = @_;
 
-    my $uri = $c->request->params->{uri};
-    my $type = $c->request->params->{type};
-    my $rev1 = $c->request->params->{rev1};
-    my $rev2 = $c->request->params->{rev2};
+    my $p = requestParams($c, {
+        uri => Str,
+        type => Str,
+        rev1 => Str,
+        rev2 => Str,
+    }, from => $c->request->params);
+    my $uri = $p->{uri};
+    my $type = $p->{type};
+    my $rev1 = $p->{rev1};
+    my $rev2 = $p->{rev2};
 
     die("invalid revisions: [$rev1] [$rev2]") if $rev1 !~ m/^[a-zA-Z0-9_.]+$/ || $rev2 !~ m/^[a-zA-Z0-9_.]+$/;
 
@@ -252,8 +262,14 @@ sub push : Chained('api') PathPart('push') Args(0) {
 
     $c->{stash}->{json}->{jobsetsTriggered} = [];
 
-    my $force = exists $c->request->query_params->{force};
-    my @jobsets = split /,/, ($c->request->query_params->{jobsets} // "");
+    my $q = requestParams($c, {
+        force => Str,
+        jobsets => Str,
+        repos => Str,
+    }, from => $c->request->query_params);
+    # A bare `?force` counts too.
+    my $force = defined $q->{force};
+    my @jobsets = split /,/, ($q->{jobsets} // "");
     foreach my $s (@jobsets) {
         my ($p, $j) = parseJobsetName($s);
         my $jobset = $c->model('DB::Jobsets')->find($p, $j);
@@ -262,7 +278,7 @@ sub push : Chained('api') PathPart('push') Args(0) {
         triggerJobset($self, $c, $jobset, $force);
     }
 
-    my @repos = split /,/, ($c->request->query_params->{repos} // "");
+    my @repos = split /,/, ($q->{repos} // "");
     foreach my $r (@repos) {
         my @jobsets = $c->model('DB::Jobsets')->search(
             { 'project.enabled' => 1, 'me.enabled' => 1 },
@@ -359,9 +375,23 @@ sub push_github : Chained('api') PathPart('push-github') Args(0) {
 
     return unless verifyWebhookSignature($c, 'github', 'X-Hub-Signature-256', 'sha256=');
 
-    my $in = $c->request->{data};
-    my $owner = ($in->{repository}->{owner}->{name} // $in->{repository}->{owner}->{login}) or die;
-    my $repo = $in->{repository}->{name} or die;
+    my $p = requestParams($c, {
+        repository => record(
+            required => {
+                name => Str,
+            },
+            optional => {
+                owner => record(optional => {
+                    name => Str,
+                    login => Str,
+                }),
+            },
+        ),
+    }, from => $c->request->data // {}, quiet => 1);
+    my $repository = $p->{repository} // badRequest($c, "The payload has no repository.");
+    my $owner = $repository->{owner}->{name} // $repository->{owner}->{login}
+        // badRequest($c, "The payload's repository has no owner.");
+    my $repo = $repository->{name};
     print STDERR "got push from GitHub repository $owner/$repo\n";
 
     triggerJobset($self, $c, $_, 0) foreach $c->model('DB::Jobsets')->search(
@@ -380,8 +410,13 @@ sub push_gitea : Chained('api') PathPart('push-gitea') Args(0) {
     # Note: Gitea doesn't use sha256= prefix
     return unless verifyWebhookSignature($c, 'gitea', 'X-Gitea-Signature', '');
 
-    my $in = $c->request->{data};
-    my $url = $in->{repository}->{clone_url} or die;
+    my $p = requestParams($c, {
+        repository => record(required => {
+            clone_url => Str,
+        }),
+    }, from => $c->request->data // {}, quiet => 1);
+    my $repository = $p->{repository} // badRequest($c, "The payload has no repository.");
+    my $url = $repository->{clone_url};
     $url =~ s/.git$//;
     print STDERR "got push from Gitea repository $url\n";
 

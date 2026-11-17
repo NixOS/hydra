@@ -5,6 +5,8 @@ use warnings;
 use base 'Hydra::Base::Controller::NixChannel';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams);
+use Types::Standard qw(Str);
 
 
 sub all : Chained('get_builds') PathPart {
@@ -12,7 +14,7 @@ sub all : Chained('get_builds') PathPart {
 
     $c->stash->{template} = 'all.tt';
 
-    my $page = int($c->req->param('page') || "1") || 1;
+    my $page = int(requestParams($c, { page => Str }, from => $c->req->params)->{page} || "1") || 1;
 
     my $resultsPerPage = 20;
 
