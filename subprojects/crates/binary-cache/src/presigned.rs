@@ -10,7 +10,7 @@ use crate::multipart::{
 use crate::{CacheError, Compression, read_nar_stream, streaming_hash::HashingReader};
 
 /// Multipart part PUTs kept in flight per NAR; reads stay sequential.
-const PART_UPLOAD_CONCURRENCY: usize = 8;
+pub(crate) const PART_UPLOAD_CONCURRENCY: usize = 8;
 
 const RETRY_MIN_DELAY_SECS: u64 = 1;
 const RETRY_MAX_DELAY_SECS: u64 = 30;
