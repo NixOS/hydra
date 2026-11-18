@@ -16,6 +16,8 @@ use Digest::SHA qw(hmac_sha256_hex);
 use String::Compare::ConstantTime qw(equals);
 use IPC::Run3;
 
+use constant LATEST_BUILDS_MAX => 100;
+
 
 sub api : Chained('/') PathPart('api') CaptureArgs(0) {
     my ($self, $c) = @_;
@@ -46,15 +48,82 @@ sub buildToHash {
 };
 
 
+sub historyBuildToHash {
+    my ($build) = @_;
+    return {
+        %{buildToHash($build)},
+        stoptime => $build->stoptime,
+        releasename => $build->releasename,
+    };
+}
+
+
+sub latestBuildsBadRequest {
+    my ($c, $message) = @_;
+    $c->stash->{json} = {};
+    badRequest($c, $message);
+}
+
+
+sub latestBuildsLimit {
+    my ($c) = @_;
+    my $params = $c->request->params;
+    my $hasLimit = exists $params->{limit};
+    my $hasNr = exists $params->{nr};
+
+    latestBuildsBadRequest($c, "Specify exactly one of 'limit' or 'nr'.")
+        if $hasLimit == $hasNr;
+
+    my $name = $hasLimit ? 'limit' : 'nr';
+    my $value = $params->{$name};
+    latestBuildsBadRequest($c, "Parameter '$name' must be a decimal integer from 1 through " . LATEST_BUILDS_MAX . ".")
+        unless defined $value && $value =~ /\A[0-9]{1,3}\z/ && $value >= 1 && $value <= LATEST_BUILDS_MAX;
+
+    return int($value);
+}
+
+
+sub latestBuildsCursor {
+    my ($c, $cursor) = @_;
+    latestBuildsBadRequest($c, "Parameter 'cursor' is invalid.")
+        unless defined $cursor && $cursor =~ /\Av1:([1-9][0-9]*):([1-9][0-9]*)\z/;
+
+    my ($stoptime, $id) = ($1, $2);
+    for my $value ($stoptime, $id) {
+        latestBuildsBadRequest($c, "Parameter 'cursor' is invalid.")
+            if length($value) > 10 || (length($value) == 10 && $value gt '2147483647');
+    }
+
+    return (int($stoptime), int($id));
+}
+
+
 sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     my ($self, $c) = @_;
-    my $nr = $c->request->params->{nr};
-    error($c, "Parameter not defined!") if !defined $nr;
+    my $params = $c->request->params;
+    my $limit = latestBuildsLimit($c);
 
-    my $project = $c->request->params->{project};
-    my $jobset = $c->request->params->{jobset};
-    my $job = $c->request->params->{job};
-    my $system = $c->request->params->{system};
+    my $project = $params->{project};
+    my $jobset = $params->{jobset};
+    my $job = $params->{job};
+    my $system = $params->{system};
+    my $historyMode = exists $params->{order};
+
+    if ($historyMode) {
+        latestBuildsBadRequest($c, "Parameter 'order' must be 'stoptime' when provided.")
+            unless defined $params->{order} && $params->{order} eq 'stoptime';
+        for my $scope (
+            ['project', $project],
+            ['jobset', $jobset],
+            ['job', $job],
+        ) {
+            latestBuildsBadRequest($c, "Parameter '$scope->[0]' must be nonempty when order=stoptime.")
+                unless defined $scope->[1] && $scope->[1] ne '';
+        }
+    }
+
+    latestBuildsBadRequest($c, "Parameter 'cursor' requires order=stoptime.")
+        if exists $params->{cursor} && !$historyMode;
 
     my $filter = {finished => 1};
     $filter->{"jobset.project"} = $project if defined $project && $project ne "";
@@ -62,16 +131,48 @@ sub latestbuilds : Chained('api') PathPart('latestbuilds') Args(0) {
     $filter->{job} = $job if defined $job && $job ne "";
     $filter->{system} = $system if defined $system && $system ne "";
 
+    if ($historyMode && exists $params->{cursor}) {
+        my ($stoptime, $id) = latestBuildsCursor($c, $params->{cursor});
+        $filter->{-or} = [
+            {"me.stoptime" => {'<' => $stoptime}},
+            {"me.stoptime" => $stoptime, "me.id" => {'<' => $id}},
+        ];
+    }
+
+    my $query = $historyMode
+        ? {
+            rows => $limit + 1,
+            order_by => ["me.stoptime DESC", "me.id DESC"],
+            prefetch => ["jobset"],
+        }
+        : {
+            rows => $limit,
+            order_by => ["me.id DESC"],
+            prefetch => ["jobset"],
+        };
+
     my @latest = $c->model('DB::Builds')->search(
         $filter,
-        {
-            rows => $nr,
-            order_by => ["id DESC"],
-            join => [ "jobset" ]
-        });
+        $query,
+    );
 
-    my @list;
-    push @list, buildToHash($_) foreach @latest;
+    if ($historyMode && scalar(@latest) > $limit) {
+        my $last = $latest[$limit - 1];
+        splice @latest, $limit;
+        my %next = (
+            limit => $limit,
+            order => 'stoptime',
+            project => $project,
+            jobset => $jobset,
+            job => $job,
+            cursor => 'v1:' . $last->stoptime . ':' . $last->id,
+        );
+        $next{system} = $system if defined $system && $system ne '';
+        my $nextUrl = $c->uri_for($c->action, [], \%next);
+        $c->response->headers->header('Link' => "<$nextUrl>; rel=\"next\"");
+    }
+
+    my @list = map { $historyMode ? historyBuildToHash($_) : buildToHash($_) } @latest;
 
     $c->stash->{'plain'} = {
         data => scalar (encode_json(\@list))
