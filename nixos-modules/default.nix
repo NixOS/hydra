@@ -19,6 +19,9 @@ rec {
       services.hydra-evaluator-dev.package =
         lib.mkDefault
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator;
+      services.hydra-evaluator-dev.nixEvalJobsPackage =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.nix-eval-jobs;
     };
 
   queue-runner =

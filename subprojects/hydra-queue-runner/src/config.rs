@@ -346,13 +346,9 @@ impl TryFrom<AppConfig> for PreparedApp {
             std::env::var("LOGNAME").map_err(|_| ConfigError::MissingEnvVar("LOGNAME"))?;
         let nix_remote =
             daemon_client_utils::parse_nix_remote().map_err(ConfigError::ParseNixStore)?;
-        let roots_dir = val.roots_dir.unwrap_or_else(|| {
-            nix_remote
-                .state_dir
-                .join("gcroots/per-user")
-                .join(logname)
-                .join("hydra-roots")
-        });
+        let roots_dir = val
+            .roots_dir
+            .unwrap_or_else(|| nix_remote.default_roots_dir(&logname));
         fs_err::create_dir_all(&roots_dir)?;
 
         let hydra_log_dir = val.hydra_data_dir.join("build-logs");

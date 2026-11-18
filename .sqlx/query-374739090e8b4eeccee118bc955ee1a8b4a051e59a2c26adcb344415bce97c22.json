@@ -1,0 +1,113 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT j.id, j.flake, j.nixexprinput, j.nixexprpath, j.forceeval,\n               p.declfile, p.decltype, p.declvalue\n        FROM jobsets j\n        JOIN projects p ON j.project = p.name\n        WHERE j.project = $1 AND j.name = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "flake",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "flake"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "nixexprinput",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "nixexprinput"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "nixexprpath",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "nixexprpath"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "forceeval",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "jobsets",
+            "name": "forceeval"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "declfile",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "declfile"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "decltype",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "decltype"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "declvalue",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "projects",
+            "name": "declvalue"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "374739090e8b4eeccee118bc955ee1a8b4a051e59a2c26adcb344415bce97c22"
+}
