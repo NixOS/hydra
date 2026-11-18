@@ -319,15 +319,6 @@ fn base_name(store_dir: &db::StoreDir, path: &str) -> db::Result<String> {
         .to_string())
 }
 
-/// Both stored forms of a store path, for a lookup that has to find a row
-/// whether or not `hydra-backfill-store-dirs` has converted it yet.
-fn path_forms(store_dir: &db::StoreDir, path: &str) -> db::Result<Vec<String>> {
-    Ok(db::path_forms(
-        store_dir,
-        &store_dir.parse(&crate::nix_eval_jobs::full(store_dir, path))?,
-    ))
-}
-
 /// Point a build at the derivation this evaluation found for it, and put
 /// it back in the queue.
 pub(crate) async fn repoint_build(
@@ -336,17 +327,14 @@ pub(crate) async fn repoint_build(
     id: i32,
     drv_path: &str,
 ) -> db::Result<()> {
-    // `storedir` too, not just `drvpath`: an unconverted row would otherwise
-    // be left holding a basename with no store dir beside it, which is
-    // neither format.
+    // No `storedir`: a repoint stays within the store the row already names.
     sqlx::query!(
         r#"
         UPDATE builds
-        SET drvpath = $2, storedir = $3, finished = 0, buildstatus = NULL
+        SET drvpath = $2, finished = 0, buildstatus = NULL
         WHERE id = $1"#,
         id,
         base_name(store_dir, drv_path)?,
-        store_dir.to_str(),
     )
     .execute(tx.raw())
     .await?;
@@ -815,8 +803,8 @@ pub(crate) async fn set_evaluation_error(
 
 /// A build of this job already present in the given evaluation, matched
 /// on its first output's path, or on the derivation when there is no
-/// path yet. Its derivation comes back as a full path, whichever form its
-/// row holds, so that it compares with what `nix-eval-jobs` reports.
+/// path yet. Its derivation comes back as a full path, so that it compares
+/// with what `nix-eval-jobs` reports.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn find_build_in_eval(
     tx: &mut db::Transaction<'_>,
@@ -828,10 +816,8 @@ pub(crate) async fn find_build_in_eval(
     output_path: Option<&str>,
     drv_path: &str,
 ) -> db::Result<Option<PreviousBuild>> {
-    // Rows `hydra-backfill-store-dirs` has not reached yet still hold a full
-    // path, so match either spelling.
-    let output_paths = output_path.map(|p| path_forms(store_dir, p)).transpose()?;
-    let drv_paths = path_forms(store_dir, drv_path)?;
+    let output_path = output_path.map(|p| base_name(store_dir, p)).transpose()?;
+    let drv_path = base_name(store_dir, drv_path)?;
     // The jobset constraint is implied by the evaluation, but stating it
     // is worth a factor of a thousand on the nixpkgs jobset.
     let row = sqlx::query!(
@@ -842,23 +828,23 @@ pub(crate) async fn find_build_in_eval(
         JOIN buildoutputs o ON o.build = b.id
         WHERE m.eval = $1 AND b.jobset_id = $2 AND b.job = $3
           AND o.name = $4
-          AND (($5::text[] IS NULL AND b.drvpath = ANY($6)) OR o.path = ANY($5))
+          AND (($5::text IS NULL AND b.drvpath = $6) OR o.path = $5)
         LIMIT 1"#,
         eval,
         jobset_id,
         job,
         output_name,
-        output_paths.as_deref(),
-        &drv_paths,
+        output_path,
+        drv_path,
     )
     .fetch_optional(tx.raw())
     .await?;
     row.map(|r| {
-        let drv = db::parse_row_path(store_dir, &r.drvpath, r.storedir.as_deref())?;
+        db::check_store_dir(store_dir, &r.storedir)?;
         Ok(PreviousBuild {
             id: r.id,
             finished: r.finished,
-            drvpath: store_dir.display(&drv).to_string(),
+            drvpath: crate::nix_eval_jobs::full(store_dir, &r.drvpath),
         })
     })
     .transpose()
