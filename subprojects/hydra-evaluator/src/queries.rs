@@ -709,20 +709,25 @@ pub(crate) async fn insert_eval_members(
     Ok(())
 }
 
-/// One aggregate's constituents. Upserted, since a constituent may be
-/// named by more than one aggregate.
-pub(crate) async fn insert_aggregate_constituent(
+/// Aggregate/constituent pairs, in bulk. A pair already present is skipped:
+/// an aggregate kept from an earlier evaluation has its constituents already,
+/// and aliased jobs can name the same pair twice.
+pub(crate) async fn insert_aggregate_constituents(
     tx: &mut db::Transaction<'_>,
-    aggregate: i32,
-    constituent: i32,
+    pairs: &[(i32, i32)],
 ) -> Result<(), sqlx::Error> {
+    if pairs.is_empty() {
+        return Ok(());
+    }
+    let aggregates: Vec<i32> = pairs.iter().map(|(a, _)| *a).collect();
+    let constituents: Vec<i32> = pairs.iter().map(|(_, c)| *c).collect();
     sqlx::query!(
         r#"
         INSERT INTO aggregateconstituents (aggregate, constituent)
-        VALUES ($1, $2)
+        SELECT * FROM UNNEST($1::int[], $2::int[])
         ON CONFLICT (aggregate, constituent) DO NOTHING"#,
-        aggregate,
-        constituent,
+        &aggregates,
+        &constituents,
     )
     .execute(tx.raw())
     .await?;

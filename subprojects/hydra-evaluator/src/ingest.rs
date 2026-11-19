@@ -304,6 +304,7 @@ async fn record_aggregates(
         }
     }
 
+    let mut pairs = Vec::new();
     for job in jobs {
         let Some(constituents) = &job.constituents else {
             continue;
@@ -328,8 +329,7 @@ async fn record_aggregates(
 
         for constituent_drv in constituents {
             if let Some(constituent) = by_drv.get(constituent_drv.as_str()) {
-                queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
-                    .await?;
+                pairs.push((aggregate.build, constituent.build));
             } else {
                 tracing::debug!(
                     "aggregate job ‘{}’ has a constituent ‘{constituent_drv}’ \
@@ -339,6 +339,7 @@ async fn record_aggregates(
             }
         }
     }
+    queries::insert_aggregate_constituents(tx, &pairs).await?;
 
     Ok(())
 }
