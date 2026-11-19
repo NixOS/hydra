@@ -13,11 +13,11 @@
     </tr>
   </thead>
   [% FOREACH m IN machines %]
-    [% name = m.key ? stripSSHUser(m.key) : "localhost" %]
+    [% displayName = m.value.hostname || m.key %]
     <thead>
       <tr>
         <th colspan="7">
-          <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=m.key %]</tt>
+          <tt [% IF m.value.disabled %]style="text-decoration: line-through;"[% END %]>[% INCLUDE renderMachineName machine=displayName %]</tt>
           [% IF m.value.primarySystemType %]
             <span class="muted" style="font-weight: normal;">
               (<tt>[% m.value.primarySystemType | html %]</tt>)
@@ -69,9 +69,7 @@
     </thead>
     <tbody>
       [% idle = 1 %]
-      [% FOREACH step IN steps %]
-        [% name2 = step.machine ? stripSSHUser(step.machine) : "localhost" %]
-        [% IF name == name2 %]
+      [% FOREACH step IN m.value.steps %]
           [% idle = 0 %]
           <tr>
             <td><tt>[% INCLUDE renderFullJobName project=step.project jobset=step.jobset job=step.job %]</tt></td>
@@ -80,10 +78,9 @@
             <td>[% INCLUDE renderBusyStatus %]</td>
             <td style="width: 10em">[% INCLUDE renderDuration duration = curTime - step.starttime %] </td>
           </tr>
-        [% END %]
       [% END %]
       [% IF idle == 1 %]
-        <tr><td colspan="6">Idle</td></tr>
+        <tr><td colspan="6">[% IF m.value.hasReportedJobs %]Active jobs reported; details unavailable.[% ELSIF m.value.hasUnassignedSteps %]Busy steps recorded for this host; registration ownership unavailable.[% ELSE %]Idle[% END %]</td></tr>
       [% END %]
     </tbody>
   [% END %]

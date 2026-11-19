@@ -207,17 +207,13 @@ mod handler {
             let queue_stats = io::QueueRunnerStats::new(state.clone()).await;
             let sort_fn = state.config.get_machine_sort_fn();
             let free_fn = state.config.get_machine_free_fn();
-            let machines = state
-                .machines
-                .get_all_machines()
-                .into_iter()
-                .map(|m| {
-                    (
-                        m.hostname.clone(),
-                        io::Machine::from_state(&m, sort_fn, free_fn),
-                    )
-                })
-                .collect();
+            let machines = io::machine_registry::by_registration(
+                state
+                    .machines
+                    .get_all_machines()
+                    .into_iter()
+                    .map(|m| io::Machine::from_state(&m, sort_fn, free_fn)),
+            );
             let jobsets = state.jobsets.clone_as_io();
             let s3_stores: Vec<binary_cache::S3BinaryCacheClient> = {
                 let stores = state.remote_stores.read();
@@ -241,17 +237,13 @@ mod handler {
         pub(crate) async fn machines(state: std::sync::Arc<State>) -> Result<Response, Error> {
             let sort_fn = state.config.get_machine_sort_fn();
             let free_fn = state.config.get_machine_free_fn();
-            let machines = state
-                .machines
-                .get_all_machines()
-                .into_iter()
-                .map(|m| {
-                    (
-                        m.hostname.clone(),
-                        io::Machine::from_state(&m, sort_fn, free_fn),
-                    )
-                })
-                .collect();
+            let machines = io::machine_registry::by_registration(
+                state
+                    .machines
+                    .get_all_machines()
+                    .into_iter()
+                    .map(|m| io::Machine::from_state(&m, sort_fn, free_fn)),
+            );
             construct_json_ok_response(&io::MachinesResponse::new(machines))
         }
 

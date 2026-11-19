@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use std::collections::BTreeMap;
 
 use super::{
     Build, Jobset, Machine, QueueRunnerStats, Step, StepInfo, stats::S3Stats, stats::StoreStats,
@@ -7,13 +8,13 @@ use super::{
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachinesResponse {
-    machines: HashMap<String, Machine>,
+    machines: BTreeMap<String, Machine>,
     machines_count: usize,
 }
 
 impl MachinesResponse {
     #[must_use]
-    pub fn new(machines: HashMap<String, Machine>) -> Self {
+    pub fn new(machines: BTreeMap<String, Machine>) -> Self {
         Self {
             machines_count: machines.len(),
             machines,
@@ -25,7 +26,7 @@ impl MachinesResponse {
 #[serde(rename_all = "camelCase")]
 pub struct DumpResponse {
     queue_runner: QueueRunnerStats,
-    machines: HashMap<String, Machine>,
+    machines: BTreeMap<String, Machine>,
     jobsets: HashMap<String, Jobset>,
     store: Option<StoreStats>,
     s3: HashMap<String, S3Stats>,
@@ -35,7 +36,7 @@ impl DumpResponse {
     #[must_use]
     pub fn new(
         queue_runner: QueueRunnerStats,
-        machines: HashMap<String, Machine>,
+        machines: BTreeMap<String, Machine>,
         jobsets: HashMap<String, Jobset>,
         remote_stores: &[binary_cache::S3BinaryCacheClient],
     ) -> Self {
