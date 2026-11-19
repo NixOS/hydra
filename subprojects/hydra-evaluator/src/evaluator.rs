@@ -530,7 +530,7 @@ async fn reap_eval(
         ))),
     };
 
-    let (status, succeeded) = match &outcome {
+    let (status, mut succeeded) = match &outcome {
         Some(Ok(outcome)) => (outcome.to_string(), outcome.succeeded()),
         Some(Err(e)) => (format!("{e:#}"), false),
         None => ("abandoned".to_owned(), true),
@@ -543,6 +543,10 @@ async fn reap_eval(
     } else {
         tracing::info!("evaluation {status}");
     }
+    let followup = match outcome {
+        Some(Ok(crate::evaluate::Outcome::Evaluated { followup, .. })) => Some(followup),
+        _ => None,
+    };
 
     let now = jiff::Timestamp::now().as_second();
 
@@ -563,19 +567,34 @@ async fn reap_eval(
         false
     };
 
-    // Hold the lock across the DB cleanup and only mark the jobset
-    // not-running afterwards (as the C++ reaper did), so a new eval
-    // of the same jobset cannot start in between and have its fresh
-    // startTime clobbered by this transaction.
+    // This and a failed follow-up's error both clear startTime, so the
+    // jobset stays marked running until they are written. Otherwise a new
+    // eval of it could start in between and have its startTime clobbered.
     if let Err(e) = update_db_after_eval(db, trace, jobset_id, record_failure, &status, now).await {
         tracing::error!("exception setting jobset error: {e:#}");
     }
 
-    if st.running_evals > 0 {
-        st.running_evals -= 1;
+    st.running_evals = st.running_evals.saturating_sub(1);
+    st.kill_evals.remove(&jobset_id);
+
+    // Free the slot for another jobset, but keep this one marked running
+    // until its builds are up to date, so that its next evaluation cannot
+    // race this one's follow-up.
+    if let Some(followup) = followup {
+        drop(st);
+        notify_work.notify_one();
+        if let Err(e) = followup.run(db).await {
+            let error = format!("{e:#}");
+            tracing::info!("updating the jobset's builds failed");
+            tracing::debug!("updating the jobset's builds failed: {error}");
+            if let Err(e) = update_db_after_eval(db, trace, jobset_id, true, &error, now).await {
+                tracing::error!("exception setting jobset error: {e:#}");
+            }
+            succeeded = false;
+        }
+        st = state.lock().await;
     }
     st.running_ids.remove(&jobset_id);
-    st.kill_evals.remove(&jobset_id);
 
     notify_work.notify_one();
 

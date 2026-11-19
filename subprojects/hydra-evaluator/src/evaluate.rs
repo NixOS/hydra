@@ -28,7 +28,11 @@ pub(crate) enum Outcome {
     /// These inputs had been evaluated before, so nothing was done.
     Cached { previous: i32 },
     /// The evaluation ran and was recorded.
-    Evaluated { eval: i32, changed: bool },
+    Evaluated {
+        eval: i32,
+        changed: bool,
+        followup: Followup,
+    },
     /// A declarative project whose specification named its jobsets outright,
     /// so they were created and there was nothing to evaluate.
     Declared,
@@ -51,14 +55,64 @@ impl std::fmt::Display for Outcome {
             Self::Evaluated {
                 eval,
                 changed: true,
+                ..
             } => write!(f, "added evaluation {eval}"),
             Self::Evaluated {
                 eval,
                 changed: false,
+                ..
             } => write!(f, "evaluation {eval} found no changes"),
             Self::Declared => f.write_str("jobsets created from the declarative specification"),
             Self::FetchFailed => f.write_str("could not fetch its inputs"),
         }
+    }
+}
+
+/// What is left to do to the jobset's builds once an evaluation is recorded.
+///
+/// It runs outside the evaluation transaction, because holding these row
+/// locks that long deadlocks against the queue runner. It also runs after the
+/// evaluation frees its slot, because on a large jobset it takes minutes.
+#[derive(Debug)]
+pub(crate) struct Followup {
+    jobset_id: i32,
+    /// Inherited builds whose derivation changed.
+    repoints: HashMap<i32, String>,
+    /// The evaluation whose builds are now current.
+    current: Option<i32>,
+}
+
+impl Followup {
+    /// The caller records a failure as the jobset's evaluation error. The
+    /// next evaluation that is not cached repeats both steps.
+    pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
+        let start = std::time::Instant::now();
+        retry("repointing builds", || repoint(db, &self.repoints))
+            .await
+            .wrap_err("failed to repoint builds at their new derivations")?;
+        tracing::info!(
+            "repointed {} builds in {} s",
+            self.repoints.len(),
+            start.elapsed().as_secs()
+        );
+
+        if let Some(current) = self.current {
+            let start = std::time::Instant::now();
+            retry("marking builds current", || async {
+                let mut conn = db.get().await?;
+                Ok(
+                    queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
+                        .await?,
+                )
+            })
+            .await
+            .wrap_err("failed to mark this evaluation's builds current")?;
+            tracing::info!(
+                "marked evaluation {current}'s builds current in {} s",
+                start.elapsed().as_secs()
+            );
+        }
+        Ok(())
     }
 }
 
@@ -263,19 +317,6 @@ pub(crate) async fn evaluate(
     // evaluation is done with the inputs.
     fetcher.shutdown().await;
 
-    // Both of these touch every build of the jobset, so they run afterwards:
-    // holding those row locks for the evaluation's duration deadlocks against
-    // the queue runner finishing builds.
-    let start = std::time::Instant::now();
-    retry("repointing builds", || repoint(db, &recorded.repoints))
-        .await
-        .wrap_err("failed to repoint builds at their new derivations")?;
-    tracing::info!(
-        "repointed {} builds in {} s",
-        recorded.repoints.len(),
-        start.elapsed().as_secs()
-    );
-
     // The current builds are this evaluation's if it changed anything, and
     // otherwise still those of the last one that did.
     let current = if recorded.jobset_changed {
@@ -283,23 +324,15 @@ pub(crate) async fn evaluate(
     } else {
         previous.as_ref().map(|p| p.id)
     };
-    if let Some(current) = current {
-        let start = std::time::Instant::now();
-        retry("marking builds current", || async {
-            let mut conn = db.get().await?;
-            Ok(queries::mark_current(&mut conn, meta.id, current, CURRENT_BATCH).await?)
-        })
-        .await
-        .wrap_err("failed to mark this evaluation's builds current")?;
-        tracing::info!(
-            "marked evaluation {current}'s builds current in {} s",
-            start.elapsed().as_secs()
-        );
-    }
 
     Ok(Outcome::Evaluated {
         eval: recorded.eval,
         changed: recorded.jobset_changed,
+        followup: Followup {
+            jobset_id: meta.id,
+            repoints: recorded.repoints,
+            current,
+        },
     })
 }
 
