@@ -923,3 +923,134 @@ async fn insert_build_outputs(
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::NewBuild;
+
+    fn build<'a>(
+        job: &'a str,
+        drv_path: &'a str,
+        outputs: &'a BTreeMap<String, Option<String>>,
+    ) -> NewBuild<'a> {
+        NewBuild {
+            job,
+            drv_path,
+            system: "x86_64-linux",
+            nix_name: None,
+            description: None,
+            license: None,
+            homepage: None,
+            maintainers: None,
+            max_silent: None,
+            timeout: None,
+            priority: 100,
+            is_channel: 0,
+            outputs,
+        }
+    }
+
+    #[tokio::test]
+    async fn insert_builds_returns_each_builds_own_id() {
+        type Row = (
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<i32>,
+            Option<i32>,
+            i32,
+            i32,
+        );
+
+        let (pg, _pool) = test_utils::TestPg::new().await;
+        let db = db::Database::new(&pg.url(), 1).await.unwrap();
+        let mut conn = db.get().await.unwrap();
+        let mut tx = conn.begin_transaction().await.unwrap();
+        // Replica role skips the foreign keys, so no jobset is needed.
+        sqlx::query("SET session_replication_role = 'replica'")
+            .execute(tx.raw())
+            .await
+            .unwrap();
+
+        let a1_out = BTreeMap::from([("out".to_owned(), Some("/nix/store/a1".to_owned()))]);
+        // Content-addressed: no path yet.
+        let a2_out = BTreeMap::from([("out".to_owned(), None)]);
+        let b_out = BTreeMap::from([
+            ("dev".to_owned(), Some("/nix/store/b-dev".to_owned())),
+            ("out".to_owned(), Some("/nix/store/b".to_owned())),
+        ]);
+        let builds = [
+            NewBuild {
+                nix_name: Some("a-1"),
+                description: Some("desc"),
+                license: Some("mit"),
+                homepage: Some("https://a"),
+                maintainers: Some("alice"),
+                max_silent: Some(10),
+                timeout: Some(20),
+                priority: 5,
+                is_channel: 1,
+                ..build("a", "a1.drv", &a1_out)
+            },
+            // Same job, other derivation: a build of its own.
+            build("a", "a2.drv", &a2_out),
+            build("b", "b.drv", &b_out),
+        ];
+        let ids = super::insert_builds(&mut tx, 1, &builds).await.unwrap();
+
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT job, drvpath, nixname, description, license, homepage,
+                    maintainers, maxsilent, timeout, priority, ischannel
+             FROM builds WHERE id = ANY($1) ORDER BY array_position($1, id)",
+        )
+        .bind(&ids)
+        .fetch_all(tx.raw())
+        .await
+        .unwrap();
+        let s = |s: &str| Some(s.to_owned());
+        let none = |job: &str, drv: &str| {
+            let (job, drv) = (job.to_owned(), drv.to_owned());
+            (job, drv, None, None, None, None, None, None, None, 100, 0)
+        };
+        assert_eq!(
+            rows,
+            [
+                (
+                    "a".to_owned(),
+                    "a1.drv".to_owned(),
+                    s("a-1"),
+                    s("desc"),
+                    s("mit"),
+                    s("https://a"),
+                    s("alice"),
+                    Some(10),
+                    Some(20),
+                    5,
+                    1,
+                ),
+                none("a", "a2.drv"),
+                none("b", "b.drv"),
+            ]
+        );
+
+        let outputs: Vec<(i32, String, Option<String>)> =
+            sqlx::query_as("SELECT build, name, path FROM buildoutputs ORDER BY build, name")
+                .fetch_all(tx.raw())
+                .await
+                .unwrap();
+        let mut expected = vec![
+            (ids[0], "out".to_owned(), s("/nix/store/a1")),
+            (ids[1], "out".to_owned(), None),
+            (ids[2], "dev".to_owned(), s("/nix/store/b-dev")),
+            (ids[2], "out".to_owned(), s("/nix/store/b")),
+        ];
+        expected.sort();
+        assert_eq!(outputs, expected);
+    }
+}
