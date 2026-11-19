@@ -37,8 +37,10 @@ pub(crate) struct Member {
 /// Returns `None` when the job is a duplicate within this same evaluation --
 /// two attributes producing the same output path -- which is not an error and
 /// not a second build.
+#[allow(clippy::too_many_arguments)]
 async fn check_build<'j>(
     tx: &mut db::Transaction<'_>,
+    store_dir: &db::StoreDir,
     jobset_id: i32,
     eval: i32,
     job: &'j Job,
@@ -70,6 +72,7 @@ async fn check_build<'j>(
     if let Some(prev_eval) = prev_eval {
         let previous = queries::find_build_in_eval(
             tx,
+            store_dir,
             prev_eval,
             jobset_id,
             &job.attr,
@@ -116,6 +119,7 @@ async fn check_build<'j>(
     let meta = &job.meta;
     let build = queries::insert_build(
         tx,
+        store_dir,
         &NewBuild {
             jobset_id,
             job: &job.attr,
@@ -200,6 +204,7 @@ pub(crate) async fn record(
             let _ = write!(error, "{where_}:\n{message}\n\n");
         } else if let Some(member) = check_build(
             tx,
+            store_dir,
             jobset_id,
             eval_id,
             job,
@@ -213,7 +218,7 @@ pub(crate) async fn record(
         }
     }
     if !outputs.builds.is_empty() {
-        queries::insert_build_outputs(tx, &outputs).await?;
+        queries::insert_build_outputs(tx, store_dir, &outputs).await?;
     }
 
     // Did this evaluation change anything? Either it queued something, or the

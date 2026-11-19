@@ -73,6 +73,21 @@ subtest "/search" => sub {
         is($response->code, 200, "The search page 200's.");
     };
 
+    subtest "searching for a path inside an output" => sub {
+        my $response = request(GET "/search?query="
+            . printStorePath($ctx->db->storeDir, $build_output_out->path) . "/share/doc",
+            Accept => 'application/json');
+        is($response->code, 200, "The search page 200's.");
+        my $data = decode_json($response->content);
+        # Both jobsets evaluate the same expression, so more than one build
+        # can have this output.
+        my @expected = sort { $a <=> $b } $ctx->db->resultset('BuildOutputs')
+            ->search({ path => $build_output_out->path->to_string })
+            ->get_column('build')->all;
+        is([sort { $a <=> $b } map { $_->{id} } @{$data->{builds}}], \@expected,
+            "It finds the builds of the store path the query is inside, and no others.");
+    };
+
     subtest "searching for derivation path" => sub {
         my $response = request(GET "/search?query="
             . printStorePath($ctx->db->storeDir, $build->drvpath));

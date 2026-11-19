@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                  SELECT MAX(s.build) FROM buildsteps s\n                  JOIN BuildStepOutputs o ON s.build = o.build\n                  WHERE startTime != 0\n                    AND stopTime != 0\n                    AND status = 1\n                    AND path = ANY($1)\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "aaf06e4ebd7f2882b3df42cf3f272dd5f89194e405029e3c68d272746b73c893"
+}

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE buildstepoutputs o SET path = v.path, storeDir = $5\n             FROM UNNEST($3::text[], $4::text[]) AS v(name, path)\n             WHERE o.build = $1 AND o.stepnr = $2 AND o.name = v.name",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "TextArray",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0976129cf2d712381eac4195161cfc5a6723cf5e3e885645d5b562a6ac7322a2"
+}

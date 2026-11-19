@@ -3,6 +3,7 @@
 //! crate. The `db` crate provides the pooled connection, with its
 //! acquire-retry, via [`db::Database::get`].
 
+use harmonia_store_path::StorePath;
 use sqlx::Acquire as _;
 
 /// Scheduling-relevant view of an enabled jobset, as the evaluator's
@@ -309,20 +310,43 @@ pub(crate) async fn mark_current(
     Ok(())
 }
 
+/// A store path as the store-path columns hold it: the basename, with the
+/// store dir written beside it in the row's `storedir`. Takes a full path or
+/// a basename.
+fn base_name(store_dir: &db::StoreDir, path: &str) -> db::Result<String> {
+    Ok(store_dir
+        .parse::<StorePath>(&crate::nix_eval_jobs::full(store_dir, path))?
+        .to_string())
+}
+
+/// Both stored forms of a store path, for a lookup that has to find a row
+/// whether or not `hydra-backfill-store-dirs` has converted it yet.
+fn path_forms(store_dir: &db::StoreDir, path: &str) -> db::Result<Vec<String>> {
+    Ok(db::path_forms(
+        store_dir,
+        &store_dir.parse(&crate::nix_eval_jobs::full(store_dir, path))?,
+    ))
+}
+
 /// Point a build at the derivation this evaluation found for it, and put
 /// it back in the queue.
 pub(crate) async fn repoint_build(
     tx: &mut db::Transaction<'_>,
+    store_dir: &db::StoreDir,
     id: i32,
     drv_path: &str,
-) -> Result<(), sqlx::Error> {
+) -> db::Result<()> {
+    // `storedir` too, not just `drvpath`: an unconverted row would otherwise
+    // be left holding a basename with no store dir beside it, which is
+    // neither format.
     sqlx::query!(
         r#"
         UPDATE builds
-        SET drvpath = $2, finished = 0, buildstatus = NULL
+        SET drvpath = $2, storedir = $3, finished = 0, buildstatus = NULL
         WHERE id = $1"#,
         id,
-        drv_path,
+        base_name(store_dir, drv_path)?,
+        store_dir.to_str(),
     )
     .execute(tx.raw())
     .await?;
@@ -724,23 +748,23 @@ pub(crate) async fn insert_eval_input(
     alt_nr: i32,
     input: &crate::inputs::JobsetInput,
     store_dir: &db::StoreDir,
-) -> Result<(), sqlx::Error> {
+) -> db::Result<()> {
     let short_rev_length = input
         .short_rev
         .as_ref()
         .and_then(|r| i16::try_from(r.len()).ok());
-    // Stored as a full path, which is what the schema's store path columns
-    // hold; the fetcher reports bare names.
     let path = input
         .store_path
         .as_deref()
-        .map(|p| crate::nix_eval_jobs::full(store_dir, p));
+        .map(|p| base_name(store_dir, p))
+        .transpose()?;
+    let row_store_dir = path.as_ref().map(|_| store_dir.to_str());
     sqlx::query!(
         r#"
         INSERT INTO jobsetevalinputs
           (eval, name, altnr, type, uri, revision, shortrevlength, value,
-           dependency, path, sha256hash)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"#,
+           dependency, path, storedir, sha256hash)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"#,
         eval,
         name,
         alt_nr,
@@ -751,6 +775,7 @@ pub(crate) async fn insert_eval_input(
         input.value,
         input.id,
         path,
+        row_store_dir,
         input.sha256hash,
     )
     .execute(tx.raw())
@@ -790,59 +815,77 @@ pub(crate) async fn set_evaluation_error(
 
 /// A build of this job already present in the given evaluation, matched
 /// on its first output's path, or on the derivation when there is no
-/// path yet.
+/// path yet. Its derivation comes back as a full path, whichever form its
+/// row holds, so that it compares with what `nix-eval-jobs` reports.
+#[allow(clippy::too_many_arguments)]
 pub(crate) async fn find_build_in_eval(
     tx: &mut db::Transaction<'_>,
+    store_dir: &db::StoreDir,
     eval: i32,
     jobset_id: i32,
     job: &str,
     output_name: &str,
     output_path: Option<&str>,
     drv_path: &str,
-) -> Result<Option<PreviousBuild>, sqlx::Error> {
+) -> db::Result<Option<PreviousBuild>> {
+    // Rows `hydra-backfill-store-dirs` has not reached yet still hold a full
+    // path, so match either spelling.
+    let output_paths = output_path.map(|p| path_forms(store_dir, p)).transpose()?;
+    let drv_paths = path_forms(store_dir, drv_path)?;
     // The jobset constraint is implied by the evaluation, but stating it
     // is worth a factor of a thousand on the nixpkgs jobset.
-    sqlx::query_as!(
-        PreviousBuild,
+    let row = sqlx::query!(
         r#"
-        SELECT b.id, b.finished, b.drvpath
+        SELECT b.id, b.finished, b.drvpath, b.storedir
         FROM jobsetevalmembers m
         JOIN builds b ON m.build = b.id
         JOIN buildoutputs o ON o.build = b.id
         WHERE m.eval = $1 AND b.jobset_id = $2 AND b.job = $3
           AND o.name = $4
-          AND (($5::text IS NULL AND b.drvpath = $6) OR o.path = $5)
+          AND (($5::text[] IS NULL AND b.drvpath = ANY($6)) OR o.path = ANY($5))
         LIMIT 1"#,
         eval,
         jobset_id,
         job,
         output_name,
-        output_path,
-        drv_path,
+        output_paths.as_deref(),
+        &drv_paths,
     )
     .fetch_optional(tx.raw())
-    .await
+    .await?;
+    row.map(|r| {
+        let drv = db::parse_row_path(store_dir, &r.drvpath, r.storedir.as_deref())?;
+        Ok(PreviousBuild {
+            id: r.id,
+            finished: r.finished,
+            drvpath: store_dir.display(&drv).to_string(),
+        })
+    })
+    .transpose()
 }
 
 /// Add a build to the queue, returning its id.
 pub(crate) async fn insert_build(
     tx: &mut db::Transaction<'_>,
+    store_dir: &db::StoreDir,
     build: &NewBuild<'_>,
-) -> Result<i32, sqlx::Error> {
+) -> db::Result<i32> {
     let now = jiff::Timestamp::now().as_second();
 
     Ok(sqlx::query!(
         r#"
         INSERT INTO builds
-          (timestamp, jobset_id, job, drvpath, system, nixname, description,
-           license, homepage, maintainers, maxsilent, timeout, priority,
-           finished, iscurrent, ischannel)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 1, $14)
+          (timestamp, jobset_id, job, drvpath, storedir, system, nixname,
+           description, license, homepage, maintainers, maxsilent, timeout,
+           priority, finished, iscurrent, ischannel)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                0, 1, $15)
         RETURNING id"#,
         now,
         build.jobset_id,
         build.job,
-        build.drv_path,
+        base_name(store_dir, build.drv_path)?,
+        store_dir.to_str(),
         build.system,
         build.nix_name,
         build.description,
@@ -872,17 +915,26 @@ pub(crate) struct NewOutputs<'a> {
 /// because a row at a time dominates insertion time on a large jobset.
 pub(crate) async fn insert_build_outputs(
     tx: &mut db::Transaction<'_>,
+    store_dir: &db::StoreDir,
     outputs: &NewOutputs<'_>,
-) -> Result<(), sqlx::Error> {
+) -> db::Result<()> {
+    let paths = outputs
+        .paths
+        .iter()
+        .map(|p| p.map(|p| base_name(store_dir, p)).transpose())
+        .collect::<db::Result<Vec<_>>>()?;
     // Unchecked, because the checked macro will not take an array with nulls
     // in it as a parameter, and a content-addressed output's path is null.
+    // Its store dir is null too: the schema has the two null together.
     sqlx::query(
-        "INSERT INTO buildoutputs (build, name, path) \
-         SELECT * FROM UNNEST($1::int[], $2::text[], $3::text[])",
+        "INSERT INTO buildoutputs (build, name, path, storedir) \
+         SELECT b, n, p, CASE WHEN p IS NULL THEN NULL ELSE $4 END \
+         FROM UNNEST($1::int[], $2::text[], $3::text[]) AS t(b, n, p)",
     )
     .bind(&outputs.builds)
     .bind(&outputs.names)
-    .bind(&outputs.paths)
+    .bind(&paths)
+    .bind(store_dir.to_str())
     .execute(tx.raw())
     .await?;
     Ok(())

@@ -76,6 +76,8 @@ impl std::fmt::Display for Outcome {
 #[derive(Debug)]
 pub(crate) struct Followup {
     jobset_id: i32,
+    /// The store the repointed derivations are in, written beside them.
+    store_dir: db::StoreDir,
     /// Inherited builds whose derivation changed.
     repoints: HashMap<i32, String>,
     /// The evaluation whose builds are now current.
@@ -87,9 +89,11 @@ impl Followup {
     /// next evaluation that is not cached repeats both steps.
     pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
         let start = std::time::Instant::now();
-        retry("repointing builds", || repoint(db, &self.repoints))
-            .await
-            .wrap_err("failed to repoint builds at their new derivations")?;
+        retry("repointing builds", || {
+            repoint(db, &self.store_dir, &self.repoints)
+        })
+        .await
+        .wrap_err("failed to repoint builds at their new derivations")?;
         tracing::info!(
             "repointed {} builds in {} s",
             self.repoints.len(),
@@ -337,6 +341,7 @@ pub(crate) async fn evaluate(
         changed: recorded.jobset_changed,
         followup: Followup {
             jobset_id: meta.id,
+            store_dir: available.store_dir().clone(),
             repoints: recorded.repoints,
             current,
         },
@@ -425,7 +430,11 @@ impl std::fmt::Display for Retryable {
 ///
 /// Separate from the evaluation transaction for the same reason as
 /// `mark_current`: these are `Builds` rows the queue runner also writes.
-async fn repoint(db: &db::Database, repoints: &HashMap<i32, String>) -> eyre::Result<()> {
+async fn repoint(
+    db: &db::Database,
+    store_dir: &db::StoreDir,
+    repoints: &HashMap<i32, String>,
+) -> eyre::Result<()> {
     if repoints.is_empty() {
         return Ok(());
     }
@@ -434,7 +443,7 @@ async fn repoint(db: &db::Database, repoints: &HashMap<i32, String>) -> eyre::Re
     let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
     for id in ids {
-        queries::repoint_build(&mut tx, *id, &repoints[id]).await?;
+        queries::repoint_build(&mut tx, store_dir, *id, &repoints[id]).await?;
     }
     tx.commit().await?;
     Ok(())

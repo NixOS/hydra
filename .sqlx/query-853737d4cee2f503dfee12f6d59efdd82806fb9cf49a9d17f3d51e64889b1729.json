@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO jobsetevalinputs\n          (eval, name, altnr, type, uri, revision, shortrevlength, value,\n           dependency, path, storedir, sha256hash)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Int2",
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "853737d4cee2f503dfee12f6d59efdd82806fb9cf49a9d17f3d51e64889b1729"
+}

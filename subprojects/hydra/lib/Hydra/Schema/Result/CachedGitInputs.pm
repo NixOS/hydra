@@ -65,6 +65,11 @@ __PACKAGE__->table("cachedgitinputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -80,6 +85,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "storepath",
   { data_type => "text", is_nullable => 0 },
+  "storedir",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -101,8 +108,11 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("uri", "branch", "revision", "isdeepclone");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07049 @ 2021-08-26 12:02:36
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:IxG58lqBfLgZ8RTZm1GQKA
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-05 13:21:19
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:4IZkiuU+WF91jwP0BzXBkA
+
+1;
+
 
 __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/storepath/);
