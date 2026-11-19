@@ -56,8 +56,10 @@ async fn main() -> color_eyre::Result<()> {
 
     let config = HydraConfig::load(&cli.config_path)?;
 
-    // One connection per running evaluation, and two for the scheduler.
-    let connections = u32::try_from(config.max_concurrent_evals() + 2).unwrap_or(u32::MAX);
+    // One connection per running evaluation, one per follow-up still updating
+    // the builds of an evaluation that freed its slot (at most one per slot),
+    // and two for the scheduler.
+    let connections = u32::try_from(2 * config.max_concurrent_evals() + 2).unwrap_or(u32::MAX);
     let db = db::Database::from_env(connections)
         .await
         .wrap_err("failed to connect to database")?;

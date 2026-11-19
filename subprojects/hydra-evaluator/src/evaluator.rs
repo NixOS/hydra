@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::{FutureExt as _, StreamExt as _};
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, Notify, Semaphore};
 use tracing::Instrument as _;
 
 use crate::config::HydraConfig;
@@ -65,6 +65,9 @@ pub(crate) struct Evaluator {
     eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    /// Bounds the follow-ups of evaluations that freed their slot to one per
+    /// slot, which is what the pool is sized for.
+    followups: Arc<Semaphore>,
 }
 
 impl Evaluator {
@@ -77,6 +80,7 @@ impl Evaluator {
     ) -> Self {
         Self {
             db,
+            followups: Arc::new(Semaphore::new(config.max_concurrent_evals())),
             config,
             available,
             roots_dir,
@@ -453,6 +457,7 @@ impl Evaluator {
         let db = self.db.clone();
         let state_arc = Arc::clone(&self.state);
         let notify_work = Arc::clone(&self.notify_work);
+        let followups = Arc::clone(&self.followups);
 
         let config = Arc::clone(&self.config);
         let timeout = config.eval_timeout();
@@ -485,6 +490,7 @@ impl Evaluator {
                     &db,
                     state_arc,
                     notify_work,
+                    &followups,
                     timeout,
                 )
                 .await;
@@ -514,6 +520,7 @@ async fn reap_eval(
     db: &db::Database,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    followups: &Semaphore,
     timeout: Duration,
 ) {
     // Dropping the future cancels the evaluation and kills its child
@@ -583,6 +590,7 @@ async fn reap_eval(
     if let Some(followup) = followup {
         drop(st);
         notify_work.notify_one();
+        let _permit = followups.acquire().await.ok();
         if let Err(e) = followup.run(db).await {
             let error = format!("{e:#}");
             tracing::info!("updating the jobset's builds failed");
