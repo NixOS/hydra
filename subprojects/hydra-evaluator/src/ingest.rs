@@ -113,7 +113,7 @@ async fn check_build<'j>(
         return Ok(None);
     }
 
-    let meta = Meta::of(job);
+    let meta = &job.meta;
     let build = queries::insert_build(
         tx,
         &NewBuild {
@@ -123,9 +123,9 @@ async fn check_build<'j>(
             system: job.system.as_deref().unwrap_or_default(),
             nix_name: job.name.as_deref().or(meta.name.as_deref()),
             description: meta.description.as_deref(),
-            license: meta.license,
+            license: meta.license.as_deref(),
             homepage: meta.homepage.as_deref(),
-            maintainers: meta.maintainers,
+            maintainers: meta.maintainers.as_deref(),
             max_silent: meta.max_silent,
             timeout: meta.timeout,
             priority: meta.priority,
@@ -151,91 +151,6 @@ async fn check_build<'j>(
         drv_path: drv_path.to_owned(),
         repoint: false,
     }))
-}
-
-/// The parts of a job's `meta` that Hydra records.
-///
-/// All optional: a jobset may set none of them, and a missing or empty value
-/// means "not stated" rather than "empty string".
-#[derive(Debug, Default)]
-struct Meta {
-    name: Option<String>,
-    description: Option<String>,
-    license: Option<String>,
-    homepage: Option<String>,
-    maintainers: Option<String>,
-    max_silent: Option<i32>,
-    timeout: Option<i32>,
-    priority: i32,
-    is_channel: i32,
-}
-
-impl Meta {
-    fn of(job: &Job) -> Self {
-        let meta = job.meta.as_ref();
-        let get = |key: &str| meta.and_then(|m| m.get(key));
-
-        Self {
-            name: nonempty(get("name").and_then(as_string)),
-            description: nonempty(get("description").and_then(as_string)),
-            // `license` and `maintainers` are lists of attribute sets in
-            // nixpkgs and bare strings elsewhere, so both are flattened to a
-            // comma-separated list of one field.
-            license: concat_strings(get("license"), "shortName"),
-            homepage: nonempty(get("homepage").and_then(as_string)),
-            maintainers: concat_strings(get("maintainers"), "email"),
-            max_silent: get("maxSilent").and_then(as_int),
-            timeout: get("timeout").and_then(as_int),
-            priority: get("schedulingPriority").and_then(as_int).unwrap_or(100),
-            is_channel: i32::from(
-                get("isChannel")
-                    .and_then(serde_json::Value::as_bool)
-                    .unwrap_or(false),
-            ),
-        }
-    }
-}
-
-fn as_string(v: &serde_json::Value) -> Option<String> {
-    v.as_str().map(str::to_owned)
-}
-
-fn as_int(v: &serde_json::Value) -> Option<i32> {
-    v.as_i64().and_then(|n| i32::try_from(n).ok())
-}
-
-fn nonempty(s: Option<String>) -> Option<String> {
-    s.filter(|s| !s.is_empty())
-}
-
-/// Flatten a `meta` value that may be a string, a list, or a list of
-/// attribute sets, taking `key` from each set.
-fn concat_strings(value: Option<&serde_json::Value>, key: &str) -> Option<String> {
-    let mut out = Vec::new();
-    collect_strings(value, key, &mut out);
-    if out.is_empty() {
-        None
-    } else {
-        Some(out.join(", "))
-    }
-}
-
-fn collect_strings(value: Option<&serde_json::Value>, key: &str, out: &mut Vec<String>) {
-    match value {
-        Some(serde_json::Value::Object(map)) => {
-            if let Some(v) = map.get(key).and_then(serde_json::Value::as_str) {
-                out.push(v.to_owned());
-            }
-        }
-        Some(serde_json::Value::Array(items)) => {
-            for item in items {
-                collect_strings(Some(item), key, out);
-            }
-        }
-        Some(serde_json::Value::String(s)) => out.push(s.clone()),
-        Some(v) if !v.is_null() => out.push(v.to_string()),
-        _ => {}
-    }
 }
 
 /// What [`record`] wrote.
