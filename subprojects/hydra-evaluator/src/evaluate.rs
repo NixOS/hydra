@@ -233,6 +233,7 @@ pub(crate) async fn evaluate(
         nix_expr_input: meta.nixexprinput.as_deref(),
         nix_expr_path: meta.nixexprpath.as_deref(),
     };
+    let ingest_start = std::time::Instant::now();
     let recorded = retry("the evaluation transaction", || async {
         let mut conn = db.get().await?;
         let mut tx = conn.begin_transaction().await?;
@@ -251,6 +252,11 @@ pub(crate) async fn evaluate(
         Ok(recorded)
     })
     .await?;
+    tracing::info!(
+        "recorded {} jobs in {} s",
+        jobs.len(),
+        ingest_start.elapsed().as_secs()
+    );
 
     // The plugins add a temp root for each path they fetch, but those roots
     // belong to the worker and last only as long as it does. Keep it until
@@ -260,9 +266,15 @@ pub(crate) async fn evaluate(
     // Both of these touch every build of the jobset, so they run afterwards:
     // holding those row locks for the evaluation's duration deadlocks against
     // the queue runner finishing builds.
+    let start = std::time::Instant::now();
     retry("repointing builds", || repoint(db, &recorded.repoints))
         .await
         .wrap_err("failed to repoint builds at their new derivations")?;
+    tracing::info!(
+        "repointed {} builds in {} s",
+        recorded.repoints.len(),
+        start.elapsed().as_secs()
+    );
 
     // The current builds are this evaluation's if it changed anything, and
     // otherwise still those of the last one that did.
@@ -272,12 +284,17 @@ pub(crate) async fn evaluate(
         previous.as_ref().map(|p| p.id)
     };
     if let Some(current) = current {
+        let start = std::time::Instant::now();
         retry("marking builds current", || async {
             let mut conn = db.get().await?;
             Ok(queries::mark_current(&mut conn, meta.id, current, CURRENT_BATCH).await?)
         })
         .await
         .wrap_err("failed to mark this evaluation's builds current")?;
+        tracing::info!(
+            "marked evaluation {current}'s builds current in {} s",
+            start.elapsed().as_secs()
+        );
     }
 
     Ok(Outcome::Evaluated {
