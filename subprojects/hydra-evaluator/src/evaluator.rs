@@ -346,9 +346,10 @@ impl Evaluator {
     async fn should_evaluate_one_at_a_time(&self, jobset: &Jobset) -> eyre::Result<bool> {
         let mut conn = self.db.get().await?;
 
-        let eval_id = queries::get_latest_eval_id(&mut conn, jobset.id)
+        let eval_id = queries::get_latest_eval(&mut conn, jobset.id)
             .await
-            .wrap_err_with(|| format!("checking one-at-a-time for {}", jobset.display()))?;
+            .wrap_err_with(|| format!("checking one-at-a-time for {}", jobset.display()))?
+            .map(|e| e.id);
 
         let Some(eval_id) = eval_id else {
             tracing::debug!(

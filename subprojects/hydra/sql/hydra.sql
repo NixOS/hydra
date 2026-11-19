@@ -720,6 +720,7 @@ create index IndexBuildOutputsPath on BuildOutputs using hash(path);
 create index IndexBuildsOnKeep on Builds(keep) where keep = 1;
 
 -- To get the most recent eval for a jobset.
+create index IndexAllJobsetEvalsOnJobsetId on JobsetEvals(jobset_id, id desc);
 create index IndexJobsetEvalsOnJobsetId on JobsetEvals(jobset_id, id desc) where hasNewBuilds = 1;
 create index IndexJobsetIdEvals on JobsetEvals(jobset_id) where hasNewBuilds = 1;
 

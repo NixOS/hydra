@@ -245,7 +245,7 @@ pub(crate) async fn evaluate(
     };
     let hash = nix_eval_jobs::input_hash(available.store_dir(), &resolved, &expr)?;
 
-    if let Some(previous) = queries::get_previous_eval(&mut conn, meta.id, false).await?
+    if let Some(previous) = queries::get_latest_eval(&mut conn, meta.id).await?
         && previous.hash == hash
         && !meta.forceeval.unwrap_or(false)
         && (flake.is_none() || previous.flake == flake)
@@ -276,7 +276,8 @@ pub(crate) async fn evaluate(
 
     // Compare jobs against the last evaluation that had new builds, because
     // an evaluation without new builds records no members.
-    let previous = queries::get_previous_eval(&mut db.get().await?, meta.id, true).await?;
+    let previous =
+        queries::get_previous_eval_with_new_builds(&mut db.get().await?, meta.id).await?;
 
     let new_eval = NewEval {
         jobset_id: meta.id,
