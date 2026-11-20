@@ -2,155 +2,39 @@
 //!
 //! This is the half of an evaluation that touches no plugins: by the time a
 //! job arrives there are no inputs left to fetch, only the question of
-//! whether this job is already built and, if not, queueing it.
+//! whether this job is already built and, if not, queueing it. The jobs are
+//! staged in the database and that question answered there; see
+//! [`crate::staging`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use color_eyre::eyre::{self, WrapErr as _};
 
 use crate::nix_eval_jobs::Job;
 use crate::queries;
-use crate::queries::NewBuild;
+use crate::staging;
 
-/// What happened to one job of an evaluation.
-///
-/// Every job becomes a member of the evaluation whether or not it caused a
-/// build, which is what makes an evaluation a complete record of its jobs
-/// rather than only of the new work it created.
-#[derive(Debug)]
-pub(crate) struct Member {
-    pub build: i32,
-    pub job: String,
-    /// Whether this evaluation queued the build, as opposed to finding it
-    /// already present from a previous one.
-    pub is_new: bool,
-    /// The derivation this evaluation says the job has, which may differ from
-    /// the one the existing build was queued with.
-    pub drv_path: String,
-    /// Set when an existing build's derivation has changed underneath it.
-    pub repoint: bool,
-}
-
-/// Decide what to do about one job, queueing a build if it is new.
-///
-/// Returns `None` when the job is a duplicate within this same evaluation --
-/// two attributes producing the same output path -- which is not an error and
-/// not a second build.
-async fn check_build<'j>(
-    tx: &mut db::Transaction<'_>,
-    jobset_id: i32,
-    eval: i32,
-    job: &'j Job,
-    prev_eval: Option<i32>,
-    seen: &mut HashSet<String>,
-    outputs: &mut queries::NewOutputs<'j>,
-) -> eyre::Result<Option<Member>> {
+/// Check that a job which evaluated can be built, and stage it.
+fn stage_job<'j>(staged: &mut staging::Jobs<'j>, ord: i32, job: &'j Job) -> eyre::Result<()> {
     let drv_path = job
         .drv_path
         .as_deref()
         .ok_or_else(|| eyre::eyre!("job `{}` has no derivation", job.attr))?;
     eyre::ensure!(!job.attr.is_empty(), "a job has no name");
 
-    // Any one output will do for the comparisons below: if one matches the
-    // others will too, since they come from the same derivation. A
-    // content-addressed output has no path yet, and is matched by derivation.
+    // Any one output will do for finding the job's previous build: if one
+    // matches the others will too, since they come from the same derivation.
+    // A content-addressed output has no path yet, and is matched by
+    // derivation.
     let (first_name, first_path) = job
         .outputs
         .iter()
         .next()
         .ok_or_else(|| eyre::eyre!("job `{}` has no outputs", job.attr))?;
 
-    // Already built, or already queued and still current for this job? Then
-    // this evaluation inherits it rather than queueing another.
-    //
-    // Note what this means when a jobset's sources go from A to B and back to
-    // A: three builds, not two. That is deliberate -- the highest build id
-    // must be the one that ends up in the channel.
-    if let Some(prev_eval) = prev_eval {
-        let previous = queries::find_build_in_eval(
-            tx,
-            prev_eval,
-            jobset_id,
-            &job.attr,
-            first_name,
-            first_path.as_deref(),
-            drv_path,
-        )
-        .await?;
-
-        if let Some(previous) = previous {
-            // Same output, different derivation: the build stands, but it
-            // should be pointed at the derivation this evaluation found.
-            // Applied after the evaluation's transaction, so that Builds rows
-            // are not locked for its whole duration.
-            let repoint = previous.drvpath != drv_path;
-
-            if previous.finished != 0 && !repoint {
-                tx.notify_cached_build_finished(eval, previous.id).await?;
-            } else {
-                tx.notify_cached_build_queued(eval, previous.id).await?;
-            }
-
-            return Ok(Some(Member {
-                build: previous.id,
-                job: job.attr.clone(),
-                is_new: false,
-                drv_path: drv_path.to_owned(),
-                repoint,
-            }));
-        }
-    }
-
-    // Two attributes in this same evaluation producing the same output are
-    // one build, not two.
-    let key = format!(
-        "{}\t{}",
-        job.attr,
-        first_path.as_deref().unwrap_or(drv_path)
-    );
-    if seen.contains(&key) {
-        return Ok(None);
-    }
-
-    let meta = &job.meta;
-    let build = queries::insert_build(
-        tx,
-        &NewBuild {
-            jobset_id,
-            job: &job.attr,
-            drv_path,
-            system: job.system.as_deref().unwrap_or_default(),
-            nix_name: job.name.as_deref().or(meta.name.as_deref()),
-            description: meta.description.as_deref(),
-            license: meta.license.as_deref(),
-            homepage: meta.homepage.as_deref(),
-            maintainers: meta.maintainers.as_deref(),
-            max_silent: meta.max_silent,
-            timeout: meta.timeout,
-            priority: meta.priority,
-            is_channel: meta.is_channel,
-        },
-    )
-    .await
-    .wrap_err_with(|| format!("failed to queue a build for `{}`", job.attr))?;
-
-    for (name, path) in &job.outputs {
-        outputs.builds.push(build);
-        outputs.names.push(name);
-        outputs.paths.push(path.as_deref());
-    }
-
-    seen.insert(key);
-    tx.notify_build_queued(build).await?;
-
-    Ok(Some(Member {
-        build,
-        job: job.attr.clone(),
-        is_new: true,
-        drv_path: drv_path.to_owned(),
-        repoint: false,
-    }))
+    staged.push(ord, job, drv_path, (first_name, first_path.as_deref()));
+    Ok(())
 }
 
 /// What [`record`] wrote.
@@ -184,11 +68,8 @@ pub(crate) async fn record(
     let eval_id = queries::insert_eval(tx, eval, error_id).await?;
 
     let mut error = String::new();
-    let mut members: Vec<Member> = Vec::new();
-    let mut seen = HashSet::new();
-    let mut outputs = queries::NewOutputs::default();
-
-    for job in jobs {
+    let mut staged = staging::Jobs::default();
+    for (ord, job) in (0..).zip(jobs) {
         // A job that failed to evaluate is reported but not built. The
         // evaluation still happened; this is what it found.
         if let Some(message) = &job.error {
@@ -198,38 +79,40 @@ pub(crate) async fn record(
                 format!("in job ‘{}’", job.attr)
             };
             let _ = write!(error, "{where_}:\n{message}\n\n");
-        } else if let Some(member) = check_build(
-            tx,
-            jobset_id,
-            eval_id,
-            job,
-            prev_eval,
-            &mut seen,
-            &mut outputs,
-        )
-        .await?
-        {
-            members.push(member);
+        } else {
+            stage_job(&mut staged, ord, job)?;
         }
     }
-    if !outputs.builds.is_empty() {
-        queries::insert_build_outputs(tx, &outputs).await?;
+    staging::stage(tx, &staged)
+        .await
+        .wrap_err("failed to stage the evaluation's jobs")?;
+    drop(staged);
+
+    // Already built, or already queued and still current for this job? Then
+    // this evaluation inherits it rather than queueing another.
+    //
+    // Note what this means when a jobset's sources go from A to B and back to
+    // A: three builds, not two. That is deliberate -- the highest build id
+    // must be the one that ends up in the channel.
+    if let Some(prev_eval) = prev_eval {
+        staging::inherit(tx, prev_eval, jobset_id).await?;
     }
+    staging::queue_new(tx, jobset_id)
+        .await
+        .wrap_err("failed to queue the evaluation's builds")?;
+    staging::notify_builds(tx, eval_id).await?;
 
     // Did this evaluation change anything? Either it queued something, or the
     // set of jobs is a different size than last time -- a job disappearing is
     // a change even though it queues nothing.
-    let queued = members.iter().any(|m| m.is_new);
+    let (nr_members, queued) = staging::summary(tx).await?;
     let jobset_changed = queued
         || match prev_eval {
-            Some(prev) => {
-                i64::try_from(members.len()).ok()
-                    != Some(queries::count_eval_members(tx, prev).await?)
-            }
+            Some(prev) => nr_members != queries::count_eval_members(tx, prev).await?,
             None => false,
         };
 
-    let nr_builds = i32::try_from(members.len()).ok();
+    let nr_builds = i32::try_from(nr_members).ok();
     queries::finish_eval(
         tx,
         eval_id,
@@ -243,9 +126,8 @@ pub(crate) async fn record(
         .await?;
 
     if jobset_changed {
-        let rows: Vec<(i32, bool)> = members.iter().map(|m| (m.build, m.is_new)).collect();
-        queries::insert_eval_members(tx, eval_id, &rows).await?;
-        record_aggregates(tx, &members, jobs).await?;
+        staging::insert_members(tx, eval_id).await?;
+        record_aggregates(tx, jobs).await?;
         // What wakes the queue runner: it polls otherwise.
         if queued {
             tx.notify_builds_added().await?;
@@ -270,11 +152,7 @@ pub(crate) async fn record(
         queries::set_evaluation_error(tx, error_id, &error).await?;
     }
 
-    let repoints = members
-        .iter()
-        .filter(|m| m.repoint)
-        .map(|m| (m.build, m.drv_path.clone()))
-        .collect();
+    let repoints = staging::repoints(tx).await?.into_iter().collect();
 
     Ok(Recorded {
         eval: eval_id,
@@ -283,64 +161,225 @@ pub(crate) async fn record(
     })
 }
 
-/// Link each aggregate to its constituents.
-///
-/// Jobs can alias one another, so several may share a derivation. When they
-/// do, the shortest name wins -- ties broken alphabetically -- so that an
-/// aggregate points at the most canonical of them rather than an arbitrary
-/// one.
-async fn record_aggregates(
-    tx: &mut db::Transaction<'_>,
-    members: &[Member],
-    jobs: &[Job],
-) -> eyre::Result<()> {
-    let mut by_drv: HashMap<&str, &Member> = HashMap::new();
-    for member in members {
-        match by_drv.get(member.drv_path.as_str()) {
-            Some(existing)
-                if (existing.job.len(), existing.job.as_str())
-                    <= (member.job.len(), member.job.as_str()) => {}
-            _ => {
-                by_drv.insert(&member.drv_path, member);
-            }
-        }
+/// Link each aggregate to its constituents; see
+/// [`staging::insert_aggregates`].
+async fn record_aggregates(tx: &mut db::Transaction<'_>, jobs: &[Job]) -> eyre::Result<()> {
+    // An aggregate that did not evaluate cannot be assembled, and silently
+    // producing a partial one would be worse than failing.
+    if let Some(job) = jobs
+        .iter()
+        .find(|j| j.constituents.is_some() && j.error.is_some())
+    {
+        eyre::bail!(
+            "aggregate job ‘{}’ failed with the error: {}",
+            job.attr,
+            job.error.as_deref().unwrap_or_default()
+        );
     }
 
-    for job in jobs {
-        let Some(constituents) = &job.constituents else {
-            continue;
-        };
+    staging::insert_aggregates(tx).await?;
 
-        // An aggregate that did not evaluate cannot be assembled, and
-        // silently producing a partial one would be worse than failing.
-        if let Some(message) = &job.error {
-            eyre::bail!(
-                "aggregate job ‘{}’ failed with the error: {message}",
-                job.attr
+    if tracing::enabled!(tracing::Level::DEBUG) {
+        for (aggregate, constituent) in staging::missing_constituents(tx).await? {
+            tracing::debug!(
+                "aggregate job ‘{aggregate}’ has a constituent ‘{constituent}’ \
+                 that doesn't correspond to a Hydra build"
             );
         }
+    }
+    Ok(())
+}
 
-        let drv = job.drv_path.as_deref().unwrap_or_default();
-        let aggregate = by_drv.get(drv).ok_or_else(|| {
-            eyre::eyre!(
-                "aggregate job ‘{}’ has no corresponding build record.",
-                job.attr
-            )
-        })?;
+#[cfg(test)]
+mod tests {
+    use crate::nix_eval_jobs::Job;
+    use crate::queries::{self, NewEval};
 
-        for constituent_drv in constituents {
-            if let Some(constituent) = by_drv.get(constituent_drv.as_str()) {
-                queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
-                    .await?;
-            } else {
-                tracing::debug!(
-                    "aggregate job ‘{}’ has a constituent ‘{constituent_drv}’ \
-                     that doesn't correspond to a Hydra build",
-                    job.attr
-                );
-            }
-        }
+    fn job(value: serde_json::Value) -> Job {
+        serde_json::from_value(value).unwrap()
     }
 
-    Ok(())
+    async fn record(conn: &mut db::Connection, jobs: &[Job], prev: Option<i32>) -> super::Recorded {
+        let new_eval = NewEval {
+            jobset_id: 1,
+            checkout_time: 0,
+            eval_time: 0,
+            hash: "hash",
+            flake: None,
+            nix_expr_input: Some("src"),
+            nix_expr_path: Some("release.nix"),
+        };
+        let mut tx = conn.begin_transaction().await.unwrap();
+        let recorded = super::record(
+            &mut tx,
+            "trace",
+            &new_eval,
+            jobs,
+            prev,
+            &crate::inputs::InputInfo::new(),
+            &db::StoreDir::new("/nix/store").unwrap(),
+        )
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+        recorded
+    }
+
+    /// What the follow-up does, returning how many builds it repointed.
+    async fn follow_up(
+        conn: &mut db::Connection,
+        recorded: &super::Recorded,
+        current: i32,
+    ) -> usize {
+        let mut tx = conn.begin_transaction().await.unwrap();
+        for (id, drv_path) in &recorded.repoints {
+            queries::repoint_build(&mut tx, *id, drv_path)
+                .await
+                .unwrap();
+        }
+        tx.commit().await.unwrap();
+        queries::mark_current(conn, 1, current, 2).await.unwrap();
+        recorded.repoints.len()
+    }
+
+    /// `(id, job, drvpath, finished, iscurrent)` of every build.
+    async fn builds(pool: &sqlx::PgPool) -> Vec<(i32, String, String, i32, i32)> {
+        sqlx::query_as("SELECT id, job, drvpath, finished, iscurrent FROM builds ORDER BY id")
+            .fetch_all(pool)
+            .await
+            .unwrap()
+    }
+
+    /// Two evaluations of one jobset: the first queues everything, the
+    /// second inherits what it can, repoints a changed derivation, queues a
+    /// new job, and drops one. A third changes nothing.
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn record_inherits_queues_and_repoints() {
+        let (pg, pool) = test_utils::TestPg::new().await;
+        sqlx::raw_sql(
+            "INSERT INTO users (username, emailaddress, password) VALUES ('u', '', '');
+             INSERT INTO projects (name, displayname, owner) VALUES ('p', 'p', 'u');
+             INSERT INTO jobsets (name, project, emailoverride, nixexprinput, nixexprpath)
+             VALUES ('j', 'p', '', 'src', 'release.nix');",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let db = db::Database::new(&pg.url(), 1).await.unwrap();
+        let mut conn = db.get().await.unwrap();
+
+        let first = [
+            job(serde_json::json!({
+                "attr": "a", "drvPath": "/nix/store/a1.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/a1"},
+            })),
+            job(serde_json::json!({
+                "attr": "b", "drvPath": "/nix/store/b1.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/b1"},
+            })),
+            // Content-addressed, so matched by derivation next time.
+            job(serde_json::json!({
+                "attr": "ca", "drvPath": "/nix/store/ca.drv", "system": "x86_64-linux",
+                "outputs": {"out": null},
+            })),
+            job(serde_json::json!({
+                "attr": "agg", "drvPath": "/nix/store/agg.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/agg"},
+                "constituents": ["/nix/store/a1.drv", "/nix/store/b1.drv", "/nix/store/x.drv"],
+            })),
+            job(serde_json::json!({"attr": "broken", "error": "oops"})),
+        ];
+        let one = record(&mut conn, &first, None).await;
+        assert!(one.jobset_changed);
+        assert_eq!(follow_up(&mut conn, &one, one.eval).await, 0);
+
+        assert_eq!(
+            builds(&pool).await,
+            [
+                (1, "a".into(), "/nix/store/a1.drv".into(), 0, 1),
+                (2, "b".into(), "/nix/store/b1.drv".into(), 0, 1),
+                (3, "ca".into(), "/nix/store/ca.drv".into(), 0, 1),
+                (4, "agg".into(), "/nix/store/agg.drv".into(), 0, 1),
+            ]
+        );
+        let constituents: Vec<(i32, i32)> =
+            sqlx::query_as("SELECT aggregate, constituent FROM aggregateconstituents ORDER BY 2")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(constituents, [(4, 1), (4, 2)]);
+        let error: String = sqlx::query_scalar(
+            "SELECT e.errormsg FROM jobsetevals v
+             JOIN evaluationerrors e ON e.id = v.evaluationerror_id WHERE v.id = $1",
+        )
+        .bind(one.eval)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(error, "in job ‘broken’:\noops\n\n");
+
+        sqlx::query("UPDATE builds SET finished = 1, buildstatus = 0, starttime = 1, stoptime = 1 WHERE id = 2")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let second = [
+            job(serde_json::json!({
+                "attr": "a", "drvPath": "/nix/store/a1.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/a1"},
+            })),
+            // Same output from a different derivation: inherited, then
+            // repointed and queued again.
+            job(serde_json::json!({
+                "attr": "b", "drvPath": "/nix/store/b2.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/b1"},
+            })),
+            job(serde_json::json!({
+                "attr": "ca", "drvPath": "/nix/store/ca.drv", "system": "x86_64-linux",
+                "outputs": {"out": null},
+            })),
+            job(serde_json::json!({
+                "attr": "c", "drvPath": "/nix/store/c1.drv", "system": "x86_64-linux",
+                "outputs": {"out": "/nix/store/c1"},
+            })),
+        ];
+        let two = record(&mut conn, &second, Some(one.eval)).await;
+        assert!(two.jobset_changed);
+        assert_eq!(follow_up(&mut conn, &two, two.eval).await, 1);
+
+        assert_eq!(
+            builds(&pool).await,
+            [
+                (1, "a".into(), "/nix/store/a1.drv".into(), 0, 1),
+                (2, "b".into(), "/nix/store/b2.drv".into(), 0, 1),
+                (3, "ca".into(), "/nix/store/ca.drv".into(), 0, 1),
+                (4, "agg".into(), "/nix/store/agg.drv".into(), 0, 0),
+                (5, "c".into(), "/nix/store/c1.drv".into(), 0, 1),
+            ]
+        );
+        let members: Vec<(i32, i32)> = sqlx::query_as(
+            "SELECT build, isnew FROM jobsetevalmembers WHERE eval = $1 ORDER BY build",
+        )
+        .bind(two.eval)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+        assert_eq!(members, [(1, 0), (2, 0), (3, 0), (5, 1)]);
+        let outputs: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT name, path FROM buildoutputs WHERE build = 5")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            outputs,
+            [("out".to_owned(), Some("/nix/store/c1".to_owned()))]
+        );
+
+        // An evaluation that changes nothing records no members, and has
+        // nothing to repoint.
+        let three = record(&mut conn, &second, Some(two.eval)).await;
+        assert!(!three.jobset_changed);
+        assert_eq!(follow_up(&mut conn, &three, two.eval).await, 0);
+    }
 }

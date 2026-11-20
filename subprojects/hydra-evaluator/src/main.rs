@@ -8,6 +8,7 @@ mod inputs;
 mod nix_eval_jobs;
 mod programs;
 mod queries;
+mod staging;
 mod store_paths;
 
 use clap::Parser;

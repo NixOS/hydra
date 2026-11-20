@@ -73,6 +73,26 @@ impl std::fmt::Display for Outcome {
 /// It runs outside the evaluation transaction, because holding these row
 /// locks that long deadlocks against the queue runner. It also runs after the
 /// evaluation frees its slot, because on a large jobset it takes minutes.
+///
+/// Committing the evaluation creates two obligations, met here:
+///
+/// - Repointing: the inherited builds whose derivation changed get the new
+///   one and are queued again. Once the evaluation is committed, the new
+///   derivations are recorded nowhere durable, only in [`Self::repoints`].
+///
+/// - Marking current: `iscurrent` comes to match membership in the current
+///   evaluation. That is derivable from durable state at any time, so any
+///   later `mark_current` of the jobset settles it completely.
+///
+/// Neither depends on the other, so a failure of one does not skip the other.
+///
+/// Meeting them is best effort. If this fails, or never runs because the
+/// evaluator stopped, the database is still consistent, just stale: builds
+/// not repointed keep their old derivation and state, including a failure
+/// that would otherwise have been retried, and `iscurrent` lags. The next
+/// evaluation of the jobset that is not cached derives both obligations again
+/// and meets them. One that is cached has no follow-up, so until the jobset's
+/// inputs change, nothing does.
 #[derive(Debug)]
 pub(crate) struct Followup {
     jobset_id: i32,
@@ -83,36 +103,53 @@ pub(crate) struct Followup {
 }
 
 impl Followup {
-    /// The caller records a failure as the jobset's evaluation error. The
-    /// next evaluation that is not cached repeats both steps.
+    /// Both obligations are attempted. The caller records a failure as the
+    /// jobset's evaluation error; if both fail, that is the repointing one,
+    /// and the other is logged.
     pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
         let start = std::time::Instant::now();
-        retry("repointing builds", || repoint(db, &self.repoints))
+        let repointed = retry("repointing builds", || repoint(db, &self.repoints))
             .await
-            .wrap_err("failed to repoint builds at their new derivations")?;
-        tracing::info!(
-            "repointed {} builds in {} s",
-            self.repoints.len(),
-            start.elapsed().as_secs()
-        );
-
-        if let Some(current) = self.current {
-            let start = std::time::Instant::now();
-            retry("marking builds current", || async {
-                let mut conn = db.get().await?;
-                Ok(
-                    queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
-                        .await?,
-                )
-            })
-            .await
-            .wrap_err("failed to mark this evaluation's builds current")?;
+            .wrap_err("failed to repoint builds at their new derivations");
+        if repointed.is_ok() {
             tracing::info!(
-                "marked evaluation {current}'s builds current in {} s",
+                "repointed {} builds in {} s",
+                self.repoints.len(),
                 start.elapsed().as_secs()
             );
         }
-        Ok(())
+
+        let marked = match self.current {
+            Some(current) => {
+                let start = std::time::Instant::now();
+                let marked = retry("marking builds current", || async {
+                    let mut conn = db.get().await?;
+                    Ok(
+                        queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
+                            .await?,
+                    )
+                })
+                .await
+                .wrap_err("failed to mark this evaluation's builds current");
+                if marked.is_ok() {
+                    tracing::info!(
+                        "marked evaluation {current}'s builds current in {} s",
+                        start.elapsed().as_secs()
+                    );
+                }
+                marked
+            }
+            None => Ok(()),
+        };
+
+        match (repointed, marked) {
+            (Err(e), Err(also)) => {
+                tracing::warn!("{also:#}");
+                Err(e)
+            }
+            (Err(e), Ok(())) | (Ok(()), Err(e)) => Err(e),
+            (Ok(()), Ok(())) => Ok(()),
+        }
     }
 }
 

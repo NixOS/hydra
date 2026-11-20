@@ -93,34 +93,6 @@ impl Transaction<'_> {
         .await
     }
 
-    /// A build this evaluation queued.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_build_queued(&mut self, build_id: BuildID) -> crate::Result<()> {
-        self.notify_any("build_queued", &build_id.to_string()).await
-    }
-
-    /// A build this evaluation inherited from an earlier one, still running.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_cached_build_queued(
-        &mut self,
-        eval_id: i32,
-        build_id: BuildID,
-    ) -> crate::Result<()> {
-        self.notify_any("cached_build_queued", &format!("{eval_id}\t{build_id}"))
-            .await
-    }
-
-    /// A build this evaluation inherited from an earlier one, already done.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_cached_build_finished(
-        &mut self,
-        eval_id: i32,
-        build_id: BuildID,
-    ) -> crate::Result<()> {
-        self.notify_any("cached_build_finished", &format!("{eval_id}\t{build_id}"))
-            .await
-    }
-
     #[tracing::instrument(skip(self, build_id, dependent_ids,), err)]
     pub async fn notify_build_finished(
         &mut self,

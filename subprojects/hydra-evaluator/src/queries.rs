@@ -257,55 +257,84 @@ pub(crate) async fn get_eval_jobs(
 /// 100k builds this touches every row, and holding those locks for the
 /// evaluation's duration deadlocks against the queue runner finishing
 /// builds.
+///
+/// The rows to change are found once, into a temporary table, and each
+/// batch takes the next ids from it. Finding them is a scan of the jobset's
+/// builds, which on a large jobset would otherwise be repeated per batch.
+/// Each batch commits on its own, so the rows are found before any of them
+/// change. Nothing else changes which rows qualify: a jobset has one
+/// evaluation recorded or followed up at a time, and the only other writer,
+/// `insert_unevaluated_build`, queues builds with `iscurrent = 0` that
+/// belong to no evaluation.
+///
+/// The temporary table is scratch, private to this call: nothing durable
+/// depends on it. If this is interrupted, the batches already committed
+/// leave some flags set as this evaluation says and the rest as before. That
+/// is stale, not inconsistent, and any later call for the jobset finishes the
+/// job, since it finds the rows to change afresh.
 pub(crate) async fn mark_current(
     conn: &mut db::Connection,
     jobset_id: i32,
     eval: i32,
     batch: i32,
 ) -> Result<(), sqlx::Error> {
-    // Loop until a batch changes nothing, which is when every row is in
-    // the state this evaluation says it should be.
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 1 WHERE id IN (
-              SELECT b.id FROM builds b
-              JOIN jobsetevalmembers m ON m.build = b.id
-              WHERE m.eval = $1 AND b.iscurrent = 0
-              ORDER BY b.id LIMIT $2)"#,
-            eval,
-            i64::from(batch),
+    // Unchecked from here on, because the checked macros cannot see a
+    // temporary table: <https://github.com/launchbadge/sqlx/issues/3661>.
+    // Once that is resolved, these can go back to `query!`. Dropped first in
+    // case a connection returned to the pool still has one from an
+    // interrupted run.
+    sqlx::raw_sql(
+        "DROP TABLE IF EXISTS pg_temp.currentchanges;
+         CREATE TEMP TABLE currentchanges
+           (id integer PRIMARY KEY, iscurrent integer NOT NULL);",
+    )
+    .execute(conn.raw())
+    .await?;
+
+    let to_set = sqlx::query(
+        "INSERT INTO currentchanges
+         SELECT b.id, 1 FROM builds b
+         JOIN jobsetevalmembers m ON m.build = b.id
+         WHERE m.eval = $1 AND b.iscurrent = 0",
+    )
+    .bind(eval)
+    .execute(conn.raw())
+    .await?
+    .rows_affected();
+    let to_clear = sqlx::query(
+        "INSERT INTO currentchanges
+         SELECT b.id, 0 FROM builds b
+         WHERE b.jobset_id = $1 AND b.iscurrent = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM jobsetevalmembers m
+             WHERE m.eval = $2 AND m.build = b.id)",
+    )
+    .bind(jobset_id)
+    .bind(eval)
+    .execute(conn.raw())
+    .await?
+    .rows_affected();
+
+    // Counted rather than looping until an update changes nothing, since a
+    // build deleted meanwhile empties a batch without finishing the table.
+    let batches = (to_set + to_clear).div_ceil(u64::try_from(batch).unwrap_or(1).max(1));
+    for _ in 0..batches {
+        sqlx::query(
+            "WITH next AS (
+               DELETE FROM currentchanges WHERE id IN (
+                 SELECT id FROM currentchanges ORDER BY id LIMIT $1)
+               RETURNING id, iscurrent)
+             UPDATE builds SET iscurrent = next.iscurrent
+             FROM next WHERE builds.id = next.id",
         )
+        .bind(i64::from(batch))
         .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
+        .await?;
     }
 
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 0 WHERE id IN (
-              SELECT b.id FROM builds b
-              WHERE b.jobset_id = $1 AND b.iscurrent = 1
-                AND NOT EXISTS (
-                  SELECT 1 FROM jobsetevalmembers m
-                  WHERE m.eval = $2 AND m.build = b.id)
-              ORDER BY b.id LIMIT $3)"#,
-            jobset_id,
-            eval,
-            i64::from(batch),
-        )
+    sqlx::raw_sql("DROP TABLE currentchanges")
         .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
-    }
-
+        .await?;
     Ok(())
 }
 
@@ -584,33 +613,6 @@ pub(crate) struct PreviousEval {
     pub flake: Option<String>,
 }
 
-/// A build found in the previous evaluation of the same job.
-#[derive(Debug)]
-pub(crate) struct PreviousBuild {
-    pub id: i32,
-    pub finished: i32,
-    pub drvpath: String,
-}
-
-/// Everything needed to queue a build. The `meta` fields are all optional,
-/// because a jobset may set none of them.
-#[derive(Debug)]
-pub(crate) struct NewBuild<'a> {
-    pub jobset_id: i32,
-    pub job: &'a str,
-    pub drv_path: &'a str,
-    pub system: &'a str,
-    pub nix_name: Option<&'a str>,
-    pub description: Option<&'a str>,
-    pub license: Option<&'a str>,
-    pub homepage: Option<&'a str>,
-    pub maintainers: Option<&'a str>,
-    pub max_silent: Option<i32>,
-    pub timeout: Option<i32>,
-    pub priority: i32,
-    pub is_channel: i32,
-}
-
 /// The evaluation row, as it is first written: what was evaluated and with
 /// what, before anything is known about the result.
 #[derive(Debug)]
@@ -668,47 +670,6 @@ pub(crate) async fn finish_eval(
         eval,
         i32::from(has_new_builds),
         nr_builds,
-    )
-    .execute(tx.raw())
-    .await?;
-    Ok(())
-}
-
-/// The evaluation's members, in bulk.
-pub(crate) async fn insert_eval_members(
-    tx: &mut db::Transaction<'_>,
-    eval: i32,
-    members: &[(i32, bool)],
-) -> Result<(), sqlx::Error> {
-    let builds: Vec<i32> = members.iter().map(|(b, _)| *b).collect();
-    let is_new: Vec<i32> = members.iter().map(|(_, n)| i32::from(*n)).collect();
-    sqlx::query!(
-        r#"
-        INSERT INTO jobsetevalmembers (eval, build, isnew)
-        SELECT $1, * FROM UNNEST($2::int[], $3::int[])"#,
-        eval,
-        &builds,
-        &is_new,
-    )
-    .execute(tx.raw())
-    .await?;
-    Ok(())
-}
-
-/// One aggregate's constituents. Upserted, since a constituent may be
-/// named by more than one aggregate.
-pub(crate) async fn insert_aggregate_constituent(
-    tx: &mut db::Transaction<'_>,
-    aggregate: i32,
-    constituent: i32,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"
-        INSERT INTO aggregateconstituents (aggregate, constituent)
-        VALUES ($1, $2)
-        ON CONFLICT (aggregate, constituent) DO NOTHING"#,
-        aggregate,
-        constituent,
     )
     .execute(tx.raw())
     .await?;
@@ -783,106 +744,6 @@ pub(crate) async fn set_evaluation_error(
         id,
         msg,
     )
-    .execute(tx.raw())
-    .await?;
-    Ok(())
-}
-
-/// A build of this job already present in the given evaluation, matched
-/// on its first output's path, or on the derivation when there is no
-/// path yet.
-pub(crate) async fn find_build_in_eval(
-    tx: &mut db::Transaction<'_>,
-    eval: i32,
-    jobset_id: i32,
-    job: &str,
-    output_name: &str,
-    output_path: Option<&str>,
-    drv_path: &str,
-) -> Result<Option<PreviousBuild>, sqlx::Error> {
-    // The jobset constraint is implied by the evaluation, but stating it
-    // is worth a factor of a thousand on the nixpkgs jobset.
-    sqlx::query_as!(
-        PreviousBuild,
-        r#"
-        SELECT b.id, b.finished, b.drvpath
-        FROM jobsetevalmembers m
-        JOIN builds b ON m.build = b.id
-        JOIN buildoutputs o ON o.build = b.id
-        WHERE m.eval = $1 AND b.jobset_id = $2 AND b.job = $3
-          AND o.name = $4
-          AND (($5::text IS NULL AND b.drvpath = $6) OR o.path = $5)
-        LIMIT 1"#,
-        eval,
-        jobset_id,
-        job,
-        output_name,
-        output_path,
-        drv_path,
-    )
-    .fetch_optional(tx.raw())
-    .await
-}
-
-/// Add a build to the queue, returning its id.
-pub(crate) async fn insert_build(
-    tx: &mut db::Transaction<'_>,
-    build: &NewBuild<'_>,
-) -> Result<i32, sqlx::Error> {
-    let now = jiff::Timestamp::now().as_second();
-
-    Ok(sqlx::query!(
-        r#"
-        INSERT INTO builds
-          (timestamp, jobset_id, job, drvpath, system, nixname, description,
-           license, homepage, maintainers, maxsilent, timeout, priority,
-           finished, iscurrent, ischannel)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 1, $14)
-        RETURNING id"#,
-        now,
-        build.jobset_id,
-        build.job,
-        build.drv_path,
-        build.system,
-        build.nix_name,
-        build.description,
-        build.license,
-        build.homepage,
-        build.maintainers,
-        build.max_silent,
-        build.timeout,
-        build.priority,
-        build.is_channel,
-    )
-    .fetch_one(tx.raw())
-    .await?
-    .id)
-}
-
-/// Outputs of the builds an evaluation queued, as parallel columns. Kept
-/// together so they can be written in one statement.
-#[derive(Debug, Default)]
-pub(crate) struct NewOutputs<'a> {
-    pub builds: Vec<i32>,
-    pub names: Vec<&'a str>,
-    pub paths: Vec<Option<&'a str>>,
-}
-
-/// Record the outputs of every build an evaluation queued, in one statement,
-/// because a row at a time dominates insertion time on a large jobset.
-pub(crate) async fn insert_build_outputs(
-    tx: &mut db::Transaction<'_>,
-    outputs: &NewOutputs<'_>,
-) -> Result<(), sqlx::Error> {
-    // Unchecked, because the checked macro will not take an array with nulls
-    // in it as a parameter, and a content-addressed output's path is null.
-    sqlx::query(
-        "INSERT INTO buildoutputs (build, name, path) \
-         SELECT * FROM UNNEST($1::int[], $2::text[], $3::text[])",
-    )
-    .bind(&outputs.builds)
-    .bind(&outputs.names)
-    .bind(&outputs.paths)
     .execute(tx.raw())
     .await?;
     Ok(())
