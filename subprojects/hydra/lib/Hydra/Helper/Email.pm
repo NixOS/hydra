@@ -4,7 +4,9 @@ use strict;
 use warnings;
 use Email::MIME;
 use Email::Sender::Simple qw(sendmail);
+use Email::Sender::Transport::Sendmail;
 use Exporter 'import';
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Sys::Hostname::Long;
 
@@ -42,8 +44,17 @@ sub sendEmail {
         open(my $fh, ">>", $sink) or die "cannot append to `$sink': $!\n";
         print $fh $email->as_string . "\n";
         close($fh) or die "cannot write to `$sink': $!\n";
-    } else {
+    } elsif (defined $ENV{'EMAIL_SENDER_TRANSPORT'}) {
+        # A transport configured in the environment, such as SMTP, which
+        # `Email::Sender::Simple` sets up by itself.
         sendmail($email, { from => $sender });
+    } else {
+        # Otherwise `Email::Sender` would look for `sendmail` on `PATH`,
+        # which Hydra's services do not have; say which one to run.
+        my $transport = Email::Sender::Transport::Sendmail->new({
+            sendmail => program("sendmail"),
+        });
+        sendmail($email, { from => $sender, transport => $transport });
     }
 }
 

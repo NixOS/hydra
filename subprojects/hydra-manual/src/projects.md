@@ -281,6 +281,10 @@ In order to force Hydra to send an email for each build (including e.g. successf
 services.hydra-dev.extraEnv.HYDRA_FORCE_SEND_MAIL = "1";
 ```
 
+Without `services.hydra-dev.smtpHost`, Hydra hands email to the `sendmail` program that `services.hydra-dev.sendmail` names.
+By default that is the setuid wrapper which a local mail server such as Postfix installs.
+Outside NixOS, set `HYDRA_PROGRAM_SENDMAIL` to its path instead: Hydra does not look for `sendmail` on `PATH`.
+
 SASL Authentication for the email address that's used to send notifications can be configured like this:
 
 ``` conf

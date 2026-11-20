@@ -46,7 +46,14 @@ rec {
 
   # Only for the services that send email: the web app's own and
   # `hydra-notify`. Put before `env`, so `extraEnv` can still override it.
-  emailEnv = optionalAttrs (cfg.smtpHost != null) {
+  #
+  # `sendmail` is only run when no transport is configured, so it is given
+  # even alongside SMTP: a transport set in `extraEnv` instead of `smtpHost`
+  # is fine either way.
+  emailEnv = {
+    HYDRA_PROGRAM_SENDMAIL = cfg.sendmail;
+  }
+  // optionalAttrs (cfg.smtpHost != null) {
     EMAIL_SENDER_TRANSPORT = "SMTP";
     EMAIL_SENDER_TRANSPORT_host = cfg.smtpHost;
   };
