@@ -121,6 +121,17 @@ in
         '';
       };
 
+      sendmail = mkOption {
+        type = types.str;
+        default = "${config.security.wrapperDir}/sendmail";
+        defaultText = literalExpression ''"''${config.security.wrapperDir}/sendmail"'';
+        description = ''
+          The `sendmail` program to send email with, when no
+          {option}`services.hydra-dev.smtpHost` is set. The default is the
+          setuid wrapper that mail servers such as Postfix install.
+        '';
+      };
+
       tracker = mkOption {
         type = types.str;
         default = "";
