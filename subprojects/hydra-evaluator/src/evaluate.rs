@@ -23,8 +23,13 @@ const CURRENT_BATCH: usize = 10_000;
 /// What evaluating a jobset produced.
 #[derive(Debug)]
 pub(crate) enum Outcome {
-    /// These inputs had been evaluated before, so nothing was done.
-    Cached { previous: i32 },
+    /// These inputs had been evaluated before, so nothing was evaluated.
+    Cached {
+        previous: i32,
+        /// Redoes marking builds current, in case the last attempt was cut
+        /// short.
+        followup: Option<Followup>,
+    },
     /// The evaluation ran and was recorded.
     Evaluated {
         eval: i32,
@@ -49,7 +54,7 @@ impl Outcome {
 impl std::fmt::Display for Outcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Cached { previous } => write!(f, "cached, same as evaluation {previous}"),
+            Self::Cached { previous, .. } => write!(f, "cached, same as evaluation {previous}"),
             Self::Evaluated {
                 eval,
                 changed: true,
@@ -80,7 +85,7 @@ pub(crate) struct Followup {
 
 impl Followup {
     /// The caller records a failure as the jobset's evaluation error. The
-    /// next evaluation that is not cached repeats it.
+    /// next evaluation repeats it, cached or not.
     pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
         let start = std::time::Instant::now();
         retry("marking builds current", || async {
@@ -247,8 +252,13 @@ pub(crate) async fn evaluate(
         queries::set_fetch_error(&mut tx, meta.id, None).await?;
         tx.notify_eval_cached(trace, meta.id, previous.id).await?;
         tx.commit().await?;
+        let current = queries::get_previous_eval_with_new_builds(&mut conn, meta.id).await?;
         return Ok(Outcome::Cached {
             previous: previous.id,
+            followup: current.map(|current| Followup {
+                jobset_id: meta.id,
+                current: current.id,
+            }),
         });
     }
 
