@@ -175,13 +175,16 @@ in
     };
 
     # Rust, which the NixOS units configure directly.
-    hydra-evaluator = {
+    hydra-submit-evaluation = {
       local = [
         "hydra-fetch-input"
         "hydra-prepare-declarative-jobset"
       ];
+      # `nix-eval-jobs` is not run here but by the evaluation build, which
+      # is given this path.
       foreign = nixTools // {
         inherit nix-eval-jobs;
+        nix-instantiate = nix;
       };
       # Nix's git fetcher execs `git` from `PATH`, which needs `ssh` for
       # ssh:// remotes.
@@ -191,6 +194,7 @@ in
       ];
       runsPlugins = true;
     };
+    hydra-process-evaluation = { };
     hydra-queue-runner.foreign = { inherit (nixTools) nix; };
     hydra-builder.foreign = { inherit (nixTools) nix; };
     hydra-ad-hoc = { };

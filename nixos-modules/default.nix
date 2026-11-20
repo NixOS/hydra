@@ -26,9 +26,12 @@ rec {
     {
       _file = ./default.nix;
       imports = [ ./evaluator-module.nix ];
-      services.hydra-evaluator-dev.package =
+      services.hydra-evaluator-dev.submitEvaluationPackage =
         lib.mkDefault
-          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator;
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-submit-evaluation;
+      services.hydra-evaluator-dev.processEvaluationPackage =
+        lib.mkDefault
+          flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-process-evaluation;
       services.hydra-evaluator-dev.helpersPackage =
         lib.mkDefault
           flakePackages.${pkgs.stdenv.hostPlatform.system}.hydra-evaluator-helpers;

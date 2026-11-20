@@ -12,7 +12,7 @@ use Hydra::StorePath;
 # queue runner picks it up like any other Build, and the daemon
 # returns once the row is finished.
 #
-# This path doesn't go through hydra-evaluator at all.
+# This path doesn't go through evaluation at all.
 
 my $ctx = test_context();
 my $jobsdir = $ctx->jobsdir;

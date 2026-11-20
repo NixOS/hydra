@@ -10,7 +10,8 @@
   hydra-queue-runner,
   hydra-builder,
   hydra-ad-hoc,
-  hydra-evaluator,
+  hydra-submit-evaluation,
+  hydra-process-evaluation,
   hydraPrograms,
 
   meson,
@@ -117,7 +118,8 @@ stdenv.mkDerivation (finalAttrs: {
     hydra-queue-runner
     hydra-builder
     hydra-ad-hoc
-    hydra-evaluator
+    hydra-submit-evaluation
+    hydra-process-evaluation
     perl
     nixComponents.nix-cli
     bzip2

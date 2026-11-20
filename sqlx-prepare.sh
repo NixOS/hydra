@@ -17,7 +17,7 @@ export DATABASE_URL="postgres://$(id -un)@localhost/hydra?host=$PGDIR"
 
 # Note: if something is not regenerating, try:
 #
-#     cargo clean -p db -p hydra-evaluator
+#     cargo clean -p db -p hydra-submit-evaluation -p hydra-process-evaluation
 
 # `--all-targets` so queries in tests are cached too.
 # The binary cache's narinfo presence cache is SQLite, so its queries are
