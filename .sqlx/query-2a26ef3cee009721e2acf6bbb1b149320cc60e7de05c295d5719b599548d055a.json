@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE builds SET iscurrent = $1 WHERE id = ANY($2) AND iscurrent <> $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a26ef3cee009721e2acf6bbb1b149320cc60e7de05c295d5719b599548d055a"
+}

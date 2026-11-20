@@ -253,59 +253,58 @@ pub(crate) async fn get_eval_jobs(
 
 /// Point the jobset's `iscurrent` flags at this evaluation.
 ///
-/// In batches, outside the evaluation transaction: on a jobset with
-/// 100k builds this touches every row, and holding those locks for the
-/// evaluation's duration deadlocks against the queue runner finishing
-/// builds.
+/// Finds the rows to change once, then updates them in batches to keep each
+/// statement's locks short. A row that changed in between is skipped.
 pub(crate) async fn mark_current(
     conn: &mut db::Connection,
     jobset_id: i32,
     eval: i32,
-    batch: i32,
+    batch: usize,
 ) -> Result<(), sqlx::Error> {
-    // Loop until a batch changes nothing, which is when every row is in
-    // the state this evaluation says it should be.
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 1 WHERE id IN (
-              SELECT b.id FROM builds b
-              JOIN jobsetevalmembers m ON m.build = b.id
-              WHERE m.eval = $1 AND b.iscurrent = 0
-              ORDER BY b.id LIMIT $2)"#,
-            eval,
-            i64::from(batch),
+    let to_set = sqlx::query_scalar!(
+        r#"
+        SELECT b.id FROM builds b
+        JOIN jobsetevalmembers m ON m.build = b.id
+        WHERE m.eval = $1 AND b.iscurrent = 0
+        ORDER BY b.id"#,
+        eval,
+    )
+    .fetch_all(conn.raw())
+    .await?;
+    set_current(conn, &to_set, 1, batch).await?;
+
+    let to_clear = sqlx::query_scalar!(
+        r#"
+        SELECT b.id FROM builds b
+        WHERE b.jobset_id = $1 AND b.iscurrent = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM jobsetevalmembers m
+            WHERE m.eval = $2 AND m.build = b.id)
+        ORDER BY b.id"#,
+        jobset_id,
+        eval,
+    )
+    .fetch_all(conn.raw())
+    .await?;
+    set_current(conn, &to_clear, 0, batch).await
+}
+
+/// Set `iscurrent` on these builds, a batch per statement.
+async fn set_current(
+    conn: &mut db::Connection,
+    ids: &[i32],
+    value: i32,
+    batch: usize,
+) -> Result<(), sqlx::Error> {
+    for chunk in ids.chunks(batch) {
+        sqlx::query!(
+            "UPDATE builds SET iscurrent = $1 WHERE id = ANY($2) AND iscurrent <> $1",
+            value,
+            chunk,
         )
         .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
+        .await?;
     }
-
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 0 WHERE id IN (
-              SELECT b.id FROM builds b
-              WHERE b.jobset_id = $1 AND b.iscurrent = 1
-                AND NOT EXISTS (
-                  SELECT 1 FROM jobsetevalmembers m
-                  WHERE m.eval = $2 AND m.build = b.id)
-              ORDER BY b.id LIMIT $3)"#,
-            jobset_id,
-            eval,
-            i64::from(batch),
-        )
-        .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
-    }
-
     Ok(())
 }
 
