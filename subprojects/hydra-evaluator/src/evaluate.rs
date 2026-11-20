@@ -20,7 +20,7 @@ use crate::queries;
 use crate::queries::{JobsetForEval, NewEval};
 
 /// How many rows to move at a time when marking builds current.
-const CURRENT_BATCH: i32 = 10_000;
+const CURRENT_BATCH: usize = 10_000;
 
 /// What evaluating a jobset produced.
 #[derive(Debug)]
