@@ -218,6 +218,8 @@ sub mapOf {
 sub requestParams {
     my ($c, $spec, %opts) = @_;
     my $path = $c->req->path;
+    # The one place that reads the request raw, to parse it.
+    ## no critic (Hydra::ProhibitRawRequestParams)
     my $params = $opts{from} // do {
         my $data = $c->request->data;
         if (defined $data && ref $data eq 'HASH' && !%$data && %{$c->request->params}) {
@@ -226,6 +228,7 @@ sub requestParams {
         }
         (defined $data && (ref $data ne 'HASH' || %$data)) ? $data : $c->request->params;
     };
+    ## use critic
     badRequest($c, "The request parameters must be a JSON object.") unless ref $params eq 'HASH';
 
     my %ignore = map { $_ => 1 } @{$opts{ignore} // []};
