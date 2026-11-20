@@ -7,7 +7,7 @@ use std::str::FromStr as _;
 
 pub use connection::{Connection, Handle, Transaction};
 pub use error::{DataError, Error, Result};
-pub use retry::{RetryableError, retry_serialization_failures};
+pub use retry::{RetryableError, retry_serialization_failures, retry_serialization_failures_on};
 
 /// Seconds since the Unix epoch, at the width Hydra's schema stores them.
 ///

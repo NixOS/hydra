@@ -558,6 +558,14 @@ async fn reap_eval(
 
     let now = jiff::Timestamp::now().as_second();
 
+    // The follow-up holds the evaluation's connection, so take its permit
+    // before the slot is freed: waiting for one afterwards would hold that
+    // connection outside the slots and permits the pool is sized for.
+    let _permit = match followup {
+        Some(_) => followups.acquire().await.ok(),
+        None => None,
+    };
+
     let mut st = state.lock().await;
     let record_failure = if let Some(jobset) = st.jobsets.get_mut(&jobset_id) {
         // A trigger that arrived while the eval was running is kept in the
@@ -591,8 +599,7 @@ async fn reap_eval(
     if let Some(followup) = followup {
         drop(st);
         notify_work.notify_one();
-        let _permit = followups.acquire().await.ok();
-        if let Err(e) = followup.run(db).await {
+        if let Err(e) = followup.run().await {
             let error = format!("{e:#}");
             tracing::info!("updating the jobset's builds failed");
             tracing::debug!("updating the jobset's builds failed: {error}");

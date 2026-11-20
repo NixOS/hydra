@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 
 use color_eyre::eyre::{self, WrapErr as _};
-use futures::TryFutureExt as _;
+use futures::FutureExt as _;
 
 use crate::config::HydraConfig;
 use crate::declarative;
@@ -74,6 +74,9 @@ impl std::fmt::Display for Outcome {
 /// locks that long deadlocks against the queue runner. It also runs after the
 /// evaluation frees its slot, because on a large jobset it takes minutes.
 ///
+/// It keeps the connection the evaluation was recorded on, rather than
+/// taking others from the pool.
+///
 /// Committing the evaluation creates two obligations, met here:
 ///
 /// - Repointing: the inherited builds whose derivation changed get the new
@@ -95,6 +98,7 @@ impl std::fmt::Display for Outcome {
 /// inputs change, nothing does.
 #[derive(Debug)]
 pub(crate) struct Followup {
+    conn: db::Connection,
     jobset_id: i32,
     /// Inherited builds whose derivation changed.
     repoints: HashMap<i32, String>,
@@ -106,31 +110,42 @@ impl Followup {
     /// Both obligations are attempted. The caller records a failure as the
     /// jobset's evaluation error; if both fail, that is the repointing one,
     /// and the other is logged.
-    pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
+    pub(crate) async fn run(self) -> eyre::Result<()> {
+        let Self {
+            conn,
+            jobset_id,
+            repoints,
+            current,
+        } = self;
+        let repoints = &repoints;
+
         let start = std::time::Instant::now();
-        let repointed = retry("repointing builds", || repoint(db, &self.repoints))
-            .await
-            .wrap_err("failed to repoint builds at their new derivations");
+        let (conn, repointed) = retry("repointing builds", conn, |mut conn| async move {
+            let result = repoint(&mut conn, repoints).await;
+            (conn, result)
+        })
+        .await;
+        let repointed = repointed.wrap_err("failed to repoint builds at their new derivations");
         if repointed.is_ok() {
             tracing::info!(
                 "repointed {} builds in {} s",
-                self.repoints.len(),
+                repoints.len(),
                 start.elapsed().as_secs()
             );
         }
 
-        let marked = match self.current {
+        let marked = match current {
             Some(current) => {
                 let start = std::time::Instant::now();
-                let marked = retry("marking builds current", || async {
-                    let mut conn = db.get().await?;
-                    Ok(
-                        queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
-                            .await?,
-                    )
+                let (_, marked) = retry("marking builds current", conn, |mut conn| async move {
+                    let result =
+                        queries::mark_current(&mut conn, jobset_id, current, CURRENT_BATCH)
+                            .await
+                            .map_err(Into::into);
+                    (conn, result)
                 })
-                .await
-                .wrap_err("failed to mark this evaluation's builds current");
+                .await;
+                let marked = marked.wrap_err("failed to mark this evaluation's builds current");
                 if marked.is_ok() {
                     tracing::info!(
                         "marked evaluation {current}'s builds current in {} s",
@@ -319,8 +334,11 @@ pub(crate) async fn evaluate(
 
     // Compare jobs against the last evaluation that had new builds, because
     // an evaluation without new builds records no members.
-    let previous =
-        queries::get_previous_eval_with_new_builds(&mut db.get().await?, meta.id).await?;
+    //
+    // From here on one connection does the rest: the evaluation transaction,
+    // and then the follow-up, which inherits it.
+    let mut conn = db.get().await?;
+    let previous = queries::get_previous_eval_with_new_builds(&mut conn, meta.id).await?;
 
     let new_eval = NewEval {
         jobset_id: meta.id,
@@ -332,24 +350,30 @@ pub(crate) async fn evaluate(
         nix_expr_path: meta.nixexprpath.as_deref(),
     };
     let ingest_start = std::time::Instant::now();
-    let recorded = retry("the evaluation transaction", || async {
-        let mut conn = db.get().await?;
-        let mut tx = conn.begin_transaction().await?;
-        let recorded = ingest::record(
-            &mut tx,
-            trace,
-            &new_eval,
-            &jobs,
-            previous.as_ref().map(|p| p.id),
-            &resolved,
-            available.store_dir(),
-        )
-        .await
-        .wrap_err("failed to record the evaluation")?;
-        tx.commit().await?;
-        Ok(recorded)
+    let (new_eval, jobs, resolved) = (&new_eval, &jobs, &resolved);
+    let prev_eval = previous.as_ref().map(|p| p.id);
+    let (conn, recorded) = retry("the evaluation transaction", conn, |mut conn| async move {
+        let result: eyre::Result<_> = async {
+            let mut tx = conn.begin_transaction().await?;
+            let recorded = ingest::record(
+                &mut tx,
+                trace,
+                new_eval,
+                jobs,
+                prev_eval,
+                resolved,
+                available.store_dir(),
+            )
+            .await
+            .wrap_err("failed to record the evaluation")?;
+            tx.commit().await?;
+            Ok(recorded)
+        }
+        .await;
+        (conn, result)
     })
-    .await?;
+    .await;
+    let recorded = recorded?;
     tracing::info!(
         "recorded {} jobs in {} s",
         jobs.len(),
@@ -373,6 +397,7 @@ pub(crate) async fn evaluate(
         eval: recorded.eval,
         changed: recorded.jobset_changed,
         followup: Followup {
+            conn,
             jobset_id: meta.id,
             repoints: recorded.repoints,
             current,
@@ -423,15 +448,21 @@ async fn lock_flake(nix: &hydra_programs::NixPath, flake: &str) -> eyre::Result<
     Ok(metadata.url)
 }
 
-/// [`db::retry_serialization_failures`] for work that fails with an
-/// [`eyre::Report`]. Each attempt must take its own connection.
-async fn retry<T, Fut>(what: &str, mut work: impl FnMut() -> Fut) -> eyre::Result<T>
+/// [`db::retry_serialization_failures_on`] for work that fails with an
+/// [`eyre::Report`]. Each attempt must open its own transaction.
+async fn retry<T, Fut>(
+    what: &str,
+    conn: db::Connection,
+    mut work: impl FnMut(db::Connection) -> Fut,
+) -> (db::Connection, eyre::Result<T>)
 where
-    Fut: Future<Output = eyre::Result<T>>,
+    Fut: Future<Output = (db::Connection, eyre::Result<T>)>,
 {
-    db::retry_serialization_failures(what, || work().map_err(Retryable))
-        .await
-        .map_err(|e| e.0)
+    let (conn, result) = db::retry_serialization_failures_on(what, conn, |conn| {
+        work(conn).map(|(conn, result)| (conn, result.map_err(Retryable)))
+    })
+    .await;
+    (conn, result.map_err(|e| e.0))
 }
 
 /// An [`eyre::Report`] that is retryable when a database error in its chain
@@ -462,13 +493,12 @@ impl std::fmt::Display for Retryable {
 ///
 /// Separate from the evaluation transaction for the same reason as
 /// `mark_current`: these are `Builds` rows the queue runner also writes.
-async fn repoint(db: &db::Database, repoints: &HashMap<i32, String>) -> eyre::Result<()> {
+async fn repoint(conn: &mut db::Connection, repoints: &HashMap<i32, String>) -> eyre::Result<()> {
     if repoints.is_empty() {
         return Ok(());
     }
     let mut ids: Vec<&i32> = repoints.keys().collect();
     ids.sort_unstable();
-    let mut conn = db.get().await?;
     let mut tx = conn.begin_transaction().await?;
     for id in ids {
         queries::repoint_build(&mut tx, *id, &repoints[id]).await?;

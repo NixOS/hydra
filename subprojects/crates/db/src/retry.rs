@@ -52,6 +52,44 @@ where
     }
 }
 
+/// [`retry_serialization_failures`] for work that keeps one connection across
+/// attempts, for instance because it relies on that session's temporary
+/// tables.
+///
+/// `f` must still open its own transaction. The server rolled the failed one
+/// back, so the connection is usable for the next attempt. Each attempt is
+/// handed the connection and gives it back with its result, which spares the
+/// closure from borrowing it.
+pub async fn retry_serialization_failures_on<F, Fut, T, E>(
+    what: &str,
+    mut conn: crate::Connection,
+    mut f: F,
+) -> (crate::Connection, Result<T, E>)
+where
+    F: FnMut(crate::Connection) -> Fut,
+    Fut: Future<Output = (crate::Connection, Result<T, E>)>,
+    E: RetryableError + std::fmt::Display,
+{
+    let mut attempt = 1;
+    loop {
+        let (returned, result) = f(conn).await;
+        conn = returned;
+        match result {
+            Err(e)
+                if e.is_retryable_serialization_failure()
+                    && attempt < SERIALIZATION_RETRY_ATTEMPTS =>
+            {
+                tracing::warn!(
+                    "{what}: serialization failure, retrying ({attempt}/{SERIALIZATION_RETRY_ATTEMPTS}): {e}"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(u64::from(attempt) * 50)).await;
+                attempt += 1;
+            }
+            other => return (conn, other),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::RetryableError as _;
