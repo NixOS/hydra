@@ -6,7 +6,6 @@
 //! staged in the database and that question answered there; see
 //! [`crate::staging`].
 
-use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use color_eyre::eyre::{self, WrapErr as _};
@@ -41,9 +40,6 @@ fn stage_job<'j>(staged: &mut staging::Jobs<'j>, ord: i32, job: &'j Job) -> eyre
 pub(crate) struct Recorded {
     pub eval: i32,
     pub jobset_changed: bool,
-    /// Builds inherited from an earlier evaluation whose derivation has
-    /// changed, to be pointed at the new one once this transaction is done.
-    pub repoints: HashMap<i32, String>,
 }
 
 /// Everything an evaluation records, including the jobset's new error, in
@@ -53,6 +49,9 @@ pub(crate) struct Recorded {
 /// the notifications announcing them must be written together or not at all.
 /// The notifications are sent from here for the same reason, since `NOTIFY`
 /// is delivered on commit.
+///
+/// Inherited builds whose derivation changed are left in the session for
+/// the follow-up to repoint; see [`staging::stage_repoints`].
 pub(crate) async fn record(
     tx: &mut db::Transaction<'_>,
     trace: &str,
@@ -152,12 +151,11 @@ pub(crate) async fn record(
         queries::set_evaluation_error(tx, error_id, &error).await?;
     }
 
-    let repoints = staging::repoints(tx).await?.into_iter().collect();
+    staging::stage_repoints(tx).await?;
 
     Ok(Recorded {
         eval: eval_id,
         jobset_changed,
-        repoints,
     })
 }
 
@@ -194,6 +192,7 @@ async fn record_aggregates(tx: &mut db::Transaction<'_>, jobs: &[Job]) -> eyre::
 mod tests {
     use crate::nix_eval_jobs::Job;
     use crate::queries::{self, NewEval};
+    use crate::staging;
 
     fn job(value: serde_json::Value) -> Job {
         serde_json::from_value(value).unwrap()
@@ -225,21 +224,15 @@ mod tests {
         recorded
     }
 
-    /// What the follow-up does, returning how many builds it repointed.
-    async fn follow_up(
-        conn: &mut db::Connection,
-        recorded: &super::Recorded,
-        current: i32,
-    ) -> usize {
+    /// What the follow-up does, on the connection that recorded the
+    /// evaluation.
+    async fn follow_up(conn: &mut db::Connection, current: i32) -> u64 {
         let mut tx = conn.begin_transaction().await.unwrap();
-        for (id, drv_path) in &recorded.repoints {
-            queries::repoint_build(&mut tx, *id, drv_path)
-                .await
-                .unwrap();
-        }
+        let repointed = staging::repoint(&mut tx).await.unwrap();
         tx.commit().await.unwrap();
+        staging::drop_repoints(conn).await.unwrap();
         queries::mark_current(conn, 1, current, 2).await.unwrap();
-        recorded.repoints.len()
+        repointed
     }
 
     /// `(id, job, drvpath, finished, iscurrent)` of every build.
@@ -292,7 +285,7 @@ mod tests {
         ];
         let one = record(&mut conn, &first, None).await;
         assert!(one.jobset_changed);
-        assert_eq!(follow_up(&mut conn, &one, one.eval).await, 0);
+        assert_eq!(follow_up(&mut conn, one.eval).await, 0);
 
         assert_eq!(
             builds(&pool).await,
@@ -346,7 +339,7 @@ mod tests {
         ];
         let two = record(&mut conn, &second, Some(one.eval)).await;
         assert!(two.jobset_changed);
-        assert_eq!(follow_up(&mut conn, &two, two.eval).await, 1);
+        assert_eq!(follow_up(&mut conn, two.eval).await, 1);
 
         assert_eq!(
             builds(&pool).await,
@@ -376,10 +369,10 @@ mod tests {
             [("out".to_owned(), Some("/nix/store/c1".to_owned()))]
         );
 
-        // An evaluation that changes nothing records no members, and has
-        // nothing to repoint.
+        // An evaluation that changes nothing records no members, and
+        // the follow-up still finds the repoint table to drop.
         let three = record(&mut conn, &second, Some(two.eval)).await;
         assert!(!three.jobset_changed);
-        assert_eq!(follow_up(&mut conn, &three, two.eval).await, 0);
+        assert_eq!(follow_up(&mut conn, two.eval).await, 0);
     }
 }

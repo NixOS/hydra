@@ -338,26 +338,6 @@ pub(crate) async fn mark_current(
     Ok(())
 }
 
-/// Point a build at the derivation this evaluation found for it, and put
-/// it back in the queue.
-pub(crate) async fn repoint_build(
-    tx: &mut db::Transaction<'_>,
-    id: i32,
-    drv_path: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        r#"
-        UPDATE builds
-        SET drvpath = $2, finished = 0, buildstatus = NULL
-        WHERE id = $1"#,
-        id,
-        drv_path,
-    )
-    .execute(tx.raw())
-    .await?;
-    Ok(())
-}
-
 /// What a jobset says to evaluate, and how it was evaluated last time.
 pub(crate) async fn get_jobset_for_eval(
     conn: &mut db::Connection,

@@ -5,13 +5,18 @@
 //! The jobs are written once, and everything after that -- which builds are
 //! inherited from the previous evaluation, which are queued, the members,
 //! aggregates and notifications -- is worked out by Postgres from these
-//! tables. The one thing read back into the evaluator is the few inherited
-//! builds whose derivation changed, for the follow-up to repoint after the
-//! evaluation is committed; see [`repoints`].
+//! tables. Nothing about them is read back into the evaluator.
 //!
-//! The tables are temporary, so they belong to the evaluation transaction's
-//! session. They are created in that transaction and dropped when it ends,
-//! committed or not.
+//! The tables are temporary, so they belong to one session:
+//!
+//! - `evaljobs`, `evaljoboutputs` and `evaljobconstituents` are created in
+//!   the evaluation transaction and dropped when it ends, committed or not.
+//!
+//! - `evalrepoints` is created in the same transaction but outlives it, for
+//!   the follow-up on the same connection to apply once the evaluation is
+//!   committed. A connection that comes back from the pool may still have
+//!   one from a follow-up that failed or was abandoned, so it is dropped
+//!   before it is created.
 //!
 //! What this guarantees:
 //!
@@ -20,9 +25,17 @@
 //!   transaction, or none of them are.
 //!
 //! - Nothing durable depends on these tables. They are only ever read as
-//!   input by statements in that transaction, so none can outlive it, and a
-//!   retried transaction starts without them, since rolling back also undoes
-//!   their creation.
+//!   input, by statements that commit on their own, so dropping one at any
+//!   point leaves the database as some prefix of the work left it: stale
+//!   perhaps, never inconsistent. A retried evaluation transaction starts
+//!   without the first three, since rolling back also undoes their creation.
+//!
+//! - `evalrepoints` is the one that matters if lost: between the evaluation
+//!   committing and [`repoint`] committing, it holds the only copy of the
+//!   new derivations. Losing it, to a failed follow-up or a dropped
+//!   connection, defers those repoints to the jobset's next evaluation that
+//!   is not cached, which finds them again. [`repoint`] fails without it, so
+//!   that the loss is recorded as the jobset's error; nothing else does.
 //!
 //! Every statement here is unchecked, because the checked macros cannot see
 //! a temporary table: <https://github.com/launchbadge/sqlx/issues/3661>.
@@ -374,21 +387,48 @@ pub(crate) async fn missing_constituents(
     .await
 }
 
-/// The inherited builds whose derivation changed, and the derivation to
-/// point each at once the evaluation is committed.
-///
-/// Read back rather than applied here, since these are `Builds` rows the
-/// queue runner also writes, and the evaluation transaction holds its locks
-/// too long to take theirs.
-pub(crate) async fn repoints(
-    tx: &mut db::Transaction<'_>,
-) -> Result<Vec<(i32, String)>, sqlx::Error> {
-    sqlx::query_as(
-        "SELECT build, drvpath FROM evaljobs
-         WHERE NOT isnew AND prevdrvpath <> drvpath",
+/// Keep the inherited builds whose derivation changed, for [`repoint`] to
+/// point at the new one once the evaluation is committed.
+pub(crate) async fn stage_repoints(tx: &mut db::Transaction<'_>) -> Result<(), sqlx::Error> {
+    sqlx::raw_sql(
+        "DROP TABLE IF EXISTS pg_temp.evalrepoints;
+         CREATE TEMP TABLE evalrepoints AS
+           SELECT build AS id, drvpath FROM evaljobs
+           WHERE NOT isnew AND prevdrvpath <> drvpath;",
     )
-    .fetch_all(tx.raw())
-    .await
+    .execute(tx.raw())
+    .await?;
+    Ok(())
+}
+
+/// Point the builds [`stage_repoints`] kept at their new derivations, and put
+/// them back in the queue, returning how many there were.
+///
+/// Locks the rows in id order first, since the queue runner writes them too.
+/// The `UPDATE` alone locks them in whatever order its plan visits them.
+pub(crate) async fn repoint(tx: &mut db::Transaction<'_>) -> Result<u64, sqlx::Error> {
+    sqlx::query(
+        "SELECT b.id FROM builds b JOIN evalrepoints r USING (id)
+         ORDER BY b.id FOR UPDATE OF b",
+    )
+    .execute(tx.raw())
+    .await?;
+    Ok(sqlx::query(
+        "UPDATE builds SET drvpath = r.drvpath, finished = 0, buildstatus = NULL
+         FROM evalrepoints r WHERE builds.id = r.id",
+    )
+    .execute(tx.raw())
+    .await?
+    .rows_affected())
+}
+
+/// Drop what [`stage_repoints`] kept, once [`repoint`] is done with it,
+/// whether it succeeded or not. Nothing to drop is not an error.
+pub(crate) async fn drop_repoints(conn: &mut db::Connection) -> Result<(), sqlx::Error> {
+    sqlx::raw_sql("DROP TABLE IF EXISTS pg_temp.evalrepoints")
+        .execute(conn.raw())
+        .await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -511,6 +551,42 @@ mod tests {
                 (2, "out".to_owned(), None),
                 (3, "dev".to_owned(), s("/nix/store/b-dev")),
                 (3, "out".to_owned(), s("/nix/store/b")),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn repoint_requeues_each_build_with_its_own_drv() {
+        let (_pg, pool, mut conn) = replica().await;
+        sqlx::raw_sql(
+            "INSERT INTO builds (id, finished, buildstatus, starttime, stoptime,
+                                 timestamp, jobset_id, job, drvpath, system)
+             SELECT id, 1, 0, 1, 1, 0, 1, 'job', 'old' || id || '.drv', 'x86_64-linux'
+             FROM generate_series(1, 3) AS id;
+             -- What `stage_repoints` would have kept, out of id order.
+             CREATE TEMP TABLE evalrepoints AS
+               SELECT * FROM (VALUES (3, 'new3.drv'), (1, 'new1.drv')) AS t(id, drvpath);",
+        )
+        .execute(conn.raw())
+        .await
+        .unwrap();
+
+        let mut tx = conn.begin_transaction().await.unwrap();
+        assert_eq!(super::repoint(&mut tx).await.unwrap(), 2);
+        tx.commit().await.unwrap();
+        super::drop_repoints(&mut conn).await.unwrap();
+
+        let rows: Vec<(i32, String, i32, Option<i32>)> =
+            sqlx::query_as("SELECT id, drvpath, finished, buildstatus FROM builds ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            rows,
+            [
+                (1, "new1.drv".to_owned(), 0, None),
+                (2, "old2.drv".to_owned(), 1, Some(0)),
+                (3, "new3.drv".to_owned(), 0, None),
             ]
         );
     }
