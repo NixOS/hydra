@@ -309,20 +309,34 @@ pub(crate) async fn mark_current(
     Ok(())
 }
 
-/// Point a build at the derivation this evaluation found for it, and put
-/// it back in the queue.
-pub(crate) async fn repoint_build(
+/// Point builds at the derivations this evaluation found for them, and
+/// put them back in the queue.
+///
+/// Locks the rows in id order first, since the queue runner writes them
+/// too. The `UPDATE` alone locks them in whatever order its plan visits
+/// them.
+pub(crate) async fn repoint_builds(
     tx: &mut db::Transaction<'_>,
-    id: i32,
-    drv_path: &str,
+    repoints: &[(i32, String)],
 ) -> Result<(), sqlx::Error> {
+    if repoints.is_empty() {
+        return Ok(());
+    }
+    let (ids, drv_paths): (Vec<i32>, Vec<String>) = repoints.iter().cloned().unzip();
+    sqlx::query!(
+        "SELECT id FROM builds WHERE id = ANY($1) ORDER BY id FOR UPDATE",
+        &ids,
+    )
+    .fetch_all(tx.raw())
+    .await?;
     sqlx::query!(
         r#"
         UPDATE builds
-        SET drvpath = $2, finished = 0, buildstatus = NULL
-        WHERE id = $1"#,
-        id,
-        drv_path,
+        SET drvpath = t.drv, finished = 0, buildstatus = NULL
+        FROM UNNEST($1::int[], $2::text[]) AS t(id, drv)
+        WHERE builds.id = t.id"#,
+        &ids,
+        &drv_paths,
     )
     .execute(tx.raw())
     .await?;
@@ -886,4 +900,48 @@ pub(crate) async fn insert_build_outputs(
     .execute(tx.raw())
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn repoint_requeues_each_build_with_its_own_drv() {
+        let (pg, pool) = test_utils::TestPg::new().await;
+        // Replica role skips the foreign keys, so no jobset is needed.
+        sqlx::raw_sql(
+            "SET session_replication_role = 'replica';
+             INSERT INTO builds (id, finished, buildstatus, starttime, stoptime,
+                                 timestamp, jobset_id, job, drvpath, system)
+             SELECT id, 1, 0, 1, 1, 0, 1, 'job', 'old' || id || '.drv', 'x86_64-linux'
+             FROM generate_series(1, 3) AS id;",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let db = db::Database::new(&pg.url(), 1).await.unwrap();
+        let mut conn = db.get().await.unwrap();
+        let mut tx = conn.begin_transaction().await.unwrap();
+        super::repoint_builds(
+            &mut tx,
+            &[(3, "new3.drv".to_owned()), (1, "new1.drv".to_owned())],
+        )
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+
+        let rows: Vec<(i32, String, i32, Option<i32>)> =
+            sqlx::query_as("SELECT id, drvpath, finished, buildstatus FROM builds ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            rows,
+            [
+                (1, "new1.drv".to_owned(), 0, None),
+                (2, "old2.drv".to_owned(), 1, Some(0)),
+                (3, "new3.drv".to_owned(), 0, None),
+            ]
+        );
+    }
 }

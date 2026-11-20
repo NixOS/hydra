@@ -5,8 +5,6 @@
 //! their own modules; this is the order they happen in and the decisions
 //! between them.
 
-use std::collections::HashMap;
-
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::TryFutureExt as _;
 
@@ -31,7 +29,7 @@ pub(crate) enum Outcome {
     Evaluated {
         eval: i32,
         changed: bool,
-        followup: Followup,
+        followup: Option<Followup>,
     },
     /// A declarative project whose specification named its jobsets outright,
     /// so they were created and there was nothing to evaluate.
@@ -68,50 +66,37 @@ impl std::fmt::Display for Outcome {
     }
 }
 
-/// What is left to do to the jobset's builds once an evaluation is recorded.
+/// Marking an evaluation's builds current, once it is recorded.
 ///
-/// It runs outside the evaluation transaction, because holding these row
-/// locks that long deadlocks against the queue runner. It also runs after the
-/// evaluation frees its slot, because on a large jobset it takes minutes.
+/// It runs outside the evaluation transaction, because on a large jobset it
+/// touches every build and takes minutes. It also runs after the evaluation
+/// frees its slot.
 #[derive(Debug)]
 pub(crate) struct Followup {
     jobset_id: i32,
-    /// Inherited builds whose derivation changed.
-    repoints: HashMap<i32, String>,
     /// The evaluation whose builds are now current.
-    current: Option<i32>,
+    current: i32,
 }
 
 impl Followup {
     /// The caller records a failure as the jobset's evaluation error. The
-    /// next evaluation that is not cached repeats both steps.
+    /// next evaluation that is not cached repeats it.
     pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
         let start = std::time::Instant::now();
-        retry("repointing builds", || repoint(db, &self.repoints))
-            .await
-            .wrap_err("failed to repoint builds at their new derivations")?;
+        retry("marking builds current", || async {
+            let mut conn = db.get().await?;
+            Ok(
+                queries::mark_current(&mut conn, self.jobset_id, self.current, CURRENT_BATCH)
+                    .await?,
+            )
+        })
+        .await
+        .wrap_err("failed to mark this evaluation's builds current")?;
         tracing::info!(
-            "repointed {} builds in {} s",
-            self.repoints.len(),
+            "marked evaluation {}'s builds current in {} s",
+            self.current,
             start.elapsed().as_secs()
         );
-
-        if let Some(current) = self.current {
-            let start = std::time::Instant::now();
-            retry("marking builds current", || async {
-                let mut conn = db.get().await?;
-                Ok(
-                    queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
-                        .await?,
-                )
-            })
-            .await
-            .wrap_err("failed to mark this evaluation's builds current")?;
-            tracing::info!(
-                "marked evaluation {current}'s builds current in {} s",
-                start.elapsed().as_secs()
-            );
-        }
         Ok(())
     }
 }
@@ -335,11 +320,10 @@ pub(crate) async fn evaluate(
     Ok(Outcome::Evaluated {
         eval: recorded.eval,
         changed: recorded.jobset_changed,
-        followup: Followup {
+        followup: current.map(|current| Followup {
             jobset_id: meta.id,
-            repoints: recorded.repoints,
             current,
-        },
+        }),
     })
 }
 
@@ -418,24 +402,4 @@ impl std::fmt::Display for Retryable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#}", self.0)
     }
-}
-
-/// Apply the derivation changes an evaluation found for builds it inherited,
-/// in one transaction and in id order.
-///
-/// Separate from the evaluation transaction for the same reason as
-/// `mark_current`: these are `Builds` rows the queue runner also writes.
-async fn repoint(db: &db::Database, repoints: &HashMap<i32, String>) -> eyre::Result<()> {
-    if repoints.is_empty() {
-        return Ok(());
-    }
-    let mut ids: Vec<&i32> = repoints.keys().collect();
-    ids.sort_unstable();
-    let mut conn = db.get().await?;
-    let mut tx = conn.begin_transaction().await?;
-    for id in ids {
-        queries::repoint_build(&mut tx, *id, &repoints[id]).await?;
-    }
-    tx.commit().await?;
-    Ok(())
 }

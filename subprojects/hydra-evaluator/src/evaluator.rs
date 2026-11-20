@@ -552,7 +552,7 @@ async fn reap_eval(
         tracing::info!("evaluation {status}");
     }
     let followup = match outcome {
-        Some(Ok(crate::evaluate::Outcome::Evaluated { followup, .. })) => Some(followup),
+        Some(Ok(crate::evaluate::Outcome::Evaluated { followup, .. })) => followup,
         _ => None,
     };
 
