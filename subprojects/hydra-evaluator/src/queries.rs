@@ -64,20 +64,6 @@ pub(crate) async fn get_schedulable_jobsets(
     .await
 }
 
-/// The most recent evaluation of a jobset, if any.
-pub(crate) async fn get_latest_eval_id(
-    conn: &mut db::Connection,
-    jobset_id: i32,
-) -> Result<Option<i32>, sqlx::Error> {
-    Ok(sqlx::query!(
-        "SELECT id FROM jobsetevals WHERE jobset_id = $1 ORDER BY id DESC LIMIT 1",
-        jobset_id,
-    )
-    .fetch_optional(conn.raw())
-    .await?
-    .map(|v| v.id))
-}
-
 /// Whether an evaluation still has unfinished builds.
 pub(crate) async fn eval_has_unfinished_builds(
     conn: &mut db::Connection,
@@ -364,26 +350,39 @@ pub(crate) async fn get_jobset_for_eval(
     .await
 }
 
-/// The jobset's most recent evaluation, optionally only among those that had
-/// new builds.
-///
-/// Any evaluation's hash says whether these inputs were evaluated before, but
-/// only one with new builds has members to compare jobs against. An
-/// evaluation without new builds records none.
-pub(crate) async fn get_previous_eval(
+/// The jobset's most recent evaluation, if any.
+pub(crate) async fn get_latest_eval(
     conn: &mut db::Connection,
     jobset_id: i32,
-    with_new_builds: bool,
 ) -> Result<Option<PreviousEval>, sqlx::Error> {
     sqlx::query_as!(
         PreviousEval,
         r#"
         SELECT id, hash, flake FROM jobsetevals
-        WHERE jobset_id = $1 AND (NOT $2 OR hasnewbuilds = 1)
+        WHERE jobset_id = $1
         ORDER BY id DESC
         LIMIT 1"#,
         jobset_id,
-        with_new_builds,
+    )
+    .fetch_optional(conn.raw())
+    .await
+}
+
+/// The jobset's most recent evaluation that had new builds. Only such an
+/// evaluation has members to compare jobs against; one without new builds
+/// records none.
+pub(crate) async fn get_previous_eval_with_new_builds(
+    conn: &mut db::Connection,
+    jobset_id: i32,
+) -> Result<Option<PreviousEval>, sqlx::Error> {
+    sqlx::query_as!(
+        PreviousEval,
+        r#"
+        SELECT id, hash, flake FROM jobsetevals
+        WHERE jobset_id = $1 AND hasnewbuilds = 1
+        ORDER BY id DESC
+        LIMIT 1"#,
+        jobset_id,
     )
     .fetch_optional(conn.raw())
     .await
@@ -603,9 +602,9 @@ pub(crate) struct NewBuild<'a> {
     pub system: &'a str,
     pub nix_name: Option<&'a str>,
     pub description: Option<&'a str>,
-    pub license: Option<String>,
+    pub license: Option<&'a str>,
     pub homepage: Option<&'a str>,
-    pub maintainers: Option<String>,
+    pub maintainers: Option<&'a str>,
     pub max_silent: Option<i32>,
     pub timeout: Option<i32>,
     pub priority: i32,

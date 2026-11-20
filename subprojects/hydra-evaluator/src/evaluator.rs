@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::{FutureExt as _, StreamExt as _};
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{Mutex, Notify, Semaphore};
 use tracing::Instrument as _;
 
 use crate::config::HydraConfig;
@@ -65,6 +65,9 @@ pub(crate) struct Evaluator {
     eval_one: Option<(String, String)>,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    /// Bounds the follow-ups of evaluations that freed their slot to one per
+    /// slot, which is what the pool is sized for.
+    followups: Arc<Semaphore>,
 }
 
 impl Evaluator {
@@ -77,6 +80,7 @@ impl Evaluator {
     ) -> Self {
         Self {
             db,
+            followups: Arc::new(Semaphore::new(config.max_concurrent_evals())),
             config,
             available,
             roots_dir,
@@ -342,9 +346,10 @@ impl Evaluator {
     async fn should_evaluate_one_at_a_time(&self, jobset: &Jobset) -> eyre::Result<bool> {
         let mut conn = self.db.get().await?;
 
-        let eval_id = queries::get_latest_eval_id(&mut conn, jobset.id)
+        let eval_id = queries::get_latest_eval(&mut conn, jobset.id)
             .await
-            .wrap_err_with(|| format!("checking one-at-a-time for {}", jobset.display()))?;
+            .wrap_err_with(|| format!("checking one-at-a-time for {}", jobset.display()))?
+            .map(|e| e.id);
 
         let Some(eval_id) = eval_id else {
             tracing::debug!(
@@ -453,6 +458,7 @@ impl Evaluator {
         let db = self.db.clone();
         let state_arc = Arc::clone(&self.state);
         let notify_work = Arc::clone(&self.notify_work);
+        let followups = Arc::clone(&self.followups);
 
         let config = Arc::clone(&self.config);
         let timeout = config.eval_timeout();
@@ -485,6 +491,7 @@ impl Evaluator {
                     &db,
                     state_arc,
                     notify_work,
+                    &followups,
                     timeout,
                 )
                 .await;
@@ -514,6 +521,7 @@ async fn reap_eval(
     db: &db::Database,
     state: Arc<Mutex<State>>,
     notify_work: Arc<Notify>,
+    followups: &Semaphore,
     timeout: Duration,
 ) {
     // Dropping the future cancels the evaluation and kills its child
@@ -530,7 +538,7 @@ async fn reap_eval(
         ))),
     };
 
-    let (status, succeeded) = match &outcome {
+    let (status, mut succeeded) = match &outcome {
         Some(Ok(outcome)) => (outcome.to_string(), outcome.succeeded()),
         Some(Err(e)) => (format!("{e:#}"), false),
         None => ("abandoned".to_owned(), true),
@@ -543,6 +551,10 @@ async fn reap_eval(
     } else {
         tracing::info!("evaluation {status}");
     }
+    let followup = match outcome {
+        Some(Ok(crate::evaluate::Outcome::Evaluated { followup, .. })) => Some(followup),
+        _ => None,
+    };
 
     let now = jiff::Timestamp::now().as_second();
 
@@ -563,19 +575,35 @@ async fn reap_eval(
         false
     };
 
-    // Hold the lock across the DB cleanup and only mark the jobset
-    // not-running afterwards (as the C++ reaper did), so a new eval
-    // of the same jobset cannot start in between and have its fresh
-    // startTime clobbered by this transaction.
+    // This and a failed follow-up's error both clear startTime, so the
+    // jobset stays marked running until they are written. Otherwise a new
+    // eval of it could start in between and have its startTime clobbered.
     if let Err(e) = update_db_after_eval(db, trace, jobset_id, record_failure, &status, now).await {
         tracing::error!("exception setting jobset error: {e:#}");
     }
 
-    if st.running_evals > 0 {
-        st.running_evals -= 1;
+    st.running_evals = st.running_evals.saturating_sub(1);
+    st.kill_evals.remove(&jobset_id);
+
+    // Free the slot for another jobset, but keep this one marked running
+    // until its builds are up to date, so that its next evaluation cannot
+    // race this one's follow-up.
+    if let Some(followup) = followup {
+        drop(st);
+        notify_work.notify_one();
+        let _permit = followups.acquire().await.ok();
+        if let Err(e) = followup.run(db).await {
+            let error = format!("{e:#}");
+            tracing::info!("updating the jobset's builds failed");
+            tracing::debug!("updating the jobset's builds failed: {error}");
+            if let Err(e) = update_db_after_eval(db, trace, jobset_id, true, &error, now).await {
+                tracing::error!("exception setting jobset error: {e:#}");
+            }
+            succeeded = false;
+        }
+        st = state.lock().await;
     }
     st.running_ids.remove(&jobset_id);
-    st.kill_evals.remove(&jobset_id);
 
     notify_work.notify_one();
 
