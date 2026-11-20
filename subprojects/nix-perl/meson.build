@@ -154,12 +154,16 @@ nix_perl_store_dep_list = [
 
 # # build
 # #-------------------------------------------------
-lib_dir = join_paths('lib', 'Nix')
-subdir(lib_dir)
+subdir('lib' / 'Nix')
+subdir('lib' / 'auto' / 'Nix' / 'Store')
+
+# The module in the build tree, laid out as it is installed, for running it
+# from there: these tests, and Hydra's, in the dev shell.
+nix_perl_lib_dir = meson.current_build_dir() / 'lib'
 
 if get_option('tests').enabled()
   yath_rc_conf = configuration_data()
-  yath_rc_conf.set('lib_dir', lib_dir)
+  yath_rc_conf.set('lib_dir', 'lib')
   configure_file(
     output : '.yath.rc',
     input : '.yath.rc.in',

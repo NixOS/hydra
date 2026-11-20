@@ -3,11 +3,15 @@
   lib,
   version,
 
+  hydra-perl,
   hydra,
+  hydra-notify,
+  hydra-evaluator-helpers,
   hydra-queue-runner,
   hydra-builder,
   hydra-ad-hoc,
   hydra-evaluator,
+  hydraPrograms,
 
   meson,
   ninja,
@@ -21,6 +25,7 @@
   top-git,
   mercurial,
   darcs,
+  git,
   subversion,
   breezy,
   openldap,
@@ -35,8 +40,52 @@
   glibcLocales,
   libressl,
   python3,
+  coreutils,
+  writeText,
 }:
 
+let
+  # What each program the suite launches is given (see `HydraTestPrograms`).
+  # The Perl here is wrapped, and its wrappers give it its programs, so all
+  # that is left are the Rust programs, whose units would, and the plugin
+  # path, which is the deployment's.
+  wrappers = [
+    hydra
+    hydra-notify
+    hydra-evaluator-helpers
+  ];
+  wrapperOf =
+    name: lib.findFirst (w: lib.elem name w.scripts) (throw "no wrapper has `${name}`") wrappers;
+  isWrapped = name: lib.any (w: lib.elem name w.scripts) wrappers;
+
+  envFor = hydraPrograms.envFor { localPath = local: "${wrapperOf local}/bin/${local}"; };
+
+  # What the tests' plugins and `RunCommand` hooks run.
+  pluginPath = lib.makeBinPath [ coreutils ];
+
+  programEnv = writeText "hydra-test-program-env.json" (
+    builtins.toJSON (
+      lib.mapAttrs (
+        name: entry:
+        lib.optionalAttrs (!isWrapped name) (
+          envFor entry // lib.optionalAttrs (entry ? path) { PATH = lib.makeBinPath entry.path; }
+        )
+        // lib.optionalAttrs (entry.runsPlugins or false) { HYDRA_PLUGIN_PATH = pluginPath; }
+      ) hydraPrograms.programs
+      // {
+        # The test process itself, which runs the web app and plugins
+        # in-process, so needs what any of the Perl does.
+        hydra-tests =
+          lib.foldl' (env: script: env // envFor hydraPrograms.programs.${script}) { } (
+            lib.concatMap (w: w.scripts) wrappers
+          )
+          // {
+            HYDRA_PLUGIN_PATH = pluginPath;
+          };
+      }
+    )
+  );
+in
 stdenv.mkDerivation (finalAttrs: {
   pname = "hydra-tests";
   inherit version;
@@ -63,15 +112,17 @@ stdenv.mkDerivation (finalAttrs: {
     meson
     ninja
     hydra
+    hydra-notify
+    hydra-evaluator-helpers
     hydra-queue-runner
     hydra-builder
     hydra-ad-hoc
     hydra-evaluator
-    hydra.perlDeps
     perl
     nixComponents.nix-cli
     bzip2
     darcs
+    git
     top-git
     mercurial
     subversion
@@ -84,7 +135,8 @@ stdenv.mkDerivation (finalAttrs: {
     curl
     kanidm_1_10
     jq
-  ];
+  ]
+  ++ hydra.perlDeps;
 
   buildInputs = [
     cacert
@@ -92,9 +144,9 @@ stdenv.mkDerivation (finalAttrs: {
     libressl.nc
     python3
     nixComponents.nix-cli
-    hydra.perlDeps
     perl
   ]
+  ++ hydra.perlDeps
   ++ (with perlPackages; [
     # Test-only Perl modules used by the OIDC end-to-end test
     HTTPCookieJar
@@ -105,10 +157,12 @@ stdenv.mkDerivation (finalAttrs: {
 
   OPENLDAP_ROOT = openldap;
   KANIDM_ROOT = kanidm_1_10;
+  # What each program the suite launches is given; see `HydraTestPrograms`.
+  HYDRA_TEST_PROGRAM_ENV = programEnv;
 
   mesonBuildType = "release";
   mesonFlags = [
-    "-Dhydra_home=${hydra}/libexec/hydra"
+    "-Dhydra_home=${hydra-perl}/libexec/hydra"
   ];
 
   doCheck = true;

@@ -28,7 +28,7 @@ sub fetchInput {
     my $stdout; my $stderr;
 
     # First figure out the last-modified revision of the URI.
-    my @cmd = (["bzr", "revno", $uri], "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+    my @cmd = ([program("bzr"), "revno", $uri], "|", [program("sed"), 's/^ *\([0-9]*\).*/\1/']);
 
     IPC::Run::run(@cmd, \$stdout, \$stderr);
     die "cannot get head revision of Bazaar branch at `$uri':\n$stderr" if $?;
@@ -52,7 +52,7 @@ sub fetchInput {
         local $ENV{"NIX_PREFETCH_BZR_LEAVE_DOT_BZR"} = $type eq "bzr-checkout" ? "1" : "0";
 
         (my $res, $stdout, $stderr) = captureStdoutStderr(1200,
-            "nix-prefetch-bzr", $uri, $revision);
+            program("nix-prefetch-bzr"), $uri, $revision);
         die "cannot check out Bazaar branch `$uri':\n$stderr" if $res;
 
         my $storePathStr;

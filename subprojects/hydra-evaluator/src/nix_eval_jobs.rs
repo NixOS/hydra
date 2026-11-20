@@ -238,10 +238,14 @@ pub(crate) fn full(store_dir: &StoreDir, path: &str) -> String {
 ///
 /// Its stderr is logged at debug, and its tail ends up in the error if it
 /// fails, so the jobset shows why.
-pub(crate) async fn run(cmd: &[String], gc_roots_dir: &std::path::Path) -> eyre::Result<Vec<Job>> {
+pub(crate) async fn run(
+    program: &crate::programs::NixEvalJobsPath,
+    cmd: &[String],
+    gc_roots_dir: &std::path::Path,
+) -> eyre::Result<Vec<Job>> {
     // NIX_PATH is cleared so that an evaluation depends on its declared
     // inputs and nothing about the machine it runs on.
-    let mut child = tokio::process::Command::new("nix-eval-jobs")
+    let mut child = tokio::process::Command::new(program)
         .args(cmd)
         .arg("--gc-roots-dir")
         .arg(gc_roots_dir)

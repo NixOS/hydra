@@ -7,6 +7,7 @@ use File::Path;
 use File::Basename;
 use Hydra::Config;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::Exec;
 use Hydra::Model::DB;
 use Hydra::StorePath;
 use Nix::Store;
@@ -588,7 +589,7 @@ sub getStoreUri {
 # Read a file from the (possibly remote) nix store
 sub readNixFile {
     my ($path) = @_;
-    return grab(cmd => ["nix", "--experimental-features", "nix-command",
+    return grab(cmd => [program("nix"), "--experimental-features", "nix-command",
                         "store", "cat", "--store", getStoreUri(), "$path"]);
 }
 
@@ -618,7 +619,7 @@ sub addToStore {
     my ($path) = @_;
 
     my ($stdout, $stderr);
-    run3(['nix-store', '--add', $path], \undef, \$stdout, \$stderr);
+    run3([program("nix-store"), '--add', $path], \undef, \$stdout, \$stderr);
     die "cannot add path $path to the Nix store: $stderr\n" if $? != 0;
     # `nix-store --add` prints a full path; strip it here rather than at each
     # caller, this being where it enters Hydra.

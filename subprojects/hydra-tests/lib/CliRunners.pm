@@ -4,6 +4,7 @@ use strict;
 package CliRunners;
 use Hydra::Helper::Exec;
 use QueueRunnerBuildOne;
+use HydraTestPrograms;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
     captureEvaluation
@@ -58,7 +59,8 @@ sub evalFails {
 sub sendNotifications {
     my ($ctx) = @_;
     local @ENV{keys %{$ctx->{central_env}}} = values %{$ctx->{central_env}};
-    my ($res, $stdout, $stderr) = captureStdoutStderr(60, ("hydra-notify", "--queued-only"));
+    my @cmd = ("hydra-notify", "--queued-only");
+    my ($res, $stdout, $stderr) = withProgramEnv(\@cmd, sub { captureStdoutStderr(60, @cmd) });
     if ($res) {
         utf8::decode($stdout) or die "Invalid unicode in stdout.";
         utf8::decode($stderr) or die "Invalid unicode in stderr.";

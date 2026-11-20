@@ -33,18 +33,18 @@ sub fetchInput {
     if (! -d $clonePath) {
         # Clone the repository.
         $res = runCommand(timeout => 600,
-                   cmd => ["darcs", "get", "--lazy", $uri, $clonePath],
+                   cmd => [program("darcs"), "get", "--lazy", $uri, $clonePath],
                    dir => $ENV{"TMPDIR"});
         die "Error getting darcs repo at `$uri':\n$stderr" if $res->{status};
     }
 
     # Update the repository to match $uri.
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("darcs", "pull", "-a", "--repodir", $clonePath, "$uri"));
+        (program("darcs"), "pull", "-a", "--repodir", $clonePath, "$uri"));
     die "Error fetching latest change from darcs repo at `$uri':\n$stderr" if $res;
 
     ($res, $stdout, $stderr) = captureStdoutStderr(600,
-        ("darcs", "changes", "--last", "1", "--xml", "--repodir", $clonePath));
+        (program("darcs"), "changes", "--last", "1", "--xml", "--repodir", $clonePath));
     die "Error getting revision ID of darcs repo at `$uri':\n$stderr" if $res;
 
     $stdout =~ /^<patch.*hash='([0-9a-fA-F-]+)'/sm; # sigh.
@@ -68,16 +68,16 @@ sub fetchInput {
         print STDERR "checking out darcs repo $uri\n";
 
         my $tmpDir = File::Temp->newdir("hydra-darcs-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
-        (system "darcs", "get", "--lazy", $clonePath, "$tmpDir/export", "--quiet",
+        (system program("darcs"), "get", "--lazy", $clonePath, "$tmpDir/export", "--quiet",
                 "--to-match", "hash $revision") == 0
             or die "darcs export failed";
         my ($stdout, $stderr);
-        run3(['darcs', 'changes', '--count', '--repodir', "$tmpDir/export"], \undef, \$stdout, \$stderr);
+        run3([program("darcs"), 'changes', '--count', '--repodir', "$tmpDir/export"], \undef, \$stdout, \$stderr);
         die "darcs changes --count failed: $stderr\n" if $? != 0;
         $revCount = $stdout;
         chomp $revCount;
 
-        system "rm", "-rf", "$tmpDir/export/_darcs";
+        system program("rm"), "-rf", "$tmpDir/export/_darcs";
         $storePath = machineLocalStore()->addToStore("$tmpDir/export", 1, "sha256");
         $sha256 = machineLocalStore()->queryPathHash($storePath);
         $sha256 =~ s/sha256://;

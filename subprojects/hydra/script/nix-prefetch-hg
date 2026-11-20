@@ -1,5 +1,13 @@
 #! /bin/sh -e
 
+# The programs this runs. Hydra names each by its own `HYDRA_PROGRAM_*`
+# variable rather than looking it up on PATH; see `Hydra::Helper::Exec`.
+: "${HYDRA_PROGRAM_HG:?must name the program to run}"
+: "${HYDRA_PROGRAM_MKTEMP:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_HASH:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_STORE:?must name the program to run}"
+: "${HYDRA_PROGRAM_RM:?must name the program to run}"
+
 url=$1
 rev=$2
 expHash=$3
@@ -23,8 +31,8 @@ test -n "$rev" || rev="tip"
 # If the hash was given, a file with that hash may already be in the
 # store.
 if test -n "$expHash"; then
-    finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" source)
-    if ! nix-store --check-validity "$finalPath" 2> /dev/null; then
+    finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --print-fixed-path --recursive "$hashType" "$expHash" source)
+    if ! "$HYDRA_PROGRAM_NIX_STORE" --check-validity "$finalPath" 2> /dev/null; then
         finalPath=
     fi
     hash=$expHash
@@ -35,28 +43,28 @@ fi
 # download the file and add it to the store.
 if test -z "$finalPath"; then
 
-    tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/hg-checkout-tmp-XXXXXXXX")"
-    trap "rm -rf \"$tmpPath\"" EXIT
+    tmpPath="$("$HYDRA_PROGRAM_MKTEMP" -d "${TMPDIR:-/tmp}/hg-checkout-tmp-XXXXXXXX")"
+    trap "\"$HYDRA_PROGRAM_RM\" -rf \"$tmpPath\"" EXIT
 
     tmpArchive="$tmpPath/source"
 
     # Perform the checkout.
     if [[ $url != /* ]]; then
       tmpClone=$tmpPath/hg-clone
-      hg clone -q -y -U "$url" $tmpClone >&2
+      "$HYDRA_PROGRAM_HG" clone -q -y -U "$url" $tmpClone >&2
     else
       tmpClone=$url
     fi
-    hg archive -q -y -r "$rev" --cwd $tmpClone $tmpArchive
-    rm -f $tmpArchive/.hg_archival.txt
+    "$HYDRA_PROGRAM_HG" archive -q -y -r "$rev" --cwd $tmpClone $tmpArchive
+    "$HYDRA_PROGRAM_RM" -f $tmpArchive/.hg_archival.txt
 
 
     # Compute the hash.
-    hash=$(nix-hash --type $hashType $hashFormat $tmpArchive)
+    hash=$("$HYDRA_PROGRAM_NIX_HASH" --type $hashType $hashFormat $tmpArchive)
     if ! test -n "$QUIET"; then echo "hash is $hash" >&2; fi
 
     # Add the downloaded file to the Nix store.
-    finalPath=$(nix-store --add-fixed --recursive "$hashType" $tmpArchive)
+    finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --add-fixed --recursive "$hashType" $tmpArchive)
 
     if test -n "$expHash" -a "$expHash" != "$hash"; then
         echo "hash mismatch for URL \`$url'"

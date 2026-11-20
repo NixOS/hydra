@@ -21,9 +21,9 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = [
     postgresql_17
-    hydra.perlDeps
     perl
-  ];
+  ]
+  ++ hydra.perlDeps;
 
   postPatch = ''
     patchShebangs .

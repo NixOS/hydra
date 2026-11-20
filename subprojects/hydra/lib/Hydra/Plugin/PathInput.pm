@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use parent 'Hydra::Plugin';
 use POSIX qw(strftime);
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 use IPC::Run3;
@@ -57,7 +58,7 @@ sub fetchInput {
             # Run nix-prefetch-url with PRINT_PATH=1
             my ($stdout, $stderr);
             local $ENV{PRINT_PATH} = 1;
-            run3(['nix-prefetch-url', $uri], \undef, \$stdout, \$stderr);
+            run3([program("nix-prefetch-url"), $uri], \undef, \$stdout, \$stderr);
             die "cannot fetch $uri to the Nix store: $stderr\n" if $? != 0;
             # Get the last line (which is the full path it printed)
             my @output_lines = split /\n/, $stdout;

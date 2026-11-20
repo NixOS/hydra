@@ -18,25 +18,40 @@
 //! the evaluator to always have a daemon, including in the tests, which run it
 //! against a `local?root=` store.
 
+use std::sync::Arc;
+
 use db::StoreDir;
+
+use crate::programs::Programs;
 
 /// Whether a build's output can be given to an evaluation.
 #[derive(Debug)]
 pub(crate) struct Availability {
     store_dir: StoreDir,
     substituter: Option<String>,
+    programs: Arc<Programs>,
 }
 
 impl Availability {
-    pub(crate) fn new(store_dir: StoreDir, substituter: Option<String>) -> Self {
+    pub(crate) fn new(
+        store_dir: StoreDir,
+        substituter: Option<String>,
+        programs: Arc<Programs>,
+    ) -> Self {
         Self {
             store_dir,
             substituter,
+            programs,
         }
     }
 
     pub(crate) fn store_dir(&self) -> &StoreDir {
         &self.store_dir
+    }
+
+    /// The programs an evaluation runs.
+    pub(crate) fn programs(&self) -> &Programs {
+        &self.programs
     }
 
     /// Whether `path` is in the store, fetching it first if it is not and a
@@ -50,7 +65,7 @@ impl Availability {
         // Anything malformed fails the check.
         let full = crate::nix_eval_jobs::full(&self.store_dir, path);
 
-        if is_valid(&full).await {
+        if self.is_valid_full(&full).await {
             return true;
         }
         let Some(substituter) = &self.substituter else {
@@ -58,7 +73,7 @@ impl Availability {
         };
 
         tracing::info!("fetching `{full}' from {substituter}");
-        let fetched = tokio::process::Command::new("nix")
+        let fetched = tokio::process::Command::new(&self.programs.nix)
             .args([
                 "--extra-experimental-features",
                 "nix-command",
@@ -88,20 +103,21 @@ impl Availability {
             Err(e) => tracing::warn!("could not run nix copy: {e}"),
         }
 
-        is_valid(&full).await
+        self.is_valid_full(&full).await
     }
 
     /// Whether `path` is in the store already, without fetching it.
     pub(crate) async fn is_valid(&self, path: &str) -> bool {
-        is_valid(&crate::nix_eval_jobs::full(&self.store_dir, path)).await
+        self.is_valid_full(&crate::nix_eval_jobs::full(&self.store_dir, path))
+            .await
     }
-}
 
-async fn is_valid(full: &str) -> bool {
-    tokio::process::Command::new("nix-store")
-        .args(["--check-validity", "--", full])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .is_ok_and(|s| s.success())
+    async fn is_valid_full(&self, full: &str) -> bool {
+        tokio::process::Command::new(&self.programs.nix_store)
+            .args(["--check-validity", "--", full])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .is_ok_and(|s| s.success())
+    }
 }

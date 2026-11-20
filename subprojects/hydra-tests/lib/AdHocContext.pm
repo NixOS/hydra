@@ -14,6 +14,7 @@ package AdHocContext;
 # hydra-ad-hoc, and `nix_remote_url` for the same over `NIX_REMOTE`.
 
 use IPC::Run;
+use HydraTestPrograms;
 use LWP::UserAgent;
 use URI::Escape qw(uri_escape);
 use ProcessGroup;
@@ -178,7 +179,7 @@ sub run_cmds {
         local $ENV{NO_COLOR} = "1";
         for my $cmd (@cmds) {
             my ($in, $out, $err) = ("", "", "");
-            my $h = IPC::Run::start($cmd, \$in, \$out, \$err);
+            my $h = withProgramEnv($cmd, sub { IPC::Run::start($cmd, \$in, \$out, \$err) });
             push @jobs, { h => $h, out => \$out, err => \$err };
         }
     }
@@ -227,7 +228,7 @@ sub run_cmd {
     {
         local @ENV{keys %env} = values %env;
         local $ENV{NO_COLOR} = "1";
-        $h = IPC::Run::start(\@cmd, \$cmd_in, \$cmd_out, \$cmd_err);
+        $h = withProgramEnv(\@cmd, sub { IPC::Run::start(\@cmd, \$cmd_in, \$cmd_out, \$cmd_err) });
     }
 
     my $deadline = time() + $timeout;

@@ -28,8 +28,8 @@ sub fetchInput {
 
     unless (defined $revision) {
         # First figure out the last-modified revision of the URI.
-        my @cmd = (["svn", "ls", "-v", "--depth", "empty", $uri],
-                   "|", ["sed", 's/^ *\([0-9]*\).*/\1/']);
+        my @cmd = ([program("svn"), "ls", "-v", "--depth", "empty", $uri],
+                   "|", [program("sed"), 's/^ *\([0-9]*\).*/\1/']);
         IPC::Run::run(@cmd, \$stdout, \$stderr);
         die "cannot get head revision of Subversion repository at `$uri':\n$stderr" if $?;
         $revision = int($stdout); $revision =~ s/\s*([0-9]+)\s*/$1/sm;
@@ -57,7 +57,7 @@ sub fetchInput {
 
         print STDERR "checking out Subversion input ", $name, " from $uri revision $revision into $wcPath\n";
 
-        (my $res, $stdout, $stderr) = captureStdoutStderr(600, "svn", "checkout", $uri, "-r", $revision, $wcPath);
+        (my $res, $stdout, $stderr) = captureStdoutStderr(600, program("svn"), "checkout", $uri, "-r", $revision, $wcPath);
         die "error checking out Subversion repo at `$uri':\n$stderr" if $res;
 
         if ($type eq "svn-checkout") {
@@ -66,7 +66,7 @@ sub fetchInput {
             # Hm, if the Nix Perl bindings supported filters in
             # addToStore(), then we wouldn't need to make a copy here.
             my $tmpDir = File::Temp->newdir("hydra-svn-export.XXXXXX", CLEANUP => 1, TMPDIR => 1) or die;
-            (system "svn", "export", $wcPath, "$tmpDir/source", "--quiet") == 0 or die "svn export failed";
+            (system program("svn"), "export", $wcPath, "$tmpDir/source", "--quiet") == 0 or die "svn export failed";
             $storePath = machineLocalStore()->addToStore("$tmpDir/source", 1, "sha256");
         }
 

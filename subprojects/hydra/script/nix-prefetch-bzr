@@ -1,5 +1,14 @@
 #! /bin/sh -e
 
+# The programs this runs. Hydra names each by its own `HYDRA_PROGRAM_*`
+# variable rather than looking it up on PATH; see `Hydra::Helper::Exec`.
+: "${HYDRA_PROGRAM_BZR:?must name the program to run}"
+: "${HYDRA_PROGRAM_MKTEMP:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_HASH:?must name the program to run}"
+: "${HYDRA_PROGRAM_NIX_STORE:?must name the program to run}"
+: "${HYDRA_PROGRAM_RM:?must name the program to run}"
+: "${HYDRA_PROGRAM_SED:?must name the program to run}"
+
 url=$1
 rev=$2
 expHash=$3
@@ -20,7 +29,7 @@ fi
 revarg="-r $rev"
 test -n "$rev" || revarg=""
 
-repoName=$(echo $url | sed '
+repoName=$(echo $url | "$HYDRA_PROGRAM_SED" '
   s,.*/\([^/]\+\)/trunk/*$,\1,;t
   s,.*/\([^/]\+\)/branches/\([^/]\+\)/*$,\1-\2,;t
   s,.*/\([^/]\+\)/tags/\([^/]\+\)/*$,\1-\2,;t
@@ -31,8 +40,8 @@ dstFile=source
 # If the hash was given, a file with that hash may already be in the
 # store.
 if test -n "$expHash"; then
-    finalPath=$(nix-store --print-fixed-path --recursive "$hashType" "$expHash" $dstFile)
-    if ! nix-store --check-validity "$finalPath" 2> /dev/null; then
+    finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --print-fixed-path --recursive "$hashType" "$expHash" $dstFile)
+    if ! "$HYDRA_PROGRAM_NIX_STORE" --check-validity "$finalPath" 2> /dev/null; then
         finalPath=
     fi
     hash=$expHash
@@ -42,25 +51,25 @@ fi
 # If we don't know the hash or a path with that hash doesn't exist,
 # download the file and add it to the store.
 if test -z "$finalPath"; then
-    tmpPath="$(mktemp -d "${TMPDIR:-/tmp}/bzr-checkout-tmp-XXXXXXXX")"
-    trap "rm -rf \"$tmpPath\"" EXIT
+    tmpPath="$("$HYDRA_PROGRAM_MKTEMP" -d "${TMPDIR:-/tmp}/bzr-checkout-tmp-XXXXXXXX")"
+    trap "\"$HYDRA_PROGRAM_RM\" -rf \"$tmpPath\"" EXIT
 
     tmpFile="$tmpPath/$dstFile"
 
     # Perform the checkout.
     if test "$NIX_PREFETCH_BZR_LEAVE_DOT_BZR" != 1
     then
-        bzr export $revarg "$tmpFile" "$url" >&2
+        "$HYDRA_PROGRAM_BZR" export $revarg "$tmpFile" "$url" >&2
     else
-        bzr checkout --lightweight $revarg "$url" "$tmpFile" >&2
+        "$HYDRA_PROGRAM_BZR" checkout --lightweight $revarg "$url" "$tmpFile" >&2
     fi
 
     # Compute the hash.
-    hash=$(nix-hash --type $hashType $hashFormat $tmpFile)
+    hash=$("$HYDRA_PROGRAM_NIX_HASH" --type $hashType $hashFormat $tmpFile)
     if ! test -n "$QUIET"; then echo "hash is $hash" >&2; fi
 
     # Add the downloaded file to the Nix store.
-    finalPath=$(nix-store --add-fixed --recursive "$hashType" $tmpFile)
+    finalPath=$("$HYDRA_PROGRAM_NIX_STORE" --add-fixed --recursive "$hashType" $tmpFile)
 
     if test -n "$expHash" -a "$expHash" != "$hash"; then
         echo "hash mismatch for URL \`$url'"

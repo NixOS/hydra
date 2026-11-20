@@ -21,6 +21,8 @@ stdenv.mkDerivation (finalAttrs: {
 
   sourceRoot = "${finalAttrs.src.name}/subprojects/hydra-manual";
 
+  strictDeps = true;
+
   nativeBuildInputs = [
     meson
     ninja

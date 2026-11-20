@@ -14,6 +14,9 @@ pub enum ConfigError {
     #[error("parsing Nix remote: {0}")]
     ParseNixStore(String),
 
+    #[error(transparent)]
+    MissingProgram(#[from] hydra_programs::Missing),
+
     #[error("reading configuration file")]
     Io(#[from] std::io::Error),
 

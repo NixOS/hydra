@@ -91,6 +91,9 @@ in
 
   config = lib.mkIf cfg.enable {
     systemd.services.hydra-ad-hoc-dev = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       description = "Hydra ad-hoc Build dispatcher (experimental)";
 
       requires = [

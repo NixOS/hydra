@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use base qw/Catalyst::View/;
 use IO::Pipe;
+use Hydra::Helper::Exec;
 use Hydra::Helper::Nix;
 use Hydra::StorePath;
 
@@ -18,7 +19,9 @@ sub process {
 
     my $fh = IO::Handle->new();
 
-    open($fh, "-|", "nix-store --export `nix-store -qR @storePaths` | gzip");
+    my $nixStore = program("nix-store");
+    my $gzip = program("gzip");
+    open($fh, "-|", "$nixStore --export `$nixStore -qR @storePaths` | $gzip");
 
     $c->response->body($fh);
 

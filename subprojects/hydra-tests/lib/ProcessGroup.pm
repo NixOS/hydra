@@ -13,6 +13,7 @@ package ProcessGroup;
 #   $pg->stop;   # or let DESTROY handle it
 
 use IPC::Run;
+use HydraTestPrograms;
 
 our @ISA = qw(Exporter);
 our @EXPORT_OK = qw();
@@ -41,7 +42,7 @@ sub spawn {
         local $ENV{NO_COLOR} = "1";
         my @extra;
         push @extra, (init => $opts{init}) if $opts{init};
-        $harness = IPC::Run::start($cmd, \$in, \$out, \$err, @extra);
+        $harness = withProgramEnv($cmd, sub { IPC::Run::start($cmd, \$in, \$out, \$err, @extra) });
     }
     $self->{procs}{$key} = {
         label   => $key,

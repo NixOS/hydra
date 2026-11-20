@@ -6,6 +6,9 @@
 }:
 let
   cfg = config.services.hydra-queue-builder-dev;
+
+  # What it runs, with the Nix this machine uses.
+  hydraPrograms = pkgs.callPackage ../packaging/programs.nix { nix = config.nix.package; };
   user = "hydra-queue-builder";
 
   format = pkgs.formats.toml { };
@@ -175,6 +178,9 @@ in
 
   config = lib.mkIf cfg.enable {
     systemd.services.hydra-queue-builder-dev = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       description = "Hydra Queue Builder main service";
 
       requires = [ "nix-daemon.socket" ];
@@ -193,9 +199,8 @@ in
         # otherwise
         HOME = "/run/hydra-queue-builder";
       }
+      // hydraPrograms.envFor { } hydraPrograms.programs.hydra-builder
       // otel.otelEnv cfg.otel;
-
-      path = [ config.nix.package ];
 
       serviceConfig = {
         Type = "notify";

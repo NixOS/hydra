@@ -52,6 +52,7 @@ nix                   = { workspace = true, features = [ "fs" ] }
 binary-cache.workspace             = true
 daemon-client-utils.workspace      = true
 harmonia-store-path-info.workspace = true
+hydra-programs.workspace           = true
 hydra-proto                        = { workspace = true, features = [ "client" ] }
 hydra-tracing                      = { workspace = true, features = [ "tonic" ] }
 nix-support.workspace              = true

@@ -88,6 +88,9 @@ in
 
   config = lib.mkIf cfg.enable {
     systemd.services.hydra-ws-dev = {
+      # Hydra names every program it runs by its own variable, never by
+      # `PATH`; see the `hydra-programs` crate.
+      enableDefaultPath = false;
       description = "Hydra WebSocket service";
 
       requires = [

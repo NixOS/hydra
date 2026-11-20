@@ -12,6 +12,25 @@ Hydra supports the following inputs:
 - Mercurial input
 - Path input
 
+Input plugins run in three places:
+
+- `hydra-fetch-input`, run by the evaluator, calls `fetchInput`.
+- `hydra-notify` calls `getCommits`, to find the authors to blame for a failure.
+- `hydra-server` calls `supportedInputTypes`, to list the input types a jobset may use.
+  That must not run any commands: it should only report the types the plugin handles.
+
+### Running programs
+
+Hydra's processes have no `PATH`.
+Each program Hydra itself runs is named by its own environment variable, `HYDRA_PROGRAM_<NAME>`: the program's name upper-cased, with `-` as `_`, such as `HYDRA_PROGRAM_GIT`.
+Hydra's packaging sets these for each program, and a missing one is an error rather than whatever a `PATH` lookup would find.
+In Perl, `program("git")` from `Hydra::Helper::Exec` gives the location.
+
+Hydra can't know what a plugin from outside Hydra, or a command `RunCommand` runs, will need.
+Those get the plugin extension path instead, `HYDRA_PLUGIN_PATH`, which the NixOS option `services.hydra-dev.pluginPath` sets.
+`RunCommand` puts it on its commands' `PATH`.
+A plugin can do the same around a command it runs, with `local $ENV{PATH} = pluginPath();`, also from `Hydra::Helper::Exec`.
+
 ## Bitbucket pull requests
 
 Create jobs based on open bitbucket pull requests.
