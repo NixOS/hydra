@@ -10,6 +10,28 @@ impl<C: std::ops::DerefMut<Target = sqlx::PgConnection>> Handle<C> {
         Ok(())
     }
 
+    /// A notification per build, `prefix` followed by its id, in one round
+    /// trip.
+    async fn notify_builds(
+        &mut self,
+        channel: &str,
+        prefix: &str,
+        build_ids: &[BuildID],
+    ) -> crate::Result<()> {
+        if build_ids.is_empty() {
+            return Ok(());
+        }
+        sqlx::query!(
+            "SELECT pg_notify($1::text, $2::text || id) FROM UNNEST($3::int[]) AS id",
+            channel,
+            prefix,
+            build_ids,
+        )
+        .execute(&mut *self.conn)
+        .await?;
+        Ok(())
+    }
+
     /// An evaluation of this jobset has begun.
     #[tracing::instrument(skip(self), err)]
     pub async fn notify_eval_started(&mut self, trace: &str, jobset_id: i32) -> crate::Result<()> {
@@ -93,31 +115,31 @@ impl Transaction<'_> {
         .await
     }
 
-    /// A build this evaluation queued.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_build_queued(&mut self, build_id: BuildID) -> crate::Result<()> {
-        self.notify_any("build_queued", &build_id.to_string()).await
+    /// Builds this evaluation queued.
+    #[tracing::instrument(skip(self, build_ids), err)]
+    pub async fn notify_builds_queued(&mut self, build_ids: &[BuildID]) -> crate::Result<()> {
+        self.notify_builds("build_queued", "", build_ids).await
     }
 
-    /// A build this evaluation inherited from an earlier one, still running.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_cached_build_queued(
+    /// Builds this evaluation inherited from an earlier one, still running.
+    #[tracing::instrument(skip(self, build_ids), err)]
+    pub async fn notify_cached_builds_queued(
         &mut self,
         eval_id: i32,
-        build_id: BuildID,
+        build_ids: &[BuildID],
     ) -> crate::Result<()> {
-        self.notify_any("cached_build_queued", &format!("{eval_id}\t{build_id}"))
+        self.notify_builds("cached_build_queued", &format!("{eval_id}\t"), build_ids)
             .await
     }
 
-    /// A build this evaluation inherited from an earlier one, already done.
-    #[tracing::instrument(skip(self), err)]
-    pub async fn notify_cached_build_finished(
+    /// Builds this evaluation inherited from an earlier one, already done.
+    #[tracing::instrument(skip(self, build_ids), err)]
+    pub async fn notify_cached_builds_finished(
         &mut self,
         eval_id: i32,
-        build_id: BuildID,
+        build_ids: &[BuildID],
     ) -> crate::Result<()> {
-        self.notify_any("cached_build_finished", &format!("{eval_id}\t{build_id}"))
+        self.notify_builds("cached_build_finished", &format!("{eval_id}\t"), build_ids)
             .await
     }
 

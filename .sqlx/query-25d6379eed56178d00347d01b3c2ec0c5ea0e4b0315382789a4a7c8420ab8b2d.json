@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE builds\n        SET drvpath = t.drv, finished = 0, buildstatus = NULL\n        FROM UNNEST($1::int[], $2::text[]) AS t(id, drv)\n        WHERE builds.id = t.id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4Array",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "25d6379eed56178d00347d01b3c2ec0c5ea0e4b0315382789a4a7c8420ab8b2d"
+}

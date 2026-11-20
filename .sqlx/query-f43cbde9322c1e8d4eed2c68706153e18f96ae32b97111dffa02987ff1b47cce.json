@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT b.id FROM builds b\n        JOIN jobsetevalmembers m ON m.build = b.id\n        WHERE m.eval = $1 AND b.iscurrent = 0\n        ORDER BY b.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "builds",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f43cbde9322c1e8d4eed2c68706153e18f96ae32b97111dffa02987ff1b47cce"
+}
