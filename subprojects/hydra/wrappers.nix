@@ -92,6 +92,7 @@ let
 
   hydraScripts = [
     "hydra-backfill-ids"
+    "hydra-backfill-store-dirs"
     "hydra-create-user"
     "hydra-init"
     "hydra-s3-backup-collect-garbage"
