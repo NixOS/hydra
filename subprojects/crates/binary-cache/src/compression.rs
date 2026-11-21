@@ -1,10 +1,15 @@
+use std::num::NonZeroU32;
+
 use async_compression::{
     Level,
     tokio::bufread::{
         BrotliDecoder, BrotliEncoder, BzDecoder, BzEncoder, XzDecoder, XzEncoder, ZstdDecoder,
         ZstdEncoder,
     },
+    zstd::CParameter,
 };
+
+const PARALLEL_COMPRESSION_THREADS: NonZeroU32 = NonZeroU32::new(4).unwrap();
 
 pub(crate) type CompressorFn<C> =
     Box<dyn FnOnce(C) -> Box<dyn tokio::io::AsyncRead + Unpin + Send> + Send>;
@@ -71,15 +76,19 @@ impl Compression {
     ) -> CompressorFn<C> {
         match self {
             Self::None => Box::new(|c| Box::new(c)),
-            Self::Xz => {
-                if parallel && let Some(cores) = std::num::NonZero::new(4) {
-                    Box::new(move |s| Box::new(XzEncoder::parallel(s, level, cores)))
-                } else {
-                    Box::new(move |s| Box::new(XzEncoder::with_quality(s, level)))
-                }
-            }
+            Self::Xz if parallel => Box::new(move |s| {
+                Box::new(XzEncoder::parallel(s, level, PARALLEL_COMPRESSION_THREADS))
+            }),
+            Self::Xz => Box::new(move |s| Box::new(XzEncoder::with_quality(s, level))),
             Self::Bzip2 => Box::new(move |s| Box::new(BzEncoder::with_quality(s, level))),
             Self::Brotli => Box::new(move |s| Box::new(BrotliEncoder::with_quality(s, level))),
+            Self::Zstd if parallel => Box::new(move |s| {
+                Box::new(ZstdEncoder::with_quality_and_params(
+                    s,
+                    level,
+                    &[CParameter::nb_workers(PARALLEL_COMPRESSION_THREADS.get())],
+                ))
+            }),
             Self::Zstd => Box::new(move |s| Box::new(ZstdEncoder::with_quality(s, level))),
         }
     }
@@ -119,5 +128,31 @@ impl std::str::FromStr for Compression {
             "zstd" | "zst" => Ok(Self::Zstd),
             o => Err(InvalidCompression { got: o.to_string() }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncReadExt as _;
+
+    #[tokio::test]
+    async fn parallel_zstd_roundtrip() {
+        let data: Vec<u8> = (0..16 * 1024 * 1024u32).map(|i| (i % 251) as u8).collect();
+
+        let mut compressed = Vec::new();
+        Compression::Zstd.get_compression_fn(Level::Default, true)(std::io::Cursor::new(
+            data.clone(),
+        ))
+        .read_to_end(&mut compressed)
+        .await
+        .unwrap();
+
+        let mut decompressed = Vec::new();
+        Compression::Zstd.get_decompression_fn()(std::io::Cursor::new(compressed))
+            .read_to_end(&mut decompressed)
+            .await
+            .unwrap();
+        assert_eq!(decompressed, data);
     }
 }

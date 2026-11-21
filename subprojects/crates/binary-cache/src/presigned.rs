@@ -10,7 +10,7 @@ use crate::multipart::{
 use crate::{CacheError, Compression, read_nar_stream, streaming_hash::HashingReader};
 
 /// Multipart part PUTs kept in flight per NAR; reads stay sequential.
-const PART_UPLOAD_CONCURRENCY: usize = 8;
+pub(crate) const PART_UPLOAD_CONCURRENCY: usize = 8;
 
 const RETRY_MIN_DELAY_SECS: u64 = 1;
 const RETRY_MAX_DELAY_SECS: u64 = 30;
@@ -22,6 +22,7 @@ pub struct PresignedUpload {
     pub url: String,
     pub compression: Compression,
     pub compression_level: async_compression::Level,
+    pub parallel_compression: bool,
     /// Set on NAR uploads, whose `url` is empty.
     pub multipart: Option<PresignedMultipart>,
 }
@@ -42,8 +43,15 @@ impl PresignedUpload {
                 0 => async_compression::Level::Default,
                 l => async_compression::Level::Precise(l),
             },
+            parallel_compression: false,
             multipart: None,
         }
+    }
+
+    #[must_use]
+    pub const fn with_parallel_compression(mut self, parallel_compression: bool) -> Self {
+        self.parallel_compression = parallel_compression;
+        self
     }
 
     #[must_use]
@@ -166,7 +174,7 @@ impl PresignedUploadClient {
         let stream = read_nar_stream(store_dir, store_path);
         let compressor = upload
             .compression
-            .get_compression_fn(upload.compression_level, false);
+            .get_compression_fn(upload.compression_level, upload.parallel_compression);
         let compressed_stream = compressor(stream);
         let (hashing_reader, _) = HashingReader::new(compressed_stream);
 
@@ -195,7 +203,6 @@ impl PresignedUploadClient {
         multipart: &PresignedMultipart,
         more_parts: &dyn MorePartsSource,
     ) -> Result<(PresignedUploadResult, MultipartCompletion), CacheError> {
-        use futures::stream::StreamExt as _;
         use tokio::io::AsyncReadExt as _;
 
         let part_size = usize::try_from(multipart.part_size).unwrap_or(usize::MAX);
@@ -203,8 +210,8 @@ impl PresignedUploadClient {
         let mut completed = Vec::new();
         let mut part_number: u32 = 1;
 
-        let mut inflight = futures::stream::FuturesUnordered::new();
-
+        // Each part uploads on its own task, so it progresses while the next part is being compressed.
+        let mut inflight = tokio::task::JoinSet::new();
         loop {
             let mut buf = bytes::BytesMut::with_capacity(part_size);
             while buf.len() < part_size {
@@ -236,17 +243,16 @@ impl PresignedUploadClient {
 
             let url = urls[idx].clone();
             let data = buf.freeze();
-            let pn = part_number;
-            inflight.push(async move { self.put_part(&url, data).await.map(|etag| (pn, etag)) });
+            let this = self.clone();
+            inflight.spawn(async move {
+                let etag = this.put_part(&url, data).await?;
+                Ok::<_, CacheError>(CompletedPart { part_number, etag })
+            });
 
             if inflight.len() >= PART_UPLOAD_CONCURRENCY
-                && let Some(res) = inflight.next().await
+                && let Some(res) = inflight.join_next().await
             {
-                let (pn, etag) = res?;
-                completed.push(CompletedPart {
-                    part_number: pn,
-                    etag,
-                });
+                completed.push(res??);
             }
 
             if last {
@@ -255,12 +261,8 @@ impl PresignedUploadClient {
             part_number += 1;
         }
 
-        while let Some(res) = inflight.next().await {
-            let (pn, etag) = res?;
-            completed.push(CompletedPart {
-                part_number: pn,
-                etag,
-            });
+        while let Some(res) = inflight.join_next().await {
+            completed.push(res??);
         }
         completed.sort_by_key(|p| p.part_number);
 
