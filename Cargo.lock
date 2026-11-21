@@ -344,6 +344,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+ "zstd-safe",
 ]
 
 [[package]]

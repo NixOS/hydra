@@ -743,6 +743,10 @@ impl RunnerService for Server {
                         .compression
                         .as_str()
                         .to_owned(),
+                    seekable_min_frame_size: presigned_response
+                        .nar_upload
+                        .seekable_min_frame_size
+                        .unwrap_or(0),
                     multipart: presigned_response
                         .nar_upload
                         .multipart
@@ -756,6 +760,7 @@ impl RunnerService for Server {
                         path: ls.path,
                         compression: ls.compression.as_str().to_owned(),
                         multipart: None,
+                        seekable_min_frame_size: 0,
                     }),
                 debug_info_upload: presigned_response
                     .debug_info_upload
@@ -766,6 +771,7 @@ impl RunnerService for Server {
                         path: p.path,
                         compression: p.compression.as_str().to_owned(),
                         multipart: None,
+                        seekable_min_frame_size: 0,
                     })
                     .collect(),
             });
