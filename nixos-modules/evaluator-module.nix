@@ -31,7 +31,7 @@ let
     nix = config.nix.package;
     nix-eval-jobs = cfg.nixEvalJobsPackage;
   };
-  programs = hydraPrograms.programs.hydra-evaluator;
+  programs = hydraPrograms.programs.hydra-submit-evaluation;
 in
 
 {
@@ -44,11 +44,22 @@ in
       [ "services" "hydra-dev" "minimumDiskFreeEvaluator" ]
       [ "services" "hydra-evaluator-dev" "minimumDiskFree" ]
     )
-    (mkRemovedOptionModule [
-      "services"
-      "hydra-dev"
-      "evaluatorExecutable"
-    ] "Set `services.hydra-evaluator-dev.package` to the `hydra-evaluator` package instead.")
+    (mkRemovedOptionModule
+      [
+        "services"
+        "hydra-dev"
+        "evaluatorExecutable"
+      ]
+      "Set `services.hydra-evaluator-dev.submitEvaluationPackage` and `processEvaluationPackage` instead."
+    )
+    (mkRemovedOptionModule
+      [
+        "services"
+        "hydra-evaluator-dev"
+        "package"
+      ]
+      "Set `services.hydra-evaluator-dev.submitEvaluationPackage` and `processEvaluationPackage` instead."
+    )
   ];
 
   options = {
@@ -68,11 +79,18 @@ in
         '';
       };
 
-      package = mkOption {
+      submitEvaluationPackage = mkOption {
         type = types.package;
-        default = pkgs.hydraComponents.hydra-evaluator;
-        defaultText = literalExpression "pkgs.hydraComponents.hydra-evaluator";
-        description = "The `hydra-evaluator` package.";
+        default = pkgs.hydraComponents.hydra-submit-evaluation;
+        defaultText = literalExpression "pkgs.hydraComponents.hydra-submit-evaluation";
+        description = "The `hydra-submit-evaluation` package.";
+      };
+
+      processEvaluationPackage = mkOption {
+        type = types.package;
+        default = pkgs.hydraComponents.hydra-process-evaluation;
+        defaultText = literalExpression "pkgs.hydraComponents.hydra-process-evaluation";
+        description = "The `hydra-process-evaluation` package.";
       };
 
       helpersPackage = mkOption {
@@ -127,15 +145,10 @@ in
               default = 1;
               description = "How many builds an evaluation may run locally, e.g. for import-from-derivation. 0 forbids local builds.";
             };
-            max_concurrent_evals = mkOption {
-              type = types.ints.positive;
-              default = 4;
-              description = "How many jobsets to evaluate at once.";
-            };
             eval_timeout = mkOption {
               type = types.ints.positive;
               default = 3600;
-              description = "How many seconds an evaluation may run before the evaluator kills it and marks the jobset failed.";
+              description = "How many seconds an evaluation may run. It is the evaluation build's timeout, so the build is killed and the evaluation fails.";
             };
             roots_dir = mkOption {
               type = types.path;
@@ -150,7 +163,7 @@ in
         };
         default = { };
         description = ''
-          Settings for `hydra-evaluator`, written to `/etc/hydra/evaluator.toml`.
+          Settings for `hydra-submit-evaluation` and `hydra-process-evaluation`, written to `/etc/hydra/evaluator.toml`.
 
           Every service in Rust in hydra has its own separate TOML configuration file,
           with just the settings it needs.
@@ -177,7 +190,7 @@ in
 
     environment.etc."hydra/evaluator.toml".source = format.generate "evaluator.toml" cfg.settings;
 
-    systemd.services.hydra-evaluator = {
+    systemd.services.hydra-submit-evaluation = {
       # Hydra names every program it runs by its own variable, never by
       # `PATH`; see the `hydra-programs` crate.
       enableDefaultPath = false;
@@ -200,27 +213,47 @@ in
           localPath = name: "${cfg.helpersPackage}/bin/${name}";
         } programs
         // {
-          HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-evaluator";
+          HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-submit-evaluation";
           # What plugins from outside Hydra run.
           HYDRA_PLUGIN_PATH = lib.makeBinPath webCfg.pluginPath;
         };
       serviceConfig = {
         ExecStart = escapeShellArgs [
-          "@${cfg.package}/bin/hydra-evaluator"
-          "hydra-evaluator"
+          "@${cfg.submitEvaluationPackage}/bin/hydra-submit-evaluation"
+          "hydra-submit-evaluation"
           "--config-path"
           "/etc/hydra/evaluator.toml"
-        ];
-        # `--unlock` goes through the same argument parsing, so it needs the
-        # path too.
-        ExecStopPost = escapeShellArgs [
-          "${cfg.package}/bin/hydra-evaluator"
-          "--config-path"
-          "/etc/hydra/evaluator.toml"
-          "--unlock"
         ];
         User = "hydra";
         Restart = "always";
+        WorkingDirectory = baseDir;
+      };
+    };
+
+    # The other half of evaluating: reads finished evaluation builds back
+    # and turns them into the builds they found. Driven by `build_finished`,
+    # with a catch-up pass at startup. It reads `evaluator.toml` only for
+    # where to root the evaluated derivations.
+    systemd.services.hydra-process-evaluation = {
+      # It runs no programs at all.
+      enableDefaultPath = false;
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "hydra-init.service" ];
+      restartTriggers = [ config.environment.etc."hydra/evaluator.toml".source ];
+      after = [ "hydra-init.service" ];
+      environment = env // {
+        HYDRA_DATABASE_URL = dbUrlWithAppName "hydra-process-evaluation";
+      };
+      serviceConfig = {
+        ExecStart = escapeShellArgs [
+          "@${cfg.processEvaluationPackage}/bin/hydra-process-evaluation"
+          "hydra-process-evaluation"
+          "--config-path"
+          "/etc/hydra/evaluator.toml"
+        ];
+        User = "hydra";
+        Restart = "always";
+        RestartSec = 5;
         WorkingDirectory = baseDir;
       };
     };
@@ -230,10 +263,10 @@ in
     # Leaves a tag file indicating this reason; if the tag file exists
     # and disk space is above the threshold + 10GB, the evaluator will be
     # restarted; starting it if it is already started is not harmful.
-    systemd.services.hydra-evaluator-check-space = {
+    systemd.services.hydra-submit-evaluation-check-space = {
       script = ''
         ${builtins.readFile ./check-space.sh}
-        spacestopstart hydra-evaluator ${toString cfg.minimumDiskFree}
+        spacestopstart hydra-submit-evaluation ${toString cfg.minimumDiskFree}
       '';
       startAt = "*:0/5";
     };

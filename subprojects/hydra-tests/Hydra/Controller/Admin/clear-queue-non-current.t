@@ -73,20 +73,21 @@ EOF
     is(nrQueuedBuildsForJobset($jobset), 2, "Evaluating our default.nix should result in 1 more build, resulting in 2 queued builds");
 };
 
+# Not by absolute id: build 1 is the build that performed the evaluation, so
+# the jobset's own builds no longer start at 1. Ordering within the jobset is
+# what this test actually needs.
 my ($firstBuild, $secondBuild, @builds) = queuedBuildsForJobset($jobset)->search(
     {},
     { order_by => { -asc => 'id' }}
 );
 subtest "Validating the first build" => sub {
     isnt($firstBuild, undef, "We have our first build");
-    is($firstBuild->id, 1, "The first build is ID 1");
     is($firstBuild->finished, 0, "The first build is not yet finished");
     is($firstBuild->buildstatus, undef, "The first build status is null");
 };
 
 subtest "Validating the second build" => sub {
     isnt($secondBuild, undef, "We have our second build");
-    is($secondBuild->id, 2, "The second build is ID 2");
     is($secondBuild->finished, 0, "The second build is not yet finished");
     is($secondBuild->buildstatus, undef, "The second build status is null");
 };

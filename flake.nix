@@ -142,7 +142,8 @@
             hydra-queue-runner
             hydra-builder
             hydra-ad-hoc
-            hydra-evaluator
+            hydra-submit-evaluation
+            hydra-process-evaluation
             ;
         };
 
@@ -249,8 +250,9 @@
               hydra-linters
               hydra-queue-runner
               hydra-builder
-              hydra-evaluator
               hydra-ad-hoc
+              hydra-submit-evaluation
+              hydra-process-evaluation
               hydra-cargo-deps
               nix-eval-jobs
               ;

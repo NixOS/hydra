@@ -34,8 +34,10 @@ let
       ../subprojects/hydra-queue-runner/examples
       ../subprojects/hydra-builder/Cargo.toml
       ../subprojects/hydra-builder/src
-      ../subprojects/hydra-evaluator/Cargo.toml
-      ../subprojects/hydra-evaluator/src
+      ../subprojects/hydra-submit-evaluation/Cargo.toml
+      ../subprojects/hydra-submit-evaluation/src
+      ../subprojects/hydra-process-evaluation/Cargo.toml
+      ../subprojects/hydra-process-evaluation/src
       ../subprojects/hydra-ws/Cargo.toml
       ../subprojects/hydra-ws/src
       ../subprojects/hydra-ad-hoc/Cargo.toml
@@ -170,9 +172,14 @@ in
     meta.description = "Hydra queue runner (Rust)";
   };
 
-  hydra-evaluator = mkCrate {
-    pname = "hydra-evaluator";
-    meta.description = "Hydra evaluator (Rust)";
+  hydra-submit-evaluation = mkCrate {
+    pname = "hydra-submit-evaluation";
+    meta.description = "Hydra evaluation scheduler: queues a build per evaluation (Rust)";
+  };
+
+  hydra-process-evaluation = mkCrate {
+    pname = "hydra-process-evaluation";
+    meta.description = "Hydra evaluation finisher: reads evaluation builds back (Rust)";
   };
 
   hydra-ws = mkCrate {

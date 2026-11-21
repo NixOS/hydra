@@ -1,7 +1,7 @@
 #! /usr/bin/env perl
 
 # Apply a declarative project's specification, on behalf of
-# `hydra-evaluator`, which has fetched the input containing it.
+# `hydra-submit-evaluation`, which has fetched the input containing it.
 #
 #     hydra-prepare-declarative-jobset <project> <specification file>
 #

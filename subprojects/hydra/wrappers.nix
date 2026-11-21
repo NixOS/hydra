@@ -147,11 +147,11 @@ assert lib.assertMsg (
     scripts = notifyScripts;
   };
 
-  # The Perl that `hydra-evaluator` runs to evaluate a jobset, which fetches
-  # the inputs with the input plugins.
+  # The Perl that `hydra-submit-evaluation` runs to submit an evaluation,
+  # which fetches the inputs with the input plugins.
   hydra-evaluator-helpers = wrapScripts {
     pname = "hydra-evaluator-helpers";
-    description = "Hydra's jobset evaluation for hydra-evaluator";
+    description = "Hydra's input fetching for hydra-submit-evaluation";
     scripts = evaluatorHelperScripts;
   };
 }

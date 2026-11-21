@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobsets SET enabled = 0 WHERE id = $1 AND enabled = 2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cceac824f37c09fc6ee30d4de6be3b08123b3660dc33a62e6515b4284f457813"
+}

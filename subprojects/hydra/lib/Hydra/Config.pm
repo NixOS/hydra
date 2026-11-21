@@ -33,7 +33,6 @@ my $hydraConfigCache;
 # own configuration file. Left here they are silently inert, which looks
 # exactly like the setting having no effect, so say so once.
 our %movedSettings = map { $_ => "`$_` in /etc/hydra/evaluator.toml" } qw(
-    max_concurrent_evals
     evaluator_workers
     evaluator_max_memory_size
     allow_import_from_derivation
