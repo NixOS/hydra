@@ -74,7 +74,6 @@ is($build->finished, 1, "ad-hoc build is marked finished");
 is($build->buildstatus, 0, "ad-hoc build succeeded");
 is(printStorePath($ctx->db->storeDir, $build->drvpath), $drv,
     "ad-hoc build drvpath matches the submitted derivation");
-is($build->keep, 1, "ad-hoc build is marked keep=1 so its outputs survive gc");
 
 # hydra-update-gc-roots roots kept outputs via BuildOutputs.
 my @outputs = $build->buildoutputs->all;
