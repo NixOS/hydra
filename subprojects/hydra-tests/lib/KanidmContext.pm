@@ -142,6 +142,8 @@ sub wait_for_ready {
 sub assert_running {
     my ($self) = @_;
 
+    die "Kanidm process was killed." if !defined $self->{_pid};
+
     my $pid_status = waitpid($self->{_pid}, WNOHANG);
     return unless $pid_status > 0;
 
