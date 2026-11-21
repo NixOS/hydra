@@ -9,20 +9,22 @@ use HTTP::Request::Common;
 # goes straight there. The endpoint behind the form goes away with it: an offer
 # to sign in that does not work is worse than no offer.
 
-my $ctx = test_context(hydra_config => <<'CFG');
-    local_auth_enabled = 0
-    <oidc>
-        <provider authentik>
-            display_name = "Authentik"
-            authorization_endpoint = "https://authentik.example.com/authorize"
-            token_endpoint = "https://authentik.example.com/token"
-            jwks_uri = "https://authentik.example.com/certs"
-            issuer = "https://authentik.example.com"
-            client_id = "hydra"
-            client_secret = "hunter2"
-        </provider>
-    </oidc>
-CFG
+my $ctx = test_context(hydra_config => {
+    local_auth_enabled => 0,
+    oidc => {
+        provider => {
+            authentik => {
+                display_name => "Authentik",
+                authorization_endpoint => "https://authentik.example.com/authorize",
+                token_endpoint => "https://authentik.example.com/token",
+                jwks_uri => "https://authentik.example.com/certs",
+                issuer => "https://authentik.example.com",
+                client_id => "hydra",
+                client_secret => "hunter2",
+            },
+        },
+    },
+});
 setup_catalyst_test($ctx);
 
 # A local account that exists and has the right password, and still cannot get

@@ -25,11 +25,11 @@ sub expectEvent {
 
 
 my $ctx = test_context(
-    hydra_config => q|
-# No caching for PathInput plugin, otherwise we get wrong values
-# (as it has a 30s window where no changes to the file are considered).
-path_input_cache_validity_seconds = 0
-|
+    hydra_config => {
+        # No caching for PathInput plugin, otherwise we get wrong values
+        # (as it has a 30s window where no changes to the file are considered).
+        path_input_cache_validity_seconds => 0,
+    },
 );
 
 my $dbh = $ctx->db()->storage->dbh;
