@@ -26,6 +26,8 @@ $ldap->add_group("hydra_cancel-build", $users->{"many_roles"}->{"username"});
 $ldap->add_group("hydra_eval-jobset", $users->{"many_roles"}->{"username"});
 
 
+# The Apache-style syntax on purpose, for its `include` of the bind password
+# from inside the block, which only it can do.
 my $ctx = test_context(
     before_init => sub {
         my ($ctx) = @_;

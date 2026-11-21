@@ -5,11 +5,9 @@ use Setup;
 use Test2::V0;
 
 my $ctx = test_context(
-    hydra_config => q|
-    <runcommand>
-      command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
-    </runcommand>
-|);
+    hydra_config => {
+        runcommand => { command => 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"' },
+    });
 
 setup_catalyst_test($ctx);
 use HTTP::Request::Common qw(GET);

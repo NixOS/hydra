@@ -21,13 +21,9 @@ sub is_json {
     return $data;
 }
 
-my $ctx = test_context(hydra_config => qq|
-    <webhooks>
-        <github>
-            secret = test
-        </github>
-    </webhooks>
-|);
+my $ctx = test_context(hydra_config => {
+    webhooks => { github => { secret => "test" } },
+});
 setup_catalyst_test($ctx);
 
 # Create a user to log in to

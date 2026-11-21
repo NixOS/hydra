@@ -3,12 +3,12 @@ use warnings;
 use Setup;
 use Hydra::Config;
 
-my %ctx = test_init(hydra_config => q|
-<statsd>
-  host = foo.bar
-  port = 18125
-</statsd>
-|);
+my %ctx = test_init(hydra_config => {
+    statsd => {
+        host => "foo.bar",
+        port => 18125,
+    },
+});
 
 require Hydra::Helper::Nix;
 use Test2::V0;

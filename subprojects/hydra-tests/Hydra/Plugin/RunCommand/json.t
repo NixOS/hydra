@@ -4,11 +4,9 @@ use JSON::MaybeXS;
 use Setup;
 
 my %ctx = test_init(
-    hydra_config => q|
-    <runcommand>
-      command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
-    </runcommand>
-|);
+    hydra_config => {
+        runcommand => { command => 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"' },
+    });
 
 require Hydra::Schema;
 use Hydra::StorePath;

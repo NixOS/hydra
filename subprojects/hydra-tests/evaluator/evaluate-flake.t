@@ -9,11 +9,9 @@ my $ctx = test_context(
     nix_config => qq|
     experimental-features = nix-command flakes
     |,
-    hydra_config => q|
-    <runcommand>
-      evaluator_pure_eval = false
-    </runcommand>
-    |
+    hydra_config => {
+        runcommand => { evaluator_pure_eval => "false" },
+    },
 );
 
 sub checkFlake {
