@@ -60,6 +60,11 @@ __PACKAGE__->table("cachedpathinputs");
   data_type: 'text'
   is_nullable: 0
 
+=head2 storedir
+
+  data_type: 'text'
+  is_nullable: 1
+
 =cut
 
 __PACKAGE__->add_columns(
@@ -73,6 +78,8 @@ __PACKAGE__->add_columns(
   { data_type => "text", is_nullable => 0 },
   "storepath",
   { data_type => "text", is_nullable => 0 },
+  "storedir",
+  { data_type => "text", is_nullable => 1 },
 );
 
 =head1 PRIMARY KEY
@@ -90,8 +97,8 @@ __PACKAGE__->add_columns(
 __PACKAGE__->set_primary_key("srcpath", "sha256hash");
 
 
-# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-08-26 19:43:30
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:HoWHS3rwjazKa5VWDwSimw
+# Created by DBIx::Class::Schema::Loader v0.07051 @ 2026-10-06 13:14:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:6z4bemyR1DL9D1K8R3O4mQ
 
 __PACKAGE__->load_components("+Hydra::Component::InflateStorePath");
 __PACKAGE__->inflate_store_paths(qw/storepath/);

@@ -5,10 +5,31 @@ use warnings;
 use base 'DBIx::Class';
 use Hydra::StorePath;
 
-# The database stores full paths, but everything above it should be dealing in
-# store paths proper. This component is where that conversion happens, so the
-# store directory comes off the moment a row is read and goes back on only
-# when one is written.
+# Store-path columns hold the bare `<hash>-<name>`, with the store they live in
+# named once per row by the `storeDir` column. Everything above the database
+# deals in `Nix::StorePath`, and this component is the boundary: it is where a
+# column becomes one, and where `storeDir` gets filled in on the way back.
+#
+# Rows written before `hydra-backfill-store-dirs` reached them still hold a
+# full path and a null `storeDir`. Reading has to cope with both for as long as
+# the backfill takes. Telling them apart needs no second column, because a full
+# path always contains a slash and a basename never does -- which is why a
+# `columns => [...]` fetch naming only the path column still works, and why
+# nothing here has to care whether `storeDir` was even selected.
+sub _inflate {
+    my ($value, $result) = @_;
+    return parseRowStorePath($result->result_source->schema->storeDir, $value);
+}
+
+# Writes are always in the new format, so the set of unconverted rows only ever
+# shrinks. The store directory is a property of the whole row rather than of
+# any one column, so it is filled in here instead of by every caller.
+sub insert {
+    my $self = shift;
+    $self->set_column(storedir => $self->result_source->schema->storeDir)
+        unless defined $self->get_column("storedir");
+    return $self->next::method(@_);
+}
 
 # Register columns holding a single store path, e.g.
 #
@@ -19,8 +40,8 @@ sub inflate_store_paths {
         $class->inflate_column($column, {
             # The result object is the second argument; it is how the store
             # directory is reached without consulting a global.
-            inflate => sub { parseStorePath($_[1]->result_source->schema->storeDir, $_[0]) },
-            deflate => sub { printStorePath($_[1]->result_source->schema->storeDir, $_[0]) },
+            inflate => \&_inflate,
+            deflate => sub { $_[0]->to_string },
         });
     }
 }
@@ -41,36 +62,41 @@ sub inflate_optional_store_paths {
         $class->inflate_column($column, {
             inflate => sub {
                 return undef if $_[0] eq "";
-                return parseStorePath($_[1]->result_source->schema->storeDir, $_[0]);
+                return _inflate(@_);
             },
-            deflate => sub { printStorePath($_[1]->result_source->schema->storeDir, $_[0]) },
+            deflate => sub { $_[0]->to_string },
         });
     }
 }
 
-# Register a column that holds a relative store path, naming an accessor for
-# each half:
+# Register the pair of columns holding a path *underneath* a store path, and
+# name an accessor for each half:
 #
-#     __PACKAGE__->inflate_relative_store_path("path", "storePath", "subPath");
+#     __PACKAGE__->inflate_relative_store_path(
+#         "path", "subpath", "storePath", "subPath");
 #
-# The accessors are the point. This column wants to be two columns, and when a
-# migration eventually makes it two, these keep working unchanged and no caller
-# has to be touched.
+# `BuildProducts.path` is the only one. It takes two columns where every other
+# store-path column takes one because it names two things, and this is the
+# migration that gives it the second: before it, the store path and the
+# sub-path below it were a single string that callers had to take apart.
+#
+# An unconverted row is still that single string, with nothing in the sub-path
+# column, so until the backfill has been through these have to put it back
+# together themselves. The discriminator is the same as everywhere else: the
+# store path in a converted row has no slash in it.
 sub inflate_relative_store_path {
-    my ($class, $column, $baseAccessor, $relativeAccessor) = @_;
-    $class->inflate_column($column, {
-        inflate => sub { parseRelativeStorePath($_[1]->result_source->schema->storeDir, $_[0]) },
-        deflate => sub { printRelativeStorePath($_[1]->result_source->schema->storeDir, $_[0]) },
-    });
+    my ($class, $pathColumn, $subPathColumn, $storePathAccessor, $subPathAccessor) = @_;
+    my $split = sub {
+        my ($self) = @_;
+        my $path = $self->get_column($pathColumn);
+        return () unless defined $path;
+        my $subPath = $self->get_column($subPathColumn);
+        return (Nix::StorePath->new($path), $subPath) if defined $subPath;
+        return parseRelativeStorePath($self->result_source->schema->storeDir, $path);
+    };
     no strict 'refs';
-    *{"${class}::${baseAccessor}"} = sub {
-        my $split = $_[0]->$column;
-        return defined $split ? $split->basePath : undef;
-    };
-    *{"${class}::${relativeAccessor}"} = sub {
-        my $split = $_[0]->$column;
-        return defined $split ? $split->relativePath : undef;
-    };
+    *{"${class}::${storePathAccessor}"} = sub { ($split->($_[0]))[0] };
+    *{"${class}::${subPathAccessor}"}   = sub { ($split->($_[0]))[1] };
 }
 
 1;
