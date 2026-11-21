@@ -48,5 +48,23 @@ make_schema_at("Hydra::Schema", {
         "users" => "Users",
     } , #sub { return "$_"; },
     components => [ "+Hydra::Component::ToJSON" ],
-    rel_name_map => { buildsteps_builds => "buildsteps" }
+    # Composite (storeDir, ...) foreign keys make Schema::Loader generate
+    # verbose relationship names; map the relations existing code uses back
+    # to their canonical names. Where a table has both a single-column and
+    # a composite foreign key to the same parent, the single-column one
+    # keeps the canonical name.
+    rel_name_map => {
+        Builds => {
+            buildsteps_storedir_builds => "buildsteps",
+            buildoutputs_builds => "buildoutputs",
+            buildproducts_builds => "buildproducts",
+        },
+        BuildSteps => {
+            build_storedir_build => "build",
+            buildstepoutputs_build_stepnrs => "buildstepoutputs",
+        },
+        BuildStepOutputs => {
+            buildstep_build_stepnr => "buildstep",
+        },
+    }
 }, [$ARGV[0]]);
