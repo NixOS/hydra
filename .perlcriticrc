@@ -8,3 +8,6 @@ include = InputOutput::ProhibitBacktickOperators
 
 # Prohibit shell-invoking system() and exec() - use list form or IPC::Run3 instead
 include = Hydra::ProhibitShellInvokingSystemCalls
+
+# Prohibit reading request parameters raw - declare them with requestParams instead
+include = Hydra::ProhibitRawRequestParams

@@ -7,7 +7,6 @@ use Exporter;
 use ReadonlyX;
 use Nix::Store;
 use Digest::SHA qw(sha256_hex);
-use JSON::MaybeXS ();
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(
@@ -19,9 +18,7 @@ our @EXPORT = qw(
     requireCancelBuildPrivileges
     requireEvalJobsetPrivileges
     trim
-    checkRequestParams
     getLatestFinishedEval getFirstEval
-    paramToList
     backToReferer
     $pathCompRE $relPathRE $relNameRE $projectNameRE $jobsetNameRE $jobNameRE $systemRE $userNameRE $inputNameRE
     @buildListColumns
@@ -320,50 +317,6 @@ sub trim {
     return $s;
 }
 
-# Request bodies can be JSON, so a parameter can arrive as an object or a
-# list where the code expects a string. DBIx::Class passes such values on to
-# SQL::Abstract, which reads a hash as query structure (an operator and its
-# argument) rather than as data, and writes that operator into the SQL. So
-# every parameter in the hash $params must be a string, a number, null or a
-# boolean; booleans become 1 or 0, in place. Only the names in %$lists may
-# hold a list of those, and only the names in %$nested may hold hashes,
-# nested at most that deep, whose contents must be plain values too.
-# Returns undef if the parameters are acceptable, or an error message.
-sub checkRequestParams {
-    my ($params, $nested, $lists) = @_;
-    foreach my $name (sort keys %$params) {
-        my $err = _checkRequestParam($params->{$name}, $nested->{$name} // 0, $lists->{$name});
-        return "Invalid value for parameter '$name': $err." if defined $err;
-    }
-    return undef;
-}
-
-# Checks $_[0], converting booleans in place. It may be a hash $depth levels
-# deep, or a list of plain values if $listOk.
-sub _checkRequestParam {
-    my ($value, $depth, $listOk) = @_;
-    return undef unless ref $value;
-    if (JSON::MaybeXS::is_bool($value)) {
-        $_[0] = $value ? 1 : 0;
-        return undef;
-    }
-    if (ref $value eq 'ARRAY' && $listOk) {
-        foreach my $elem (@$value) {
-            my $err = _checkRequestParam($elem, 0, 0);
-            return $err if defined $err;
-        }
-        return undef;
-    }
-    if (ref $value eq 'HASH' && $depth > 0) {
-        foreach my $key (sort keys %$value) {
-            my $err = _checkRequestParam($value->{$key}, $depth - 1, 0);
-            return $err if defined $err;
-        }
-        return undef;
-    }
-    return ref $value eq 'ARRAY' ? "expected a single value, not a list" : "expected a string";
-}
-
 sub getLatestFinishedEval {
     my ($jobset) = @_;
     my ($eval) = $jobset->jobsetevals->search(
@@ -382,17 +335,6 @@ sub getFirstEval {
         { rows => 1, order_by => ["id"] })->single;
 }
 
-
-# Catalyst request parameters can be an array or a scalar or
-# undefined, making them annoying to handle.  So this utility function
-# always returns a request parameter as a list.
-sub paramToList {
-    my ($c, $name) = @_;
-    my $x = $c->stash->{params}->{$name};
-    return () unless defined $x;
-    return @$x if ref($x) eq 'ARRAY';
-    return ($x);
-}
 
 
 # Security checking of filenames.

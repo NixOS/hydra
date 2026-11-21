@@ -8,6 +8,8 @@ use Hydra::Helper::Nix;
 use Hydra::StorePath;
 use Hydra::Helper::CatalystUtils;
 use Hydra::Helper::Exec;
+use Hydra::Helper::RequestParams qw(requestParams);
+use Types::Standard qw(Str);
 use Hydra::Helper::LogEndpoints;
 use File::Basename;
 use File::LibMagic;
@@ -620,7 +622,7 @@ sub evals : Chained('buildChain') PathPart('evals') Args(0) {
 
     $c->stash->{template} = 'evals.tt';
 
-    my $page = int($c->req->param('page') || "1") || 1;
+    my $page = int(requestParams($c, { page => Str }, from => $c->req->params)->{page} || "1") || 1;
 
     my $resultsPerPage = 20;
 

@@ -6,6 +6,8 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams Flag Integer matching oneOf positiveInteger record mapOf);
+use Types::Standard qw(Str);
 use Hydra::Config;
 
 
@@ -31,7 +33,7 @@ sub jobsetChain :Chained('/') :PathPart('jobset') :CaptureArgs(2) {
         $c->detach;
     }
 
-    $c->stash->{params}->{name} //= $jobsetName;
+    $c->stash->{jobsetName} = $jobsetName;
 }
 
 
@@ -118,7 +120,11 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
     my ($self, $c) = @_;
     $c->stash->{template} = 'jobset-jobs-tab.tt';
 
-    $c->stash->{filter} = $c->request->params->{filter} // "";
+    my $p = requestParams($c, {
+        filter => Str,
+        showInactive => Flag,
+    });
+    $c->stash->{filter} = $p->{filter} // "";
     my $filter = "%" . $c->stash->{filter} . "%";
 
     my ($evals, $builds) = searchBuildsAndEvalsForJobset(
@@ -127,7 +133,7 @@ sub jobs_tab : Chained('jobsetChain') PathPart('jobs-tab') Args(0) {
         10000
     );
 
-    if ($c->request->params->{showInactive}) {
+    if ($p->{showInactive}) {
         $c->stash->{showInactive} = 1;
         foreach my $job ($c->stash->{jobset}->jobs->search({ name => { ilike => $filter } })) {
             next if defined $builds->{$job->name};
@@ -175,24 +181,11 @@ sub edit : Chained('jobsetChain') PathPart Args(0) {
     requireProjectOwner($c, $c->stash->{project});
 
     $c->stash->{template} = 'edit-jobset.tt';
-    $c->stash->{edit} = !defined $c->stash->{params}->{cloneJobset};
-    $c->stash->{cloneJobset} = defined $c->stash->{params}->{cloneJobset};
+    my $cloneJobset = requestParams($c, { cloneJobset => Str })->{cloneJobset};
+    $c->stash->{edit} = !defined $cloneJobset;
+    $c->stash->{cloneJobset} = defined $cloneJobset;
     $c->stash->{totalShares} = getTotalShares($c->model('DB')->schema);
     $c->stash->{buildEmailNotification} = buildEmailNotificationEnabled($c->config);
-}
-
-
-sub nixExprPathFromParams {
-    my ($c) = @_;
-
-    # The Nix expression path must be relative and can't contain ".." elements.
-    my $nixExprPath = trim $c->stash->{params}->{"nixexprpath"};
-    error($c, "Invalid Nix expression path ‘$nixExprPath’.") if $nixExprPath !~ /^$relPathRE$/;
-
-    my $nixExprInput = trim $c->stash->{params}->{"nixexprinput"};
-    error($c, "Invalid Nix expression input name ‘$nixExprInput’.") unless $nixExprInput =~ /^[[:alpha:]][\w-]*$/;
-
-    return ($nixExprPath, $nixExprInput);
 }
 
 
@@ -233,36 +226,97 @@ sub knownInputTypes {
 sub updateJobset {
     my ($c, $jobset) = @_;
 
+    # The input types depend on the plugins.
+    my $types = knownInputTypes($c);
+    my $inputType = oneOf([ sort keys %{$c->stash->{inputTypes}} ],
+        sub { "Invalid input type ‘" . ($_ // "") . "’; valid types: $types." });
+
+    # Which of these a jobset needs depends on its type, so they are optional
+    # here, and required again below, according to the type.
+    my %typeSpecific = (
+        # Must be relative, and can't contain ".." elements.
+        nixexprpath => sub { matching($relPathRE, sub { "Invalid Nix expression path ‘$_’." }, @_) },
+        nixexprinput => sub { matching(qr/[[:alpha:]][\w-]*/, sub { "Invalid Nix expression input name ‘$_’." }, @_) },
+        flake => sub { matching(qr/[a-zA-Z].*/s, sub { "Invalid flake URI ‘$_’." }, @_) },
+    );
+
+    my $p = requestParams($c, {
+        name => matching($jobsetNameRE, sub { "Invalid jobset identifier ‘$_’." }),
+        description => Str,
+        type => oneOf([0, 1], "Invalid jobset type."),
+        nixexprpath => $typeSpecific{nixexprpath}->(),
+        nixexprinput => $typeSpecific{nixexprinput}->(),
+        flake => $typeSpecific{flake}->(),
+        enabled => oneOf([0, 1, 2, 3], sub { "Invalid jobset state ‘$_’." }),
+        schedulingshares => positiveInteger("The number of scheduling shares must be positive."),
+        checkinterval => Integer,
+        keepnr => Integer,
+        enable_dynamic_run_command => Flag,
+        enableemail => Flag,
+        emailoverride => Str,
+        visible => Flag,
+        inputs => mapOf(
+            matching(qr/[[:alpha:]][\w-]*/, sub { "Invalid input name ‘$_’." }),
+            record(
+                required => {
+                    type => $inputType,
+                },
+                optional => {
+                    value => Str,
+                    emailresponsible => Flag,
+                },
+            ),
+        ),
+    }, defaults => {
+        name => $c->stash->{jobsetName},
+        type => 0,
+        enabled => 0,
+        schedulingshares => 1,
+        checkinterval => 0,
+        keepnr => 0,
+    }, ignore => [
+        # Read-only, in what a GET returns.
+        "project",
+        "errormsg",
+        "errortime",
+        "fetcherrormsg",
+        "lastcheckedtime",
+        "starttime",
+        "triggertime",
+    ]);
+
     my $oldName = $jobset->name;
-    my $jobsetName = $c->stash->{params}->{name};
-    error($c, "Invalid jobset identifier ‘$jobsetName’.") if $jobsetName !~ /^$jobsetNameRE$/;
+    my $jobsetName = $p->{name};
 
     error($c, "Cannot rename jobset to ‘$jobsetName’ since that identifier is already taken.")
         if $jobsetName ne $oldName && defined $c->stash->{project}->jobsets->find({ name => $jobsetName });
 
-    my $type = int($c->stash->{params}->{"type"} // 0);
+    my $type = $p->{type};
 
-    my ($nixExprPath, $nixExprInput);
-    my $flake;
+    # By the type of jobset, the columns it sets, from its fields checked
+    # again, now as required.
+    my %typeColumns = (
+        # A Nix expression.
+        0 => sub {
+            my $q = requestParams($c, {
+                nixexprpath => $typeSpecific{nixexprpath}->(required => 1),
+                nixexprinput => $typeSpecific{nixexprinput}->(required => 1),
+            }, from => $p, quiet => 1);
+            return (nixexprpath => $q->{nixexprpath}, nixexprinput => $q->{nixexprinput});
+        },
+        # A flake.
+        1 => sub {
+            my $q = requestParams($c, {
+                flake => $typeSpecific{flake}->(required => 1),
+            }, from => $p, quiet => 1);
+            return (flake => $q->{flake});
+        },
+    );
 
-    if ($type == 0) {
-        ($nixExprPath, $nixExprInput) = nixExprPathFromParams $c;
-    } elsif ($type == 1) {
-        $flake = trim($c->stash->{params}->{"flake"});
-        error($c, "Invalid flake URI ‘$flake’.") if $flake !~ /^[a-zA-Z]/;
-    } else {
-        error($c, "Invalid jobset type.");
-    }
+    my $enabled = $p->{enabled};
+    my $checkinterval = $p->{checkinterval};
 
-    my $enabled = int($c->stash->{params}->{enabled});
-    die if $enabled < 0 || $enabled > 3;
-
-    my $shares = int($c->stash->{params}->{schedulingshares} // 1);
-    error($c, "The number of scheduling shares must be positive.") if $shares <= 0;
-
-    my $checkinterval = int(trim($c->stash->{params}->{checkinterval}));
-
-    my $enable_dynamic_run_command = $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    my $enable_dynamic_run_command = $p->{enable_dynamic_run_command};
     if ($enable_dynamic_run_command
         && !($c->config->{dynamicruncommand}->{enable}
             && $jobset->project->enable_dynamic_run_command))
@@ -272,20 +326,22 @@ sub updateJobset {
 
     $jobset->update(
         { name => $jobsetName
-        , description => trim($c->stash->{params}->{"description"})
-        , nixexprpath => $nixExprPath
-        , nixexprinput => $nixExprInput
+        , description => trim($p->{description})
         , enabled => $enabled
-        , enableemail => $c->stash->{params}->{enableemail} ? 1 : 0
+        , enableemail => $p->{enableemail}
         , enable_dynamic_run_command => $enable_dynamic_run_command
-        , emailoverride => trim($c->stash->{params}->{emailoverride}) || ""
-        , hidden => $c->stash->{params}->{visible} ? 0 : 1
-        , keepnr => int(trim($c->stash->{params}->{keepnr} // "0"))
+        , emailoverride => trim($p->{emailoverride}) || ""
+        , hidden => $p->{visible} ? 0 : 1
+        , keepnr => $p->{keepnr}
         , checkinterval => $checkinterval
         , triggertime => ($enabled && $checkinterval > 0) ? $jobset->triggertime // time() : undef
-        , schedulingshares => $shares
+        , schedulingshares => $p->{schedulingshares}
         , type => $type
-        , flake => $flake
+        # Clear the columns of every type, then set this type's.
+        , nixexprpath => undef
+        , nixexprinput => undef
+        , flake => undef
+        , $typeColumns{$type}->()
         });
 
     $jobset->project->jobsetrenames->search({ from_ => $jobsetName })->delete;
@@ -296,15 +352,11 @@ sub updateJobset {
     $jobset->jobsetinputs->delete;
 
     if ($type == 0) {
-        foreach my $name (keys %{$c->stash->{params}->{inputs}}) {
-            my $inputData = $c->stash->{params}->{inputs}->{$name};
+        foreach my $name (keys %{$p->{inputs} // {}}) {
+            my $inputData = $p->{inputs}->{$name};
             my $type = $inputData->{type};
             my $value = $inputData->{value};
-            my $emailresponsible = $inputData->{emailresponsible} ? 1 : 0;
-            my $types = knownInputTypes($c);
-
-            badRequest($c, "Invalid input name ‘$name’.") unless $name =~ /^[[:alpha:]][\w-]*$/;
-            badRequest($c, "Invalid input type ‘$type’; valid types: $types.") unless defined $c->stash->{inputTypes}->{$type};
+            my $emailresponsible = $inputData->{emailresponsible} // 0;
 
             my $input = $jobset->jobsetinputs->create(
                 { name => $name,
@@ -337,7 +389,7 @@ sub evals_GET {
 
     $c->stash->{template} = 'evals.tt';
 
-    my $page = int($c->req->param('page') || "1") || 1;
+    my $page = int(requestParams($c, { page => Str })->{page} || "1") || 1;
 
     my $resultsPerPage = 20;
 
@@ -372,7 +424,13 @@ sub errors_GET {
 
     $c->stash->{template} = 'eval-error.tt';
 
-    my $jobsetName = $c->stash->{params}->{name};
+    my $jobsetName = $c->stash->{jobsetName};
+    # Another jobset's name, as `?name=`, shows that jobset's errors instead.
+    my $otherName = requestParams($c, { name => Str })->{name};
+    if (defined $otherName && $otherName ne $jobsetName) {
+        $c->log->warn("Deprecated: ?name= on " . $c->req->path . "; use the other jobset's own errors page instead.");
+        $jobsetName = $otherName;
+    }
     $c->stash->{jobset} = $c->stash->{project}->jobsets->find(
         { name => $jobsetName },
         { '+columns' => { 'errormsg' => 'errormsg' } }
