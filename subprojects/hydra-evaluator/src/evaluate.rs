@@ -5,8 +5,6 @@
 //! their own modules; this is the order they happen in and the decisions
 //! between them.
 
-use std::collections::HashMap;
-
 use color_eyre::eyre::{self, WrapErr as _};
 use futures::TryFutureExt as _;
 
@@ -25,13 +23,18 @@ const CURRENT_BATCH: i32 = 10_000;
 /// What evaluating a jobset produced.
 #[derive(Debug)]
 pub(crate) enum Outcome {
-    /// These inputs had been evaluated before, so nothing was done.
-    Cached { previous: i32 },
+    /// These inputs had been evaluated before, so nothing was evaluated.
+    Cached {
+        previous: i32,
+        /// Redoes marking builds current, in case the last attempt was cut
+        /// short.
+        followup: Option<Followup>,
+    },
     /// The evaluation ran and was recorded.
     Evaluated {
         eval: i32,
         changed: bool,
-        followup: Followup,
+        followup: Option<Followup>,
     },
     /// A declarative project whose specification named its jobsets outright,
     /// so they were created and there was nothing to evaluate.
@@ -51,7 +54,7 @@ impl Outcome {
 impl std::fmt::Display for Outcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Cached { previous } => write!(f, "cached, same as evaluation {previous}"),
+            Self::Cached { previous, .. } => write!(f, "cached, same as evaluation {previous}"),
             Self::Evaluated {
                 eval,
                 changed: true,
@@ -68,50 +71,37 @@ impl std::fmt::Display for Outcome {
     }
 }
 
-/// What is left to do to the jobset's builds once an evaluation is recorded.
+/// Marking an evaluation's builds current, once it is recorded.
 ///
-/// It runs outside the evaluation transaction, because holding these row
-/// locks that long deadlocks against the queue runner. It also runs after the
-/// evaluation frees its slot, because on a large jobset it takes minutes.
+/// It runs outside the evaluation transaction, because on a large jobset it
+/// touches every build and takes minutes. It also runs after the evaluation
+/// frees its slot.
 #[derive(Debug)]
 pub(crate) struct Followup {
     jobset_id: i32,
-    /// Inherited builds whose derivation changed.
-    repoints: HashMap<i32, String>,
     /// The evaluation whose builds are now current.
-    current: Option<i32>,
+    current: i32,
 }
 
 impl Followup {
     /// The caller records a failure as the jobset's evaluation error. The
-    /// next evaluation that is not cached repeats both steps.
+    /// next evaluation repeats it, cached or not.
     pub(crate) async fn run(&self, db: &db::Database) -> eyre::Result<()> {
         let start = std::time::Instant::now();
-        retry("repointing builds", || repoint(db, &self.repoints))
-            .await
-            .wrap_err("failed to repoint builds at their new derivations")?;
+        retry("marking builds current", || async {
+            let mut conn = db.get().await?;
+            Ok(
+                queries::mark_current(&mut conn, self.jobset_id, self.current, CURRENT_BATCH)
+                    .await?,
+            )
+        })
+        .await
+        .wrap_err("failed to mark this evaluation's builds current")?;
         tracing::info!(
-            "repointed {} builds in {} s",
-            self.repoints.len(),
+            "marked evaluation {}'s builds current in {} s",
+            self.current,
             start.elapsed().as_secs()
         );
-
-        if let Some(current) = self.current {
-            let start = std::time::Instant::now();
-            retry("marking builds current", || async {
-                let mut conn = db.get().await?;
-                Ok(
-                    queries::mark_current(&mut conn, self.jobset_id, current, CURRENT_BATCH)
-                        .await?,
-                )
-            })
-            .await
-            .wrap_err("failed to mark this evaluation's builds current")?;
-            tracing::info!(
-                "marked evaluation {current}'s builds current in {} s",
-                start.elapsed().as_secs()
-            );
-        }
         Ok(())
     }
 }
@@ -262,8 +252,13 @@ pub(crate) async fn evaluate(
         queries::set_fetch_error(&mut tx, meta.id, None).await?;
         tx.notify_eval_cached(trace, meta.id, previous.id).await?;
         tx.commit().await?;
+        let current = queries::get_previous_eval_with_new_builds(&mut conn, meta.id).await?;
         return Ok(Outcome::Cached {
             previous: previous.id,
+            followup: current.map(|current| Followup {
+                jobset_id: meta.id,
+                current: current.id,
+            }),
         });
     }
 
@@ -335,11 +330,10 @@ pub(crate) async fn evaluate(
     Ok(Outcome::Evaluated {
         eval: recorded.eval,
         changed: recorded.jobset_changed,
-        followup: Followup {
+        followup: current.map(|current| Followup {
             jobset_id: meta.id,
-            repoints: recorded.repoints,
             current,
-        },
+        }),
     })
 }
 
@@ -418,24 +412,4 @@ impl std::fmt::Display for Retryable {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:#}", self.0)
     }
-}
-
-/// Apply the derivation changes an evaluation found for builds it inherited,
-/// in one transaction and in id order.
-///
-/// Separate from the evaluation transaction for the same reason as
-/// `mark_current`: these are `Builds` rows the queue runner also writes.
-async fn repoint(db: &db::Database, repoints: &HashMap<i32, String>) -> eyre::Result<()> {
-    if repoints.is_empty() {
-        return Ok(());
-    }
-    let mut ids: Vec<&i32> = repoints.keys().collect();
-    ids.sort_unstable();
-    let mut conn = db.get().await?;
-    let mut tx = conn.begin_transaction().await?;
-    for id in ids {
-        queries::repoint_build(&mut tx, *id, &repoints[id]).await?;
-    }
-    tx.commit().await?;
-    Ok(())
 }

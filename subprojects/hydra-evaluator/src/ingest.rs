@@ -157,9 +157,6 @@ async fn check_build<'j>(
 pub(crate) struct Recorded {
     pub eval: i32,
     pub jobset_changed: bool,
-    /// Builds inherited from an earlier evaluation whose derivation has
-    /// changed, to be pointed at the new one once this transaction is done.
-    pub repoints: HashMap<i32, String>,
 }
 
 /// Everything an evaluation records, including the jobset's new error, in
@@ -270,16 +267,17 @@ pub(crate) async fn record(
         queries::set_evaluation_error(tx, error_id, &error).await?;
     }
 
-    let repoints = members
+    // Last, so the transaction holds these row locks only until it commits.
+    let repoints: Vec<(i32, String)> = members
         .iter()
         .filter(|m| m.repoint)
         .map(|m| (m.build, m.drv_path.clone()))
         .collect();
+    queries::repoint_builds(tx, &repoints).await?;
 
     Ok(Recorded {
         eval: eval_id,
         jobset_changed,
-        repoints,
     })
 }
 
@@ -306,6 +304,7 @@ async fn record_aggregates(
         }
     }
 
+    let mut pairs = Vec::new();
     for job in jobs {
         let Some(constituents) = &job.constituents else {
             continue;
@@ -330,8 +329,7 @@ async fn record_aggregates(
 
         for constituent_drv in constituents {
             if let Some(constituent) = by_drv.get(constituent_drv.as_str()) {
-                queries::insert_aggregate_constituent(tx, aggregate.build, constituent.build)
-                    .await?;
+                pairs.push((aggregate.build, constituent.build));
             } else {
                 tracing::debug!(
                     "aggregate job ‘{}’ has a constituent ‘{constituent_drv}’ \
@@ -341,6 +339,7 @@ async fn record_aggregates(
             }
         }
     }
+    queries::insert_aggregate_constituents(tx, &pairs).await?;
 
     Ok(())
 }
