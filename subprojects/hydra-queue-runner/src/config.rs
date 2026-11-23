@@ -142,6 +142,10 @@ const fn default_enable_fod_checker() -> bool {
     false
 }
 
+const fn default_upload_local_outputs() -> bool {
+    true
+}
+
 const fn default_max_silent_time() -> i32 {
     3600
 }
@@ -204,6 +208,7 @@ impl OverflowStore {
 #[derive(Debug, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
+#[allow(clippy::struct_excessive_bools)]
 struct AppConfig {
     #[serde(default = "default_data_dir")]
     hydra_data_dir: std::path::PathBuf,
@@ -268,6 +273,11 @@ struct AppConfig {
     #[serde(default)]
     use_presigned_uploads: bool,
 
+    // Whether outputs missing from the remote store, but valid in the local one, are
+    // uploaded from there instead of built.
+    #[serde(default = "default_upload_local_outputs")]
+    upload_local_outputs: bool,
+
     // Per-output NAR size limit in bytes; builds whose output exceeds it fail
     // with NarSizeLimitExceeded. 0 (default) disables the check.
     #[serde(default)]
@@ -296,6 +306,7 @@ struct AppConfig {
 
 /// Prepared configuration of the application
 #[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct PreparedApp {
     #[allow(dead_code)]
     hydra_data_dir: std::path::PathBuf,
@@ -321,6 +332,7 @@ pub struct PreparedApp {
     token_list: Option<Vec<String>>,
     pub enable_fod_checker: bool,
     pub use_presigned_uploads: bool,
+    pub upload_local_outputs: bool,
     pub max_output_size: u64,
     pub max_silent_time: i32,
     pub build_timeout: i32,
@@ -412,6 +424,7 @@ impl TryFrom<AppConfig> for PreparedApp {
             token_list,
             enable_fod_checker: val.enable_fod_checker,
             use_presigned_uploads: val.use_presigned_uploads,
+            upload_local_outputs: val.upload_local_outputs,
             max_output_size: val.max_output_size,
             max_silent_time: val.max_silent_time,
             build_timeout: val.build_timeout,
@@ -546,6 +559,12 @@ impl App {
     pub fn use_presigned_uploads(&self) -> bool {
         let inner = self.inner.load();
         inner.use_presigned_uploads
+    }
+
+    #[must_use]
+    pub fn upload_local_outputs(&self) -> bool {
+        let inner = self.inner.load();
+        inner.upload_local_outputs
     }
 
     #[must_use]
@@ -756,6 +775,14 @@ mod tests {
             "{msg}"
         );
         assert!(msg.contains(&missing.display().to_string()), "{msg}");
+    }
+
+    #[test]
+    fn local_outputs_are_uploaded_unless_turned_off() {
+        let on: super::AppConfig = toml::from_str("").unwrap();
+        assert!(on.upload_local_outputs);
+        let off: super::AppConfig = toml::from_str("uploadLocalOutputs = false").unwrap();
+        assert!(!off.upload_local_outputs);
     }
 
     #[test]

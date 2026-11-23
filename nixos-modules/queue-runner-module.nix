@@ -154,6 +154,15 @@ in
               type = lib.types.bool;
               default = false;
             };
+            uploadLocalOutputs = lib.mkOption {
+              description = ''
+                Whether an output that the remote store lacks but the queue runner's local store holds
+                is uploaded from the local store instead of built. If disabled, it will force a rebuild
+                on the remote store instead of uploading from the local store.
+              '';
+              type = lib.types.bool;
+              default = true;
+            };
             overflowStore = lib.mkOption {
               description = "Overflow S3 store. Steps referenced only by the listed jobsets are uploaded there instead of the default store.";
               default = null;
