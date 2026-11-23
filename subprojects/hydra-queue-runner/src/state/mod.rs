@@ -3116,7 +3116,11 @@ impl State {
                         pending_copy = Some(present);
                     }
                     missing.clear();
-                } else if !missing.is_empty() && missing_local_outputs.is_empty() {
+                } else if uploads_local_outputs(
+                    !missing.is_empty(),
+                    !missing_local_outputs.is_empty(),
+                    self.config.upload_local_outputs(),
+                ) {
                     // We have all paths locally, so we can just upload them to the remote store.
                     let missing_paths: Vec<StorePath> =
                         missing.values().filter_map(Clone::clone).collect();
@@ -3653,9 +3657,29 @@ impl State {
     }
 }
 
+/// Whether outputs missing from the remote store are uploaded from the local store.
+const fn uploads_local_outputs(
+    missing_remotely: bool,
+    missing_locally: bool,
+    upload_local_outputs: bool,
+) -> bool {
+    missing_remotely && !missing_locally && upload_local_outputs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_outputs_stand_in_for_remote_ones_only_when_allowed() {
+        // Missing from the remote store and all valid locally
+        assert!(uploads_local_outputs(true, false, true));
+        assert!(!uploads_local_outputs(true, false, false));
+        // An output missing locally too is built either way
+        assert!(!uploads_local_outputs(true, true, true));
+        // Nothing missing remotely: nothing to upload
+        assert!(!uploads_local_outputs(false, false, true));
+    }
 
     fn drv_path(name: &str) -> StorePath {
         StorePath::from_base_path(&format!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-{name}.drv")).unwrap()
