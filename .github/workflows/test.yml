@@ -23,7 +23,7 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+    - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32.0.0
       with:
         extra_nix_config: |
           extra-systems = ${{ matrix.system }}
@@ -45,7 +45,7 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+    - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32.0.0
     - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
       with:
         name: hydra-test-cache
@@ -72,7 +72,7 @@ jobs:
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+    - uses: cachix/install-nix-action@bb0495a1086c46893eee56f32fd192dfe4a15bb9 # v32.0.0
     - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
       with:
         name: hydra-test-cache
