@@ -6,6 +6,9 @@
 }:
 let
   cfg = config.services.hydra-queue-builder-dev;
+
+  # What it runs, with the Nix this machine uses.
+  hydraPrograms = pkgs.callPackage ../packaging/programs.nix { nix = config.nix.package; };
   user = config.users.users.hydra-queue-builder;
 
   format = pkgs.formats.toml { };
@@ -200,7 +203,8 @@ in
       environment = {
         RUST_BACKTRACE = "1";
         inherit (config.environment.variables) NIX_SSL_CERT_FILE;
-      };
+      }
+      // hydraPrograms.envFor { } hydraPrograms.programs.hydra-builder;
 
       path = [
         config.nix.package
