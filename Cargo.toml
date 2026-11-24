@@ -75,7 +75,7 @@ hyper = { version = "1", features = [ "full" ] }
 hyper-util = "0.1.10"
 jiff = { version = "0.2", features = [ "serde" ] }
 listenfd = "1"
-nix = { version = "0.31", default-features = false }
+nix = { version = "0.32", default-features = false }
 object_store = "0.14.0"
 opentelemetry = "0.33.0"
 opentelemetry-http = "0.33.0"
