@@ -73,7 +73,7 @@ http = "1.1"
 http-body-util = "0.1"
 hyper = { version = "1", features = [ "full" ] }
 hyper-util = "0.1.10"
-jiff = { version = "0.2", features = [ "serde" ] }
+jiff = { version = "1.0", features = [ "serde" ] }
 listenfd = "1"
 nix = { version = "0.32", default-features = false }
 object_store = "0.14.0"
