@@ -5,11 +5,9 @@ use JSON::MaybeXS;
 use Setup;
 
 my %ctx = test_init(
-    hydra_config => q|
-    <gitea_authorization>
-    root=d7f16a3412e01a43a414535b16007c6931d3a9c7
-    </gitea_authorization>
-|);
+    hydra_config => {
+        gitea_authorization => { root => "d7f16a3412e01a43a414535b16007c6931d3a9c7" },
+    });
 
 require Hydra::Schema;
 

@@ -121,11 +121,20 @@ in
     { pkgs, ... }:
     {
       imports = [ common.serverConfig ];
-      services.hydra-dev.extraConfig = ''
-        <gitea_authorization>
-        root=d7f16a3412e01a43a414535b16007c6931d3a9c7
-        </gitea_authorization>
-      '';
+      # A token, so not in `settings`, which the module refuses for secrets.
+      # `mode` makes this a copy only Hydra's users can read rather than a
+      # symlink into the store. The text is still in the store here, which is
+      # fine for a test; a real deployment would put the file there some other
+      # way.
+      environment.etc."hydra/gitea-secrets.json" = {
+        text = builtins.toJSON {
+          gitea_authorization.root = "d7f16a3412e01a43a414535b16007c6931d3a9c7";
+        };
+        mode = "0440";
+        user = "hydra";
+        group = "hydra";
+      };
+      services.hydra-dev.includes = [ "/etc/hydra/gitea-secrets.json" ];
       nixpkgs.config.permittedInsecurePackages = [ "gitea-1.19.4" ];
       services.gitea = {
         enable = true;

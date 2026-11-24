@@ -5,11 +5,9 @@ use JSON::MaybeXS;
 use Setup;
 
 my %ctx = test_init(
-    hydra_config => q|
-    <runcommand>
-      command = invalid-command-this-does-not-exist
-    </runcommand>
-|);
+    hydra_config => {
+        runcommand => { command => "invalid-command-this-does-not-exist" },
+    });
 
 require Hydra::Schema;
 

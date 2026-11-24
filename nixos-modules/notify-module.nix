@@ -20,6 +20,7 @@ let
     })
     baseDir
     hydraConf
+    hydraEnv
     dbUrlWithAppName
     env
     emailEnv
@@ -37,7 +38,7 @@ in
           Whether to run `hydra-notify`, which runs the notification plugins.
 
           It must run on the same machine as the web app (`services.hydra-dev`).
-          It reads the web app's `hydra.conf` and data directory, and its log
+          It reads the web app's `hydra.json` and data directory, and its log
           compression rewrites the queue runner's build logs.
         '';
       };
@@ -90,12 +91,17 @@ in
     # if the queue runner is stopped prematurely.
     systemd.services.hydra-compress-logs = {
       path = [
+        webCfg.package
         pkgs.bzip2
+        pkgs.jq
         pkgs.zstd
       ];
+      # `hydra-config` reads whichever format the configuration is in, so this
+      # does not have to know how it is written.
+      environment = hydraEnv;
       script = ''
         set -eou pipefail
-        compression=$(sed -nr 's/compress_build_logs_compression = ()/\1/p' ${baseDir}/hydra.conf)
+        compression=$(hydra-config | jq -r '.compress_build_logs_compression // ""')
         if [[ $compression == "" || $compression == bzip2 ]]; then
           compressionCmd=(bzip2)
         elif [[ $compression == zstd ]]; then

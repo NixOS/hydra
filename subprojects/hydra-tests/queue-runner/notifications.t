@@ -11,12 +11,10 @@ my $ctx = test_context(
     experimental-features = nix-command ca-derivations
     substituters = file://${binarycachedir}?trusted=1
     |,
-    hydra_config => q|
-    use-substitutes = 1
-    <runcommand>
-      command = cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"
-    </runcommand>
-|);
+    hydra_config => {
+        "use-substitutes" => 1,
+        runcommand => { command => 'cp "$HYDRA_JSON" "$HYDRA_DATA/joboutput.json"' },
+    });
 
 
 # Check that hydra's queue runner sends notifications.

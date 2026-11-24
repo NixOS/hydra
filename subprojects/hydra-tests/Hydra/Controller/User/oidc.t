@@ -75,28 +75,29 @@ $kanidm->create_oauth2_client(
 print STDERR "kanidm running at ${\$kanidm->url} from ${\$kanidm->working_dir}\n";
 
 my $ctx = test_context(
-    hydra_config => <<"CFG"
-        <oidc>
-            <provider test>
-                display_name = "Test Provider"
-                discovery_url = "${\$kanidm->discovery_url('hydra')}"
-                client_id = "hydra"
-                client_secret = "${\$kanidm->get_oauth2_secret('hydra')}"
-                ca_file = "${\$kanidm->ca_file}"
-                # Kanidm does not implement RP-Initiated Logout, so we set this
-                # manually to exercise the logout redirect path.
-                end_session_endpoint = "${\$kanidm->url}/fake-end-session"
-                role_claim = "idp_roles"
-                <role_mapping>
-                    powerusers = admin
-                    builders = restart-jobs
-                    builders = cancel-build
-                    # The IdP's `idiots` and `ghosts` values are deliberately
-                    # left out: they must not grant anything.
-                </role_mapping>
-            </provider>
-        </oidc>
-CFG
+    hydra_config => {
+        oidc => {
+            provider => {
+                test => {
+                    display_name => "Test Provider",
+                    discovery_url => $kanidm->discovery_url('hydra'),
+                    client_id => "hydra",
+                    client_secret => $kanidm->get_oauth2_secret('hydra'),
+                    ca_file => $kanidm->ca_file,
+                    # Kanidm does not implement RP-Initiated Logout, so we set
+                    # this manually to exercise the logout redirect path.
+                    end_session_endpoint => $kanidm->url . "/fake-end-session",
+                    role_claim => "idp_roles",
+                    role_mapping => {
+                        powerusers => "admin",
+                        builders => ["restart-jobs", "cancel-build"],
+                        # The IdP's `idiots` and `ghosts` values are
+                        # deliberately left out: they must not grant anything.
+                    },
+                },
+            },
+        },
+    },
 );
 
 setup_catalyst_test($ctx);

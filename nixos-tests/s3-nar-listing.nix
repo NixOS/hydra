@@ -173,9 +173,7 @@ in
     {
       imports = [ common.serverConfig ];
 
-      services.hydra-dev.extraConfig = ''
-        compress_build_logs = ${if compressLogs then "1" else "0"}
-      '';
+      services.hydra-dev.settings.compress_build_logs = if compressLogs then 1 else 0;
 
       services.hydra-queue-runner-dev = {
         settings.remoteStoreAddr = [ "${s3StoreUri}&secret-key=${cacheKey}" ];

@@ -8,12 +8,10 @@
   name = "hydra-notifications";
   nodes.server = {
     imports = [ common.serverConfig ];
-    services.hydra-dev.extraConfig = ''
-      <influxdb>
-        url = http://127.0.0.1:8086
-        db = hydra
-      </influxdb>
-    '';
+    services.hydra-dev.settings.influxdb = {
+      url = "http://127.0.0.1:8086";
+      db = "hydra";
+    };
     services.influxdb.enable = true;
   };
   nodes.builder = common.builderConfig;

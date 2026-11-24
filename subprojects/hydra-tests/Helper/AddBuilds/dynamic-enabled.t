@@ -7,11 +7,7 @@ use HTTP::Request::Common qw(POST PUT GET DELETE);
 use JSON::MaybeXS qw(decode_json encode_json);
 
 my $ctx = test_context(
-    hydra_config => q|
-    <dynamicruncommand>
-    enable = 1
-    </dynamicruncommand>
-    |
+    hydra_config => { dynamicruncommand => { enable => 1 } },
 );
 
 setup_catalyst_test($ctx);

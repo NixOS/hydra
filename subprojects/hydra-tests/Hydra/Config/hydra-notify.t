@@ -3,14 +3,14 @@ use warnings;
 use Setup;
 use Hydra::Config;
 
-my %ctx = test_init(hydra_config => q|
-<hydra_notify>
-  <prometheus>
-    listen_address = 127.0.0.1
-    port = 9199
-  </prometheus>
-</hydra_notify>
-|);
+my %ctx = test_init(hydra_config => {
+    hydra_notify => {
+        prometheus => {
+            listen_address => "127.0.0.1",
+            port => 9199,
+        },
+    },
+});
 
 require Hydra::Helper::Nix;
 use Test2::V0;

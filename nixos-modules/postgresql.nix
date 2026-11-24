@@ -55,7 +55,7 @@ in
         HYDRA_DATABASE_URL =
           lib.replaceStrings [ "%" ] [ "%%" ]
             "${cfg.dbUrl}${if lib.hasInfix "?" cfg.dbUrl then "&" else "?"}application_name=hydra-init";
-        HYDRA_CONFIG = "${baseDir}/hydra.conf";
+        HYDRA_CONFIG = "${baseDir}/hydra.json";
         HYDRA_DATA = baseDir;
         PGPASSFILE = "${baseDir}/pgpass";
       };

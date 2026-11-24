@@ -62,7 +62,7 @@ in
 
           Until more work is done, it must run on the same machine as the
           web app (`services.hydra-dev`). It runs Hydra's Perl, which reads
-          the web app's `hydra.conf` and data directory, and it evaluates
+          the web app's `hydra.json` and data directory, and it evaluates
           into the local Nix store, which the queue runner and web app also
           read from.
         '';
@@ -183,7 +183,7 @@ in
       enableDefaultPath = false;
       wantedBy = [ "multi-user.target" ];
       requires = [ "hydra-init.service" ];
-      # Not `hydra.conf`: only the Perl the evaluator runs reads it, and
+      # Not `hydra.json`: only the Perl the evaluator runs reads it, and
       # that starts afresh for each evaluation.
       restartTriggers = [ config.environment.etc."hydra/evaluator.toml".source ];
       after = [

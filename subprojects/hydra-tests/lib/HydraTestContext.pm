@@ -7,6 +7,7 @@ use File::Basename;
 use File::Copy::Recursive qw(rcopy);
 use File::Which qw(which);
 use Cwd qw(abs_path getcwd);
+use JSON::MaybeXS;
 use CliRunners;
 use Hydra::Helper::Exec;
 use HydraTestPrograms;
@@ -16,7 +17,8 @@ use ShortSocketDir qw(short_socket_dir);
 #
 # Hash Parameters:
 #
-#  * hydra_config: configuration for the Hydra processes for your test.
+#  * hydra_config: configuration for the Hydra processes for your test: a
+#       hash of settings, or a string of the Apache-style syntax.
 #  * nix_config: text to include in the test's nix.conf
 #  * use_external_destination_store: Boolean indicating whether hydra should
 #       use a destination store different from the evaluation store.
@@ -74,7 +76,6 @@ sub new {
     my $central = { root => "$dir/central" };
     make_path($central->{root});
     $central->{hydra_data} = "$dir/hydra-data";
-    $central->{hydra_config_file} = "$dir/hydra.conf";
     $central->{nix_conf_dir} = "$dir/nix/etc/nix";
     # Builder and central must agree on logical store dir.
     $central->{nix_store_dir} = $builder->{nix_store_dir};
@@ -91,14 +92,27 @@ sub new {
         my $nix_config = "sandbox = false\n" . ($opts{'nix_config'} || "");
         write_file($nixconf, $nix_config);
 
-        my $hydra_config = $opts{'hydra_config'} || "";
-        $hydra_config = "queue_runner_metrics_address = 127.0.0.1:0\n" . $hydra_config;
+        my %defaults = (queue_runner_metrics_address => "127.0.0.1:0");
         if ($opts{'use_external_destination_store'} // 1) {
             $deststoredir = "$dir/nix/dest-store";
-            $hydra_config = "store_uri = file://$dir/nix/dest-store\n" . $hydra_config;
+            $defaults{store_uri} = "file://$deststoredir";
         }
 
-        write_file($central->{hydra_config_file}, $hydra_config);
+        # Settings as a hash are written as `hydra.json`, which is how a test
+        # should give them. A string is the Apache-style syntax, written as
+        # `hydra.conf`: kept for the tests that are about that syntax, such as
+        # its `Include`.
+        my $hydra_config = $opts{'hydra_config'} // {};
+        if (ref $hydra_config eq "HASH") {
+            $central->{hydra_config_file} = "$dir/hydra.json";
+            write_file($central->{hydra_config_file},
+                JSON::MaybeXS->new(canonical => 1, pretty => 1)
+                    ->encode({ %defaults, %$hydra_config }));
+        } else {
+            $central->{hydra_config_file} = "$dir/hydra.conf";
+            write_file($central->{hydra_config_file},
+                join("", map { "$_ = $defaults{$_}\n" } sort keys %defaults) . $hydra_config);
+        }
 
         # Built outputs go to the destination store, not the central one, so
         # a `build` input naming one has to fetch it from there: that is what

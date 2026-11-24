@@ -34,7 +34,9 @@ my $webhook_config = qq|
 write_file("$tmpdir_path/hydra-data/webhook-secrets.conf", $webhook_config);
 chmod 0600, "$tmpdir_path/hydra-data/webhook-secrets.conf";
 
-# Create test context with webhook configuration using include
+# Create test context with webhook configuration using include. The
+# Apache-style syntax on purpose: an `Include` inside a block is something
+# only it can do.
 my $ctx = test_context(
     tmpdir => $tmpdir,
     hydra_config => qq|
