@@ -4,7 +4,6 @@ use Setup;
 use Test2::V0;
 use HTTP::Request::Common;
 use JSON::MaybeXS qw(encode_json decode_json);
-use Hydra::Helper::CatalystUtils;
 
 my $ctx = test_context();
 setup_catalyst_test($ctx);
@@ -110,6 +109,15 @@ subtest "what GET returns can be sent back" => sub {
         "the user's roles are part of what was sent back");
     is(request(POST '/api/push?jobsets=p:j&jobsets=p:j', Referer => 'http://localhost/', Cookie => $cookie)->code, 400,
         "but such a list is still refused outside a JSON body");
+
+    # A project's GET has `hidden`, where the form sends `visible`.
+    foreach my $hidden (0, 1) {
+        $project->update({ hidden => $hidden });
+        my $got = decode_json(request(GET '/project/p', Accept => 'application/json', Cookie => $cookie)->content);
+        json_request(PUT => '/project/p', $got, $cookie);
+        $project->discard_changes;
+        is($project->hidden, $hidden, "a project's visibility survives the round trip, hidden => $hidden");
+    }
 };
 
 subtest "false means off" => sub {
@@ -163,27 +171,6 @@ subtest "the structured values the API documents still work" => sub {
         declarative => { file => '', type => '', value => '' },
     }, $cookie);
     ok($res->is_success, "project with booleans and declarative is accepted") or diag $res->content;
-};
-
-subtest "checkRequestParams" => sub {
-    my %nested = (one => 1, two => 2);
-    my %lists = (many => 1);
-    my $check = sub { checkRequestParams($_[0], \%nested, \%lists) };
-    my %params = (a => 'x', b => 3, c => undef, d => JSON::MaybeXS::true, many => [ 'x', JSON::MaybeXS::false ]);
-    is($check->(\%params), undef, "strings, numbers, null, booleans, and a list where allowed");
-    is(\%params, { a => 'x', b => 3, c => undef, d => 1, many => [ 'x', 0 ] }, "booleans become 1 and 0");
-    ok(defined $check->({ a => [ 'x' ] }), "a list under any other name");
-    ok(defined $check->({ a => { b => 'c' } }), "a hash under any other name");
-    ok(defined $check->({ many => [ { b => 'c' } ] }), "a hash inside a list");
-    ok(defined $check->({ many => [ [ 'b' ] ] }), "a list inside a list");
-    ok(defined $check->({ a => \"literal" }), "a scalar reference");
-    is($check->({ one => { x => 'y' }, two => { x => { y => 'z' } } }), undef, "hashes as deep as allowed");
-    ok(defined $check->({ one => { x => { y => 'z' } } }), "but not deeper");
-    ok(defined $check->({ two => { x => { y => [ 'z' ] } } }), "nor a list inside them");
-
-    my %errors = map { ($check->({ zeta => {}, alpha => [], mid => {} }) => 1) } 1 .. 20;
-    is(scalar keys %errors, 1, "with several bad parameters, the error names the same one every time");
-    like((keys %errors)[0], qr/alpha/, "the first by name");
 };
 
 done_testing;

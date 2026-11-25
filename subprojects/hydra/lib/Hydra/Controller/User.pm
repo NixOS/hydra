@@ -10,6 +10,8 @@ use Digest::SHA1 qw(sha1_hex);
 use Hydra::Config qw(getLDAPConfigAmbient localAuthEnabled passwordSigninEnabled);
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams Flag Strings matching);
+use Types::Standard qw(Str);
 use Hydra::Helper::Email;
 use Hydra::Helper::OIDC;
 use Hydra::Config;
@@ -32,10 +34,13 @@ sub login_POST {
     accessDenied($c, "Signing in with a password is disabled on this Hydra.")
         unless passwordSigninEnabled($c->config);
 
-    my $username = $c->stash->{params}->{username} // "";
-    my $password = $c->stash->{params}->{password} // "";
+    my $p = requestParams($c, {
+        username => Str,
+        password => Str,
+    });
+    my $username = $p->{username} // "";
+    my $password = $p->{password} // "";
 
-    badRequest($c, "The user name and password must be strings.") if ref $username || ref $password;
     badRequest($c, "You must specify a user name.") if $username eq "";
     badRequest($c, "You must specify a password.") if $password eq "";
 
@@ -69,7 +74,7 @@ sub logout_GET {
     # CSRF protection: require a token derived from the session ID so that
     # a cross-site <img>/<a>/top-level navigation cannot log the user out.
     my $expected = logoutToken($c);
-    my $token = $c->req->params->{token} // "";
+    my $token = requestParams($c, { token => Str })->{token} // "";
     error($c, "Invalid CSRF token", 403)
         unless defined $expected && equals($token, $expected);
 
@@ -232,7 +237,7 @@ sub github_login :Path('/github-login') Args(0) {
         {
             client_id => $client_id,
             client_secret => $client_secret,
-            code => ($c->req->params->{code} // die "No token."),
+            code => (requestParams($c, { code => Str })->{code} // die "No token."),
         }, Accept => 'application/json');
     error($c, "Did not get a response from GitHub.") unless $response->is_success;
 
@@ -269,7 +274,7 @@ sub github_redirect :Path('/github-redirect') Args(0) {
 
     my $client_id = $c->config->{github_client_id} or die "github_client_id not configured.";
 
-    my $after = "/" . $c->req->params->{after};
+    my $after = "/" . (requestParams($c, { after => Str })->{after} // "");
 
     $c->res->cookies->{'after_github'} = {
         name => 'after_github',
@@ -286,7 +291,7 @@ sub oidc_redirect :Path('/oidc-redirect') Args(1) {
     # '//evil.com' cannot become a protocol-relative URL. Browsers drop
     # tabs/newlines from URLs and treat '\' like '/', so remove control
     # characters and backslashes before stripping leading slashes.
-    my $after = $c->req->params->{after} // "";
+    my $after = requestParams($c, { after => Str })->{after} // "";
     $after =~ s{[[:cntrl:]\\]}{}g;
     $after =~ s{^/+}{};
 
@@ -302,7 +307,13 @@ sub oidc_callback :Path('/oidc-callback') Args(1) {
     my ($self, $c, $provider_name) = @_;
 
     my $oidc = Hydra::Helper::OIDC->load($c, provider_name => $provider_name);
-    my $authorization_code = $oidc->validateAuthorizationCode($c->req->params);
+    my $authorization_code = $oidc->validateAuthorizationCode(requestParams($c, {
+        code => Str,
+        state => Str,
+        iss => Str,
+        error => Str,
+        error_description => Str,
+    }));
     my $token = $oidc->exchangeCodeForToken($authorization_code);
     my $claims = $oidc->validateToken($token);
 
@@ -352,6 +363,17 @@ sub isValidPassword {
 }
 
 
+# The parameters `updatePreferences` reads, for the actions that call it.
+my %preferenceParams = (
+    fullname => Str,
+    password => Str,
+    password2 => Str,
+    emailaddress => Str,
+    emailonerror => Flag,
+    publicdashboard => Flag,
+    roles => Strings,
+);
+
 sub register :Local Args(0) {
     my ($self, $c) = @_;
 
@@ -365,14 +387,18 @@ sub register :Local Args(0) {
 
     die unless $c->request->method eq "PUT";
 
-    my $userName = trim $c->stash->{params}->{username};
+    my $p = requestParams($c, {
+        %preferenceParams,
+        username => matching($userNameRE,
+            "Your user name is invalid. It must start with a lower-case letter followed by lower-case letters, digits, dots or underscores.",
+            required => 1),
+        captcha => Str,
+    });
+    my $userName = $p->{username};
     $c->stash->{username} = $userName;
 
     error($c, "You did not enter the correct digits from the security image.")
-        unless isAdmin($c) || $c->validate_captcha($c->req->param('captcha'));
-
-    error($c, "Your user name is invalid. It must start with a lower-case letter followed by lower-case letters, digits, dots or underscores.")
-        if $userName !~ /^$userNameRE$/;
+        unless isAdmin($c) || $c->validate_captcha($p->{captcha});
 
     error($c, "Your user name is already taken.")
         if $c->find_user({ username => $userName });
@@ -384,7 +410,7 @@ sub register :Local Args(0) {
             , emailaddress => "",
             , type => "hydra"
             });
-        updatePreferences($c, $user);
+        updatePreferences($c, $user, $p);
     });
 
     unless ($c->user_exists) {
@@ -397,24 +423,25 @@ sub register :Local Args(0) {
 }
 
 
+# `$p` holds the parameters in `%preferenceParams`.
 sub updatePreferences {
-    my ($c, $user) = @_;
+    my ($c, $user, $p) = @_;
 
-    my $fullName = trim($c->stash->{params}->{fullname} // "");
+    my $fullName = trim($p->{fullname} // "");
     error($c, "Your must specify your full name.") if $fullName eq "";
 
-    my $password = trim($c->stash->{params}->{password} // "");
+    my $password = trim($p->{password} // "");
     if ($user->type eq "hydra" && ($user->password eq "!" || $password ne "")) {
         error($c, "You must specify a password of at least 6 characters.")
             unless isValidPassword($password);
 
         error($c, "The passwords you specified did not match.")
-            if $password ne trim $c->stash->{params}->{password2};
+            if $password ne trim $p->{password2};
 
         $user->setPassword($password);
     }
 
-    my $emailAddress = trim($c->stash->{params}->{emailaddress} // "");
+    my $emailAddress = trim($p->{emailaddress} // "");
     # Not setting an email address is allowed, but anything that claims to be
     # one has to look like one.
     error($c, "The email address is not a valid email address.", 400)
@@ -422,8 +449,8 @@ sub updatePreferences {
 
     $user->update(
         { fullname => $fullName
-        , emailonerror => $c->stash->{params}->{"emailonerror"} ? 1 : 0
-        , publicdashboard => $c->stash->{params}->{"publicdashboard"} ? 1 : 0
+        , emailonerror => $p->{emailonerror}
+        , publicdashboard => $p->{publicdashboard}
         });
 
     if (isAdmin($c)) {
@@ -431,7 +458,7 @@ sub updatePreferences {
             if $user->type eq "hydra";
 
 
-        $user->setRoles(paramToList($c, "roles"));
+        $user->setRoles(@{$p->{roles} // []});
     }
 }
 
@@ -473,12 +500,20 @@ sub edit_PUT {
     my ($self, $c) = @_;
     my $user = $c->stash->{user};
 
-    if (($c->stash->{params}->{submit} // "") eq "reset-password") {
+    my $p = requestParams($c, {
+        %preferenceParams,
+        submit => Str,
+    }, ignore => [
+        # Read-only, in what a GET of /current-user returns.
+        "username",
+        "userroles",
+    ]);
+    if (($p->{submit} // "") eq "reset-password") {
         return;
     }
 
     $c->model('Db')->schema->txn_do(sub {
-        updatePreferences($c, $user);
+        updatePreferences($c, $user, $p);
     });
 
     $c->flash->{successMsg} = "Your preferences have been updated.";

@@ -5,6 +5,8 @@ use warnings;
 use base 'Catalyst::Controller';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams);
+use Types::Standard qw(Str);
 use Data::Dump qw(dump);
 use Config::General;
 
@@ -73,7 +75,7 @@ sub news_submit : Chained('admin') PathPart('news/submit') Args(0) {
 
     requirePost($c);
 
-    my $contents = trim $c->request->params->{"contents"};
+    my $contents = trim requestParams($c, { contents => Str }, from => $c->request->params)->{contents};
     my $createtime = time;
 
     $c->model('DB::NewsItems')->create({

@@ -6,13 +6,14 @@ use warnings;
 use base 'Hydra::Base::Controller::ListBuilds';
 use Hydra::Helper::Nix;
 use Hydra::Helper::CatalystUtils;
+use Hydra::Helper::RequestParams qw(requestParams Flag MaybeFlag matching record externalLink);
+use Types::Standard qw(Str);
 use Hydra::Config;
-use Hydra::ExternalLink;
 
 
 sub projectChain :Chained('/') :PathPart('project') :CaptureArgs(1) {
     my ($self, $c, $projectName) = @_;
-    $c->stash->{params}->{name} //= $projectName;
+    $c->stash->{projectName} = $projectName;
 
     my $isCreate = $c->action->name eq "project" && $c->request->method eq "PUT";
 
@@ -135,27 +136,52 @@ sub create_jobset : Chained('projectChain') PathPart('create-jobset') Args(0) {
 sub updateProject {
     my ($c, $project) = @_;
 
+    my $p = requestParams($c, {
+        name => matching($projectNameRE, sub { "Invalid project identifier ‘$_’." }, required => 1),
+        # Not `$userNameRE`, which only registration enforces: existing users
+        # may have other names. Whether it exists is checked below.
+        owner => matching(qr/.+/s, "The owner must be a single user name."),
+        displayname => matching(qr/.+/s, "You must specify a display name.", required => 1),
+        description => Str,
+        homepage => externalLink("The homepage must be an http:// or https:// URL."),
+        enabled => Flag,
+        # The web form sends `visible`, but a GET returns `hidden`; see below.
+        visible => MaybeFlag,
+        hidden => MaybeFlag,
+        enable_dynamic_run_command => Flag,
+        declarative => record(optional => {
+            file => Str,
+            type => Str,
+            value => Str,
+        }),
+    }, defaults => {
+        name => $c->stash->{projectName},
+    }, ignore => [
+        # Read-only, in what a GET returns.
+        "jobsets",
+    ]);
+    my $declarative = $p->{declarative} // {};
+
+    # `visible` wins, for older clients that may send both. With neither, as
+    # from the web form's unticked checkbox, the project is hidden.
+    my $hidden = defined $p->{visible} ? !$p->{visible} : $p->{hidden} // 1;
+
     my $owner = $project->owner;
-    if ($c->check_user_roles('admin') and defined $c->stash->{params}->{owner}) {
-        $owner = trim $c->stash->{params}->{owner};
+    if ($c->check_user_roles('admin') and defined $p->{owner}) {
+        $owner = $p->{owner};
         badRequest($c, "The user name ‘$owner’ does not exist.")
             unless defined $c->model('DB::Users')->find($owner);
     }
 
-    my $projectName = $c->stash->{params}->{name};
-    error($c, "Invalid project identifier ‘$projectName’.") if $projectName !~ /^$projectNameRE$/;
+    my $projectName = $p->{name};
 
     error($c, "Cannot rename project to ‘$projectName’ since that identifier is already taken.")
         if $projectName ne $project->name && defined $c->model('DB::Projects')->find($projectName);
 
-    my $displayName = trim $c->stash->{params}->{displayname};
-    error($c, "You must specify a display name.") if $displayName eq "";
+    my $displayName = $p->{displayname};
+    my $homepage = $p->{homepage};
 
-    my $homepage = Hydra::ExternalLink->parse($c->stash->{params}->{homepage});
-    badRequest($c, "The homepage must be an http:// or https:// URL.")
-        if defined $homepage && !$homepage->isa('Hydra::ExternalLink::Accepted');
-
-    my $enable_dynamic_run_command = $c->stash->{params}->{enable_dynamic_run_command} ? 1 : 0;
+    my $enable_dynamic_run_command = $p->{enable_dynamic_run_command};
     if ($enable_dynamic_run_command && !$c->config->{dynamicruncommand}->{enable}) {
         badRequest($c, "Dynamic RunCommand is not enabled by the server.");
     }
@@ -163,15 +189,15 @@ sub updateProject {
     $project->update(
         { name => $projectName
         , displayname => $displayName
-        , description => trim($c->stash->{params}->{description})
+        , description => trim($p->{description})
         , homepage => $homepage
-        , enabled => $c->stash->{params}->{enabled} ? 1 : 0
-        , hidden => $c->stash->{params}->{visible} ? 0 : 1
+        , enabled => $p->{enabled}
+        , hidden => $hidden ? 1 : 0
         , owner => $owner
         , enable_dynamic_run_command => $enable_dynamic_run_command
-        , declfile => trim($c->stash->{params}->{declarative}->{file})
-        , decltype => trim($c->stash->{params}->{declarative}->{type})
-        , declvalue => trim($c->stash->{params}->{declarative}->{value})
+        , declfile => trim($declarative->{file})
+        , decltype => trim($declarative->{type})
+        , declvalue => trim($declarative->{value})
         });
     if (length($project->declfile)) {
         # This logic also exists in the DeclarativeJobets tests.
