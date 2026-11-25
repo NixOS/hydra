@@ -226,12 +226,15 @@ pub(crate) async fn record(
             None => false,
         };
 
+    // A first or errored evaluation is a result even without builds.
+    let has_new_builds = jobset_changed || prev_eval.is_none() || !error.is_empty();
+
     let nr_builds = i32::try_from(members.len()).ok();
     queries::finish_eval(
         tx,
         eval_id,
-        jobset_changed,
-        jobset_changed.then_some(nr_builds).flatten(),
+        has_new_builds,
+        has_new_builds.then_some(nr_builds).flatten(),
     )
     .await?;
     queries::finish_jobset_eval(tx, jobset_id).await?;
