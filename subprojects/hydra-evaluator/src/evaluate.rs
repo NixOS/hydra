@@ -27,13 +27,14 @@ pub(crate) enum Outcome {
     Cached {
         previous: i32,
         /// Redoes marking builds current, in case the last attempt was cut
-        /// short.
+        /// short. None as for [`Outcome::Evaluated`].
         followup: Option<Followup>,
     },
     /// The evaluation ran and was recorded.
     Evaluated {
         eval: i32,
         changed: bool,
+        /// None when the jobset has no evaluation with builds to mark.
         followup: Option<Followup>,
     },
     /// A declarative project whose specification named its jobsets outright,
@@ -74,8 +75,18 @@ impl std::fmt::Display for Outcome {
 /// Marking an evaluation's builds current, once it is recorded.
 ///
 /// It runs outside the evaluation transaction, because on a large jobset it
-/// touches every build and takes minutes. It also runs after the evaluation
-/// frees its slot.
+/// touches every build, and holding those row locks that long deadlocks
+/// against the queue runner. It also runs after the evaluation frees its
+/// slot, because it takes minutes.
+///
+/// It is best effort, and the only part of an evaluation that is: everything
+/// else, repoints included, commits with the evaluation. If this fails, or
+/// never runs because the evaluator stopped, `iscurrent` lags, but the
+/// database is still consistent, and what it should say is derivable from
+/// the database alone, so any later run for the jobset settles it. Every
+/// evaluation runs one, cached or not, so the next check of the jobset does.
+/// When nothing is out of place, that costs a cached evaluation two scans of
+/// the jobset's current builds and no writes.
 #[derive(Debug)]
 pub(crate) struct Followup {
     jobset_id: i32,
@@ -252,6 +263,8 @@ pub(crate) async fn evaluate(
         queries::set_fetch_error(&mut tx, meta.id, None).await?;
         tx.notify_eval_cached(trace, meta.id, previous.id).await?;
         tx.commit().await?;
+        // The current builds are still those of the last evaluation with new
+        // builds, as an evaluation finding no changes would say.
         let current = queries::get_previous_eval_with_new_builds(&mut conn, meta.id).await?;
         return Ok(Outcome::Cached {
             previous: previous.id,
