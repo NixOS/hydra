@@ -151,11 +151,28 @@ Sets Gitea CI status
 
 ## GitHub pulls
 
-Create jobs based on open GitHub pull requests
+Create jobs based on open GitHub pull requests. The input's value is
+`OWNER REPO [HOST]`, where `HOST` selects a GitHub Enterprise server.
 
 ### Configuration options
 
 - `github_authorization.<repo-owner>`
+- `githubpulls.allowed_repos`: if set, only these repositories can be fetched.
+  Entries are `owner/repo` or `owner/*`, space-separated or with the key
+  repeated. Matching is exact, including case.
+- `githubpulls.allowed_hosts`: the GitHub Enterprise hosts that can be fetched
+  from. Required if hosts are manually specified, and can also be used to block
+  or allow github.com if provided. The default behavior is to allow github.com,
+  and block any other host that is manually specified.
+
+### Example
+
+```xml
+<githubpulls>
+  allowed_hosts = github.com git.example.com
+  allowed_repos = publicorg/* privateorg/myproject
+</githubpulls>
+```
 
 ## Github refs
 
@@ -207,6 +224,16 @@ Verbatim contents of the Authorization header. See
 [GitHub documentation](https://developer.github.com/v3/#authentication) for
 details. This field is only used if `github_authorization.<repo-owner>` is not set.
 
+- `githubstatus.[].host`
+
+The GitHub host to send statuses to, such as a GitHub Enterprise server's
+`git.example.com`. Defaults to `github.com`. Statuses are only sent for flakes
+and inputs on this host: the `?host=` of a `github:` flake (github.com if it
+has none), the host of a `git+https://` or `git+ssh://` flake, or the host of
+a non-flake input's git URL.
+
+To send statuses to more than one host, add a `<githubstatus>` block for each.
+Note that matching is exact, including case.
 
 ### Example
 
@@ -217,6 +244,15 @@ details. This field is only used if `github_authorization.<repo-owner>` is not s
   #jobs = .*
   inputs = src
   authorization = Bearer gha-secret😱secret😱secret😱
+  excludeBuildFromContext = 1
+</githubstatus>
+
+## Statuses for the same jobs on a GitHub Enterprise server
+<githubstatus>
+  jobs = test:pr:build
+  inputs = src
+  host = git.example.com
+  authorization = Bearer ghe-secret😱secret😱secret😱
   excludeBuildFromContext = 1
 </githubstatus>
 ```

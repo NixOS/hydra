@@ -44,15 +44,49 @@ sub _iterate {
     _iterate($next, $auth, $pulls, $ua) unless $next eq "";
 }
 
+# Splits allowlist values from hydra.conf.
+sub toArray {
+    my ($val) = @_;
+    return () unless defined $val;
+    return map { split " ", $_ } (ref $val eq "ARRAY" ? @$val : ($val));
+}
+
 sub fetchInput {
     my ($self, $type, $name, $value, $project, $jobset) = @_;
     return undef if $type ne "githubpulls";
-    # TODO Allow filtering of some kind here?
-    (my $owner, my $repo) = split ' ', $value;
+
+    # Value is "OWNER REPO [HOST]"; HOST (e.g. git.example.com) selects a GHE API base.
+    my ($owner, $repo, $host, @extra) = split " ", ($value // "");
+    if (!defined $repo or @extra) {
+        die "githubpulls input `$name' must be 'OWNER REPO [HOST]', got '" . ($value // "") . "'\n";
+    }
+
+    my $hasHost = defined $host && $host ne "github.com";
+    my $resolvedHost = $hasHost ? $host : "github.com";
+
+    my $cfg = $self->{config}->{githubpulls};
+    my $conf = ref $cfg eq "HASH" ? $cfg : {};
+    my @allowedRepos = toArray($conf->{allowed_repos});
+    my @allowedHosts = toArray($conf->{allowed_hosts});
+
+    # The token is sent to this host, so any host but github.com must be allowlisted.
+    # Check it if allowed_hosts is set or the host isn't GitHub.
+    my $hostFound = grep { $_ eq $resolvedHost } @allowedHosts;
+    if ((scalar @allowedHosts > 0 or $hasHost) and not $hostFound) {
+        die "githubpulls input `$name': host '$resolvedHost' is not in githubpulls allowed_hosts in hydra.conf\n";
+    }
+
+    my $fullName = "$owner/$repo";
+    my $ownerWildcard = "$owner/*";
+    if (@allowedRepos and !grep { $_ eq $fullName or $_ eq $ownerWildcard } @allowedRepos) {
+        die "githubpulls input `$name': '$owner/$repo' is not in githubpulls allowed_repos in hydra.conf\n";
+    }
+
     my $auth = $self->{config}->{github_authorization}->{$owner};
+    my $apibase = $hasHost ? "https://$resolvedHost/api/v3" : "https://api.github.com";
     my %pulls;
     my $ua = LWP::UserAgent->new();
-    _iterate("https://api.github.com/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
+    _iterate("$apibase/repos/$owner/$repo/pulls?per_page=100", $auth, \%pulls, $ua);
     my $tempdir = File::Temp->newdir("github-pulls" . "XXXXX", TMPDIR => 1);
     my $filename = "$tempdir/github-pulls.json";
 
