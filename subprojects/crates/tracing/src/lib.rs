@@ -62,9 +62,7 @@ impl Drop for TracingGuard {
 #[cfg(feature = "otel")]
 fn init_tracer_provider()
 -> Result<opentelemetry_sdk::trace::SdkTracerProvider, opentelemetry_otlp::ExporterBuildError> {
-    let exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_tonic()
-        .build()?;
+    let exporter = opentelemetry_otlp::SpanExporter::builder().build()?;
 
     Ok(opentelemetry_sdk::trace::SdkTracerProvider::builder()
         .with_resource(resource())
