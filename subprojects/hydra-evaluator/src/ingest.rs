@@ -32,20 +32,98 @@ pub(crate) struct Member {
     pub repoint: bool,
 }
 
-/// Decide what to do about one job, queueing a build if it is new.
+/// The previous evaluation's build outputs by job, loaded in one query, to
+/// find the builds this evaluation inherits.
+struct Previous(HashMap<String, Vec<queries::PreviousOutput>>);
+
+impl Previous {
+    async fn load(
+        tx: &mut db::Transaction<'_>,
+        eval: Option<i32>,
+        jobset_id: i32,
+    ) -> eyre::Result<Self> {
+        let mut by_job: HashMap<String, Vec<queries::PreviousOutput>> = HashMap::new();
+        if let Some(eval) = eval {
+            for mut output in queries::get_eval_outputs(tx, eval, jobset_id).await? {
+                by_job
+                    .entry(std::mem::take(&mut output.job))
+                    .or_default()
+                    .push(output);
+            }
+        }
+        Ok(Self(by_job))
+    }
+
+    /// The build of this job matched on its first output's path, or on the
+    /// derivation when there is no path yet.
+    fn find(
+        &self,
+        job: &str,
+        output_name: &str,
+        output_path: Option<&str>,
+        drv_path: &str,
+    ) -> Option<&queries::PreviousOutput> {
+        self.0.get(job)?.iter().find(|o| {
+            o.name == output_name
+                && match output_path {
+                    Some(path) => o.path.as_deref() == Some(path),
+                    None => o.drvpath == drv_path,
+                }
+        })
+    }
+}
+
+/// What an evaluation found, gathered so it can be written in bulk.
+#[derive(Default)]
+struct Found<'j> {
+    /// Members inheriting a build from the previous evaluation.
+    inherited: Vec<Member>,
+    /// Builds to queue, each a new member once it has an id.
+    new: Vec<NewBuild<'j>>,
+    /// Inherited builds, still to be built and already finished.
+    cached_queued: Vec<i32>,
+    cached_finished: Vec<i32>,
+}
+
+impl Found<'_> {
+    /// Queue the new builds and announce every build, returning all members.
+    async fn write(
+        self,
+        tx: &mut db::Transaction<'_>,
+        jobset_id: i32,
+        eval_id: i32,
+    ) -> eyre::Result<Vec<Member>> {
+        let ids = queries::insert_builds(tx, jobset_id, &self.new)
+            .await
+            .wrap_err("failed to queue the evaluation's builds")?;
+        tx.notify_builds_queued(&ids).await?;
+        tx.notify_cached_builds_queued(eval_id, &self.cached_queued)
+            .await?;
+        tx.notify_cached_builds_finished(eval_id, &self.cached_finished)
+            .await?;
+        let mut members = self.inherited;
+        members.extend(self.new.iter().zip(ids).map(|(b, build)| Member {
+            build,
+            job: b.job.to_owned(),
+            is_new: true,
+            drv_path: b.drv_path.to_owned(),
+            repoint: false,
+        }));
+        Ok(members)
+    }
+}
+
+/// Decide what to do about one job: inherit a build from the previous
+/// evaluation, or queue a new one.
 ///
-/// Returns `None` when the job is a duplicate within this same evaluation --
-/// two attributes producing the same output path -- which is not an error and
-/// not a second build.
-async fn check_build<'j>(
-    tx: &mut db::Transaction<'_>,
-    jobset_id: i32,
-    eval: i32,
-    job: &'j Job,
-    prev_eval: Option<i32>,
+/// Two attributes in this same evaluation producing the same output are one
+/// build, so a job already in `seen` is skipped.
+fn check_build<'j>(
+    found: &mut Found<'j>,
     seen: &mut HashSet<String>,
-    outputs: &mut queries::NewOutputs<'j>,
-) -> eyre::Result<Option<Member>> {
+    previous: &Previous,
+    job: &'j Job,
+) -> eyre::Result<()> {
     let drv_path = job
         .drv_path
         .as_deref()
@@ -67,90 +145,55 @@ async fn check_build<'j>(
     // Note what this means when a jobset's sources go from A to B and back to
     // A: three builds, not two. That is deliberate -- the highest build id
     // must be the one that ends up in the channel.
-    if let Some(prev_eval) = prev_eval {
-        let previous = queries::find_build_in_eval(
-            tx,
-            prev_eval,
-            jobset_id,
-            &job.attr,
-            first_name,
-            first_path.as_deref(),
-            drv_path,
-        )
-        .await?;
+    if let Some(prev) = previous.find(&job.attr, first_name, first_path.as_deref(), drv_path) {
+        // Same output, different derivation: the build stands, but it
+        // should be pointed at the derivation this evaluation found.
+        // Applied after the evaluation's transaction, so that Builds rows
+        // are not locked for its whole duration.
+        let repoint = prev.drvpath != drv_path;
 
-        if let Some(previous) = previous {
-            // Same output, different derivation: the build stands, but it
-            // should be pointed at the derivation this evaluation found.
-            // Applied after the evaluation's transaction, so that Builds rows
-            // are not locked for its whole duration.
-            let repoint = previous.drvpath != drv_path;
-
-            if previous.finished != 0 && !repoint {
-                tx.notify_cached_build_finished(eval, previous.id).await?;
-            } else {
-                tx.notify_cached_build_queued(eval, previous.id).await?;
-            }
-
-            return Ok(Some(Member {
-                build: previous.id,
-                job: job.attr.clone(),
-                is_new: false,
-                drv_path: drv_path.to_owned(),
-                repoint,
-            }));
+        if prev.finished != 0 && !repoint {
+            found.cached_finished.push(prev.id);
+        } else {
+            found.cached_queued.push(prev.id);
         }
+
+        found.inherited.push(Member {
+            build: prev.id,
+            job: job.attr.clone(),
+            is_new: false,
+            drv_path: drv_path.to_owned(),
+            repoint,
+        });
+        return Ok(());
     }
 
-    // Two attributes in this same evaluation producing the same output are
-    // one build, not two.
     let key = format!(
         "{}\t{}",
         job.attr,
         first_path.as_deref().unwrap_or(drv_path)
     );
-    if seen.contains(&key) {
-        return Ok(None);
+    if !seen.insert(key) {
+        return Ok(());
     }
 
     let meta = &job.meta;
-    let build = queries::insert_build(
-        tx,
-        &NewBuild {
-            jobset_id,
-            job: &job.attr,
-            drv_path,
-            system: job.system.as_deref().unwrap_or_default(),
-            nix_name: job.name.as_deref().or(meta.name.as_deref()),
-            description: meta.description.as_deref(),
-            license: meta.license.as_deref(),
-            homepage: meta.homepage.as_deref(),
-            maintainers: meta.maintainers.as_deref(),
-            max_silent: meta.max_silent,
-            timeout: meta.timeout,
-            priority: meta.priority,
-            is_channel: meta.is_channel,
-        },
-    )
-    .await
-    .wrap_err_with(|| format!("failed to queue a build for `{}`", job.attr))?;
-
-    for (name, path) in &job.outputs {
-        outputs.builds.push(build);
-        outputs.names.push(name);
-        outputs.paths.push(path.as_deref());
-    }
-
-    seen.insert(key);
-    tx.notify_build_queued(build).await?;
-
-    Ok(Some(Member {
-        build,
-        job: job.attr.clone(),
-        is_new: true,
-        drv_path: drv_path.to_owned(),
-        repoint: false,
-    }))
+    found.new.push(NewBuild {
+        job: &job.attr,
+        drv_path,
+        system: job.system.as_deref().unwrap_or_default(),
+        nix_name: job.name.as_deref().or(meta.name.as_deref()),
+        description: meta.description.as_deref(),
+        license: meta.license.as_deref(),
+        homepage: meta.homepage.as_deref(),
+        maintainers: meta.maintainers.as_deref(),
+        max_silent: meta.max_silent,
+        timeout: meta.timeout,
+        priority: meta.priority,
+        is_channel: meta.is_channel,
+        outputs: &job.outputs,
+    });
+    Ok(())
 }
 
 /// What [`record`] wrote.
@@ -181,10 +224,9 @@ pub(crate) async fn record(
     let eval_id = queries::insert_eval(tx, eval, error_id).await?;
 
     let mut error = String::new();
-    let mut members: Vec<Member> = Vec::new();
+    let mut found = Found::default();
+    let previous = Previous::load(tx, prev_eval, jobset_id).await?;
     let mut seen = HashSet::new();
-    let mut outputs = queries::NewOutputs::default();
-
     for job in jobs {
         // A job that failed to evaluate is reported but not built. The
         // evaluation still happened; this is what it found.
@@ -195,23 +237,13 @@ pub(crate) async fn record(
                 format!("in job ‘{}’", job.attr)
             };
             let _ = write!(error, "{where_}:\n{message}\n\n");
-        } else if let Some(member) = check_build(
-            tx,
-            jobset_id,
-            eval_id,
-            job,
-            prev_eval,
-            &mut seen,
-            &mut outputs,
-        )
-        .await?
-        {
-            members.push(member);
+        } else {
+            check_build(&mut found, &mut seen, &previous, job)?;
         }
     }
-    if !outputs.builds.is_empty() {
-        queries::insert_build_outputs(tx, &outputs).await?;
-    }
+    drop(previous);
+
+    let members = found.write(tx, jobset_id, eval_id).await?;
 
     // Did this evaluation change anything? Either it queued something, or the
     // set of jobs is a different size than last time -- a job disappearing is

@@ -253,59 +253,58 @@ pub(crate) async fn get_eval_jobs(
 
 /// Point the jobset's `iscurrent` flags at this evaluation.
 ///
-/// In batches, outside the evaluation transaction: on a jobset with
-/// 100k builds this touches every row, and holding those locks for the
-/// evaluation's duration deadlocks against the queue runner finishing
-/// builds.
+/// Finds the rows to change once, then updates them in batches to keep each
+/// statement's locks short. A row that changed in between is skipped.
 pub(crate) async fn mark_current(
     conn: &mut db::Connection,
     jobset_id: i32,
     eval: i32,
-    batch: i32,
+    batch: usize,
 ) -> Result<(), sqlx::Error> {
-    // Loop until a batch changes nothing, which is when every row is in
-    // the state this evaluation says it should be.
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 1 WHERE id IN (
-              SELECT b.id FROM builds b
-              JOIN jobsetevalmembers m ON m.build = b.id
-              WHERE m.eval = $1 AND b.iscurrent = 0
-              ORDER BY b.id LIMIT $2)"#,
-            eval,
-            i64::from(batch),
+    let to_set = sqlx::query_scalar!(
+        r#"
+        SELECT b.id FROM builds b
+        JOIN jobsetevalmembers m ON m.build = b.id
+        WHERE m.eval = $1 AND b.iscurrent = 0
+        ORDER BY b.id"#,
+        eval,
+    )
+    .fetch_all(conn.raw())
+    .await?;
+    set_current(conn, &to_set, 1, batch).await?;
+
+    let to_clear = sqlx::query_scalar!(
+        r#"
+        SELECT b.id FROM builds b
+        WHERE b.jobset_id = $1 AND b.iscurrent = 1
+          AND NOT EXISTS (
+            SELECT 1 FROM jobsetevalmembers m
+            WHERE m.eval = $2 AND m.build = b.id)
+        ORDER BY b.id"#,
+        jobset_id,
+        eval,
+    )
+    .fetch_all(conn.raw())
+    .await?;
+    set_current(conn, &to_clear, 0, batch).await
+}
+
+/// Set `iscurrent` on these builds, a batch per statement.
+async fn set_current(
+    conn: &mut db::Connection,
+    ids: &[i32],
+    value: i32,
+    batch: usize,
+) -> Result<(), sqlx::Error> {
+    for chunk in ids.chunks(batch) {
+        sqlx::query!(
+            "UPDATE builds SET iscurrent = $1 WHERE id = ANY($2) AND iscurrent <> $1",
+            value,
+            chunk,
         )
         .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
+        .await?;
     }
-
-    loop {
-        let n = sqlx::query!(
-            r#"
-            UPDATE builds SET iscurrent = 0 WHERE id IN (
-              SELECT b.id FROM builds b
-              WHERE b.jobset_id = $1 AND b.iscurrent = 1
-                AND NOT EXISTS (
-                  SELECT 1 FROM jobsetevalmembers m
-                  WHERE m.eval = $2 AND m.build = b.id)
-              ORDER BY b.id LIMIT $3)"#,
-            jobset_id,
-            eval,
-            i64::from(batch),
-        )
-        .execute(conn.raw())
-        .await?
-        .rows_affected();
-        if n == 0 {
-            break;
-        }
-    }
-
     Ok(())
 }
 
@@ -598,19 +597,22 @@ pub(crate) struct PreviousEval {
     pub flake: Option<String>,
 }
 
-/// A build found in the previous evaluation of the same job.
+/// One output of a build in an earlier evaluation.
 #[derive(Debug)]
-pub(crate) struct PreviousBuild {
+pub(crate) struct PreviousOutput {
     pub id: i32,
+    pub job: String,
     pub finished: i32,
     pub drvpath: String,
+    pub name: String,
+    /// None for a content-addressed output not built yet.
+    pub path: Option<String>,
 }
 
 /// Everything needed to queue a build. The `meta` fields are all optional,
 /// because a jobset may set none of them.
 #[derive(Debug)]
 pub(crate) struct NewBuild<'a> {
-    pub jobset_id: i32,
     pub job: &'a str,
     pub drv_path: &'a str,
     pub system: &'a str,
@@ -623,6 +625,8 @@ pub(crate) struct NewBuild<'a> {
     pub timeout: Option<i32>,
     pub priority: i32,
     pub is_channel: i32,
+    /// Output name to path, as `nix-eval-jobs` reports them.
+    pub outputs: &'a std::collections::BTreeMap<String, Option<String>>,
 }
 
 /// The evaluation row, as it is first written: what was evaluated and with
@@ -807,89 +811,121 @@ pub(crate) async fn set_evaluation_error(
     Ok(())
 }
 
-/// A build of this job already present in the given evaluation, matched
-/// on its first output's path, or on the derivation when there is no
-/// path yet.
-pub(crate) async fn find_build_in_eval(
+/// Every output of every build of an evaluation, for the next one to match
+/// its jobs against.
+pub(crate) async fn get_eval_outputs(
     tx: &mut db::Transaction<'_>,
     eval: i32,
     jobset_id: i32,
-    job: &str,
-    output_name: &str,
-    output_path: Option<&str>,
-    drv_path: &str,
-) -> Result<Option<PreviousBuild>, sqlx::Error> {
+) -> Result<Vec<PreviousOutput>, sqlx::Error> {
     // The jobset constraint is implied by the evaluation, but stating it
-    // is worth a factor of a thousand on the nixpkgs jobset.
+    // lets the planner use the builds' jobset index.
     sqlx::query_as!(
-        PreviousBuild,
+        PreviousOutput,
         r#"
-        SELECT b.id, b.finished, b.drvpath
+        SELECT b.id, b.job, b.finished, b.drvpath, o.name, o.path as "path?"
         FROM jobsetevalmembers m
         JOIN builds b ON m.build = b.id
         JOIN buildoutputs o ON o.build = b.id
-        WHERE m.eval = $1 AND b.jobset_id = $2 AND b.job = $3
-          AND o.name = $4
-          AND (($5::text IS NULL AND b.drvpath = $6) OR o.path = $5)
-        LIMIT 1"#,
+        WHERE m.eval = $1 AND b.jobset_id = $2"#,
         eval,
         jobset_id,
-        job,
-        output_name,
-        output_path,
-        drv_path,
     )
-    .fetch_optional(tx.raw())
+    .fetch_all(tx.raw())
     .await
 }
 
-/// Add a build to the queue, returning its id.
-pub(crate) async fn insert_build(
+/// Queue builds with their outputs, returning their ids in the order given.
+/// `(job, drv_path)` must be unique among `builds`, which `ingest`'s dedup
+/// ensures.
+pub(crate) async fn insert_builds(
     tx: &mut db::Transaction<'_>,
-    build: &NewBuild<'_>,
-) -> Result<i32, sqlx::Error> {
-    let now = jiff::Timestamp::now().as_second();
+    jobset_id: i32,
+    builds: &[NewBuild<'_>],
+) -> Result<Vec<i32>, sqlx::Error> {
+    fn column<'b, 'a: 'b, T>(
+        builds: &'b [NewBuild<'a>],
+        f: impl Fn(&'b NewBuild<'a>) -> T,
+    ) -> Vec<T> {
+        builds.iter().map(f).collect()
+    }
 
-    Ok(sqlx::query!(
-        r#"
+    if builds.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Unchecked, like `insert_build_outputs`, because the checked macro
+    // takes no arrays with nulls in them.
+    let rows: Vec<(i32, String, String)> = sqlx::query_as(
+        r"
         INSERT INTO builds
           (timestamp, jobset_id, job, drvpath, system, nixname, description,
            license, homepage, maintainers, maxsilent, timeout, priority,
            finished, iscurrent, ischannel)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 0, 1, $14)
-        RETURNING id"#,
-        now,
-        build.jobset_id,
-        build.job,
-        build.drv_path,
-        build.system,
-        build.nix_name,
-        build.description,
-        build.license,
-        build.homepage,
-        build.maintainers,
-        build.max_silent,
-        build.timeout,
-        build.priority,
-        build.is_channel,
+        SELECT $1, $2, job, drvpath, system, nixname, description,
+               license, homepage, maintainers, maxsilent, timeout, priority,
+               0, 1, ischannel
+        FROM UNNEST($3::text[], $4::text[], $5::text[], $6::text[], $7::text[],
+                    $8::text[], $9::text[], $10::text[], $11::int[], $12::int[],
+                    $13::int[], $14::int[])
+          AS t(job, drvpath, system, nixname, description, license, homepage,
+               maintainers, maxsilent, timeout, priority, ischannel)
+        RETURNING id, job, drvpath",
     )
-    .fetch_one(tx.raw())
-    .await?
-    .id)
+    .bind(jiff::Timestamp::now().as_second())
+    .bind(jobset_id)
+    .bind(column(builds, |b| b.job))
+    .bind(column(builds, |b| b.drv_path))
+    .bind(column(builds, |b| b.system))
+    .bind(column(builds, |b| b.nix_name))
+    .bind(column(builds, |b| b.description))
+    .bind(column(builds, |b| b.license))
+    .bind(column(builds, |b| b.homepage))
+    .bind(column(builds, |b| b.maintainers))
+    .bind(column(builds, |b| b.max_silent))
+    .bind(column(builds, |b| b.timeout))
+    .bind(column(builds, |b| b.priority))
+    .bind(column(builds, |b| b.is_channel))
+    .fetch_all(tx.raw())
+    .await?;
+
+    // Postgres doesn't promise RETURNING follows the input order, so match
+    // the rows back to `builds` by key.
+    let index: std::collections::HashMap<(&str, &str), usize> = builds
+        .iter()
+        .enumerate()
+        .map(|(i, b)| ((b.job, b.drv_path), i))
+        .collect();
+    debug_assert_eq!(index.len(), builds.len(), "duplicate (job, drv_path)");
+    let mut ids = vec![0; builds.len()];
+    for (id, job, drv_path) in rows {
+        ids[index[&(job.as_str(), drv_path.as_str())]] = id;
+    }
+
+    let mut outputs = NewOutputs::default();
+    for (build, id) in builds.iter().zip(&ids) {
+        for (name, path) in build.outputs {
+            outputs.builds.push(*id);
+            outputs.names.push(name);
+            outputs.paths.push(path.as_deref());
+        }
+    }
+    insert_build_outputs(tx, &outputs).await?;
+    Ok(ids)
 }
 
 /// Outputs of the builds an evaluation queued, as parallel columns. Kept
 /// together so they can be written in one statement.
 #[derive(Debug, Default)]
-pub(crate) struct NewOutputs<'a> {
-    pub builds: Vec<i32>,
-    pub names: Vec<&'a str>,
-    pub paths: Vec<Option<&'a str>>,
+struct NewOutputs<'a> {
+    builds: Vec<i32>,
+    names: Vec<&'a str>,
+    paths: Vec<Option<&'a str>>,
 }
 
 /// Record the outputs of every build an evaluation queued, in one statement,
 /// because a row at a time dominates insertion time on a large jobset.
-pub(crate) async fn insert_build_outputs(
+async fn insert_build_outputs(
     tx: &mut db::Transaction<'_>,
     outputs: &NewOutputs<'_>,
 ) -> Result<(), sqlx::Error> {
@@ -909,6 +945,32 @@ pub(crate) async fn insert_build_outputs(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use super::NewBuild;
+
+    fn build<'a>(
+        job: &'a str,
+        drv_path: &'a str,
+        outputs: &'a BTreeMap<String, Option<String>>,
+    ) -> NewBuild<'a> {
+        NewBuild {
+            job,
+            drv_path,
+            system: "x86_64-linux",
+            nix_name: None,
+            description: None,
+            license: None,
+            homepage: None,
+            maintainers: None,
+            max_silent: None,
+            timeout: None,
+            priority: 100,
+            is_channel: 0,
+            outputs,
+        }
+    }
+
     #[tokio::test]
     async fn repoint_requeues_each_build_with_its_own_drv() {
         let (pg, pool) = test_utils::TestPg::new().await;
@@ -948,5 +1010,107 @@ mod tests {
                 (3, "new3.drv".to_owned(), 0, None),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn insert_builds_returns_each_builds_own_id() {
+        type Row = (
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<i32>,
+            Option<i32>,
+            i32,
+            i32,
+        );
+
+        let (pg, _pool) = test_utils::TestPg::new().await;
+        let db = db::Database::new(&pg.url(), 1).await.unwrap();
+        let mut conn = db.get().await.unwrap();
+        let mut tx = conn.begin_transaction().await.unwrap();
+        // Replica role skips the foreign keys, so no jobset is needed.
+        sqlx::query("SET session_replication_role = 'replica'")
+            .execute(tx.raw())
+            .await
+            .unwrap();
+
+        let a1_out = BTreeMap::from([("out".to_owned(), Some("/nix/store/a1".to_owned()))]);
+        // Content-addressed: no path yet.
+        let a2_out = BTreeMap::from([("out".to_owned(), None)]);
+        let b_out = BTreeMap::from([
+            ("dev".to_owned(), Some("/nix/store/b-dev".to_owned())),
+            ("out".to_owned(), Some("/nix/store/b".to_owned())),
+        ]);
+        let builds = [
+            NewBuild {
+                nix_name: Some("a-1"),
+                description: Some("desc"),
+                license: Some("mit"),
+                homepage: Some("https://a"),
+                maintainers: Some("alice"),
+                max_silent: Some(10),
+                timeout: Some(20),
+                priority: 5,
+                is_channel: 1,
+                ..build("a", "a1.drv", &a1_out)
+            },
+            // Same job, other derivation: a build of its own.
+            build("a", "a2.drv", &a2_out),
+            build("b", "b.drv", &b_out),
+        ];
+        let ids = super::insert_builds(&mut tx, 1, &builds).await.unwrap();
+
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT job, drvpath, nixname, description, license, homepage,
+                    maintainers, maxsilent, timeout, priority, ischannel
+             FROM builds WHERE id = ANY($1) ORDER BY array_position($1, id)",
+        )
+        .bind(&ids)
+        .fetch_all(tx.raw())
+        .await
+        .unwrap();
+        let s = |s: &str| Some(s.to_owned());
+        let none = |job: &str, drv: &str| {
+            let (job, drv) = (job.to_owned(), drv.to_owned());
+            (job, drv, None, None, None, None, None, None, None, 100, 0)
+        };
+        assert_eq!(
+            rows,
+            [
+                (
+                    "a".to_owned(),
+                    "a1.drv".to_owned(),
+                    s("a-1"),
+                    s("desc"),
+                    s("mit"),
+                    s("https://a"),
+                    s("alice"),
+                    Some(10),
+                    Some(20),
+                    5,
+                    1,
+                ),
+                none("a", "a2.drv"),
+                none("b", "b.drv"),
+            ]
+        );
+
+        let outputs: Vec<(i32, String, Option<String>)> =
+            sqlx::query_as("SELECT build, name, path FROM buildoutputs ORDER BY build, name")
+                .fetch_all(tx.raw())
+                .await
+                .unwrap();
+        let mut expected = vec![
+            (ids[0], "out".to_owned(), s("/nix/store/a1")),
+            (ids[1], "out".to_owned(), None),
+            (ids[2], "dev".to_owned(), s("/nix/store/b-dev")),
+            (ids[2], "out".to_owned(), s("/nix/store/b")),
+        ];
+        expected.sort();
+        assert_eq!(outputs, expected);
     }
 }
