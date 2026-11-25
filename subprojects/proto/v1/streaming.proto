@@ -250,6 +250,10 @@ message PresignedUpload {
   int32 compression_level = 4;
   // Set on the NAR upload when the object needs multipart; `url` is then unused.
   optional MultipartUpload multipart = 5;
+  // If not 0, write a zstd NAR in the seekable format with this minimum frame
+  // size in bytes. Set only on the NAR upload. A builder that does not know
+  // this field writes one zstd frame, which is also valid.
+  uint64 seekable_min_frame_size = 6;
 }
 
 message MultipartPart {
