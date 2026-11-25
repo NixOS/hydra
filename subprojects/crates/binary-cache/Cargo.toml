@@ -21,6 +21,7 @@ async-compression = { workspace = true, features = [
     "bzip2",
     "brotli",
     "zstd",
+    "zstdmt",
 ] }
 backon.workspace = true
 configparser.workspace = true

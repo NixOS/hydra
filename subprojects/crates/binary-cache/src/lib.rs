@@ -152,6 +152,8 @@ pub enum CacheError {
     PathNotFound { path: String },
     #[error("Configuration error: {message}")]
     ConfigurationError { message: String },
+    #[error("task failed: {0}")]
+    Join(#[from] tokio::task::JoinError),
     #[error("{0}")]
     Other(String),
 }
@@ -176,6 +178,8 @@ pub struct S3BinaryCacheClient {
     multipart: multipart::MultipartPresigner,
 }
 
+const COPY_PATHS_CONCURRENCY: usize = 10;
+
 #[tracing::instrument(skip(stream, chunk), err)]
 async fn read_chunk_async<S: tokio::io::AsyncRead + Unpin + Send>(
     stream: &mut S,
@@ -194,43 +198,48 @@ async fn read_chunk_async<S: tokio::io::AsyncRead + Unpin + Send>(
     Ok(chunk.freeze())
 }
 
-#[tracing::instrument(skip(upload_item, first_chunk, stream), err)]
+/// Stream `stream` to S3 as a multipart upload, aborting it on error.
+/// Parts upload on their own tasks while the next chunk is read and
+/// compressed.
+#[tracing::instrument(skip(upload, first_chunk, stream), err)]
 async fn run_multipart_upload(
-    upload_item: &mut Box<dyn object_store::MultipartUpload>,
+    upload: Box<dyn object_store::MultipartUpload>,
     first_chunk: Bytes,
+    stream: &mut (dyn tokio::io::AsyncRead + Unpin + Send),
+    buffer_size: usize,
+) -> Result<usize, CacheError> {
+    let mut writer = object_store::WriteMultipart::new_with_chunk_size(upload, buffer_size);
+    match write_parts(&mut writer, first_chunk, stream, buffer_size).await {
+        Ok(file_size) => {
+            // Aborts the upload itself if a part or the completion fails.
+            writer.finish().await?;
+            Ok(file_size)
+        }
+        Err(e) => {
+            tracing::warn!("Upload was interrupted - Aborting multipart upload: {e}");
+            if let Err(abort_err) = writer.abort().await {
+                tracing::warn!("Failed to abort multipart upload: {abort_err}");
+            }
+            Err(e)
+        }
+    }
+}
+
+async fn write_parts(
+    writer: &mut object_store::WriteMultipart,
+    mut chunk: Bytes,
     mut stream: &mut (dyn tokio::io::AsyncRead + Unpin + Send),
     buffer_size: usize,
 ) -> Result<usize, CacheError> {
-    let mut part_number = 1;
-    let mut first_chunk_opt = Some(first_chunk);
     let mut file_size = 0;
-
-    loop {
-        let chunk = if part_number == 1
-            && let Some(first_chunk) = first_chunk_opt.take()
-        {
-            first_chunk
-        } else {
-            let buf = bytes::BytesMut::with_capacity(buffer_size);
-            read_chunk_async(&mut stream, buf).await?
-        };
+    while !chunk.is_empty() {
         file_size += chunk.len();
-
-        if chunk.is_empty() {
-            break;
-        }
-
-        tracing::debug!("Uploading part {} with size {}", part_number, chunk.len());
-        upload_item.put_part(chunk.into()).await?;
-        part_number += 1;
+        writer
+            .wait_for_capacity(presigned::PART_UPLOAD_CONCURRENCY)
+            .await?;
+        writer.put(chunk);
+        chunk = read_chunk_async(&mut stream, bytes::BytesMut::with_capacity(buffer_size)).await?;
     }
-
-    tracing::debug!(
-        "Completing multipart upload with {} parts, total size: {}",
-        part_number,
-        file_size
-    );
-    upload_item.complete().await?;
     Ok(file_size)
 }
 
@@ -543,7 +552,7 @@ impl S3BinaryCacheClient {
             "Starting multipart upload for large file, first chunk size: {}",
             first_chunk_len
         );
-        let mut multipart_upload = self
+        let multipart_upload = self
             .s3
             .put_multipart_opts(
                 &object_store::path::Path::from(name),
@@ -566,34 +575,17 @@ impl S3BinaryCacheClient {
                 },
             )
             .await?;
-        match run_multipart_upload(
-            &mut multipart_upload,
-            first_chunk,
-            stream,
-            self.cfg.buffer_size,
-        )
-        .await
-        {
-            Ok(file_size) => {
-                let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
-                self.s3_stats
-                    .put_time_ms
-                    .fetch_add(elapsed, Ordering::Relaxed);
-                self.s3_stats.put.fetch_add(1, Ordering::Relaxed);
-                self.s3_stats
-                    .put_bytes
-                    .fetch_add(file_size as u64, Ordering::Relaxed);
-            }
-            Err(e) => {
-                tracing::warn!("Upload was interrupted - Aborting multipart upload: {e}");
-
-                if let Err(abort_err) = multipart_upload.abort().await {
-                    tracing::warn!("Failed to abort multipart upload: {abort_err}");
-                }
-
-                return Err(e);
-            }
-        }
+        let file_size =
+            run_multipart_upload(multipart_upload, first_chunk, stream, self.cfg.buffer_size)
+                .await?;
+        let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or_default();
+        self.s3_stats
+            .put_time_ms
+            .fetch_add(elapsed, Ordering::Relaxed);
+        self.s3_stats.put.fetch_add(1, Ordering::Relaxed);
+        self.s3_stats
+            .put_bytes
+            .fetch_add(file_size as u64, Ordering::Relaxed);
 
         Ok(())
     }
@@ -728,17 +720,25 @@ impl S3BinaryCacheClient {
         paths: Vec<harmonia_store_path_info::ValidPathInfo>,
         repair: bool,
     ) -> Result<(), CacheError> {
-        use futures::stream::StreamExt as _;
-
-        let mut stream = tokio_stream::iter(paths)
-            .map(|vpi| async move {
+        // One task per path so compression runs on separate worker threads
+        // instead of interleaving on this one. Dropping the set on error
+        // aborts the remaining copies.
+        let mut copies = tokio::task::JoinSet::new();
+        for vpi in paths {
+            if copies.len() >= COPY_PATHS_CONCURRENCY
+                && let Some(res) = copies.join_next().await
+            {
+                res??;
+            }
+            let this = self.clone();
+            let store_dir = store_dir.clone();
+            copies.spawn(async move {
                 tracing::debug!("copying path {} to s3 binary cache.", vpi.path);
-                self.copy_path(store_dir, &vpi, repair).await
-            })
-            .buffered(10);
-
-        while let Some(v) = tokio_stream::StreamExt::next(&mut stream).await {
-            v?;
+                this.copy_path(&store_dir, &vpi, repair).await
+            });
+        }
+        while let Some(res) = copies.join_next().await {
+            res??;
         }
 
         Ok(())
@@ -1064,6 +1064,7 @@ impl S3BinaryCacheClient {
                 path: s3_file_path,
                 compression: self.cfg.ls_compression,
                 compression_level: self.cfg.get_compression_level(),
+                parallel_compression: false,
                 multipart: None,
             })
         } else {
@@ -1093,6 +1094,7 @@ impl S3BinaryCacheClient {
                             path: s3_file_path,
                             compression: Compression::None,
                             compression_level: async_compression::Level::Default,
+                            parallel_compression: false,
                             multipart: None,
                         }))
                     }
@@ -1117,6 +1119,7 @@ impl S3BinaryCacheClient {
                 url: String::new(),
                 compression: self.cfg.compression,
                 compression_level: self.cfg.get_compression_level(),
+                parallel_compression: self.cfg.parallel_compression,
                 multipart: Some(multipart),
             },
             ls_upload,
