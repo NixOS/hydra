@@ -1682,6 +1682,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hostname"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "617aaa3557aef3810a6369d0a99fac8a080891b68bd9f9812a1eeda0c0730cbd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-link",
+]
+
+[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1961,6 +1972,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-http",
  "opentelemetry-otlp",
+ "opentelemetry-resource-detectors",
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
  "thiserror",
@@ -2881,6 +2893,18 @@ dependencies = [
  "prost",
  "tonic",
  "tonic-prost",
+]
+
+[[package]]
+name = "opentelemetry-resource-detectors"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfe8108824d824e717166f131c9d3d7e23fa268bc3b989dbf48343da9bde54a3"
+dependencies = [
+ "hostname",
+ "opentelemetry",
+ "opentelemetry-semantic-conventions",
+ "opentelemetry_sdk",
 ]
 
 [[package]]
