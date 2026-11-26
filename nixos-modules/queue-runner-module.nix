@@ -15,6 +15,35 @@ let
   format = pkgs.formats.toml { };
 
   otel = import ./otel.nix { inherit lib; };
+
+  # systemd passes the signing keys in as credentials, so only the queue
+  # runner can read them. Every store URI it uploads to gets their paths.
+  signingKeys = lib.imap0 (i: file: {
+    name = "signing-key-${toString i}";
+    inherit file;
+  }) cfg.signingKeyFiles;
+  secretKeysParam =
+    "secret-keys="
+    + lib.concatMapStringsSep "," (
+      k: "/run/credentials/hydra-queue-runner-dev.service/${k.name}"
+    ) signingKeys;
+  withSigningKeys =
+    uri:
+    if signingKeys == [ ] then
+      uri
+    else
+      "${uri}${if lib.hasInfix "?" uri then "&" else "?"}${secretKeysParam}";
+
+  settings =
+    cfg.settings
+    // {
+      remoteStoreAddr = map withSigningKeys cfg.settings.remoteStoreAddr;
+    }
+    // lib.optionalAttrs (cfg.settings.overflowStore != null) {
+      overflowStore = cfg.settings.overflowStore // {
+        store = withSigningKeys cfg.settings.overflowStore.store;
+      };
+    };
 in
 {
   options = {
@@ -295,6 +324,29 @@ in
         '';
       };
 
+      signingKeyFiles = lib.mkOption {
+        # Not a Nix path, which would copy the key into the store.
+        type = lib.types.listOf (
+          lib.types.pathWith {
+            inStore = false;
+            absolute = true;
+          }
+        );
+        default = [ ];
+        example = [ "/run/secrets/cache-1.sk" ];
+        description = ''
+          Secret keys the queue runner signs its uploads to
+          `settings.remoteStoreAddr` and `settings.overflowStore` with. Only
+          binary cache stores such as `s3://` sign. `ssh://` and local stores
+          ignore the keys.
+
+          systemd passes them in as credentials, so the files should be owned
+          by root with mode 0400. `secret-key` in the store URI would need the
+          file to be readable by `hydra-queue-runner`, which `hydra-notify`
+          and its RunCommand hooks also run as.
+        '';
+      };
+
       awsCredentialsFile = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
@@ -324,6 +376,19 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        # The queue runner would only use one of two `secret-keys` parameters.
+        assertion =
+          cfg.signingKeyFiles == [ ]
+          || lib.all (uri: !lib.hasInfix "secret-keys=" uri) (
+            cfg.settings.remoteStoreAddr
+            ++ lib.optional (cfg.settings.overflowStore != null) cfg.settings.overflowStore.store
+          );
+        message = "`services.hydra-queue-runner-dev.signingKeyFiles` can't be combined with `secret-keys=` in a store URI. Move those keys into `signingKeyFiles`.";
+      }
+    ];
+
     systemd.services.hydra-queue-runner-dev = {
       # Hydra names every program it runs by its own variable, never by
       # `PATH`; see the `hydra-programs` crate.
@@ -389,6 +454,7 @@ in
           ]
         );
         ExecReload = "${pkgs.util-linux}/bin/kill -HUP $MAINPID";
+        LoadCredential = map (k: "${k.name}:${k.file}") signingKeys;
 
         User = user;
         Group = "hydra";
@@ -476,7 +542,7 @@ in
     };
 
     environment.etc."hydra/queue-runner.toml".source = format.generate "queue-runner.toml" (
-      lib.filterAttrsRecursive (_: v: v != null) cfg.settings
+      lib.filterAttrsRecursive (_: v: v != null) settings
     );
     systemd.tmpfiles.rules = [
       "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"

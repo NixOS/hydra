@@ -178,10 +178,18 @@ in
       '';
 
       services.hydra-queue-runner-dev = {
-        settings.remoteStoreAddr = [ "${s3StoreUri}&secret-key=${cacheKey}" ];
+        settings.remoteStoreAddr = [ s3StoreUri ];
+        signingKeyFiles = [ "/etc/hydra/cache-1.sk" ];
         settings.usePresignedUploads = presigned;
         settings.forcedSubstituters = lib.optionals presigned [ s3StoreUri ];
         awsCredentialsFile = "/var/lib/hydra/queue-runner/.aws-credentials";
+      };
+
+      # Owned by root with mode 0400. The queue runner gets it as a systemd
+      # credential.
+      environment.etc."hydra/cache-1.sk" = {
+        source = cacheKey;
+        mode = "0400";
       };
 
       environment.systemPackages = [ pkgs.jq ];
@@ -356,6 +364,7 @@ in
     )
 
     # The uploaded narinfo must contain the builder's and the cache's signature (#1914).
+    # The cache key is root-only, so its signature proves the credential works.
     narinfo = server.wait_until_succeeds(s3_curl(f"{store_hash}.narinfo"), timeout=60)
     sig_names = {
         l.split()[1].split(":")[0] for l in narinfo.splitlines() if l.startswith("Sig:")
