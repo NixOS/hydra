@@ -3,6 +3,8 @@ use tracing_subscriber::layer::SubscriberExt as _;
 
 #[cfg(feature = "otel")]
 use opentelemetry::trace::TracerProvider as _;
+#[cfg(feature = "otel")]
+use opentelemetry_resource_detectors::{HostResourceDetector, ProcessResourceDetector};
 
 #[cfg(feature = "tonic")]
 pub mod propagate;
@@ -33,6 +35,10 @@ fn resource() -> opentelemetry_sdk::Resource {
             )],
             opentelemetry_semantic_conventions::SCHEMA_URL,
         )
+        .with_detectors(&[
+            Box::new(HostResourceDetector::default()),
+            Box::new(ProcessResourceDetector {}),
+        ])
         .build()
 }
 
@@ -62,9 +68,7 @@ impl Drop for TracingGuard {
 #[cfg(feature = "otel")]
 fn init_tracer_provider()
 -> Result<opentelemetry_sdk::trace::SdkTracerProvider, opentelemetry_otlp::ExporterBuildError> {
-    let exporter = opentelemetry_otlp::SpanExporter::builder()
-        .with_tonic()
-        .build()?;
+    let exporter = opentelemetry_otlp::SpanExporter::builder().build()?;
 
     Ok(opentelemetry_sdk::trace::SdkTracerProvider::builder()
         .with_resource(resource())

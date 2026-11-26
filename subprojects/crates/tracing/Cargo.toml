@@ -22,6 +22,7 @@ tonic = { workspace = true, optional = true }
 opentelemetry                      = { workspace = true, optional = true }
 opentelemetry-http                 = { workspace = true, optional = true }
 opentelemetry-otlp                 = { workspace = true, optional = true, features = [ "grpc-tonic" ] }
+opentelemetry-resource-detectors   = { workspace = true, optional = true }
 opentelemetry-semantic-conventions = { workspace = true, optional = true }
 opentelemetry_sdk                  = { workspace = true, features = [ "rt-tokio" ], optional = true }
 tracing-opentelemetry              = { workspace = true, optional = true }
@@ -32,6 +33,7 @@ otel = [
     "opentelemetry_sdk",
     "opentelemetry-otlp",
     "opentelemetry-http",
+    "opentelemetry-resource-detectors",
     "opentelemetry-semantic-conventions",
     "tracing-opentelemetry",
 ]
