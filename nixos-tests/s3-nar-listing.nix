@@ -192,6 +192,12 @@ in
         mode = "0400";
       };
 
+      # The garage key only exists at runtime. Until the test writes it, an
+      # empty file lets the queue runner start without S3 credentials.
+      systemd.tmpfiles.rules = [
+        "f /var/lib/hydra/queue-runner/.aws-credentials 0400 root root -"
+      ];
+
       environment.systemPackages = [ pkgs.jq ];
     };
 
@@ -245,15 +251,14 @@ in
         f"garage bucket allow hydra-cache --read --write --owner --key {key_id}"
     )
 
-    # Write AWS credentials before starting the queue-runner.
+    # Replace the empty AWS credentials file and restart the queue runner.
     # Uses /var/lib/hydra/ (persistent) rather than /run/ (wiped on restart).
     creds_path = "/var/lib/hydra/queue-runner/.aws-credentials"
     server.wait_for_unit("hydra-init.service")
     server.succeed(
         f"mkdir -p /var/lib/hydra/queue-runner && "
         f"printf '[default]\\naws_access_key_id = {key_id}\\naws_secret_access_key = {key_secret}\\n' > {creds_path} && "
-        f"chown hydra-queue-runner:hydra {creds_path} && "
-        f"chmod 600 {creds_path}"
+        f"chmod 400 {creds_path}"
     )
     server.succeed("systemctl restart hydra-queue-runner-dev.service")
     server.wait_for_unit("hydra-queue-runner-dev.service")

@@ -16,17 +16,15 @@ let
 
   otel = import ./otel.nix { inherit lib; };
 
-  # systemd passes the signing keys in as credentials, so only the queue
-  # runner can read them. Every store URI it uploads to gets their paths.
+  # systemd passes secrets in as credentials, so only the queue runner can
+  # read them. Every store URI it uploads to gets the signing keys' paths.
+  credentialsDir = "/run/credentials/hydra-queue-runner-dev.service";
   signingKeys = lib.imap0 (i: file: {
     name = "signing-key-${toString i}";
     inherit file;
   }) cfg.signingKeyFiles;
   secretKeysParam =
-    "secret-keys="
-    + lib.concatMapStringsSep "," (
-      k: "/run/credentials/hydra-queue-runner-dev.service/${k.name}"
-    ) signingKeys;
+    "secret-keys=" + lib.concatMapStringsSep "," (k: "${credentialsDir}/${k.name}") signingKeys;
   withSigningKeys =
     uri:
     if signingKeys == [ ] then
@@ -348,13 +346,20 @@ in
       };
 
       awsCredentialsFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+        # Not a Nix path, which would copy the credentials into the store.
+        type = lib.types.nullOr (
+          lib.types.pathWith {
+            inStore = false;
+            absolute = true;
+          }
+        );
         default = null;
         description = ''
-          Path to an AWS credentials file. When set, the
-          `AWS_SHARED_CREDENTIALS_FILE` environment variable is passed to the
-          queue runner so that the AWS SDK finds credentials without relying
-          on the EC2 instance metadata service (IMDS).
+          Path to an AWS credentials file. When set, the AWS SDK reads its
+          credentials from it instead of the EC2 instance metadata service
+          (IMDS). systemd passes it in as a credential, so the file should be
+          owned by root with mode 0400. It must exist when the queue runner
+          starts, or the service fails.
         '';
       };
 
@@ -421,7 +426,7 @@ in
       }
       // hydraPrograms.envFor { } hydraPrograms.programs.hydra-queue-runner
       // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
-        AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
+        AWS_SHARED_CREDENTIALS_FILE = "${credentialsDir}/aws-credentials";
       }
       // otel.otelEnv cfg.otel;
 
@@ -454,7 +459,9 @@ in
           ]
         );
         ExecReload = "${pkgs.util-linux}/bin/kill -HUP $MAINPID";
-        LoadCredential = map (k: "${k.name}:${k.file}") signingKeys;
+        LoadCredential =
+          map (k: "${k.name}:${k.file}") signingKeys
+          ++ lib.optional (cfg.awsCredentialsFile != null) "aws-credentials:${cfg.awsCredentialsFile}";
 
         User = user;
         Group = "hydra";
