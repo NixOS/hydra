@@ -15,6 +15,33 @@ let
   format = pkgs.formats.toml { };
 
   otel = import ./otel.nix { inherit lib; };
+
+  # systemd passes secrets in as credentials, so only the queue runner can
+  # read them. Every store URI it uploads to gets the signing keys' paths.
+  credentialsDir = "/run/credentials/hydra-queue-runner-dev.service";
+  signingKeys = lib.imap0 (i: file: {
+    name = "signing-key-${toString i}";
+    inherit file;
+  }) cfg.signingKeyFiles;
+  secretKeysParam =
+    "secret-keys=" + lib.concatMapStringsSep "," (k: "${credentialsDir}/${k.name}") signingKeys;
+  withSigningKeys =
+    uri:
+    if signingKeys == [ ] then
+      uri
+    else
+      "${uri}${if lib.hasInfix "?" uri then "&" else "?"}${secretKeysParam}";
+
+  settings =
+    cfg.settings
+    // {
+      remoteStoreAddr = map withSigningKeys cfg.settings.remoteStoreAddr;
+    }
+    // lib.optionalAttrs (cfg.settings.overflowStore != null) {
+      overflowStore = cfg.settings.overflowStore // {
+        store = withSigningKeys cfg.settings.overflowStore.store;
+      };
+    };
 in
 {
   options = {
@@ -295,14 +322,44 @@ in
         '';
       };
 
+      signingKeyFiles = lib.mkOption {
+        # Not a Nix path, which would copy the key into the store.
+        type = lib.types.listOf (
+          lib.types.pathWith {
+            inStore = false;
+            absolute = true;
+          }
+        );
+        default = [ ];
+        example = [ "/run/secrets/cache-1.sk" ];
+        description = ''
+          Secret keys the queue runner signs its uploads to
+          `settings.remoteStoreAddr` and `settings.overflowStore` with. Only
+          binary cache stores such as `s3://` sign. `ssh://` and local stores
+          ignore the keys.
+
+          systemd passes them in as credentials, so the files should be owned
+          by root with mode 0400. `secret-key` in the store URI would need the
+          file to be readable by `hydra-queue-runner`, which `hydra-notify`
+          and its RunCommand hooks also run as.
+        '';
+      };
+
       awsCredentialsFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+        # Not a Nix path, which would copy the credentials into the store.
+        type = lib.types.nullOr (
+          lib.types.pathWith {
+            inStore = false;
+            absolute = true;
+          }
+        );
         default = null;
         description = ''
-          Path to an AWS credentials file. When set, the
-          `AWS_SHARED_CREDENTIALS_FILE` environment variable is passed to the
-          queue runner so that the AWS SDK finds credentials without relying
-          on the EC2 instance metadata service (IMDS).
+          Path to an AWS credentials file. When set, the AWS SDK reads its
+          credentials from it instead of the EC2 instance metadata service
+          (IMDS). systemd passes it in as a credential, so the file should be
+          owned by root with mode 0400. It must exist when the queue runner
+          starts, or the service fails.
         '';
       };
 
@@ -324,6 +381,19 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        # The queue runner would only use one of two `secret-keys` parameters.
+        assertion =
+          cfg.signingKeyFiles == [ ]
+          || lib.all (uri: !lib.hasInfix "secret-keys=" uri) (
+            cfg.settings.remoteStoreAddr
+            ++ lib.optional (cfg.settings.overflowStore != null) cfg.settings.overflowStore.store
+          );
+        message = "`services.hydra-queue-runner-dev.signingKeyFiles` can't be combined with `secret-keys=` in a store URI. Move those keys into `signingKeyFiles`.";
+      }
+    ];
+
     systemd.services.hydra-queue-runner-dev = {
       # Hydra names every program it runs by its own variable, never by
       # `PATH`; see the `hydra-programs` crate.
@@ -356,7 +426,7 @@ in
       }
       // hydraPrograms.envFor { } hydraPrograms.programs.hydra-queue-runner
       // lib.optionalAttrs (cfg.awsCredentialsFile != null) {
-        AWS_SHARED_CREDENTIALS_FILE = cfg.awsCredentialsFile;
+        AWS_SHARED_CREDENTIALS_FILE = "${credentialsDir}/aws-credentials";
       }
       // otel.otelEnv cfg.otel;
 
@@ -389,6 +459,9 @@ in
           ]
         );
         ExecReload = "${pkgs.util-linux}/bin/kill -HUP $MAINPID";
+        LoadCredential =
+          map (k: "${k.name}:${k.file}") signingKeys
+          ++ lib.optional (cfg.awsCredentialsFile != null) "aws-credentials:${cfg.awsCredentialsFile}";
 
         User = user;
         Group = "hydra";
@@ -476,7 +549,7 @@ in
     };
 
     environment.etc."hydra/queue-runner.toml".source = format.generate "queue-runner.toml" (
-      lib.filterAttrsRecursive (_: v: v != null) cfg.settings
+      lib.filterAttrsRecursive (_: v: v != null) settings
     );
     systemd.tmpfiles.rules = [
       "d /nix/var/nix/gcroots/per-user/${user} 0755 ${user} hydra -"

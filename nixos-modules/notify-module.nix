@@ -80,6 +80,10 @@ in
         # Move log compression into the queue-runner, then give
         # hydra-notify its own user again.
         User = "hydra-queue-runner";
+        # The same user can read the queue runner's systemd credentials,
+        # so hide them from hydra-notify and its RunCommand hooks. Not
+        # needed once it has its own user.
+        InaccessiblePaths = [ "-/run/credentials/hydra-queue-runner-dev.service" ];
         Restart = "always";
         RestartSec = 5;
       };

@@ -74,11 +74,19 @@ Populating a Cache
 
 A common use for Hydra is to pre-build and cache derivations which take a long time to build.
 While it is possible to direcly access the Hydra server's store over SSH, a more scalable option is to upload built derivations to a remote store like an [S3-compatible object store](https://nixos.org/manual/nix/stable/command-ref/new-cli/nix3-help-stores.html#s3-binary-cache-store).
-Setting the `store_uri` parameter will cause Hydra to sign and upload derivations as they are built:
+The queue runner signs and uploads build outputs to the stores in `remoteStoreAddr`, as they are built:
 
+```nix
+services.hydra-queue-runner-dev = {
+  settings.remoteStoreAddr = [
+    "s3://cache-bucket-name?compression=zstd&parallel-compression=true&write-nar-listing=1&ls-compression=br&log-compression=br"
+  ];
+  signingKeyFiles = [ "/path/to/cache/private/key" ];
+};
 ```
-store_uri = s3://cache-bucket-name?compression=zstd&parallel-compression=true&write-nar-listing=1&ls-compression=br&log-compression=br&secret-key=/path/to/cache/private/key
-```
+
+`signingKeyFiles` passes the keys to the queue runner as systemd credentials, so the key files should be owned by root with mode 0400.
+Don't make them readable by any Hydra user or the `hydra` group, because the evaluator, the web app and `hydra-notify` with its RunCommand hooks run as those.
 
 This example uses [Zstandard](https://github.com/facebook/zstd) compression on derivations to reduce CPU usage on the server, but [Brotli](https://brotli.org/) compression for derivation listings and build logs because it has better browser support.
 

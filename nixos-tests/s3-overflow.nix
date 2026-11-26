@@ -15,6 +15,9 @@ let
   s3StoreUri = "s3://hydra-cache?compression=none&endpoint=http://s3:${toString garagePort}&region=garage&scheme=http&write-nar-listing=1";
   overflowStoreUri = "s3://hydra-overflow?compression=none&endpoint=http://s3:${toString garagePort}&region=garage&scheme=http&write-nar-listing=1";
 
+  # Root-only test key, to check the overflow store is signed too.
+  cacheKey = pkgs.writeText "cache-1.sk" "cache-1:NrvFOHmwiZHlSCglebVOC5xj2HIPTw6bPM+gpxYzk8uxOuxG75PyOw5jJZ+OS0nF21hZiRvK/pEk/KIx3qSMGQ==";
+
   rpcSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
   trivialExpr = ''
@@ -106,7 +109,19 @@ in
           jobsets = [ "test:overflow" ];
         };
         awsCredentialsFile = "/var/lib/hydra/queue-runner/.aws-credentials";
+        signingKeyFiles = [ "/etc/hydra/cache-1.sk" ];
       };
+
+      environment.etc."hydra/cache-1.sk" = {
+        source = cacheKey;
+        mode = "0400";
+      };
+
+      # The garage key only exists at runtime. Until the test writes it, an
+      # empty file lets the queue runner start without S3 credentials.
+      systemd.tmpfiles.rules = [
+        "f /var/lib/hydra/queue-runner/.aws-credentials 0400 root root -"
+      ];
 
       environment.systemPackages = [ pkgs.jq ];
     };
@@ -169,8 +184,7 @@ in
     server.succeed(
         f"mkdir -p /var/lib/hydra/queue-runner && "
         f"printf '[default]\\naws_access_key_id = {key_id}\\naws_secret_access_key = {key_secret}\\n' > {creds_path} && "
-        f"chown hydra-queue-runner:hydra {creds_path} && "
-        f"chmod 600 {creds_path}"
+        f"chmod 400 {creds_path}"
     )
     server.succeed("systemctl restart hydra-queue-runner-dev.service")
     server.wait_for_unit("hydra-queue-runner-dev.service")
@@ -239,10 +253,13 @@ in
     build1 = wait_build(1)
     trivial_hash = build1["buildoutputs"]["out"]["path"].split("/")[-1][:32]
 
-    server.wait_until_succeeds(
+    overflow_narinfo = server.wait_until_succeeds(
         s3_curl("hydra-overflow", f"{trivial_hash}.narinfo"), timeout=60
     )
     server.fail(s3_curl("hydra-cache", f"{trivial_hash}.narinfo"))
+    assert "Sig: cache-1:" in overflow_narinfo, (
+        f"overflow narinfo is not signed:\n{overflow_narinfo}"
+    )
 
     # trivial2 references trivial, forcing a copy to the default bucket.
     make_jobset("main", "${jobFile2}")
